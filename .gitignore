@@ -1,0 +1,6 @@
+# .gitignore
+
+# Ignore credentials folder
+/node_modules
+/.next
+.env
