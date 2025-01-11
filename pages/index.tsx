@@ -1,69 +1,45 @@
 // pages/index.tsx
 
-import React from 'react';
-import { getSession } from 'next-auth/react';
 import { GetServerSideProps } from 'next';
-import { initializeServiceAccountApis, listProjectOverviewFiles, findReferenceLog, fetchReferenceOfSubsidiaryNames } from '../lib/server/googleAPI';
-import { makeStyles, Theme, createStyles } from '@material-ui/core/styles';
-import { Container, Typography, Select, MenuItem, FormControl, InputLabel } from '@material-ui/core';
+import { getSession, signOut } from 'next-auth/react';
+import Link from 'next/link';
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    root: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      backgroundColor: theme.palette.grey[200],
-    },
-    formControl: {
-      margin: theme.spacing(1),
-      minWidth: 120,
-    },
-    selectEmpty: {
-      marginTop: theme.spacing(2),
-    },
-  }),
-);
-
-export const getServerSideProps: GetServerSideProps = async (context) => {
-  // ... (your existing server-side logic here)
-};
-
-const Home = ({ projectsByYear, user, error }) => {
-  const classes = useStyles();
-  const [year, setYear] = React.useState('');
-
-  const handleChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setYear(event.target.value as string);
-  };
-
-  if (error) return <div>Error: {error}</div>;
-
+export default function HomePage({ firstName }) {
   return (
-    <div className={classes.root}>
-      <Container maxWidth="sm">
-        <Typography variant="h4" component="h1" align="center" gutterBottom>
-          Project Management System
-        </Typography>
-        <FormControl variant="outlined" className={classes.formControl}>
-          <InputLabel id="year-select-label">Select Year</InputLabel>
-          <Select
-            labelId="year-select-label"
-            id="year-select"
-            value={year}
-            onChange={handleChange}
-            label="Select Year"
-          >
-            {Object.keys(projectsByYear).map(year => (
-              <MenuItem key={year} value={year}>{year}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        {/* Add more UI elements here to display projects based on the selected year */}
-      </Container>
+    <div style={{ padding: '1rem' }}>
+      <h1>Welcome to the PMS Web App</h1>
+      <p>You are logged in as: {firstName}</p>
+      <button onClick={() => signOut()}>Sign Out</button>
+
+      <hr />
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <Link href="/dashboard/projects">Projects</Link>
+        <Link href="/dashboard/clients">Clients</Link>
+        <Link href="/dashboard/internal">Internal</Link>
+      </nav>
     </div>
   );
-};
+}
 
-export default Home;
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  console.log('Checking session for HomePage...');
+  const session = await getSession(ctx);
+  console.log('Session in getServerSideProps:', session ? JSON.stringify(session, null, 2) : 'null');
+  if (!session) {
+    console.log('No session found, redirecting to login.');
+    return {
+      redirect: {
+        destination: '/api/auth/signin/google',
+        permanent: false,
+      },
+    };
+  }
+
+  const fullName = session.user?.name || '';
+  const firstName = fullName.split(' ')[0] || '';
+  console.log('Session user:', JSON.stringify(session.user, null, 2));
+
+  return {
+    props: { firstName },
+  };
+};
