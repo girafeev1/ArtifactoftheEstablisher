@@ -37,7 +37,6 @@ export default function InternalPage({ bankAccounts, error }: Props) {
     setExpanded(isExpanded ? panel : false);
   };
 
-  // Group accounts by company and then by bank
   const groupedData = bankAccounts.reduce((acc, account) => {
     if (!acc[account.companyName]) {
       acc[account.companyName] = {};
@@ -51,15 +50,19 @@ export default function InternalPage({ bankAccounts, error }: Props) {
 
   return (
     <SidebarLayout>
-      <h1>Internal - Bank Account Information</h1>
+      <Typography variant="h4" gutterBottom>
+        Bank Account Information
+      </Typography>
       {error && <p style={{ color: 'red' }}>Error: {error}</p>}
 
       {Object.keys(groupedData).length === 0 && !error ? (
         <p>No bank account info found.</p>
       ) : (
         Object.entries(groupedData).map(([companyName, banks]) => (
-          <div key={companyName}>
-            <Typography variant="h5">{companyName}</Typography>
+          <div key={companyName} style={{ marginBottom: '2rem' }}>
+            <Typography variant="h5" sx={{ mb: 1 }}>
+              {companyName}
+            </Typography>
             {Object.entries(banks).map(([bankName, accounts]) => (
               <Accordion
                 key={`${companyName}-${bankName}`}
@@ -71,13 +74,14 @@ export default function InternalPage({ bankAccounts, error }: Props) {
                   aria-controls={`${companyName}-${bankName}-content`}
                   id={`${companyName}-${bankName}-header`}
                 >
-                  <Typography>{bankName}</Typography>
+                  <Typography>
+                    {bankName} - <small>Code: {accounts[0]?.bankCode}</small>
+                  </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <table style={{ borderCollapse: 'collapse', width: '100%' }}>
                     <thead>
                       <tr>
-                        <th>Bank Code</th>
                         <th>Account Type</th>
                         <th>Account Number</th>
                         <th>FPS ID</th>
@@ -88,7 +92,6 @@ export default function InternalPage({ bankAccounts, error }: Props) {
                     <tbody>
                       {accounts.map((account, idx) => (
                         <tr key={idx}>
-                          <td>{account.bankCode}</td>
                           <td>{account.accountType}</td>
                           <td>{account.accountNumber}</td>
                           <td>{account.fpsId}</td>
@@ -111,33 +114,19 @@ export default function InternalPage({ bankAccounts, error }: Props) {
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await getSession(ctx);
   if (!session?.accessToken) {
-    return {
-      redirect: { destination: '/api/auth/signin/google', permanent: false },
-    };
+    return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
   }
 
   try {
-    // Import googleApi ONLY inside server code:
     const { initializeUserApis } = await import('../../lib/googleApi');
-
-    // Create the user-based drive/sheets using their OAuth token
     const { drive, sheets } = initializeUserApis(session.accessToken);
 
     const pmsRefLogFileId = await findPMSReferenceLogFile(drive);
-
-    // Now fetch bank account data
     const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogFileId);
 
-    return {
-      props: { bankAccounts },
-    };
+    return { props: { bankAccounts } };
   } catch (err: any) {
     console.error('[getServerSideProps] Error:', err);
-    return {
-      props: {
-        bankAccounts: [],
-        error: err.message || 'Failed to load bank accounts.',
-      },
-    };
+    return { props: { bankAccounts: [], error: err.message } };
   }
 };
