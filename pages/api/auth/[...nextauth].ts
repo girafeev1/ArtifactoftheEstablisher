@@ -1,74 +1,75 @@
 // pages/api/auth/[...nextauth].ts
 
-import NextAuth from 'next-auth';
+import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { loadSecrets } from '../../../lib/server/secretManager';
 
+export const authOptions: NextAuthOptions = {
+  providers: [
+    GoogleProvider({
+      clientId: process.env.OAUTH_CLIENT_ID as string,
+      clientSecret: process.env.OAUTH_CLIENT_SECRET as string,
+      authorization: {
+        params: {
+          scope: 'openid profile email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets',
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    }),
+  ],
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  callbacks: {
+    async jwt({ token, account, user }) {
+      if (account && user) {
+        return {
+          ...token,
+          accessToken: account.access_token,
+          refreshToken: account.refresh_token,
+          accessTokenExpires: account.expires_at ? account.expires_at * 1000 : undefined,
+          user,
+        };
+      }
+
+      // Return previous token if not expired
+      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
+        return token;
+      }
+
+      // Token has expired, try to refresh it
+      return refreshAccessToken(token);
+    },
+    async session({ session, token }) {
+      if (token) {
+        session.accessToken = token.accessToken;
+        session.user = token.user;
+      }
+      return session;
+    },
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === 'development',
+};
+
 export default async function auth(req, res) {
-  console.log('Starting NextAuth handler...');
-  // Load secrets from .env or GCP Secret Manager
   const { secrets, diagnostics } = await loadSecrets();
-  console.log('Secrets loaded:', secrets);
+
   if (!diagnostics.success) {
     console.error('Failed to load secrets:', diagnostics.errors);
     return res.status(500).json({ error: 'Failed to load secrets' });
   }
 
-  const clientId = secrets.OAUTH_CLIENT_ID;
-  const clientSecret = secrets.OAUTH_CLIENT_SECRET;
-  console.log('Client ID:', clientId ? 'Present' : 'Not Present');
-  console.log('Client Secret:', clientSecret ? 'Present' : 'Not Present');
+  process.env.NEXTAUTH_SECRET = secrets.NEXTAUTH_SECRET;
+  process.env.OAUTH_CLIENT_ID = secrets.OAUTH_CLIENT_ID;
+  process.env.OAUTH_CLIENT_SECRET = secrets.OAUTH_CLIENT_SECRET;
 
-  return await NextAuth(req, res, {
-    providers: [
-      GoogleProvider({
-        clientId,
-        clientSecret,
-        authorization: {
-          params: {
-            scope:
-              'openid profile email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets',
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      }),
-    ],
-    secret: secrets.NEXTAUTH_SECRET,
-    callbacks: {
-      async jwt({ token, account }) {
-        console.log('JWT Callback - Before:', JSON.stringify(token));
-        if (account) {
-          token.accessToken = account.access_token;
-          token.refreshToken = account.refresh_token;
-          token.accessTokenExpires = account.expires_at
-            ? account.expires_at * 1000
-            : Date.now() + 3600 * 1000;
-          console.log('JWT Callback - New Account:', JSON.stringify(token));
-        }
-
-        if (
-          token.accessTokenExpires &&
-          Date.now() < token.accessTokenExpires
-        ) {
-          console.log('JWT Callback - Token still valid');
-          return token;
-        }
-        console.log('JWT Callback - Token expired, attempting refresh');
-        return await refreshAccessToken(token, { clientId, clientSecret });
-      },
-      async session({ session, token }) {
-        console.log('Session Callback - Before:', JSON.stringify(session));
-        session.accessToken = token.accessToken;
-        session.refreshToken = token.refreshToken;
-        console.log('Session Callback - After:', JSON.stringify(session));
-        return session;
-      },
-    },
-  });
+  return await NextAuth(req, res, authOptions);
 }
 
-async function refreshAccessToken(token, { clientId, clientSecret }) {
+async function refreshAccessToken(token) {
   console.log('Attempting to refresh access token...');
   try {
     const url = 'https://oauth2.googleapis.com/token';
@@ -76,8 +77,8 @@ async function refreshAccessToken(token, { clientId, clientSecret }) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       method: 'POST',
       body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
+        client_id: process.env.OAUTH_CLIENT_ID,
+        client_secret: process.env.OAUTH_CLIENT_SECRET,
         grant_type: 'refresh_token',
         refresh_token: token.refreshToken,
       }),

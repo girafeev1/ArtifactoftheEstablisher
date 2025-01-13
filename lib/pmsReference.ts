@@ -99,7 +99,7 @@ export async function fetchBankAccounts(
     return [];
   }
   // Skip the first two rows (title + header)
-  return rows.slice(4).map((r) => ({
+  return rows.slice(3).map((r) => ({
     companyName: r[0] || '',
     bankName: r[1] || '',
     bankCode: r[2] || '',
