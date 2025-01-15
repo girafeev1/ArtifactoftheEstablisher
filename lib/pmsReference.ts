@@ -56,7 +56,7 @@ export async function fetchAddressBook(
   });
   const rows = resp.data.values || [];
   if (rows.length <= 2) return []; // Skip title/header rows
-  return rows.slice(2).map((r) => ({
+  return rows.slice(3).map((r) => ({
     companyName: r[0] || '',
     title: r[1] || '',
     nameAddressed: r[2] || '',

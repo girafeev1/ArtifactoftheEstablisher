@@ -1,9 +1,11 @@
+// pages/dashboard/clients.tsx
+
 import { GetServerSideProps } from 'next';
 import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../components/SidebarLayout';
-import { initializeUserApis } from '../../lib/googleApi';
+import { initializeApis } from '../../lib/googleApi';
 import { findPMSReferenceLogFile, fetchAddressBook } from '../../lib/pmsReference';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   List,
   ListItem,
@@ -16,6 +18,12 @@ import {
   Typography,
   TextField,
   Alert,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  Grid,
+  Box,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 
@@ -40,6 +48,9 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
   const { enqueueSnackbar } = useSnackbar();
   const [clientList, setClientList] = useState<AddressBookEntry[]>(companies || []);
 
+  // State for Alphabetical Filter
+  const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
+
   // State for "View/Edit" existing client
   const [selectedClient, setSelectedClient] = useState<AddressBookEntry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -49,15 +60,46 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newClient, setNewClient] = useState<AddressBookEntry>({
     companyName: '',
-    title: '',
+    title: 'Mr.', // Default to Mr.
     nameAddressed: '',
     emailAddress: '',
     addressLine1: '',
     addressLine2: '',
     addressLine3: '',
     addressLine4: '',
-    addressLine5: '',
+    addressLine5: 'Kowloon', // Default to Kowloon
   });
+
+  // Extract unique starting letters
+  const uniqueLetters = useMemo(() => {
+    const lettersSet = new Set<string>();
+    clientList.forEach((client) => {
+      if (client.companyName && typeof client.companyName === 'string') {
+        lettersSet.add(client.companyName.charAt(0).toUpperCase());
+      }
+    });
+    // Sort the letters alphabetically
+    return Array.from(lettersSet).sort();
+  }, [clientList]);
+
+  // Handle letter selection
+  const handleLetterClick = (letter: string) => {
+    if (selectedLetter === letter) {
+      setSelectedLetter(null); // Toggle off if already selected
+    } else {
+      setSelectedLetter(letter);
+    }
+  };
+
+  // Filtered client list based on selected letter
+  const filteredClients = useMemo(() => {
+    if (!selectedLetter) return clientList;
+    return clientList.filter(
+      (client) =>
+        client.companyName &&
+        client.companyName.charAt(0).toUpperCase() === selectedLetter
+    );
+  }, [selectedLetter, clientList]);
 
   const handleOpenViewDialog = (client: AddressBookEntry) => {
     setSelectedClient(client);
@@ -101,7 +143,7 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
         throw new Error(errorData.error || 'Failed to update client');
       }
 
-      // Optionally reload the page or fetch new data
+      // Update the client list
       const updatedList = clientList.map((c) =>
         c.companyName === originalCompanyName ? selectedClient : c
       );
@@ -120,30 +162,30 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
   const handleOpenAddDialog = () => {
     setNewClient({
       companyName: '',
-      title: '',
+      title: 'Mr.',
       nameAddressed: '',
       emailAddress: '',
       addressLine1: '',
       addressLine2: '',
       addressLine3: '',
       addressLine4: '',
-      addressLine5: '',
+      addressLine5: 'Kowloon',
     });
     setAddDialogOpen(true);
   };
 
   const handleCloseAddDialog = () => {
     setAddDialogOpen(false);
-    setNewClient({ // Reset the form
+    setNewClient({
       companyName: '',
-      title: '',
+      title: 'Mr.',
       nameAddressed: '',
       emailAddress: '',
       addressLine1: '',
       addressLine2: '',
       addressLine3: '',
       addressLine4: '',
-      addressLine5: '',
+      addressLine5: 'Kowloon',
     });
   };
 
@@ -163,7 +205,7 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
         throw new Error(errorData.error || 'Failed to add new client');
       }
 
-      // Reload or update local state
+      // Update the client list
       setClientList([...clientList, newClient]);
       setAddDialogOpen(false);
       enqueueSnackbar('New client added successfully', { variant: 'success' });
@@ -192,11 +234,29 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
         Add Client
       </Button>
 
-      {clientList.length === 0 ? (
+      {/* Alphabetical Directory Filter */}
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle1" gutterBottom>
+          Filter by Starting Letter:
+        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {uniqueLetters.map((letter) => (
+            <Button
+              key={letter}
+              variant={selectedLetter === letter ? 'contained' : 'outlined'}
+              onClick={() => handleLetterClick(letter)}
+            >
+              {letter}
+            </Button>
+          ))}
+        </Box>
+      </Box>
+
+      {filteredClients.length === 0 ? (
         <Typography>No clients found.</Typography>
       ) : (
         <List>
-          {clientList.map((entry, idx) => (
+          {filteredClients.map((entry, idx) => (
             <ListItem key={idx} disablePadding>
               <ListItemButton onClick={() => handleOpenViewDialog(entry)}>
                 {entry.companyName}
@@ -214,69 +274,36 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
             <DialogContent dividers>
               {editMode ? (
                 <>
-                  <TextField
-                    fullWidth
-                    label="Address Line 1"
-                    margin="normal"
-                    value={selectedClient.addressLine1}
-                    onChange={(e) =>
-                      setSelectedClient({ ...selectedClient, addressLine1: e.target.value })
-                    }
-                  />
-                  <TextField
-                    fullWidth
-                    label="Address Line 2"
-                    margin="normal"
-                    value={selectedClient.addressLine2}
-                    onChange={(e) =>
-                      setSelectedClient({ ...selectedClient, addressLine2: e.target.value })
-                    }
-                  />
-                  <TextField
-                    fullWidth
-                    label="Address Line 3"
-                    margin="normal"
-                    value={selectedClient.addressLine3}
-                    onChange={(e) =>
-                      setSelectedClient({ ...selectedClient, addressLine3: e.target.value })
-                    }
-                  />
-                  <TextField
-                    fullWidth
-                    label="Address Line 4"
-                    margin="normal"
-                    value={selectedClient.addressLine4}
-                    onChange={(e) =>
-                      setSelectedClient({ ...selectedClient, addressLine4: e.target.value })
-                    }
-                  />
-                  <TextField
-                    fullWidth
-                    label="Address Line 5"
-                    margin="normal"
-                    value={selectedClient.addressLine5}
-                    onChange={(e) =>
-                      setSelectedClient({ ...selectedClient, addressLine5: e.target.value })
-                    }
-                  />
-                  <TextField
-                    fullWidth
-                    label="Title"
-                    margin="normal"
-                    value={selectedClient.title}
-                    onChange={(e) =>
-                      setSelectedClient({ ...selectedClient, title: e.target.value })
-                    }
-                  />
-                  <TextField
-                    fullWidth
-                    label="Name Addressed"
-                    margin="normal"
-                    value={selectedClient.nameAddressed}
-                    onChange={(e) =>
-                      setSelectedClient({ ...selectedClient, nameAddressed: e.target.value })
-                    }
-                  />
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth margin="normal">
+                        <InputLabel id="title-label">Title</InputLabel>
+                        <Select
+                          labelId="title-label"
+                          value={selectedClient.title}
+                          label="Title"
+                          onChange={(e) =>
+                            setSelectedClient({ ...selectedClient, title: e.target.value })
+                          }
+                        >
+                          <MenuItem value="Mr.">Mr.</MenuItem>
+                          <MenuItem value="Mrs.">Mrs.</MenuItem>
+                          <MenuItem value="Ms.">Ms.</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Name Addressed"
+                        margin="normal"
+                        value={selectedClient.nameAddressed}
+                        onChange={(e) =>
+                          setSelectedClient({ ...selectedClient, nameAddressed: e.target.value })
+                        }
+                      />
+                    </Grid>
+                  </Grid>
                   <TextField
                     fullWidth
                     label="Email Address"
@@ -286,6 +313,57 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
                       setSelectedClient({ ...selectedClient, emailAddress: e.target.value })
                     }
                   />
+                  <TextField
+                    fullWidth
+                    label="Room/Floor/Block"
+                    margin="normal"
+                    value={selectedClient.addressLine1}
+                    onChange={(e) =>
+                      setSelectedClient({ ...selectedClient, addressLine1: e.target.value })
+                    }
+                  />
+                  <TextField
+                    fullWidth
+                    label="Building Name"
+                    margin="normal"
+                    value={selectedClient.addressLine2}
+                    onChange={(e) =>
+                      setSelectedClient({ ...selectedClient, addressLine2: e.target.value })
+                    }
+                  />
+                  <TextField
+                    fullWidth
+                    label="Street Name"
+                    margin="normal"
+                    value={selectedClient.addressLine3}
+                    onChange={(e) =>
+                      setSelectedClient({ ...selectedClient, addressLine3: e.target.value })
+                    }
+                  />
+                  <TextField
+                    fullWidth
+                    label="District"
+                    margin="normal"
+                    value={selectedClient.addressLine4}
+                    onChange={(e) =>
+                      setSelectedClient({ ...selectedClient, addressLine4: e.target.value })
+                    }
+                  />
+                  <FormControl fullWidth margin="normal">
+                    <InputLabel id="region-label">Region</InputLabel>
+                    <Select
+                      labelId="region-label"
+                      value={selectedClient.addressLine5}
+                      label="Region"
+                      onChange={(e) =>
+                        setSelectedClient({ ...selectedClient, addressLine5: e.target.value })
+                      }
+                    >
+                      <MenuItem value="Kowloon">Kowloon</MenuItem>
+                      <MenuItem value="Hong Kong">Hong Kong</MenuItem>
+                      <MenuItem value="New Territories">New Territories</MenuItem>
+                    </Select>
+                  </FormControl>
                 </>
               ) : (
                 <>
@@ -329,62 +407,96 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
             value={newClient.companyName}
             onChange={(e) => setNewClient({ ...newClient, companyName: e.target.value })}
           />
-          <TextField
-            fullWidth
-            label="Title"
-            margin="normal"
-            value={newClient.title}
-            onChange={(e) => setNewClient({ ...newClient, title: e.target.value })}
-          />
-          <TextField
-            fullWidth
-            label="Name Addressed"
-            margin="normal"
-            value={newClient.nameAddressed}
-            onChange={(e) => setNewClient({ ...newClient, nameAddressed: e.target.value })}
-          />
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="title-add-label">Title</InputLabel>
+                <Select
+                  labelId="title-add-label"
+                  value={newClient.title}
+                  label="Title"
+                  onChange={(e) =>
+                    setNewClient({ ...newClient, title: e.target.value })
+                  }
+                >
+                  <MenuItem value="Mr.">Mr.</MenuItem>
+                  <MenuItem value="Mrs.">Mrs.</MenuItem>
+                  <MenuItem value="Ms.">Ms.</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Name Addressed"
+                margin="normal"
+                value={newClient.nameAddressed}
+                onChange={(e) =>
+                  setNewClient({ ...newClient, nameAddressed: e.target.value })
+                }
+              />
+            </Grid>
+          </Grid>
           <TextField
             fullWidth
             label="Email Address"
             margin="normal"
             value={newClient.emailAddress}
-            onChange={(e) => setNewClient({ ...newClient, emailAddress: e.target.value })}
+            onChange={(e) =>
+              setNewClient({ ...newClient, emailAddress: e.target.value })
+            }
           />
           <TextField
             fullWidth
-            label="Address Line 1"
+            label="Room/Floor/Block"
             margin="normal"
             value={newClient.addressLine1}
-            onChange={(e) => setNewClient({ ...newClient, addressLine1: e.target.value })}
+            onChange={(e) =>
+              setNewClient({ ...newClient, addressLine1: e.target.value })
+            }
           />
           <TextField
             fullWidth
-            label="Address Line 2"
+            label="Building Name"
             margin="normal"
             value={newClient.addressLine2}
-            onChange={(e) => setNewClient({ ...newClient, addressLine2: e.target.value })}
+            onChange={(e) =>
+              setNewClient({ ...newClient, addressLine2: e.target.value })
+            }
           />
           <TextField
             fullWidth
-            label="Address Line 3"
+            label="Street Name"
             margin="normal"
             value={newClient.addressLine3}
-            onChange={(e) => setNewClient({ ...newClient, addressLine3: e.target.value })}
+            onChange={(e) =>
+              setNewClient({ ...newClient, addressLine3: e.target.value })
+            }
           />
           <TextField
             fullWidth
-            label="Address Line 4"
+            label="District"
             margin="normal"
             value={newClient.addressLine4}
-            onChange={(e) => setNewClient({ ...newClient, addressLine4: e.target.value })}
+            onChange={(e) =>
+              setNewClient({ ...newClient, addressLine4: e.target.value })
+            }
           />
-          <TextField
-            fullWidth
-            label="Address Line 5"
-            margin="normal"
-            value={newClient.addressLine5}
-            onChange={(e) => setNewClient({ ...newClient, addressLine5: e.target.value })}
-          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="region-add-label">Region</InputLabel>
+            <Select
+              labelId="region-add-label"
+              value={newClient.addressLine5}
+              label="Region"
+              onChange={(e) =>
+                setNewClient({ ...newClient, addressLine5: e.target.value })
+              }
+            >
+              <MenuItem value="Kowloon">Kowloon</MenuItem>
+              <MenuItem value="Hong Kong">Hong Kong</MenuItem>
+              <MenuItem value="New Territories">New Territories</MenuItem>
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleSubmitNewClient}>Submit</Button>
@@ -397,7 +509,7 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
 
 export const getServerSideProps: GetServerSideProps<ClientsPageProps> = async (ctx) => {
   const session = await getSession(ctx);
-  console.log('Session in getServerSideProps:', session); // Log session for debugging
+  console.log('Session in getServerSideProps:', session);
 
   if (!session?.accessToken) {
     return {
@@ -406,12 +518,13 @@ export const getServerSideProps: GetServerSideProps<ClientsPageProps> = async (c
   }
 
   try {
-    const { initializeUserApis } = await import('../../lib/googleApi');
-    const { drive, sheets } = initializeUserApis(session.accessToken);
+    const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken });
     const referenceLogId = await findPMSReferenceLogFile(drive);
     const companies = await fetchAddressBook(sheets, referenceLogId);
+
     return { props: { companies } };
   } catch (err: any) {
+    console.error('[getServerSideProps] Error:', err);
     return {
       props: {
         companies: [],

@@ -2,37 +2,30 @@
 
 import { GetServerSideProps } from 'next';
 import { getSession } from 'next-auth/react';
-import { Session } from 'next-auth';
 import SidebarLayout from '../../components/SidebarLayout';
-import { initializeUserApis } from '../../lib/googleApi';
-import { listProjectOverviewFiles } from '../../lib/projectOverview';
-// (Your existing function that does the Drive search)
+import { initializeApis } from '../../lib/googleApi';
+import { listProjectOverviewFiles } from '../../lib/pmsReference';
 
 interface ProjectProps {
-  user: Session['user'];
   projectsByCategory: Record<string, any[]>;
+  error?: string;
 }
 
-export default function ProjectsPage({ user, projectsByCategory }: ProjectProps) {
+export default function ProjectsPage({ projectsByCategory, error }: ProjectProps) {
   return (
     <SidebarLayout>
       <h1>Projects</h1>
-      <button onClick={() => alert('Go to a new project form...')}>
-        New Project
-      </button>
-      <hr />
-
+      {error && <p style={{ color: 'red' }}>{error}</p>}
       {Object.keys(projectsByCategory).length === 0 ? (
         <p>No Project Overview files found.</p>
       ) : (
-        Object.entries(projectsByCategory).map(([yearOrCode, projects]) => (
-          <div key={yearOrCode} style={{ marginTop: '1rem' }}>
-            <h2>{yearOrCode}</h2>
+        Object.entries(projectsByCategory).map(([year, projects]) => (
+          <div key={year}>
+            <h2>{year}</h2>
             <ul>
-              {projects.map((p: any) => (
-                <li key={p.file.id}>
-                  <strong>{p.fullCompanyName}</strong> - {p.file.name} (
-                  {p.file.id})
+              {projects.map((project) => (
+                <li key={project.file.id}>
+                  {project.fullCompanyName} - {project.file.name}
                 </li>
               ))}
             </ul>
@@ -45,35 +38,21 @@ export default function ProjectsPage({ user, projectsByCategory }: ProjectProps)
 
 export const getServerSideProps: GetServerSideProps<ProjectProps> = async (ctx) => {
   const session = await getSession(ctx);
-  if (!session || !session.accessToken) {
-    return {
-      redirect: {
-        destination: '/api/auth/signin/google',
-        permanent: false,
-      },
-    };
+  if (!session?.accessToken) {
+    return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
   }
 
-  // 1. Initialize user-based Google APIs
-  const { drive, sheets } = initializeUserApis(session.accessToken);
+  try {
+    const { initializeApis } = await import('../../lib/googleApi');
+    const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken });
 
-  // 2. If you need the "subsidiaryData" from PMS Reference Log:
-  //    e.g., to map abbreviations => full names
-  //    (Pseudo-code)
-  // const secrets = await loadSecrets();
-  // const pmsRefId = secrets.PMS_REFERENCE_LOG_ID;
-  // const subsidiaryData = await fetchReferenceOfSubsidiaryNames(sheets, pmsRefId);
+    const projectsByCategory = await listProjectOverviewFiles(drive);
 
-  // For now, assume you have some "subsidiaryData" or an empty array
-  const subsidiaryData = [];
-
-  // 3. List the user’s visible Project Overview files
-  const projectsByCategory = await listProjectOverviewFiles(drive, subsidiaryData);
-
-  return {
-    props: {
-      user: session.user,
-      projectsByCategory,
-    },
-  };
+    return {
+      props: { projectsByCategory },
+    };
+  } catch (err: any) {
+    console.error('[getServerSideProps] Error:', err);
+    return { props: { projectsByCategory: {}, error: err.message } };
+  }
 };

@@ -1,11 +1,11 @@
 // pages/dashboard/internal.tsx
 
+import { useState } from 'react';
 import { GetServerSideProps } from 'next';
 import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../components/SidebarLayout';
-import { initializeUserApis } from '../../lib/googleApi';
+import { initializeApis } from '../../lib/googleApi';
 import { findPMSReferenceLogFile, fetchBankAccounts } from '../../lib/pmsReference';
-import { useState } from 'react';
 import {
   Accordion,
   AccordionSummary,
@@ -53,14 +53,14 @@ export default function InternalPage({ bankAccounts, error }: Props) {
       <Typography variant="h4" gutterBottom>
         Bank Account Information
       </Typography>
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+      {error && <Typography color="error">{error}</Typography>}
 
-      {Object.keys(groupedData).length === 0 && !error ? (
-        <p>No bank account info found.</p>
+      {Object.keys(groupedData).length === 0 ? (
+        <Typography>No bank account information found.</Typography>
       ) : (
         Object.entries(groupedData).map(([companyName, banks]) => (
-          <div key={companyName} style={{ marginBottom: '2rem' }}>
-            <Typography variant="h5" sx={{ mb: 1 }}>
+          <div key={companyName}>
+            <Typography variant="h5" sx={{ mb: 1, textAlign: 'left' }}>
               {companyName}
             </Typography>
             {Object.entries(banks).map(([bankName, accounts]) => (
@@ -75,28 +75,28 @@ export default function InternalPage({ bankAccounts, error }: Props) {
                   id={`${companyName}-${bankName}-header`}
                 >
                   <Typography>
-                    {bankName} - <small>Code: {accounts[0]?.bankCode}</small>
+                    {bankName} {accounts[0]?.bankCode.replace(/^Code:\s*/, '')}
                   </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
-                        <th>Account Type</th>
-                        <th>Account Number</th>
-                        <th>FPS ID</th>
-                        <th>FPS Email</th>
-                        <th>Comments</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Account Type</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Account Number</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>FPS ID</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>FPS Email</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Comments</th>
                       </tr>
                     </thead>
                     <tbody>
                       {accounts.map((account, idx) => (
                         <tr key={idx}>
-                          <td>{account.accountType}</td>
-                          <td>{account.accountNumber}</td>
-                          <td>{account.fpsId}</td>
-                          <td>{account.fpsEmail}</td>
-                          <td>{account.comments}</td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>{account.accountType}</td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>{account.accountNumber}</td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>{account.fpsId}</td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>{account.fpsEmail}</td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>{account.comments}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -118,13 +118,13 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   }
 
   try {
-    const { initializeUserApis } = await import('../../lib/googleApi');
-    const { drive, sheets } = initializeUserApis(session.accessToken);
-
+    const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken });
     const pmsRefLogFileId = await findPMSReferenceLogFile(drive);
     const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogFileId);
 
-    return { props: { bankAccounts } };
+    return {
+      props: { bankAccounts },
+    };
   } catch (err: any) {
     console.error('[getServerSideProps] Error:', err);
     return { props: { bankAccounts: [], error: err.message } };
