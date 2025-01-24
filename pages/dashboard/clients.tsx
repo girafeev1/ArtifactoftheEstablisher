@@ -217,7 +217,7 @@ export default function ClientsPage({ companies, error }: ClientsPageProps) {
 
   // Build line 6 => "<title>. <nameAddressed>"
   const getLine6 = (entry: AddressBookEntry) => {
-    const t = entry.title?.trim() ? `${entry.title.trim()}.` : '';
+    const t = entry.title?.trim() ? `${entry.title.trim()}` : '';
     const n = entry.nameAddressed?.trim() || '';
     return (t && n) ? `${t} ${n}` : (t || n);
   };
