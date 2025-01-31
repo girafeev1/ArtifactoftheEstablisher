@@ -1,138 +1,222 @@
 // pages/api/info.ts
 
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { getAuthOptions } from './auth/[...nextauth]';
-import { initializeApis } from '../../lib/googleApi'; // <-- We'll call initializeApis('user',{...})
+import { getAuthOptions } from './auth/[...nextauth]'; // your nextauth file
+import { initializeApis } from '../../lib/googleApi';
 import { findPMSReferenceLogFile } from '../../lib/pmsReference';
 import { sheets_v4 } from 'googleapis';
 
-const SHEET_NAME = 'Address Book of Accounts';
-const LAST_COLUMN = 'I'; // For columns A through I
+// For a 10-column Project Overview: A..J
+const PROJECT_OVERVIEW_RANGE = 'Project Overview!A:J';
+// If your first data row is row 5, you might do "Project Overview!A5:J" for appending/updating.
+// But typically, for updates, we retrieve the entire A:J and find the row offset.
+
+const SHEET_NAME_PROJECT_OVERVIEW = 'Project Overview';
+const LAST_COLUMN_PROJECT = 'J';
+
+const SHEET_NAME_CLIENTS = 'Address Book of Accounts';
+const LAST_COLUMN_CLIENTS = 'I'; // example from your clients page
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    // 1) Get the NextAuth config and session
+    // 1) Must have session
     const authOptions = await getAuthOptions();
     const session = await getServerSession(req, res, authOptions);
-
     if (!session?.accessToken) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // 2) We expect a body with { type, data } from the client
     const { type, data } = req.body;
-    if (type !== 'client') {
-      return res.status(400).json({ error: 'Invalid type' });
+    if (!type || !data) {
+      return res.status(400).json({ error: 'Missing type or data' });
     }
 
-    console.log(`API Request: ${req.method} ${req.url}`);
-    console.log('Request Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('Request Body:', JSON.stringify(req.body, null, 2));
+    console.log(`API Request: ${req.method} /api/info?type=${type}`);
 
-    const { originalIdentifier, ...dataToWrite } = data;
-    console.log('Data values to write:', Object.values(dataToWrite));
+    // 3) Initialize user-based Google APIs
+    const { drive, sheets } = initializeApis(session.accessToken as string);
+    const referenceLogId = await findPMSReferenceLogFile(drive);
 
-    console.log(
-      'Server Session:',
-      session ? JSON.stringify(session, null, 2) : 'null'
-    );
-    console.log('Session Keys:', session ? Object.keys(session) : 'No session');
-
-    try {
-      // 2) Initialize Google APIs in "user" mode
-      console.log('Attempting to initialize Google APIs...');
-      const { drive, sheets } = initializeApis('user', {
-        accessToken: session.accessToken as string,
-      });
-      console.log('Google APIs initialized successfully');
-
-      // 3) Find the PMS Reference Log file
-      const referenceLogId = await findPMSReferenceLogFile(drive);
-      console.log('PMS Reference Log ID:', referenceLogId);
-
-      // 4) Depending on POST or PUT, append or update in the sheet
-      if (req.method === 'POST' || req.method === 'PUT') {
-        let range = '';
-        if (type === 'client') {
-          range = `${SHEET_NAME}!A:${LAST_COLUMN}`;
-        } else if (type === 'project') {
-          range = 'Project Overview!A:H';
-        } else {
-          console.log('Unknown data type:', type);
-          return res.status(400).json({ error: 'Unknown data type' });
-        }
-
-        if (req.method === 'POST') {
-          console.log('Appending data to:', range);
-          await sheets.spreadsheets.values.append({
-            spreadsheetId: referenceLogId,
-            range,
-            valueInputOption: 'RAW',
-            requestBody: {
-              values: [Object.values(dataToWrite)],
-            },
-          });
-          return res.status(200).json({ message: `${type} added successfully` });
-        } else {
-          // PUT => we want to update an existing row
-          const originalIdentifier = data.originalIdentifier;
-          console.log('Attempting to update:', originalIdentifier);
-
-          const rowToUpdate = await findRowToUpdate(
-            sheets,
-            referenceLogId,
-            range,
-            originalIdentifier
-          );
-
-          if (!rowToUpdate) {
-            console.log('Row not found for identifier:', originalIdentifier);
-            return res.status(404).json({ error: `${type} not found` });
-          }
-
-          console.log('Updating row:', rowToUpdate);
-          await sheets.spreadsheets.values.update({
-            spreadsheetId: referenceLogId,
-            range: `${SHEET_NAME}!A${rowToUpdate}:${LAST_COLUMN}${rowToUpdate}`,
-            valueInputOption: 'RAW',
-            requestBody: {
-              values: [Object.values(dataToWrite)],
-            },
-          });
-          return res.status(200).json({ message: `${type} updated successfully` });
-        }
+    // 4) Route the request by type
+    if (type === 'client') {
+      // This might be your existing client code (POST/PUT).
+      // Example:
+      if (req.method === 'POST') {
+        return handleClientPost(data, sheets, referenceLogId, res);
+      } else if (req.method === 'PUT') {
+        return handleClientPut(data, sheets, referenceLogId, res);
       } else {
-        // If it's neither POST nor PUT
-        return res.status(405).json({ error: 'Method not allowed' });
+        return res.status(405).json({ error: 'Method not allowed for clients' });
       }
-    } catch (err: any) {
-      console.error('API error:', err);
-      return res.status(500).json({ error: err.message });
+    } else if (type === 'project') {
+      // ❶ Here is the new logic for "project"
+      if (req.method === 'POST') {
+        return handleProjectPost(data, sheets, referenceLogId, res);
+      } else if (req.method === 'PUT') {
+        return handleProjectPut(data, sheets, referenceLogId, res);
+      } else {
+        return res.status(405).json({ error: 'Method not allowed for projects' });
+      }
+    } else {
+      console.log('Unknown data type:', type);
+      return res.status(400).json({ error: 'Unknown data type' });
     }
   } catch (err: any) {
-    console.error('API error:', err);
-    return res.status(500).json({ error: err.message });
+    console.error('[API /api/info] error:', err);
+    return res.status(500).json({ error: err.message || 'Server error' });
   }
 }
 
-/**
- * Helper to find the row we want to update by matching the first column's value
- * against `identifier`.
- */
+/** ---------------------------
+ *   Client handlers
+ * ---------------------------*/
+async function handleClientPost(
+  data: any,
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  res: NextApiResponse
+) {
+  // Similar to your existing "clients" logic
+  // e.g. range = "Address Book of Accounts!A:I"
+  const range = `${SHEET_NAME_CLIENTS}!A:${LAST_COLUMN_CLIENTS}`;
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range,
+    valueInputOption: 'RAW',
+    requestBody: {
+      values: [Object.values(data)],
+    },
+  });
+  return res.status(200).json({ message: 'client added successfully' });
+}
+
+async function handleClientPut(
+  data: any,
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  res: NextApiResponse
+) {
+  const originalIdentifier = data.originalIdentifier;
+  if (!originalIdentifier) {
+    return res.status(400).json({ error: 'Missing originalIdentifier' });
+  }
+  const range = `${SHEET_NAME_CLIENTS}!A:${LAST_COLUMN_CLIENTS}`;
+  const rowToUpdate = await findRowToUpdate(
+    sheets,
+    spreadsheetId,
+    range,
+    originalIdentifier
+  );
+  if (!rowToUpdate) {
+    return res.status(404).json({ error: 'client not found' });
+  }
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${SHEET_NAME_CLIENTS}!A${rowToUpdate}:${LAST_COLUMN_CLIENTS}${rowToUpdate}`,
+    valueInputOption: 'RAW',
+    requestBody: {
+      values: [Object.values(data)],
+    },
+  });
+  return res.status(200).json({ message: 'client updated successfully' });
+}
+
+/** ---------------------------
+ *   Project handlers
+ * ---------------------------*/
+
+/** POST => append a new project row */
+async function handleProjectPost(
+  data: any,
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  res: NextApiResponse
+) {
+  // e.g. "Project Overview!A:J"
+  // Make sure `data` is in the same order as your columns
+  // [ projectNumber, projectDate, agent, invoiceCompany, projectTitle, projectNature, amount, paid, paidOnDate, invoice ]
+  const rowValues = [
+    data.projectNumber || '',
+    data.projectDate || '',
+    data.agent || '',
+    data.invoiceCompany || '',
+    data.projectTitle || '',
+    data.projectNature || '',
+    data.amount || '',
+    data.paid || '', // "TRUE"/"FALSE" or boolean
+    data.paidOnDate || '',
+    data.invoice || '',
+  ];
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: `${SHEET_NAME_PROJECT_OVERVIEW}!A:${LAST_COLUMN_PROJECT}`, // "Project Overview!A:J"
+    valueInputOption: 'RAW',
+    requestBody: {
+      values: [rowValues],
+    },
+  });
+  return res.status(200).json({ message: 'project added successfully' });
+}
+
+/** PUT => find row by originalIdentifier in col A, update it */
+async function handleProjectPut(
+  data: any,
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  res: NextApiResponse
+) {
+  const originalIdentifier = data.originalIdentifier; // e.g. the old projectNumber
+  if (!originalIdentifier) {
+    return res.status(400).json({ error: 'Missing originalIdentifier' });
+  }
+  // we read the entire A..J range to find the row
+  const range = `${SHEET_NAME_PROJECT_OVERVIEW}!A:${LAST_COLUMN_PROJECT}`;
+  const rowToUpdate = await findRowToUpdate(sheets, spreadsheetId, range, originalIdentifier);
+  if (!rowToUpdate) {
+    return res.status(404).json({ error: 'project not found' });
+  }
+
+  // build the new row in the same order
+  const rowValues = [
+    data.projectNumber || '',
+    data.projectDate || '',
+    data.agent || '',
+    data.invoiceCompany || '',
+    data.projectTitle || '',
+    data.projectNature || '',
+    data.amount || '',
+    data.paid || '', // "TRUE"/"FALSE"
+    data.paidOnDate || '',
+    data.invoice || '',
+  ];
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${SHEET_NAME_PROJECT_OVERVIEW}!A${rowToUpdate}:${LAST_COLUMN_PROJECT}${rowToUpdate}`,
+    valueInputOption: 'RAW',
+    requestBody: {
+      values: [rowValues],
+    },
+  });
+  return res.status(200).json({ message: 'project updated successfully' });
+}
+
+/** Utility: find the row index where col A = identifier */
 async function findRowToUpdate(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   range: string,
   identifier: string
 ): Promise<number | null> {
-  console.log(`Finding row to update with identifier: ${identifier}`);
   const resp = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range,
   });
   const rows = resp.data.values || [];
-
-  // We assume the first column (index 0) contains the identifier
+  // row[0] is col A => projectNumber.  We find a match.
+  // rowIndex is 0-based, but Sheets is 1-based.
   const rowIndex = rows.findIndex((row) => row[0] === identifier);
-  return rowIndex !== -1 ? rowIndex + 1 : null; // +1 because sheets are 1-based
+  return rowIndex === -1 ? null : rowIndex + 1;
 }

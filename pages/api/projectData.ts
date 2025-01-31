@@ -1,44 +1,93 @@
 // pages/api/projectData.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getSession } from 'next-auth/react';
-import { initializeUserApis, initializeServiceAccountApis } from '../../lib/googleApi';
+import { getServerSession } from 'next-auth/next';
+import { getAuthOptions } from './auth/[...nextauth]';
+import { initializeApis } from '../../lib/googleApi';
+
+/**
+ * Now only 10 columns in "Project Overview!A:J":
+ * 0: projectNumber
+ * 1: projectDate
+ * 2: agent
+ * 3: invoiceCompany
+ * 4: projectTitle
+ * 5: projectNature
+ * 6: amount (like '$ 120.00')
+ * 7: paid (✔ or ✖)
+ * 8: paidOnDate
+ * 9: invoice
+ */
+interface SheetRow {
+  projectNumber: string;
+  projectTitle: string;
+  amount: string;
+  paid: boolean;
+  paidOnDate?: string;
+  agent?: string;
+  invoiceCompany?: string;
+  projectNature?: string;
+  invoice?: string;
+  projectDate?: string; // if you want to keep it
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
+  if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const session = await getSession({ req });
+  const authOptions = await getAuthOptions();
+  const session = await getServerSession(req, res, authOptions);
   if (!session?.accessToken) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const { fileId, values } = req.body;
-  if (!fileId || !values) {
-    return res.status(400).json({ error: 'Missing fileId or values' });
+  const fileId = req.query.fileId as string;
+  if (!fileId) {
+    return res.status(400).json({ error: 'Missing fileId' });
   }
 
   try {
-    // 1) Check if user can see the file
-    const { drive } = initializeUserApis(session.accessToken);
-    await drive.files.get({ fileId, fields: 'id' });
-    // If the user has no permission, this should 404 or 403.
-
-    // 2) Perform the write with the service account
-    const { sheets } = initializeServiceAccountApis();
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: 'Sheet1!A1',
-      valueInputOption: 'RAW',
-      requestBody: {
-        values, // e.g. [ ["col1", "col2"], ["data1", "data2"] ]
-      },
+    const { sheets } = initializeApis('user', {
+      accessToken: session.accessToken as string,
     });
 
-    res.status(200).json({ message: 'Data appended successfully' });
+    // Now the sheet range is A:J
+    const range = 'Project Overview!A5:J';
+    const resp = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range,
+    });
+
+    const rows = resp.data.values || [];
+    // row 0 might be header
+    const data: SheetRow[] = [];
+
+    // parse from row 1 down
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r[0]) continue; // skip if no projectNumber
+
+      const amountRaw = (r[6] || '').toString().replace(/[^0-9.]/g, '');
+      const paidSymbol = r[7] || '✖';
+
+      data.push({
+        projectNumber: r[0] || '',
+        projectDate: r[1] || '',
+        agent: r[2] || '',
+        invoiceCompany: r[3] || '',
+        projectTitle: r[4] || '',
+        projectNature: r[5] || '',
+        amount: amountRaw || '0',
+        paid: paidSymbol === '✔',
+        paidOnDate: r[8] || '',
+        invoice: r[9] || '',
+      });
+    }
+
+    return res.status(200).json({ data });
   } catch (error: any) {
-    console.error('Error writing data:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    console.error('Error reading project data:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }

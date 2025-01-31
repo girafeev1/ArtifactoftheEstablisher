@@ -1,5 +1,4 @@
 // components/NewProjectDialog.tsx
-
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import {
   Dialog,
@@ -22,16 +21,21 @@ interface NewProjectDialogProps {
   referenceNames: Record<string, string>;
 }
 
-const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onProjectAdded, referenceNames }) => {
+const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
+  open,
+  onClose,
+  onProjectAdded,
+  referenceNames,
+}) => {
   const { enqueueSnackbar } = useSnackbar();
+
+  // Removed `presenter` & `projectDescription`
   const [formData, setFormData] = useState({
     projectNumber: '',
     projectDate: '',
     agent: '',
     invoiceCompany: '',
-    presenter: '',
     projectTitle: '',
-    projectDescription: '',
     projectNature: '',
     amount: '',
     paid: false,
@@ -39,9 +43,11 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onPr
     invoice: '',
   });
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name!]: value,
     }));
@@ -49,7 +55,7 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onPr
 
   const handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name!]: checked,
     }));
@@ -59,7 +65,13 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onPr
     e.preventDefault();
 
     // Basic validation
-    if (!formData.projectNumber || !formData.projectDate || !formData.invoiceCompany || !formData.projectTitle || !formData.amount) {
+    if (
+      !formData.projectNumber ||
+      !formData.projectDate ||
+      !formData.invoiceCompany ||
+      !formData.projectTitle ||
+      !formData.amount
+    ) {
       enqueueSnackbar('Please fill in all required fields.', { variant: 'error' });
       return;
     }
@@ -70,9 +82,7 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onPr
       projectDate: formData.projectDate,
       agent: formData.agent,
       invoiceCompany: formData.invoiceCompany,
-      presenter: formData.presenter,
       projectTitle: formData.projectTitle,
-      projectDescription: formData.projectDescription,
       projectNature: formData.projectNature,
       amount: parseFloat(formData.amount),
       paid: formData.paid,
@@ -89,14 +99,13 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onPr
 
       if (res.ok) {
         enqueueSnackbar('Project added successfully!', { variant: 'success' });
+        // Reset
         setFormData({
           projectNumber: '',
           projectDate: '',
           agent: '',
           invoiceCompany: '',
-          presenter: '',
           projectTitle: '',
-          projectDescription: '',
           projectNature: '',
           amount: '',
           paid: false,
@@ -107,10 +116,16 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onPr
         onClose();
       } else {
         const errorData = await res.json();
-        enqueueSnackbar(`Error: ${errorData.message || 'Failed to add project.'}`, { variant: 'error' });
+        enqueueSnackbar(
+          `Error: ${errorData.message || 'Failed to add project.'}`,
+          { variant: 'error' }
+        );
       }
     } catch (error: any) {
-      enqueueSnackbar(`Error: ${error.message || 'Failed to add project.'}`, { variant: 'error' });
+      enqueueSnackbar(
+        `Error: ${error.message || 'Failed to add project.'}`,
+        { variant: 'error' }
+      );
     }
   };
 
@@ -164,14 +179,7 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onPr
               ))}
             </Select>
           </FormControl>
-          <TextField
-            margin="dense"
-            label="Presenter"
-            name="presenter"
-            value={formData.presenter}
-            onChange={handleChange}
-            fullWidth
-          />
+
           <TextField
             margin="dense"
             label="Project Title"
@@ -180,16 +188,6 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onPr
             onChange={handleChange}
             fullWidth
             required
-          />
-          <TextField
-            margin="dense"
-            label="Project Description"
-            name="projectDescription"
-            value={formData.projectDescription}
-            onChange={handleChange}
-            fullWidth
-            multiline
-            rows={3}
           />
           <TextField
             margin="dense"
@@ -216,7 +214,12 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({ open, onClose, onPr
               label="Paid"
               name="paid"
               value={formData.paid ? 'Yes' : 'No'}
-              onChange={(e) => setFormData(prev => ({ ...prev, paid: e.target.value === 'Yes' }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  paid: e.target.value === 'Yes',
+                }))
+              }
             >
               <MenuItem value="Yes">Yes</MenuItem>
               <MenuItem value="No">No</MenuItem>

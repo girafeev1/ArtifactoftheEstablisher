@@ -1,6 +1,7 @@
 // pages/dashboard/projects.tsx
 
 import { GetServerSideProps } from 'next';
+import { useRouter } from 'next/router';
 import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../components/SidebarLayout';
 import { initializeApis } from '../../lib/googleApi';
@@ -21,7 +22,7 @@ import {
   ToggleButtonGroup,
   Button,
   Card,
-  CardContent
+  CardContent,
 } from '@mui/material';
 import NewProjectDialog from '../../components/NewProjectDialog';
 
@@ -33,11 +34,9 @@ interface ProjectFileRecord {
     name?: string;
   };
 }
-
 interface ProjectsByYear {
   [year: string]: ProjectFileRecord[];
 }
-
 interface ProjectProps {
   projectsByCategory: ProjectsByYear;
   referenceMapping: Record<string, string>;
@@ -49,18 +48,14 @@ export default function ProjectsPage({
   referenceMapping,
   error,
 }: ProjectProps) {
-  /**
-   * State
-   */
+  const router = useRouter();
+
   const [sortMethod, setSortMethod] = useState<'year' | 'company'>('year');
-  const [selectedYear, setSelectedYear] = useState<string>('All');
-  const [selectedCompany, setSelectedCompany] = useState<string>('All');
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  /**
-   * Convert the object { year: [ {proj}, ...], ... }
-   * into a flat array for filtering & sorting in the UI
-   */
+  /** Flatten the objects for display */
   const allProjectsArray = useMemo(() => {
     const arr: (ProjectFileRecord & { year: string })[] = [];
     for (const [year, items] of Object.entries(projectsByCategory)) {
@@ -71,9 +66,7 @@ export default function ProjectsPage({
     return arr;
   }, [projectsByCategory]);
 
-  /**
-   * Map the companyIdentifier to a better display name if possible
-   */
+  /** Map short code to full name */
   const mappedProjects = useMemo(() => {
     return allProjectsArray.map((proj) => {
       const betterName =
@@ -85,68 +78,48 @@ export default function ProjectsPage({
     });
   }, [allProjectsArray, referenceMapping]);
 
-  /**
-   * Unique years & companies for dropdowns
-   */
+  /** Unique years & companies */
   const uniqueYears = useMemo(() => {
     const s = new Set<string>();
     Object.keys(projectsByCategory).forEach((yr) => s.add(yr));
-    return [...s].sort();
+    return [...s].sort(); // ascending
   }, [projectsByCategory]);
 
   const uniqueCompanies = useMemo(() => {
     const s = new Set<string>();
     mappedProjects.forEach((p) => s.add(p.displayCompanyName));
-    return [...s].sort();
+    return [...s].sort(); // alphabetical
   }, [mappedProjects]);
 
-  /**
-   * Default to "year" sorting => pick the "latest" year
-   * once uniqueYears is available
-   */
+  /** On sortMethod => pick default */
   useEffect(() => {
-    if (uniqueYears.length > 0) {
-      // Convert them to numbers, find max, then set that as selectedYear
+    if (sortMethod === 'year' && uniqueYears.length) {
       const maxYear = Math.max(...uniqueYears.map(Number));
       setSelectedYear(String(maxYear));
+      setSelectedCompany('');
+    } else if (sortMethod === 'company' && uniqueCompanies.length) {
+      setSelectedCompany(uniqueCompanies[0]);
+      setSelectedYear('');
     }
-  }, [uniqueYears]);
+  }, [sortMethod, uniqueYears, uniqueCompanies]);
 
-  /**
-   * Filter the mappedProjects based on user selection
-   * but only apply the relevant filter:
-   * - If sortMethod='year', use selectedYear
-   * - If sortMethod='company', use selectedCompany
-   */
+  /** Filter & sort */
   const filteredProjects = useMemo(() => {
     if (sortMethod === 'year') {
-      // Filter by year
-      if (selectedYear === 'All') {
-        return mappedProjects;
-      }
+      if (!selectedYear) return mappedProjects;
       return mappedProjects.filter((p) => p.year === selectedYear);
     } else {
-      // Filter by company
-      if (selectedCompany === 'All') {
-        return mappedProjects;
-      }
+      if (!selectedCompany) return mappedProjects;
       return mappedProjects.filter(
         (p) => p.displayCompanyName === selectedCompany
       );
     }
   }, [mappedProjects, sortMethod, selectedYear, selectedCompany]);
 
-  /**
-   * Sort the filtered results
-   * - If sortMethod='year', sort ascending by year
-   * - If sortMethod='company', sort ascending by displayCompanyName
-   */
   const sortedProjects = useMemo(() => {
     const clone = [...filteredProjects];
     if (sortMethod === 'year') {
-      clone.sort((a, b) => a.year.localeCompare(b.year));
-      // The "latest" year will appear last if sorting ascending.
-      // If you prefer descending, swap a,b => b.year.localeCompare(a.year).
+      clone.sort((a, b) => b.year.localeCompare(a.year)); // descending
     } else {
       clone.sort((a, b) =>
         a.displayCompanyName.localeCompare(b.displayCompanyName)
@@ -155,30 +128,10 @@ export default function ProjectsPage({
     return clone;
   }, [filteredProjects, sortMethod]);
 
-  /**
-   * Handlers
-   */
-  const handleSortToggle = (
-    _: React.MouseEvent<HTMLElement>,
-    newVal: 'year' | 'company' | null
-  ) => {
-    if (newVal) {
-      setSortMethod(newVal);
-    }
-  };
-
-  const handleYearChange = (e: any) => {
-    setSelectedYear(e.target.value);
-  };
-
-  const handleCompanyChange = (e: any) => {
-    setSelectedCompany(e.target.value);
-  };
-
-  const handleProjectAdded = () => {
-    // For minimal changes, we won't re-fetch.
-    // Optionally, you could reload or do a client re-fetch:
-    setDialogOpen(false);
+  /** Clicking a card => navigate */
+  const handleCardClick = (fileId: string | undefined) => {
+    if (!fileId) return;
+    router.push(`/dashboard/projects/${fileId}`);
   };
 
   return (
@@ -188,110 +141,110 @@ export default function ProjectsPage({
       </Typography>
       {error && <Typography color="error">{error}</Typography>}
 
-      {/* Sort Toggle */}
-      <ToggleButtonGroup
-        exclusive
-        value={sortMethod}
-        onChange={handleSortToggle}
-        sx={{ mb: 2 }}
+      {/* Top row: sort toggles, new project */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mb: 2,
+        }}
       >
-        <ToggleButton value="year" aria-label="Sort by Year">
-          By Year
-        </ToggleButton>
-        <ToggleButton value="company" aria-label="Sort by Company">
-          By Company
-        </ToggleButton>
-      </ToggleButtonGroup>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {sortMethod === 'year' && (
+            <FormControl sx={{ minWidth: 120 }}>
+              <InputLabel>Year</InputLabel>
+              <Select
+                value={selectedYear}
+                label="Year"
+                onChange={(e) => setSelectedYear(e.target.value)}
+              >
+                {uniqueYears.map((yr) => (
+                  <MenuItem key={yr} value={yr}>
+                    {yr}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          {sortMethod === 'company' && (
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>Company</InputLabel>
+              <Select
+                value={selectedCompany}
+                label="Company"
+                onChange={(e) => setSelectedCompany(e.target.value)}
+              >
+                {uniqueCompanies.map((co) => (
+                  <MenuItem key={co} value={co}>
+                    {co}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
 
-      {/* Only one dropdown at a time, based on sortMethod */}
-      {sortMethod === 'year' && (
-        <Box sx={{ mb: 2 }}>
-          <FormControl sx={{ minWidth: 120 }}>
-            <InputLabel>Year</InputLabel>
-            <Select
-              value={selectedYear}
-              label="Year"
-              onChange={handleYearChange}
-            >
-              <MenuItem value="All">All</MenuItem>
-              {uniqueYears.map((yr) => (
-                <MenuItem key={yr} value={yr}>
-                  {yr}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <ToggleButtonGroup
+            exclusive
+            value={sortMethod}
+            onChange={(_, val) => val && setSortMethod(val)}
+            size="small"
+          >
+            <ToggleButton value="year">By Year</ToggleButton>
+            <ToggleButton value="company">By Company</ToggleButton>
+          </ToggleButtonGroup>
         </Box>
-      )}
-      {sortMethod === 'company' && (
-        <Box sx={{ mb: 2 }}>
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>Company</InputLabel>
-            <Select
-              value={selectedCompany}
-              label="Company"
-              onChange={handleCompanyChange}
-            >
-              <MenuItem value="All">All</MenuItem>
-              {uniqueCompanies.map((co) => (
-                <MenuItem key={co} value={co}>
-                  {co}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
-      )}
 
-      {/* New Project Button */}
-      <Box sx={{ mb: 2 }}>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => setDialogOpen(true)}
-        >
+        <Button variant="contained" onClick={() => setDialogOpen(true)}>
           New Project
         </Button>
       </Box>
 
-      {/* Display results as cards */}
-      {sortedProjects.length === 0 ? (
-        <Typography>No Project Overview files found.</Typography>
-      ) : (
-        sortedProjects.map((proj, idx) => (
-          <Card key={idx} sx={{ mb: 2 }}>
-            <CardContent>
-              {sortMethod === 'year' ? (
-                <Typography variant="h6">
-                  Company: {proj.displayCompanyName}
-                </Typography>
-              ) : (
-                <Typography variant="h6">Year: {proj.year}</Typography>
-              )}
-            </CardContent>
-          </Card>
-        ))
-      )}
+      {/* Cards */}
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+        {sortedProjects.length === 0 ? (
+          <Typography>No Project Overview files found.</Typography>
+        ) : (
+          sortedProjects.map((proj, idx) => {
+            const fileId = proj.file.id || '';
+            const mainLabel =
+              sortMethod === 'year' ? proj.displayCompanyName : proj.year;
+
+            return (
+              <Card
+                key={idx}
+                sx={{
+                  cursor: 'pointer',
+                  width: 'fit-content',
+                  minWidth: 280,
+                }}
+                onClick={() => handleCardClick(fileId)}
+              >
+                <CardContent>
+                  <Typography variant="h6">{mainLabel}</Typography>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
+      </Box>
 
       <NewProjectDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onProjectAdded={handleProjectAdded}
+        onProjectAdded={() => setDialogOpen(false)}
         referenceNames={referenceMapping}
       />
     </SidebarLayout>
   );
 }
 
-/** ---------------------------
- *  getServerSideProps
- * ---------------------------*/
-export const getServerSideProps: GetServerSideProps<ProjectProps> = async (
-  ctx
-) => {
+export const getServerSideProps: GetServerSideProps<ProjectProps> = async (ctx) => {
   const session = await getSession(ctx);
   if (!session?.accessToken) {
-    return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
+    return {
+      redirect: { destination: '/api/auth/signin/google', permanent: false },
+    };
   }
 
   try {

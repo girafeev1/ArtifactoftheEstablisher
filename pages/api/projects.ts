@@ -21,9 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       projectDate,
       agent,
       invoiceCompany,
-      presenter,
       projectTitle,
-      projectDescription,
       projectNature,
       amount,
       paid,
@@ -31,6 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       invoice,
     } = req.body;
 
+    // Basic required fields
     if (!projectNumber || !projectDate || !invoiceCompany || !projectTitle) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -41,14 +40,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const pmsRefLogFileId = await findPMSReferenceLogFile(drive);
 
+    // Now only 10 columns, so we remove 'presenter' / 'projectDescription'
     await appendProjectOverview(sheets, pmsRefLogFileId, {
       projectNumber,
       projectDate,
       agent: agent || '',
       invoiceCompany,
-      presenter: presenter || '',
       projectTitle,
-      projectDescription: projectDescription || '',
       projectNature: projectNature || '',
       amount: parseFloat(amount || 0),
       paid: !!paid,

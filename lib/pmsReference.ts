@@ -4,6 +4,7 @@ import { drive_v3, sheets_v4 } from 'googleapis';
 
 /** ---------------------------------------
  *  ORIGINAL INTERFACES (unchanged)
+ *  (You can keep your AddressBookEntry, BankAccountRow, etc.)
  * -------------------------------------- */
 export interface AddressBookEntry {
   companyName: string;
@@ -30,7 +31,6 @@ export interface BankAccountRow {
 
 /**
  * Finds the "PMS Reference Log" file by name in the shared drives.
- * (ORIGINAL FUNCTION—unchanged)
  */
 export async function findPMSReferenceLogFile(drive: drive_v3.Drive): Promise<string> {
   const response = await drive.files.list({
@@ -48,8 +48,7 @@ export async function findPMSReferenceLogFile(drive: drive_v3.Drive): Promise<st
 }
 
 /**
- * Fetches the client data from the "Address Book of Accounts" sheet.
- * (ORIGINAL FUNCTION—unchanged)
+ * Fetches the client data from "Address Book of Accounts" sheet.
  */
 export async function fetchAddressBook(
   sheets: sheets_v4.Sheets,
@@ -76,8 +75,7 @@ export async function fetchAddressBook(
 }
 
 /**
- * Fetches the bank account data from the "Bank Account Information" sheet.
- * (ORIGINAL FUNCTION—unchanged)
+ * Fetches the bank account data from "Bank Account Information" sheet.
  */
 export async function fetchBankAccounts(
   sheets: sheets_v4.Sheets,
@@ -104,7 +102,6 @@ export async function fetchBankAccounts(
 
 /**
  * Lists all spreadsheet files containing "Project Overview" in their names.
- * (ORIGINAL FUNCTION—unchanged)
  */
 export async function listProjectOverviewFiles(
   drive: drive_v3.Drive,
@@ -140,15 +137,9 @@ export async function listProjectOverviewFiles(
 }
 
 /** ----------------------------------------------------------------
- * NEW FUNCTIONS BELOW—added to support new project creation /
- * referencing short IDs -> full names if you want to read from
- * "Reference of Subsidiary Names" sheet.
+ *  NEW FUNCTIONS BELOW—added to support new project creation /
+ *  referencing short IDs -> full names from "Reference of Subsidiary Names" sheet.
  * ----------------------------------------------------------------
- */
-
-/**
- * Fetches the mapping from "Reference of Subsidiary Names" sheet.
- * Expects Column A = short ID, Column B = full name, etc.
  */
 export async function fetchReferenceNames(
   sheets: sheets_v4.Sheets,
@@ -171,7 +162,17 @@ export async function fetchReferenceNames(
 
 /**
  * Appends a new project row into the "Project Overview" sheet.
- * Expects a known range or uses "A:L" as the default for insertion.
+ * Now we have only 10 columns from A to J:
+ * 0: projectNumber
+ * 1: projectDate
+ * 2: agent
+ * 3: invoiceCompany
+ * 4: projectTitle
+ * 5: projectNature
+ * 6: amount
+ * 7: paid (✔ or ✖)
+ * 8: paidOnDate
+ * 9: invoice
  */
 export async function appendProjectOverview(
   sheets: sheets_v4.Sheets,
@@ -181,9 +182,7 @@ export async function appendProjectOverview(
     projectDate: string;
     agent: string;
     invoiceCompany: string;
-    presenter: string;
     projectTitle: string;
-    projectDescription: string;
     projectNature: string;
     amount: number;
     paid: boolean;
@@ -197,9 +196,7 @@ export async function appendProjectOverview(
       data.projectDate,
       data.agent,
       data.invoiceCompany,
-      data.presenter,
       data.projectTitle,
-      data.projectDescription,
       data.projectNature,
       `$ ${data.amount.toFixed(2)}`,
       data.paid ? '✔' : '✖',
@@ -210,7 +207,7 @@ export async function appendProjectOverview(
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'Project Overview!A:L',
+    range: 'Project Overview!A:J', // 10 columns
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values },
