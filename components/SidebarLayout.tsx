@@ -1,17 +1,25 @@
 // components/SidebarLayout.tsx
 
 import Link from 'next/link';
-import { PropsWithChildren } from 'react';
+import { useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { Box, Typography, Button, Divider } from '@mui/material';
+import { Box, Typography, Button, Divider, Menu, MenuItem } from '@mui/material';
 
-export default function SidebarLayout({ children }: PropsWithChildren) {
+export default function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   const firstName = session?.user?.name?.split(' ')[0] || 'User';
+  const [recordsAnchorEl, setRecordsAnchorEl] = useState<null | HTMLElement>(null);
+
+  const handleRecordsClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setRecordsAnchorEl(event.currentTarget);
+  };
+
+  const handleRecordsClose = () => {
+    setRecordsAnchorEl(null);
+  };
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      {/* Sidebar */}
       <Box
         component="nav"
         sx={{
@@ -39,27 +47,26 @@ export default function SidebarLayout({ children }: PropsWithChildren) {
               Projects
             </Button>
           </Link>
-          <Link href="/dashboard/clients" passHref>
-            <Button fullWidth sx={{ justifyContent: 'flex-start', mb: 1 }}>
-              Clients
-            </Button>
-          </Link>
-          <Link href="/dashboard/internal" passHref>
-            <Button fullWidth sx={{ justifyContent: 'flex-start' }}>
-              Internal
-            </Button>
-          </Link>
+          <Button fullWidth onClick={handleRecordsClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
+            Records
+          </Button>
+          <Menu anchorEl={recordsAnchorEl} open={Boolean(recordsAnchorEl)} onClose={handleRecordsClose}>
+            <MenuItem onClick={handleRecordsClose}>
+              <Link href="/dashboard/records?view=clients" passHref>
+                <Button sx={{ textTransform: 'none' }}>Clients Account</Button>
+              </Link>
+            </MenuItem>
+            <MenuItem onClick={handleRecordsClose}>
+              <Link href="/dashboard/records?view=bank" passHref>
+                <Button sx={{ textTransform: 'none' }}>Company Bank Account</Button>
+              </Link>
+            </MenuItem>
+          </Menu>
         </Box>
-        <Button
-          color="secondary"
-          onClick={() => signOut()}
-          sx={{ mt: 3, justifyContent: 'flex-start' }}
-        >
+        <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
           Sign Out
         </Button>
       </Box>
-
-      {/* Main Content */}
       <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
         {children}
       </Box>

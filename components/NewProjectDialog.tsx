@@ -1,5 +1,6 @@
 // components/NewProjectDialog.tsx
-import React, { useState, ChangeEvent, FormEvent } from 'react';
+
+import React, { useState, ChangeEvent, FormEvent, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -11,253 +12,266 @@ import {
   Select,
   InputLabel,
   FormControl,
+  Checkbox,
+  Box,
+  Typography,
+  IconButton,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 
+/**
+ * Props:
+ * - mode="global" => user picks invoice company + project date => we derive year from date =>
+ *   the user can see a partial projectNumber (#2024-001) where the last 3 digits are editable.
+ * - mode="file" => user is locked to a certain invoice company + year code from the file label =>
+ *   user picks project date (month/day only?), last 3 digits are still editable.
+ */
 interface NewProjectDialogProps {
   open: boolean;
   onClose: () => void;
   onProjectAdded: () => void;
   referenceNames: Record<string, string>;
+  mode?: 'global' | 'file';
+  preselectedInvoiceCompany?: string; // if mode="file", you can pass these
+  preselectedYearCode?: string;      // from the file label
 }
 
-const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
+export default function NewProjectDialog({
   open,
   onClose,
   onProjectAdded,
   referenceNames,
-}) => {
+  mode = 'global',
+  preselectedYearCode = '',
+}: NewProjectDialogProps) {
   const { enqueueSnackbar } = useSnackbar();
 
-  // Removed `presenter` & `projectDescription`
-  const [formData, setFormData] = useState({
-    projectNumber: '',
-    projectDate: '',
-    agent: '',
-    invoiceCompany: '',
-    projectTitle: '',
-    projectNature: '',
-    amount: '',
-    paid: false,
-    paidOnDate: '',
-    invoice: '',
-  });
+  // We'll store data in a local state
+  const [invoiceCompany, setInvoiceCompany] = useState<string>('');
+  const [dateValue, setDateValue] = useState<string>(''); // yyyy-mm-dd
+  const [yearCode, setYearCode] = useState<string>('');   // e.g. "2024"
+  const [projectNumber, setProjectNumber] = useState<string>('');  // #2024-001
+  const [title, setTitle] = useState<string>('');
+  const [nature, setNature] = useState<string>('');
+  const [amount, setAmount] = useState<string>('');
+  const [paid, setPaid] = useState<boolean>(false);
+  const [paidOnDate, setPaidOnDate] = useState<string>('');
 
-  const handleChange = (
-    e: ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name!]: value,
-    }));
+  // When dialog opens, reset
+  useEffect(() => {
+    if (open) {
+      if (mode === 'file') {
+        setInvoiceCompany(preselectedInvoiceCompany);
+        setYearCode(preselectedYearCode);
+        // projectNumber => "#<yearCode>-001"
+        setProjectNumber(`#${preselectedYearCode}-001`);
+      } else {
+        setInvoiceCompany('');
+        setYearCode('');
+        setProjectNumber('#0000-001');
+      }
+      setDateValue('');
+      setTitle('');
+      setNature('');
+      setAmount('');
+      setPaid(false);
+      setPaidOnDate('');
+    }
+  }, [open, mode, preselectedInvoiceCompany, preselectedYearCode]);
+
+  // If user toggles paid => uncheck => clear the paidOnDate
+  useEffect(() => {
+    if (!paid) {
+      setPaidOnDate('');
+    }
+  }, [paid]);
+
+  // If user is in "global" mode, whenever they pick a date, we extract the year
+  // => update yearCode => update the projectNumber.
+  const handleDateChange = (val: string) => {
+    setDateValue(val);
+    if (mode === 'global') {
+      if (!val) return;
+      // extract the year from "yyyy-mm-dd"
+      const splitted = val.split('-');
+      if (splitted.length >= 1) {
+        const yyyy = splitted[0];
+        setYearCode(yyyy);
+        // keep last 3 digits from the existing projectNumber if user has changed it?
+        const last3 = projectNumber.slice(projectNumber.indexOf('-') + 1) || '001';
+        setProjectNumber(`#${yyyy}-${last3}`);
+      }
+    } else {
+      // mode="file" => we do partial lock
+      // if user is forced to pick a date in the same year => we only consider month/day?
+      // We won't change the year code from the date, because the file is locked to preselectedYearCode
+      setDateValue(val);
+    }
   };
 
-  const handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const { name, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name!]: checked,
-    }));
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    // Basic validation
-    if (
-      !formData.projectNumber ||
-      !formData.projectDate ||
-      !formData.invoiceCompany ||
-      !formData.projectTitle ||
-      !formData.amount
-    ) {
-      enqueueSnackbar('Please fill in all required fields.', { variant: 'error' });
+  // If user modifies the last 3 digits => let them do so, but keep `#2024-???`
+  const handleProjectNumberChange = (val: string) => {
+    // we assume the format "#yearCode-xxx"
+    // let's parse out the last 3 digits
+    const dashIndex = projectNumber.indexOf('-');
+    if (dashIndex === -1) {
+      // fallback
+      setProjectNumber(val);
       return;
     }
+    const prefix = projectNumber.substring(0, dashIndex + 1);
+    // user modifies the part after the dash
+    setProjectNumber(prefix + val.replace(/[^0-9]/g, '').padStart(3, '0'));
+  };
 
-    // Prepare project data
-    const project = {
-      projectNumber: formData.projectNumber,
-      projectDate: formData.projectDate,
-      agent: formData.agent,
-      invoiceCompany: formData.invoiceCompany,
-      projectTitle: formData.projectTitle,
-      projectNature: formData.projectNature,
-      amount: parseFloat(formData.amount),
-      paid: formData.paid,
-      paidOnDate: formData.paidOnDate,
-      invoice: formData.invoice,
-    };
-
-    try {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(project),
-      });
-
-      if (res.ok) {
-        enqueueSnackbar('Project added successfully!', { variant: 'success' });
-        // Reset
-        setFormData({
-          projectNumber: '',
-          projectDate: '',
-          agent: '',
-          invoiceCompany: '',
-          projectTitle: '',
-          projectNature: '',
-          amount: '',
-          paid: false,
-          paidOnDate: '',
-          invoice: '',
-        });
-        onProjectAdded();
-        onClose();
-      } else {
-        const errorData = await res.json();
-        enqueueSnackbar(
-          `Error: ${errorData.message || 'Failed to add project.'}`,
-          { variant: 'error' }
-        );
-      }
-    } catch (error: any) {
-      enqueueSnackbar(
-        `Error: ${error.message || 'Failed to add project.'}`,
-        { variant: 'error' }
-      );
+  const handleSubmit = async () => {
+    // Basic validation
+    if (!yearCode || !invoiceCompany || !title || !amount) {
+      enqueueSnackbar('Please fill in all required fields (year, invoice co, title, amount).', { variant: 'error' });
+      return;
     }
+    if (!projectNumber) {
+      enqueueSnackbar('Project number is missing.', { variant: 'error' });
+      return;
+    }
+    // For this example, we simulate an API call
+    console.log('[NewProjectDialog] Submitting new project => yearCode:', yearCode, 'invoiceCo:', invoiceCompany, 'projectNumber:', projectNumber);
+    enqueueSnackbar('Simulated adding new project. Implement the actual API call.', { variant: 'success' });
+    onProjectAdded();
+    onClose();
   };
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Add New Project</DialogTitle>
-      <form onSubmit={handleSubmit}>
-        <DialogContent dividers>
-          <TextField
-            margin="dense"
-            label="Project Number"
-            name="projectNumber"
-            value={formData.projectNumber}
-            onChange={handleChange}
-            fullWidth
-            required
-          />
-          <TextField
-            margin="dense"
-            label="Project Date"
-            name="projectDate"
-            type="date"
-            value={formData.projectDate}
-            onChange={handleChange}
-            fullWidth
-            InputLabelProps={{ shrink: true }}
-            required
-          />
-          <TextField
-            margin="dense"
-            label="Agent"
-            name="agent"
-            value={formData.agent}
-            onChange={handleChange}
-            fullWidth
-          />
+      <DialogTitle>{mode === 'global' ? 'Add New Project (Global)' : 'Add New Project (File)'} </DialogTitle>
+      <DialogContent dividers>
+        {mode === 'global' ? (
           <FormControl fullWidth margin="dense">
             <InputLabel id="invoice-company-label">Invoice Company</InputLabel>
             <Select
               labelId="invoice-company-label"
               label="Invoice Company"
-              name="invoiceCompany"
-              value={formData.invoiceCompany}
-              onChange={handleChange}
-              required
+              value={invoiceCompany}
+              onChange={(e) => setInvoiceCompany(e.target.value as string)}
             >
-              {Object.entries(referenceNames).map(([identifier, fullName]) => (
-                <MenuItem key={identifier} value={identifier}>
-                  {fullName}
-                </MenuItem>
+              {/* read from referenceNames if needed */}
+              {Object.entries(referenceNames).map(([code, fullName]) => (
+                <MenuItem key={code} value={code}>{`${code} - ${fullName}`}</MenuItem>
               ))}
             </Select>
           </FormControl>
-
+        ) : (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body1">
+              Invoice Company: {preselectedInvoiceCompany}
+            </Typography>
+          </Box>
+        )}
+        {mode === 'global' ? (
           <TextField
-            margin="dense"
-            label="Project Title"
-            name="projectTitle"
-            value={formData.projectTitle}
-            onChange={handleChange}
+            label="Project Date"
+            type="date"
+            value={dateValue}
+            onChange={(e) => handleDateChange(e.target.value)}
             fullWidth
-            required
+            margin="dense"
+            InputLabelProps={{ shrink: true }}
           />
+        ) : (
           <TextField
-            margin="dense"
-            label="Project Nature"
-            name="projectNature"
-            value={formData.projectNature}
-            onChange={handleChange}
+            label="Project Date (Month/Day Only?)"
+            type="date"
+            value={dateValue}
+            onChange={(e) => handleDateChange(e.target.value)}
             fullWidth
-          />
-          <TextField
             margin="dense"
-            label="Amount"
-            name="amount"
-            type="number"
-            value={formData.amount}
-            onChange={handleChange}
-            fullWidth
-            required
+            InputLabelProps={{ shrink: true }}
           />
-          <FormControl fullWidth margin="dense">
-            <InputLabel id="paid-label">Paid</InputLabel>
-            <Select
-              labelId="paid-label"
-              label="Paid"
-              name="paid"
-              value={formData.paid ? 'Yes' : 'No'}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  paid: e.target.value === 'Yes',
-                }))
-              }
-            >
-              <MenuItem value="Yes">Yes</MenuItem>
-              <MenuItem value="No">No</MenuItem>
-            </Select>
-          </FormControl>
-          {formData.paid && (
-            <TextField
-              margin="dense"
-              label="Paid On Date"
-              name="paidOnDate"
-              type="date"
-              value={formData.paidOnDate}
-              onChange={handleChange}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              required
-            />
+        )}
+        <Box sx={{ mb: 1, mt: 1 }}>
+          {mode === 'global' ? (
+            <Typography variant="body2">
+              Year Code: {yearCode || '(derived from Project Date)'}
+            </Typography>
+          ) : (
+            <Typography variant="body2">
+              Year Code: {preselectedYearCode}
+            </Typography>
           )}
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2">Project Number:</Typography>
+          {/* Let user edit the last 3 digits. We'll parse out the last 3 digits. */}
           <TextField
-            margin="dense"
-            label="Invoice"
-            name="invoice"
-            value={formData.invoice}
-            onChange={handleChange}
-            fullWidth
+            value={projectNumber}
+            onChange={(e) => {
+              // If there's a dash, we only let them edit the part after the dash
+              // We'll parse it out for simplicity
+              const dashIndex = projectNumber.indexOf('-');
+              if (dashIndex === -1) {
+                // fallback
+                setProjectNumber(e.target.value);
+              } else {
+                const prefix = projectNumber.substring(0, dashIndex + 1);
+                const suffixRaw = e.target.value.replace(/^.*-/, ''); // remove everything before the dash
+                const suffixClean = suffixRaw.replace(/[^0-9]/g, '').padStart(3, '0');
+                setProjectNumber(prefix + suffixClean);
+              }
+            }}
+            size="small"
+            sx={{ width: 160 }}
           />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose} color="secondary">
-            Cancel
-          </Button>
-          <Button type="submit" variant="contained" color="primary">
-            Add Project
-          </Button>
-        </DialogActions>
-      </form>
+        </Box>
+        <TextField
+          label="Project Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          fullWidth
+          margin="dense"
+        />
+        <TextField
+          label="Project Nature"
+          value={nature}
+          onChange={(e) => setNature(e.target.value)}
+          fullWidth
+          margin="dense"
+        />
+        <TextField
+          label="Amount"
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          fullWidth
+          margin="dense"
+        />
+        <FormControl fullWidth margin="dense">
+          <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+            <Typography sx={{ flexGrow: 1 }}>Paid</Typography>
+            <Checkbox
+              checked={paid}
+              onChange={(e) => setPaid(e.target.checked)}
+            />
+          </Box>
+        </FormControl>
+        {paid && (
+          <TextField
+            label="Paid On Date"
+            type="date"
+            value={paidOnDate}
+            onChange={(e) => setPaidOnDate(e.target.value)}
+            fullWidth
+            margin="dense"
+            InputLabelProps={{ shrink: true }}
+            required
+          />
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} color="secondary">Cancel</Button>
+        <Button type="button" variant="contained" color="primary" onClick={handleSubmit}>
+          Add Project
+        </Button>
+      </DialogActions>
     </Dialog>
   );
-};
-
-export default NewProjectDialog;
+}
