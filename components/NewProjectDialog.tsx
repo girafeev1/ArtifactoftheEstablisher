@@ -1,277 +1,321 @@
 // components/NewProjectDialog.tsx
 
-import React, { useState, ChangeEvent, FormEvent, useEffect } from 'react';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  MenuItem,
-  Select,
-  InputLabel,
-  FormControl,
-  Checkbox,
-  Box,
-  Typography,
-  IconButton,
-} from '@mui/material';
-import { useSnackbar } from 'notistack';
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography } from '@mui/material';
+import NewProjectPage1 from './NewProjectDialog/NewProjectPage1';
+import NewProjectPage2 from './NewProjectDialog/NewProjectPage2';
 
-/**
- * Props:
- * - mode="global" => user picks invoice company + project date => we derive year from date =>
- *   the user can see a partial projectNumber (#2024-001) where the last 3 digits are editable.
- * - mode="file" => user is locked to a certain invoice company + year code from the file label =>
- *   user picks project date (month/day only?), last 3 digits are still editable.
- */
+interface ClientEntry {
+  companyName: string;
+}
+interface InvoiceBankAccount {
+  companyName: string;
+  bankName: string;
+  bankCode: string;
+  accountType: string;
+  accountNumber: string;
+  fpsId?: string;
+  fpsEmail?: string;
+  identifier?: string;
+}
+interface SubsidiaryData {
+  identifier: string;
+  englishName: string;
+  chineseName: string;
+  email: string;
+  phone: string;
+  room: string;
+  building: string;
+  street: string;
+  district: string;
+  region: string;
+}
+
 interface NewProjectDialogProps {
   open: boolean;
   onClose: () => void;
   onProjectAdded: () => void;
-  referenceNames: Record<string, string>;
-  mode?: 'global' | 'file';
-  preselectedInvoiceCompany?: string; // if mode="file", you can pass these
-  preselectedYearCode?: string;      // from the file label
+  fileId: string;
+  yearCode: string;
+  fullCompanyName: string;
+  clientsData: ClientEntry[];
+  defaultProjectNumber?: string;
+  bankAccounts?: InvoiceBankAccount[];
+  subsidiaryInfo?: SubsidiaryData | null;
+  initialPageIndex?: number;
+  cameFromEditProject?: boolean;
+  onGoBackToEditProject?: () => void;
+  existingProjectNumber?: string;
+  existingProjectDate?: string;
 }
 
 export default function NewProjectDialog({
   open,
   onClose,
   onProjectAdded,
-  referenceNames,
-  mode = 'global',
-  preselectedYearCode = '',
+  fileId,
+  yearCode,
+  fullCompanyName,
+  clientsData,
+  defaultProjectNumber = '',
+  bankAccounts = [],
+  subsidiaryInfo,
+  initialPageIndex = 0,
+  cameFromEditProject = false,
+  onGoBackToEditProject,
+  existingProjectNumber,
+  existingProjectDate,
 }: NewProjectDialogProps) {
-  const { enqueueSnackbar } = useSnackbar();
+  console.log('[NewProjectDialog] rendering => open=', open, ' cameFromEditProject=', cameFromEditProject);
 
-  // We'll store data in a local state
-  const [invoiceCompany, setInvoiceCompany] = useState<string>('');
-  const [dateValue, setDateValue] = useState<string>(''); // yyyy-mm-dd
-  const [yearCode, setYearCode] = useState<string>('');   // e.g. "2024"
-  const [projectNumber, setProjectNumber] = useState<string>('');  // #2024-001
-  const [title, setTitle] = useState<string>('');
-  const [nature, setNature] = useState<string>('');
-  const [amount, setAmount] = useState<string>('');
-  const [paid, setPaid] = useState<boolean>(false);
-  const [paidOnDate, setPaidOnDate] = useState<string>('');
+  const [pageIndex, setPageIndex] = useState(initialPageIndex);
 
-  // When dialog opens, reset
+  // ---------- Page 1 States ----------
+  const [projectNumber, setProjectNumber] = useState(defaultProjectNumber);
+  const [editingProjectNumber, setEditingProjectNumber] = useState(false);
+  const [projectDate, setProjectDate] = useState('');
+  const [clientCompany, setClientCompany] = useState('');
+  const [manualCompany, setManualCompany] = useState('');
+  const [useManualCompany, setUseManualCompany] = useState(false);
+  const [projectTitle, setProjectTitle] = useState('');
+  const [projectNature, setProjectNature] = useState('');
+  const [amount, setAmount] = useState('');
+
+  // ---------- Page 2 States ----------
+  const [issuerEnglish, setIssuerEnglish] = useState('');
+  const [issuerChinese, setIssuerChinese] = useState('');
+  const [issuerRoom, setIssuerRoom] = useState('');
+  const [issuerBuilding, setIssuerBuilding] = useState('');
+  const [issuerStreet, setIssuerStreet] = useState('');
+  const [issuerDistrict, setIssuerDistrict] = useState('');
+  const [issuerRegion, setIssuerRegion] = useState('');
+  const [issuerEmail, setIssuerEmail] = useState('');
+  const [issuerPhone, setIssuerPhone] = useState('');
+
+  const relevantBanks = bankAccounts.filter(b => b.companyName === fullCompanyName);
+  const [selectedBank, setSelectedBank] = useState('');
+  const [selectedAccountType, setSelectedAccountType] = useState('');
+  const matchedBank = relevantBanks.find(
+    b => b.bankName === selectedBank && b.accountType === selectedAccountType
+  );
+
+  // Reset on open
   useEffect(() => {
     if (open) {
-      if (mode === 'file') {
-        setInvoiceCompany(preselectedInvoiceCompany);
-        setYearCode(preselectedYearCode);
-        // projectNumber => "#<yearCode>-001"
-        setProjectNumber(`#${preselectedYearCode}-001`);
+      console.log('[NewProjectDialog] open => resetting. cameFromEditProject=', cameFromEditProject);
+      setPageIndex(initialPageIndex || 0);
+      if (cameFromEditProject && existingProjectNumber && existingProjectDate) {
+        console.log('[NewProjectDialog] using existing project date/number =>', existingProjectNumber, existingProjectDate);
+        setProjectNumber(existingProjectNumber);
+        setProjectDate(existingProjectDate);
+        setEditingProjectNumber(false);
       } else {
-        setInvoiceCompany('');
-        setYearCode('');
-        setProjectNumber('#0000-001');
+        setProjectNumber(defaultProjectNumber);
+        setEditingProjectNumber(false);
+        setProjectDate('');
       }
-      setDateValue('');
-      setTitle('');
-      setNature('');
+      setClientCompany('');
+      setManualCompany('');
+      setUseManualCompany(false);
+      setProjectTitle('');
+      setProjectNature('');
       setAmount('');
-      setPaid(false);
-      setPaidOnDate('');
+      setIssuerEnglish(subsidiaryInfo?.englishName || fullCompanyName);
+      setIssuerChinese(subsidiaryInfo?.chineseName || '');
+      setIssuerRoom(subsidiaryInfo?.room || '');
+      setIssuerBuilding(subsidiaryInfo?.building || '');
+      setIssuerStreet(subsidiaryInfo?.street || '');
+      setIssuerDistrict(subsidiaryInfo?.district || '');
+      setIssuerRegion(subsidiaryInfo?.region || '');
+      setIssuerEmail(subsidiaryInfo?.email || '');
+      setIssuerPhone(subsidiaryInfo?.phone || '');
+      setSelectedBank('');
+      setSelectedAccountType('');
     }
-  }, [open, mode, preselectedInvoiceCompany, preselectedYearCode]);
+  }, [
+    open,
+    initialPageIndex,
+    defaultProjectNumber,
+    cameFromEditProject,
+    existingProjectNumber,
+    existingProjectDate,
+    subsidiaryInfo,
+    bankAccounts,
+    fullCompanyName,
+  ]);
 
-  // If user toggles paid => uncheck => clear the paidOnDate
-  useEffect(() => {
-    if (!paid) {
-      setPaidOnDate('');
+  async function saveProjectData() {
+    if (cameFromEditProject) {
+      console.log('[NewProjectDialog] cameFromEditProject => skip creating new row in the sheet');
+      return;
     }
-  }, [paid]);
+    if (!fileId) throw new Error('No fileId provided');
+    if (!projectNumber) throw new Error('Project Number is required');
+    if (!projectDate) throw new Error('Project Date is required');
+    if (!projectTitle) throw new Error('Project Title is required');
+    if (!amount) throw new Error('Amount is required');
+    const invCo = useManualCompany ? manualCompany : clientCompany;
+    if (!invCo) throw new Error('Client Company is required');
+    console.log('[NewProjectDialog] POST new project => number=', projectNumber, ' date=', projectDate);
+    const payload = {
+      fileId,
+      projectNumber,
+      projectDate,
+      agent: '',
+      invoiceCompany: invCo,
+      projectTitle,
+      projectNature,
+      amount: parseFloat(amount || '0'),
+      paid: false,
+      paidOnDate: '',
+    };
+    const resp = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const errJson = await resp.json().catch(() => ({}));
+      const errMsg = errJson.error || 'New project creation failed';
+      console.error('[NewProjectDialog] creation error =>', errMsg);
+      throw new Error(errMsg);
+    }
+    console.log('[NewProjectDialog] project created => success');
+  }
 
-  // If user is in "global" mode, whenever they pick a date, we extract the year
-  // => update yearCode => update the projectNumber.
-  const handleDateChange = (val: string) => {
-    setDateValue(val);
-    if (mode === 'global') {
-      if (!val) return;
-      // extract the year from "yyyy-mm-dd"
-      const splitted = val.split('-');
-      if (splitted.length >= 1) {
-        const yyyy = splitted[0];
-        setYearCode(yyyy);
-        // keep last 3 digits from the existing projectNumber if user has changed it?
-        const last3 = projectNumber.slice(projectNumber.indexOf('-') + 1) || '001';
-        setProjectNumber(`#${yyyy}-${last3}`);
-      }
+  async function handleSaveAndExit() {
+    try {
+      await saveProjectData();
+      onProjectAdded();
+      onClose();
+    } catch (err: any) {
+      console.error('[NewProjectDialog] handleSaveAndExit => error:', err);
+      alert(`Error: ${err.message}`);
+    }
+  }
+
+  async function handleSaveAndNext() {
+    try {
+      await saveProjectData();
+      setPageIndex(1);
+    } catch (err: any) {
+      console.error('[NewProjectDialog] handleSaveAndNext => error:', err);
+      alert(`Error: ${err.message}`);
+    }
+  }
+
+  function handleBack() {
+    console.log('[NewProjectDialog] user clicked BACK => pageIndex=', pageIndex);
+    if (pageIndex === 1 && cameFromEditProject && onGoBackToEditProject) {
+      onGoBackToEditProject();
     } else {
-      // mode="file" => we do partial lock
-      // if user is forced to pick a date in the same year => we only consider month/day?
-      // We won't change the year code from the date, because the file is locked to preselectedYearCode
-      setDateValue(val);
+      if (pageIndex > 0) {
+        setPageIndex(pageIndex - 1);
+      }
     }
-  };
+  }
 
-  // If user modifies the last 3 digits => let them do so, but keep `#2024-???`
-  const handleProjectNumberChange = (val: string) => {
-    // we assume the format "#yearCode-xxx"
-    // let's parse out the last 3 digits
-    const dashIndex = projectNumber.indexOf('-');
-    if (dashIndex === -1) {
-      // fallback
-      setProjectNumber(val);
-      return;
-    }
-    const prefix = projectNumber.substring(0, dashIndex + 1);
-    // user modifies the part after the dash
-    setProjectNumber(prefix + val.replace(/[^0-9]/g, '').padStart(3, '0'));
-  };
-
-  const handleSubmit = async () => {
-    // Basic validation
-    if (!yearCode || !invoiceCompany || !title || !amount) {
-      enqueueSnackbar('Please fill in all required fields (year, invoice co, title, amount).', { variant: 'error' });
-      return;
-    }
-    if (!projectNumber) {
-      enqueueSnackbar('Project number is missing.', { variant: 'error' });
-      return;
-    }
-    // For this example, we simulate an API call
-    console.log('[NewProjectDialog] Submitting new project => yearCode:', yearCode, 'invoiceCo:', invoiceCompany, 'projectNumber:', projectNumber);
-    enqueueSnackbar('Simulated adding new project. Implement the actual API call.', { variant: 'success' });
-    onProjectAdded();
+  function handleFinish() {
+    console.log('[NewProjectDialog] user clicked FINISH => close. no invoice logic');
     onClose();
-  };
+  }
+
+  // Compute invoice number from projectDate and projectNumber.
+  function computeInvoiceNumber(dateStr: string, pNum: string): string {
+    if (!dateStr || !pNum) return '???';
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return '???';
+    const y = parts[0];
+    const mmdd = parts[1] + parts[2];
+    const dashIdx = pNum.lastIndexOf('-');
+    if (dashIdx === -1) return `${y}-${mmdd}-???`;
+    const nnn = pNum.slice(dashIdx + 1);
+    return `${y}-${mmdd}-${nnn}`;
+  }
+  const invoiceNumber = computeInvoiceNumber(projectDate, projectNumber);
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{mode === 'global' ? 'Add New Project (Global)' : 'Add New Project (File)'} </DialogTitle>
-      <DialogContent dividers>
-        {mode === 'global' ? (
-          <FormControl fullWidth margin="dense">
-            <InputLabel id="invoice-company-label">Invoice Company</InputLabel>
-            <Select
-              labelId="invoice-company-label"
-              label="Invoice Company"
-              value={invoiceCompany}
-              onChange={(e) => setInvoiceCompany(e.target.value as string)}
-            >
-              {/* read from referenceNames if needed */}
-              {Object.entries(referenceNames).map(([code, fullName]) => (
-                <MenuItem key={code} value={code}>{`${code} - ${fullName}`}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        ) : (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body1">
-              Invoice Company: {preselectedInvoiceCompany}
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      {pageIndex === 0 && (
+        <>
+          <DialogTitle>New Project - Basic Info</DialogTitle>
+          <DialogContent dividers>
+            <Typography variant="subtitle2" sx={{ mb: 2 }}>
+              Company: {fullCompanyName} (Year: {yearCode})
             </Typography>
-          </Box>
-        )}
-        {mode === 'global' ? (
-          <TextField
-            label="Project Date"
-            type="date"
-            value={dateValue}
-            onChange={(e) => handleDateChange(e.target.value)}
-            fullWidth
-            margin="dense"
-            InputLabelProps={{ shrink: true }}
-          />
-        ) : (
-          <TextField
-            label="Project Date (Month/Day Only?)"
-            type="date"
-            value={dateValue}
-            onChange={(e) => handleDateChange(e.target.value)}
-            fullWidth
-            margin="dense"
-            InputLabelProps={{ shrink: true }}
-          />
-        )}
-        <Box sx={{ mb: 1, mt: 1 }}>
-          {mode === 'global' ? (
-            <Typography variant="body2">
-              Year Code: {yearCode || '(derived from Project Date)'}
-            </Typography>
-          ) : (
-            <Typography variant="body2">
-              Year Code: {preselectedYearCode}
-            </Typography>
-          )}
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2">Project Number:</Typography>
-          {/* Let user edit the last 3 digits. We'll parse out the last 3 digits. */}
-          <TextField
-            value={projectNumber}
-            onChange={(e) => {
-              // If there's a dash, we only let them edit the part after the dash
-              // We'll parse it out for simplicity
-              const dashIndex = projectNumber.indexOf('-');
-              if (dashIndex === -1) {
-                // fallback
-                setProjectNumber(e.target.value);
-              } else {
-                const prefix = projectNumber.substring(0, dashIndex + 1);
-                const suffixRaw = e.target.value.replace(/^.*-/, ''); // remove everything before the dash
-                const suffixClean = suffixRaw.replace(/[^0-9]/g, '').padStart(3, '0');
-                setProjectNumber(prefix + suffixClean);
-              }
-            }}
-            size="small"
-            sx={{ width: 160 }}
-          />
-        </Box>
-        <TextField
-          label="Project Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          fullWidth
-          margin="dense"
-        />
-        <TextField
-          label="Project Nature"
-          value={nature}
-          onChange={(e) => setNature(e.target.value)}
-          fullWidth
-          margin="dense"
-        />
-        <TextField
-          label="Amount"
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          fullWidth
-          margin="dense"
-        />
-        <FormControl fullWidth margin="dense">
-          <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-            <Typography sx={{ flexGrow: 1 }}>Paid</Typography>
-            <Checkbox
-              checked={paid}
-              onChange={(e) => setPaid(e.target.checked)}
+            <NewProjectPage1
+              projectNumber={projectNumber}
+              setProjectNumber={setProjectNumber}
+              editingProjectNumber={editingProjectNumber}
+              setEditingProjectNumber={setEditingProjectNumber}
+              projectDate={projectDate}
+              setProjectDate={setProjectDate}
+              clientCompany={clientCompany}
+              setClientCompany={setClientCompany}
+              manualCompany={manualCompany}
+              setManualCompany={setManualCompany}
+              useManualCompany={useManualCompany}
+              setUseManualCompany={setUseManualCompany}
+              projectTitle={projectTitle}
+              setProjectTitle={setProjectTitle}
+              projectNature={projectNature}
+              setProjectNature={setProjectNature}
+              amount={amount}
+              setAmount={setAmount}
+              clientsData={clientsData}
+              onClose={onClose}
+              handleSaveAndExit={handleSaveAndExit}
+              handleSaveAndNext={handleSaveAndNext}
             />
-          </Box>
-        </FormControl>
-        {paid && (
-          <TextField
-            label="Paid On Date"
-            type="date"
-            value={paidOnDate}
-            onChange={(e) => setPaidOnDate(e.target.value)}
-            fullWidth
-            margin="dense"
-            InputLabelProps={{ shrink: true }}
-            required
-          />
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} color="secondary">Cancel</Button>
-        <Button type="button" variant="contained" color="primary" onClick={handleSubmit}>
-          Add Project
-        </Button>
-      </DialogActions>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={onClose}>Cancel</Button>
+            <Button variant="outlined" onClick={handleSaveAndExit}>
+              Save & Exit
+            </Button>
+            <Button variant="contained" onClick={handleSaveAndNext}>
+              Save & Next
+            </Button>
+          </DialogActions>
+        </>
+      )}
+      {pageIndex === 1 && (
+        <>
+          {/* The invoice header has been moved to DialogTitle */}
+          <DialogTitle>Create Invoice - {invoiceNumber}</DialogTitle>
+          <DialogContent dividers>
+            <NewProjectPage2
+              projectDate={projectDate}
+              projectNumber={projectNumber}
+              issuerEnglish={issuerEnglish}
+              issuerChinese={issuerChinese}
+              issuerRoom={issuerRoom}
+              issuerBuilding={issuerBuilding}
+              issuerStreet={issuerStreet}
+              issuerDistrict={issuerDistrict}
+              issuerRegion={issuerRegion}
+              issuerEmail={issuerEmail}
+              issuerPhone={issuerPhone}
+              relevantBanks={relevantBanks}
+              selectedBank={selectedBank}
+              setSelectedBank={setSelectedBank}
+              selectedAccountType={selectedAccountType}
+              setSelectedAccountType={setSelectedAccountType}
+              matchedBank={matchedBank}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleBack}>Back</Button>
+            <Button variant="outlined" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button variant="contained" onClick={handleFinish}>
+              Finish
+            </Button>
+          </DialogActions>
+        </>
+      )}
     </Dialog>
   );
 }

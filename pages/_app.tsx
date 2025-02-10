@@ -2,12 +2,15 @@
 
 import { SessionProvider, useSession } from 'next-auth/react';
 import type { AppProps } from 'next/app';
+import { SnackbarProvider } from 'notistack';
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <SessionProvider session={pageProps.session}>
-      <SessionChecker />
-      <Component {...pageProps} />
+      <SnackbarProvider>
+        <SessionChecker />
+        <Component {...pageProps} />
+      </SnackbarProvider>
     </SessionProvider>
   );
 }

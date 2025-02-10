@@ -2,160 +2,82 @@
 
 import { drive_v3, sheets_v4 } from 'googleapis';
 
-// Helper: Remove any leading apostrophe from a string value.
-function cleanValue(v: any): any {
-  return typeof v === 'string' ? v.replace(/^'/, '') : v;
+/**
+ * Convert date string from Sheets into YYYY-MM-DD (suitable for <input type='date' />).
+ */
+function parseAsYYYYMMDD(dateStr: string): string {
+  const trimmed = (dateStr || '').trim();
+  if (!trimmed) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const d = new Date(trimmed);
+  if (isNaN(d.valueOf())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-// Helper: Clean an array of values.
+function cleanValue(v: any): any {
+  if (typeof v === 'string') {
+    return v.replace(/^'/, '');
+  }
+  return v;
+}
+
 function cleanValues(values: any[]): any[] {
   return values.map(cleanValue);
 }
 
 /**
- * Lists all spreadsheets with "Project Overview" in their name,
- * organized by year.
- */
-export async function listProjectOverviewFiles(
-  drive: drive_v3.Drive,
-  subsidiaryData: any[] = []
-): Promise<Record<string, any[]>> {
-  try {
-    const response = await drive.files.list({
-      q: "name contains 'Project Overview' and mimeType='application/vnd.google-apps.spreadsheet'",
-      fields: 'files(id, name)',
-      corpora: 'allDrives',
-      includeItemsFromAllDrives: true,
-      supportsAllDrives: true,
-    });
-    const files = response.data.files || [];
-    const projectsByCategory: Record<string, any[]> = {};
-    files.forEach((file) => {
-      const fileName = file.name || '';
-      // Expect file name like "2024 XYZ Project Overview"
-      const match = fileName.match(/^([A-Za-z0-9]{4})\s+(\S+)\s+Project Overview/);
-      if (match) {
-        const [_, year, companyId] = match;
-        if (!projectsByCategory[year]) projectsByCategory[year] = [];
-        const mapping = subsidiaryData.find((row: any) => row.categoryIdentifier === companyId);
-        projectsByCategory[year].push({
-          companyIdentifier: companyId,
-          fullCompanyName: mapping ? mapping.fullCompanyName : companyId,
-          file,
-        });
-      }
-    });
-    return projectsByCategory;
-  } catch (error: any) {
-    console.error('Error in listProjectOverviewFiles:', error);
-    throw error;
-  }
-}
-
-/**
- * Fetches project rows from a Project Overview file.
- * Reads rows from the specified startRow (default 5) and omits the last row (assumed to be the total).
- * Normalizes the paid value to "TRUE" or "FALSE".
+ * Fetch project rows from the "Project Overview" sheet.
+ * This version uses includeGridData so that if the invoice cell has a hyperlink,
+ * that URL is used rather than the plain formatted text.
  */
 export async function fetchProjectRows(
   sheets: sheets_v4.Sheets,
   fileId: string,
-  startRow = 5
+  startRow = 6
 ): Promise<any[]> {
-  try {
-    const range = `Project Overview!A${startRow}:J`;
-    console.log(`Fetching project rows from range: ${range} for fileId: ${fileId}`);
-    const resp = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range,
-    });
-    const rows = resp.data.values || [];
-    console.log(`Fetched ${rows.length} rows before omitting total row`);
-    // Omit the last row (assumed to be the total)
-    const usableRows = rows.length > 0 ? rows.slice(0, rows.length - 1) : [];
-    console.log(`Using ${usableRows.length} rows after omitting the last row`);
-    return usableRows.map((r, idx) => {
-      let paidVal = r[7] ? r[7].toString().trim() : "";
-      if (paidVal === "✔" || paidVal.toUpperCase() === "TRUE") {
-        paidVal = "TRUE";
-      } else {
-        paidVal = "FALSE";
-      }
-      return {
-        rowIndex: idx + startRow,
-        projectNumber: cleanValue(r[0] || ''),
-        projectDate: cleanValue(r[1] || ''),
-        agent: cleanValue(r[2] || ''),
-        invoiceCompany: cleanValue(r[3] || ''),
-        projectTitle: cleanValue(r[4] || ''),
-        projectNature: cleanValue(r[5] || ''),
-        amount: (r[6] || '').toString().replace(/[^0-9.]/g, ''),
-        paid: paidVal,
-        paidOnDate: cleanValue(r[8] || ''),
-        invoice: cleanValue(r[9] || ''),
-      };
-    });
-  } catch (error: any) {
-    console.error('Error in fetchProjectRows:', error);
-    throw error;
-  }
-}
-
-/**
- * Appends a new project row into the Project Overview file.
- * Writes the paid status as "TRUE" or "FALSE" (without a leading apostrophe).
- * (The new project form excludes the invoice field.)
- */
-export async function appendProjectRow(
-  sheets: sheets_v4.Sheets,
-  fileId: string,
-  data: {
-    projectNumber: string;
-    projectDate: string;
-    agent: string;
-    invoiceCompany: string;
-    projectTitle: string;
-    projectNature: string;
-    amount: number;
-    paid: boolean | string;
-    paidOnDate: string;
-  }
-): Promise<void> {
-  let paidValue: string;
-  if (typeof data.paid === 'boolean') {
-    paidValue = data.paid ? "TRUE" : "FALSE";
-  } else {
-    paidValue = data.paid.toUpperCase() === "TRUE" ? "TRUE" : "FALSE";
-  }
-  const rowValues = [
-    data.projectNumber,
-    data.projectDate,
-    data.agent,
-    data.invoiceCompany,
-    data.projectTitle,
-    data.projectNature,
-    `$ ${data.amount.toFixed(2)}`,
-    paidValue,
-    data.paidOnDate,
-    // invoice field omitted
-  ];
-  const cleanedValues = cleanValues(rowValues);
-  console.log(`Appending project row to file ${fileId}:`, cleanedValues);
-  await sheets.spreadsheets.values.append({
+  const resp = await sheets.spreadsheets.get({
     spreadsheetId: fileId,
-    range: 'Project Overview!A:J',
-    valueInputOption: 'USER_ENTERED',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [cleanedValues] },
+    ranges: [`Project Overview!A${startRow}:K`],
+    includeGridData: true,
   });
-  console.log('Append successful');
+  const sheet = resp.data.sheets && resp.data.sheets[0];
+  if (!sheet?.data || sheet.data.length === 0) return [];
+  const rowData = sheet.data[0].rowData || [];
+  // Skip the last row (assumed to be a totals row)
+  const usableRows = rowData.slice(0, rowData.length - 1);
+  return usableRows.map((row, idx) => {
+    const cells = row.values || [];
+    // Invoice is expected in column K (index 10). Use the hyperlink if present.
+    const invoiceCell = cells[10] || {};
+    const invoice = invoiceCell.hyperlink || invoiceCell.formattedValue || '';
+    let paidVal = (cells[7]?.formattedValue || '').toString().trim();
+    if (paidVal === '✔' || paidVal.toUpperCase() === 'TRUE') {
+      paidVal = 'TRUE';
+    } else {
+      paidVal = 'FALSE';
+    }
+    return {
+      rowIndex: idx + startRow,
+      projectNumber: cells[0]?.formattedValue || '',
+      projectDate: parseAsYYYYMMDD(cells[1]?.formattedValue || ''),
+      agent: cells[2]?.formattedValue || '',
+      invoiceCompany: cells[3]?.formattedValue || '',
+      projectTitle: cells[4]?.formattedValue || '',
+      projectNature: cells[5]?.formattedValue || '',
+      amount: (cells[6]?.formattedValue || '').toString().replace(/[^0-9.]/g, ''),
+      paid: paidVal,
+      paidOnDate: parseAsYYYYMMDD(cells[8]?.formattedValue || ''),
+      bankAccountIdentifier: cells[9]?.formattedValue || '',
+      invoice: invoice,
+    };
+  });
 }
 
-/**
- * Updates an existing project row in a Project Overview file.
- * Locates the row by matching the original project number in column A.
- * Writes the updated paid status as "TRUE" or "FALSE" (without a leading apostrophe).
- */
 export async function updateProjectRow(
   sheets: sheets_v4.Sheets,
   fileId: string,
@@ -170,24 +92,24 @@ export async function updateProjectRow(
     amount?: number | string;
     paid?: string;
     paidOnDate?: string;
+    bankAccountIdentifier?: string;
     invoice?: string;
   }
 ): Promise<void> {
-  console.log(`Updating project row for project number: ${originalProjectNumber} in file: ${fileId}`);
-  const range = 'Project Overview!A:J';
-  const resp = await sheets.spreadsheets.values.get({ spreadsheetId: fileId, range });
+  const rangeAll = 'Project Overview!A:K';
+  const resp = await sheets.spreadsheets.values.get({
+    spreadsheetId: fileId,
+    range: rangeAll,
+  });
   const rows = resp.data.values || [];
-  console.log(`Retrieved ${rows.length} rows from file ${fileId}`);
   const rowIndex = rows.findIndex((r) => r[0] === originalProjectNumber);
   if (rowIndex === -1) {
-    console.error(`Project with number ${originalProjectNumber} not found`);
-    throw new Error(`Project with number "${originalProjectNumber}" not found`);
+    throw new Error(`Project "${originalProjectNumber}" not found`);
   }
   const actualRow = rowIndex + 1;
-  console.log(`Found project at sheet row: ${actualRow}`);
   let paidValue = 'FALSE';
-  if (updates.paid) {
-    paidValue = updates.paid.toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE';
+  if (updates.paid && updates.paid.toUpperCase() === 'TRUE') {
+    paidValue = 'TRUE';
   }
   let amtNum = 0;
   if (typeof updates.amount === 'string') {
@@ -205,15 +127,188 @@ export async function updateProjectRow(
     `$ ${amtNum.toFixed(2)}`,
     paidValue,
     updates.paidOnDate || '',
+    updates.bankAccountIdentifier || '',
     updates.invoice || '',
   ];
-  const cleanedValues = cleanValues(newRowValues);
-  console.log(`Updating row at range Project Overview!A${actualRow}:J${actualRow} with:`, cleanedValues);
+  const cleaned = cleanValues(newRowValues);
   await sheets.spreadsheets.values.update({
     spreadsheetId: fileId,
-    range: `Project Overview!A${actualRow}:J${actualRow}`,
+    range: `Project Overview!A${actualRow}:K${actualRow}`,
     valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [cleanedValues] },
+    requestBody: { values: [cleaned] },
   });
-  console.log('Project update successful');
+}
+
+export async function addProjectRowBeforeTotal(
+  sheets: sheets_v4.Sheets,
+  fileId: string,
+  data: {
+    projectNumber: string;
+    projectDate: string;
+    agent: string;
+    invoiceCompany: string;
+    projectTitle: string;
+    projectNature: string;
+    amount: number;
+    paid: 'TRUE' | 'FALSE';
+    paidOnDate: string;
+    bankAccountIdentifier: string;
+    invoice: string;
+  }
+) {
+  const existingRows = await fetchProjectRows(sheets, fileId, 6);
+  const totalRow1Based = existingRows.length + 6;
+  const totalRow0Based = totalRow1Based - 1;
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: fileId,
+    includeGridData: false,
+  });
+  const sheet = meta.data.sheets?.find((s) => s.properties?.title === 'Project Overview');
+  if (!sheet?.properties?.sheetId) {
+    throw new Error('Cannot find Project Overview sheet');
+  }
+  const sheetId = sheet.properties.sheetId;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: fileId,
+    requestBody: {
+      requests: [
+        {
+          insertDimension: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex: totalRow0Based,
+              endIndex: totalRow0Based + 1,
+            },
+            inheritFromBefore: true,
+          },
+        },
+        {
+          copyPaste: {
+            source: {
+              sheetId,
+              startRowIndex: totalRow0Based - 1,
+              endRowIndex: totalRow0Based,
+              startColumnIndex: 0,
+              endColumnIndex: 11,
+            },
+            destination: {
+              sheetId,
+              startRowIndex: totalRow0Based,
+              endRowIndex: totalRow0Based + 1,
+              startColumnIndex: 0,
+              endColumnIndex: 11,
+            },
+            pasteType: 'PASTE_FORMAT',
+            pasteOrientation: 'NORMAL',
+          },
+        },
+      ],
+    },
+  });
+  const rowValues = [
+    data.projectNumber,
+    data.projectDate,
+    data.agent,
+    data.invoiceCompany,
+    data.projectTitle,
+    data.projectNature,
+    `$ ${data.amount.toFixed(2)}`,
+    data.paid,
+    data.paidOnDate,
+    data.bankAccountIdentifier,
+    data.invoice,
+  ];
+  const cleaned = cleanValues(rowValues);
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: fileId,
+    range: `Project Overview!A${totalRow1Based}:K${totalRow1Based}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [cleaned] },
+  });
+  console.log('Inserted new project row + copied formatting from row above');
+}
+
+export async function deleteProjectRow(
+  sheets: sheets_v4.Sheets,
+  fileId: string,
+  projectNumber: string
+) {
+  const rangeAll = 'Project Overview!A:K';
+  const resp = await sheets.spreadsheets.values.get({
+    spreadsheetId: fileId,
+    range: rangeAll,
+  });
+  const rows = resp.data.values || [];
+  const rowIndex = rows.findIndex((r) => r[0] === projectNumber);
+  if (rowIndex === -1) {
+    throw new Error(`Project "${projectNumber}" not found for deletion.`);
+  }
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: fileId,
+    includeGridData: false,
+  });
+  const sheet = meta.data.sheets?.find((s) => s.properties?.title === 'Project Overview');
+  if (!sheet?.properties?.sheetId) {
+    throw new Error('Cannot find Project Overview sheet ID');
+  }
+  const sheetId = sheet.properties.sheetId;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: fileId,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex: rowIndex,
+              endIndex: rowIndex + 1,
+            },
+          },
+        },
+      ],
+    },
+  });
+  console.log(`Deleted row ${rowIndex} for projectNumber=${projectNumber}`);
+}
+
+export async function listProjectOverviewFiles(
+  drive: drive_v3.Drive,
+  subsidiaryData: Array<{ categoryIdentifier: string; fullCompanyName: string }> = []
+): Promise<Record<string, Array<{
+  companyIdentifier: string;
+  fullCompanyName: string;
+  file: drive_v3.Schema$File;
+}>>> {
+  try {
+    const response = await drive.files.list({
+      q: "name contains 'Project Overview' and mimeType='application/vnd.google-apps.spreadsheet'",
+      fields: 'files(id, name)',
+      corpora: 'allDrives',
+      includeItemsFromAllDrives: true,
+      supportsAllDrives: true,
+    });
+    const files = response.data.files || [];
+    const projectsByCategory: Record<string, any[]> = {};
+    files.forEach((file) => {
+      const fileName = file.name || '';
+      const match = fileName.match(/^(\d{4})\s+(\S+)\s+Project Overview/i);
+      if (match) {
+        const [_, year, companyId] = match;
+        if (!projectsByCategory[year]) projectsByCategory[year] = [];
+        const found = subsidiaryData.find((row) => row.categoryIdentifier === companyId);
+        const fullName = found ? found.fullCompanyName : companyId;
+        projectsByCategory[year].push({
+          companyIdentifier: companyId,
+          fullCompanyName: fullName,
+          file,
+        });
+      }
+    });
+    return projectsByCategory;
+  } catch (error: any) {
+    console.error('Error in listProjectOverviewFiles:', error);
+    throw error;
+  }
 }

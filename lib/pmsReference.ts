@@ -1,8 +1,8 @@
 // lib/pmsReference.ts
 
 import { drive_v3, sheets_v4 } from 'googleapis';
+import { TextDecoder } from 'util';
 
-/** Interfaces for PMS Reference Log data */
 export interface AddressBookEntry {
   companyName: string;
   title: string;
@@ -21,14 +21,25 @@ export interface BankAccountRow {
   bankCode: string;
   accountType: string;
   accountNumber: string;
-  fpsId: string;
-  fpsEmail: string;
-  comments: string;
+  fpsId?: string;
+  fpsEmail?: string;
+  comments?: string;
+  identifier?: string;
 }
 
-/**
- * Finds the "PMS Reference Log" file in the shared drives.
- */
+export interface SubsidiaryData {
+  identifier: string;
+  englishName: string;
+  chineseName: string;
+  email: string;
+  phone: string;
+  room: string;
+  building: string;
+  street: string;
+  district: string;
+  region: string;
+}
+
 export async function findPMSReferenceLogFile(drive: drive_v3.Drive): Promise<string> {
   const response = await drive.files.list({
     q: "name = 'PMS Reference Log' and mimeType='application/vnd.google-apps.spreadsheet'",
@@ -38,23 +49,41 @@ export async function findPMSReferenceLogFile(drive: drive_v3.Drive): Promise<st
     supportsAllDrives: true,
   });
   const files = response.data.files || [];
-  if (!files.length) throw new Error('PMS Reference Log not found.');
-  if (files.length > 1) throw new Error('Multiple PMS Reference Log files found!');
+  if (!files.length) {
+    throw new Error('PMS Reference Log not found.');
+  }
+  if (files.length > 1) {
+    console.warn('[findPMSReferenceLogFile] Found multiple PMS Reference Log files, using first.');
+  }
   return files[0].id!;
 }
 
-/**
- * Fetches the address book data from the PMS Reference Log's "Address Book of Accounts" sheet.
- */
+export async function fetchReferenceNames(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string
+): Promise<Record<string, string>> {
+  const range = 'Reference of Subsidiary Names!A2:B';
+  const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+  const rows = resp.data.values || [];
+  const mapping: Record<string, string> = {};
+  for (const row of rows) {
+    const code = row[0]?.trim();
+    const fullName = row[1]?.trim();
+    if (code && fullName) {
+      mapping[code] = fullName;
+    }
+  }
+  return mapping;
+}
+
 export async function fetchAddressBook(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
 ): Promise<AddressBookEntry[]> {
-  const range = 'Address Book of Accounts!A:I';
+  const range = 'Address Book of Accounts!A2:I';
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  if (rows.length <= 2) return [];
-  return rows.slice(3).map((r) => ({
+  const results: AddressBookEntry[] = rows.map((r) => ({
     companyName: r[0] || '',
     title: r[1] || '',
     nameAddressed: r[2] || '',
@@ -65,20 +94,18 @@ export async function fetchAddressBook(
     addressLine4: r[7] || '',
     addressLine5: r[8] || '',
   }));
+  return results;
 }
 
-/**
- * Fetches bank account information from the "Bank Account Information of Subsidiaries" sheet.
- */
 export async function fetchBankAccounts(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
 ): Promise<BankAccountRow[]> {
-  const range = 'Bank Account Information of Subsidiaries!A:H';
+  // Adjusted range to include column I for the identifier.
+  const range = 'Bank Account Information of Subsidiaries!A2:I';
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  if (rows.length <= 2) return [];
-  return rows.slice(3).map((r) => ({
+  const results: BankAccountRow[] = rows.map((r) => ({
     companyName: r[0] || '',
     bankName: r[1] || '',
     bankCode: r[2] || '',
@@ -87,24 +114,29 @@ export async function fetchBankAccounts(
     fpsId: r[5] || '',
     fpsEmail: r[6] || '',
     comments: r[7] || '',
+    identifier: r[8] || '',
   }));
+  return results;
 }
 
-/**
- * Fetches the reference names mapping from the "Reference of Subsidiary Names" sheet.
- */
-export async function fetchReferenceNames(
+export async function fetchSubsidiaryData(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
-): Promise<Record<string, string>> {
-  const range = 'Reference of Subsidiary Names!A2:B';
+): Promise<SubsidiaryData[]> {
+  const range = 'Reference of Subsidiary Names!A2:J';
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  const mapping: Record<string, string> = {};
-  for (const row of rows) {
-    if (row[0] && row[1]) {
-      mapping[row[0]] = row[1];
-    }
-  }
-  return mapping;
+  const results: SubsidiaryData[] = rows.map((r) => ({
+    identifier: (r[0] || '').trim(),
+    englishName: (r[1] || '').trim(),
+    chineseName: (r[2] || '').trim(),
+    email: (r[3] || '').trim(),
+    phone: (r[4] || '').trim(),
+    room: (r[5] || '').trim(),
+    building: (r[6] || '').trim(),
+    street: (r[7] || '').trim(),
+    district: (r[8] || '').trim(),
+    region: (r[9] || '').trim(),
+  }));
+  return results;
 }

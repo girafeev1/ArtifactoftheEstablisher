@@ -6,9 +6,6 @@ import { loadSecrets } from '../../../lib/server/secretManager';
 
 let dynamicAuthOptions: NextAuthOptions | null = null;
 
-/**
- * Helper to refresh Google OAuth tokens if they're expired.
- */
 async function refreshAccessToken(token: any, secrets: Record<string, string>) {
   console.log('Attempting to refresh access token...');
   try {
@@ -27,10 +24,7 @@ async function refreshAccessToken(token: any, secrets: Record<string, string>) {
     const refreshedTokens = await response.json();
 
     if (!response.ok) {
-      console.error(
-        'Failed to refresh token:',
-        refreshedTokens.error || 'Unknown error'
-      );
+      console.error('Failed to refresh token:', refreshedTokens.error || 'Unknown error');
       throw new Error(refreshedTokens.error || 'Failed to refresh token');
     }
 
@@ -51,10 +45,6 @@ async function refreshAccessToken(token: any, secrets: Record<string, string>) {
   }
 }
 
-/**
- * Loads secrets from GCP Secret Manager, then builds a NextAuth config object.
- * We store it in a module-level variable so we don't reload secrets every time.
- */
 async function getDynamicAuthOptions(): Promise<NextAuthOptions> {
   if (dynamicAuthOptions) return dynamicAuthOptions;
 
@@ -81,11 +71,10 @@ async function getDynamicAuthOptions(): Promise<NextAuthOptions> {
     ],
     session: {
       strategy: 'jwt',
-      maxAge: 30 * 24 * 60 * 60, // 30 days
+      maxAge: 30 * 24 * 60 * 60,
     },
     callbacks: {
       async jwt({ token, account, user }) {
-        // On initial sign-in
         if (account && user) {
           return {
             ...token,
@@ -97,19 +86,11 @@ async function getDynamicAuthOptions(): Promise<NextAuthOptions> {
             user,
           };
         }
-
-        // If token not expired yet, reuse it
-        if (
-          token.accessTokenExpires &&
-          Date.now() < token.accessTokenExpires
-        ) {
+        if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
           return token;
         }
-
-        // Else try to refresh
         return refreshAccessToken(token, secrets);
       },
-
       async session({ session, token }) {
         if (token) {
           session.accessToken = token.accessToken;
@@ -125,16 +106,10 @@ async function getDynamicAuthOptions(): Promise<NextAuthOptions> {
   return dynamicAuthOptions;
 }
 
-/**
- * Named export so other routes can do: getServerSession(req, res, await getAuthOptions()).
- */
 export async function getAuthOptions(): Promise<NextAuthOptions> {
   return getDynamicAuthOptions();
 }
 
-/**
- * Default export for the NextAuth API route.
- */
 export default async function auth(req, res) {
   try {
     const options = await getDynamicAuthOptions();

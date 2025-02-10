@@ -1,26 +1,25 @@
 // pages/api/projects/index.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getSession } from 'next-auth/react';
+import { getServerSession } from 'next-auth/next';
+import { getAuthOptions } from '../auth/[...nextauth]';
 import { initializeApis } from '../../../lib/googleApi';
-import { appendProjectRow } from '../../../lib/projectOverview';
+import { addProjectRowBeforeTotal } from '../../../lib/projectOverview';
 
-/**
- * POST => create new project row in a "Project Overview" file
- * (the user can pass the `fileId` or you can default to some file ID)
- */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  const session = await getSession({ req });
-  if (!session?.accessToken) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
 
   try {
+    const authOptions = await getAuthOptions();
+    const session = await getServerSession(req, res, authOptions);
+    if (!session?.accessToken) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const {
-      fileId, // pass from front-end if you want
+      fileId,
       projectNumber,
       projectDate,
       agent,
@@ -30,8 +29,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       amount,
       paid,
       paidOnDate,
+      bankAccountIdentifier,
       invoice,
     } = req.body;
+
     if (!fileId) {
       return res.status(400).json({ error: 'Missing fileId' });
     }
@@ -43,10 +44,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       accessToken: session.accessToken as string,
     });
 
-    // Convert `paid` to boolean or string
-    const paidVal = paid === true || paid === 'TRUE' || paid === '✔';
-
-    await appendProjectRow(sheets, fileId, {
+    const paidVal = paid === true || paid === 'TRUE' || paid === '✔' ? 'TRUE' : 'FALSE';
+    await addProjectRowBeforeTotal(sheets, fileId, {
       projectNumber,
       projectDate,
       agent: agent || '',
@@ -56,6 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       amount: parseFloat(amount || 0),
       paid: paidVal,
       paidOnDate: paidOnDate || '',
+      bankAccountIdentifier: bankAccountIdentifier || '',
       invoice: invoice || '',
     });
 

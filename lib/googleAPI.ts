@@ -2,19 +2,10 @@
 
 import { google, sheets_v4, drive_v3 } from 'googleapis';
 
-/**
- * Options for initializeApis().
- * In "user" mode, we expect an accessToken from OAuth2 (NextAuth).
- * In "service" mode, we do a service-account-based GoogleAuth instead.
- */
 interface InitializeApisOptions {
-  accessToken?: string; // only required when type === 'user'
+  accessToken?: string; // only required for type='user'
 }
 
-/**
- * Generic helper that returns { drive, sheets }
- * for either user-based or service account authentication.
- */
 export const initializeApis = (
   type: 'user' | 'service',
   options: InitializeApisOptions
@@ -22,14 +13,12 @@ export const initializeApis = (
   let auth;
 
   if (type === 'user') {
-    // OAuth2 with user token
     if (!options.accessToken) {
-      throw new Error('Missing accessToken in initializeApis (type="user").');
+      throw new Error('Missing accessToken in initializeApis(type="user").');
     }
     auth = new google.auth.OAuth2();
     auth.setCredentials({ access_token: options.accessToken });
   } else {
-    // Service account authentication
     auth = new google.auth.GoogleAuth({
       scopes: [
         'https://www.googleapis.com/auth/drive',

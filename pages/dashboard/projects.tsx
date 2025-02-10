@@ -4,7 +4,6 @@ import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../components/SidebarLayout';
-import { initializeApis } from '../../lib/googleApi';
 import { findPMSReferenceLogFile, fetchReferenceNames } from '../../lib/pmsReference';
 import { listProjectOverviewFiles } from '../../lib/projectOverview';
 import { useState, useMemo, useEffect } from 'react';
@@ -21,7 +20,8 @@ import {
   Card,
   CardContent,
 } from '@mui/material';
-import NewProjectDialog from '../../components/NewProjectDialog';
+
+// NO direct import of googleApi at top-level
 
 interface ProjectFileRecord {
   companyIdentifier: string;
@@ -44,6 +44,7 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
   const [sortMethod, setSortMethod] = useState<'year' | 'company'>('year');
   const [selectedYear, setSelectedYear] = useState<string>('');
   const [selectedCompany, setSelectedCompany] = useState<string>('');
+
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const allProjectsArray = useMemo(() => {
@@ -61,10 +62,8 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
     });
   }, [allProjectsArray, referenceMapping]);
 
-  // uniqueYears => we store numeric ones separately for default.
   const uniqueYears = useMemo(() => {
     const allYears = Object.keys(projectsByCategory);
-    // Keep them in ascending order, but numeric first.
     return allYears.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [projectsByCategory]);
 
@@ -76,13 +75,10 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
 
   useEffect(() => {
     if (sortMethod === 'year' && uniqueYears.length) {
-      // find numeric year codes, pick the largest
       const numericYears = uniqueYears.filter((yr) => /^\d+$/.test(yr));
       if (numericYears.length) {
-        // pick last numeric year => largest
         setSelectedYear(numericYears[numericYears.length - 1]);
       } else {
-        // fallback => pick the last item in uniqueYears if no numeric year
         setSelectedYear(uniqueYears[uniqueYears.length - 1]);
       }
       setSelectedCompany('');
@@ -105,7 +101,6 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
   const sortedProjects = useMemo(() => {
     const clone = [...filteredProjects];
     if (sortMethod === 'year') {
-      // sort descending by numeric year if possible
       clone.sort((a, b) => {
         const aNum = /^\d+$/.test(a.year) ? parseInt(a.year) : -999999;
         const bNum = /^\d+$/.test(b.year) ? parseInt(b.year) : -999999;
@@ -117,10 +112,10 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
     return clone;
   }, [filteredProjects, sortMethod]);
 
-  const handleCardClick = (fileId: string | undefined) => {
+  function handleCardClick(fileId: string | undefined) {
     if (!fileId) return;
     router.push(`/dashboard/projects/${fileId}`);
-  };
+  }
 
   return (
     <SidebarLayout>
@@ -166,7 +161,9 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
             <ToggleButton value="company">By Company</ToggleButton>
           </ToggleButtonGroup>
         </Box>
-        <Button variant="contained" onClick={() => setDialogOpen(true)}>New Project</Button>
+        <Button variant="contained" onClick={() => setDialogOpen(true)}>
+          New Project (Global Placeholder)
+        </Button>
       </Box>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
         {sortedProjects.length === 0 ? (
@@ -189,14 +186,12 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
           })
         )}
       </Box>
-      {/* The global NewProjectDialog for "Add New Project" from the Projects page. */}
-      <NewProjectDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onProjectAdded={() => setDialogOpen(false)}
-        referenceNames={referenceMapping}
-        mode="global" // indicates this is from the main Projects page
-      />
+      {/* Example placeholder for a global new project */}
+      {dialogOpen && (
+        <Typography sx={{ mt: 2 }}>
+          Global New Project is not implemented yet. (Placeholder)
+        </Typography>
+      )}
     </SidebarLayout>
   );
 }
@@ -206,13 +201,19 @@ export const getServerSideProps: GetServerSideProps<ProjectProps> = async (ctx) 
   if (!session?.accessToken) {
     return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
   }
+
+  // -- Import googleApi here, so it's purely server side
+  const { initializeApis } = require('../../lib/googleApi');
+
   try {
     const { drive, sheets } = initializeApis('user', {
       accessToken: session.accessToken as string,
     });
+
     const pmsRefLogFileId = await findPMSReferenceLogFile(drive);
     const referenceMapping = await fetchReferenceNames(sheets, pmsRefLogFileId);
     const projectsByCategory = await listProjectOverviewFiles(drive, []);
+
     return { props: { projectsByCategory, referenceMapping } };
   } catch (err: any) {
     console.error('[getServerSideProps] Error:', err);
