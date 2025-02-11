@@ -1,4 +1,4 @@
-// components/EditProjectDialog.tsx
+// components/projectdialog/editprojectdialog/EditProjectDialog.tsx
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -16,7 +16,7 @@ import {
   Typography,
   Button,
   IconButton,
-  Menu
+  Menu,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 
@@ -42,8 +42,9 @@ interface ProjectData {
   amount: string;
   paid: 'TRUE' | 'FALSE';
   paidOnDate: string;
-  bankAccountIdentifier: string;
-  invoice: string;
+  bankAccountIdentifier: string; // Contains the identifier for "Paid To"
+  invoice: string;               // Display text for invoice
+  invoiceUrl?: string | null;    // Hyperlink if available, or null
 }
 
 interface EditProjectDialogProps {
@@ -73,11 +74,10 @@ export default function EditProjectDialog({
   const menuOpen = Boolean(anchorEl);
 
   if (!project) {
-    console.log('[EditProjectDialog] no project => returning null');
+    console.log('[EditProjectDialog] No project provided.');
     return null;
   }
 
-  const safeSetProject = setProject; // for convenience
   const safeBankAccounts = companyNameOfFile
     ? bankAccounts.filter((ba) => ba.companyName === companyNameOfFile)
     : bankAccounts;
@@ -87,8 +87,8 @@ export default function EditProjectDialog({
   const [selectedBank, setSelectedBank] = useState('');
   const [selectedAccountType, setSelectedAccountType] = useState('');
 
-  // bridging bank account
   useEffect(() => {
+    console.log('[EditProjectDialog] project.bankAccountIdentifier:', project.bankAccountIdentifier);
     if (!project.bankAccountIdentifier) {
       setSelectedBank('');
       setSelectedAccountType('');
@@ -100,22 +100,21 @@ export default function EditProjectDialog({
     if (match) {
       setSelectedBank(match.bankName);
       setSelectedAccountType(match.accountType);
+      console.log('[EditProjectDialog] Found matching Paid To:', match);
     } else {
+      console.log('[EditProjectDialog] No matching bank for Paid To:', project.bankAccountIdentifier);
       setSelectedBank('');
       setSelectedAccountType('');
     }
   }, [project.bankAccountIdentifier, safeBankAccounts]);
 
   function handleCheckboxChange(checked: boolean) {
-    safeSetProject((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        paid: checked ? 'TRUE' : 'FALSE',
-        paidOnDate: checked ? prev.paidOnDate : '',
-        bankAccountIdentifier: checked ? prev.bankAccountIdentifier : '',
-      };
-    });
+    setProject(prev => prev ? {
+      ...prev,
+      paid: checked ? 'TRUE' : 'FALSE',
+      paidOnDate: checked ? prev.paidOnDate : '',
+      bankAccountIdentifier: checked ? prev.bankAccountIdentifier : '',
+    } : prev);
     if (!checked) {
       setSelectedBank('');
       setSelectedAccountType('');
@@ -126,24 +125,17 @@ export default function EditProjectDialog({
     const newBank = e.target.value as string;
     setSelectedBank(newBank);
     setSelectedAccountType('');
-
-    safeSetProject((prev) => {
-      if (!prev) return prev;
-      return { ...prev, bankAccountIdentifier: '' };
-    });
+    setProject(prev => prev ? { ...prev, bankAccountIdentifier: '' } : prev);
   }
 
   function handleChangeAccountType(e: React.ChangeEvent<{ value: unknown }>) {
     const newType = e.target.value as string;
     setSelectedAccountType(newType);
-
     const row = safeBankAccounts.find(
       (ba) => ba.bankName === selectedBank && ba.accountType === newType
     );
-    safeSetProject((prev) => {
-      if (!prev) return prev;
-      return { ...prev, bankAccountIdentifier: row?.identifier || '' };
-    });
+    setProject(prev => prev ? { ...prev, bankAccountIdentifier: row?.identifier || '' } : prev);
+    console.log('[EditProjectDialog] New Paid To set:', row?.identifier);
   }
 
   function handleViewClick(e: React.MouseEvent<HTMLButtonElement>) {
@@ -154,11 +146,40 @@ export default function EditProjectDialog({
   }
   function handleViewPdf() {
     handleMenuClose();
-    if (!project.invoice) {
+    if (!project.invoice && !project.invoiceUrl) {
       alert('No invoice link is set!');
       return;
     }
-    window.open(project.invoice, '_blank');
+    window.open(project.invoiceUrl || project.invoice, '_blank');
+  }
+  async function handleEditInvoice() {
+    handleMenuClose();
+    if (!project.invoice) {
+      alert('No invoice number found!');
+      return;
+    }
+    try {
+      const title = encodeURIComponent(project.invoice);
+      const res = await fetch(`/api/invoices/gid?fileId=${fileId}&title=${title}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Unable to fetch invoice GID');
+      }
+      const data = await res.json();
+      const gid = data.sheetId;
+      if (!gid) {
+        alert(`No sheet named "${project.invoice}" found.`);
+        return;
+      }
+      const googleSheetUrl = `https://docs.google.com/spreadsheets/d/${fileId}/edit#gid=${gid}`;
+      window.open(googleSheetUrl, '_blank');
+    } catch (err: any) {
+      console.error('[EditProjectDialog] handleEditInvoice error:', err);
+      alert(err.message);
+    }
   }
 
   async function handleSave() {
@@ -168,11 +189,10 @@ export default function EditProjectDialog({
         return;
       }
       if (isPaid && !project.bankAccountIdentifier) {
-        alert('Select Bank + Account Type');
+        alert('Select Paid To (Bank Name and Account Type)');
         return;
       }
-      console.log('[EditProjectDialog] saving =>', project);
-
+      console.log('[EditProjectDialog] Saving project:', project);
       const payload = {
         originalIdentifier: project.projectNumber,
         projectNumber: project.projectNumber,
@@ -201,7 +221,7 @@ export default function EditProjectDialog({
       onUpdated();
       onClose();
     } catch (err: any) {
-      console.error('[EditProjectDialog] handleSave => error:', err);
+      console.error('[EditProjectDialog] handleSave error:', err);
       alert(err.message);
     }
   }
@@ -221,7 +241,7 @@ export default function EditProjectDialog({
       onUpdated();
       onClose();
     } catch (err: any) {
-      console.error('[EditProjectDialog] handleDelete => error:', err);
+      console.error('[EditProjectDialog] handleDelete error:', err);
       alert(err.message);
     }
   }
@@ -234,68 +254,61 @@ export default function EditProjectDialog({
           label="Project Number"
           value={project.projectNumber}
           onChange={(e) =>
-            safeSetProject((prev) => prev && ({ ...prev, projectNumber: e.target.value }))
+            setProject(prev => prev ? { ...prev, projectNumber: e.target.value } : prev)
           }
           fullWidth
         />
-
         <TextField
           label="Project Date"
           type="date"
           value={project.projectDate}
           onChange={(e) =>
-            safeSetProject((prev) => prev && ({ ...prev, projectDate: e.target.value }))
+            setProject(prev => prev ? { ...prev, projectDate: e.target.value } : prev)
           }
           fullWidth
           InputLabelProps={{ shrink: true }}
         />
-
         <TextField
           label="Agent"
           value={project.agent}
           onChange={(e) =>
-            safeSetProject((prev) => prev && ({ ...prev, agent: e.target.value }))
+            setProject(prev => prev ? { ...prev, agent: e.target.value } : prev)
           }
           fullWidth
         />
-
         <TextField
           label="Invoice Company"
           value={project.invoiceCompany}
           onChange={(e) =>
-            safeSetProject((prev) => prev && ({ ...prev, invoiceCompany: e.target.value }))
+            setProject(prev => prev ? { ...prev, invoiceCompany: e.target.value } : prev)
           }
           fullWidth
         />
-
         <TextField
           label="Project Title"
           value={project.projectTitle}
           onChange={(e) =>
-            safeSetProject((prev) => prev && ({ ...prev, projectTitle: e.target.value }))
+            setProject(prev => prev ? { ...prev, projectTitle: e.target.value } : prev)
           }
           fullWidth
         />
-
         <TextField
           label="Project Nature"
           value={project.projectNature}
           onChange={(e) =>
-            safeSetProject((prev) => prev && ({ ...prev, projectNature: e.target.value }))
+            setProject(prev => prev ? { ...prev, projectNature: e.target.value } : prev)
           }
           fullWidth
         />
-
         <TextField
           label="Amount"
           type="number"
           value={project.amount}
           onChange={(e) =>
-            safeSetProject((prev) => prev && ({ ...prev, amount: e.target.value }))
+            setProject(prev => prev ? { ...prev, amount: e.target.value } : prev)
           }
           fullWidth
         />
-
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Typography sx={{ mr: 1 }}>Paid:</Typography>
           <Checkbox
@@ -310,27 +323,23 @@ export default function EditProjectDialog({
               type="date"
               value={project.paidOnDate}
               onChange={(e) =>
-                safeSetProject((prev) => prev && ({ ...prev, paidOnDate: e.target.value }))
+                setProject(prev => prev ? { ...prev, paidOnDate: e.target.value } : prev)
               }
               fullWidth
               InputLabelProps={{ shrink: true }}
             />
-
             <Box sx={{ display: 'flex', gap: 2 }}>
               <FormControl fullWidth>
-                <InputLabel>Bank Name</InputLabel>
-                <Select value={selectedBank} label="Bank Name" onChange={handleChangeBank}>
+                <InputLabel>Paid To (Bank Name)</InputLabel>
+                <Select value={selectedBank} label="Paid To (Bank Name)" onChange={handleChangeBank}>
                   <MenuItem value="">
                     <em>-- Choose Bank --</em>
                   </MenuItem>
-                  {[...new Set(safeBankAccounts.map((ba) => ba.bankName))].map((bn) => (
-                    <MenuItem key={bn} value={bn}>
-                      {bn}
-                    </MenuItem>
+                  {[...new Set(safeBankAccounts.map(ba => ba.bankName))].map(bn => (
+                    <MenuItem key={bn} value={bn}>{bn}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-
               <FormControl fullWidth disabled={!selectedBank}>
                 <InputLabel>Account Type</InputLabel>
                 <Select value={selectedAccountType} label="Account Type" onChange={handleChangeAccountType}>
@@ -339,47 +348,39 @@ export default function EditProjectDialog({
                   </MenuItem>
                   {[...new Set(
                     safeBankAccounts
-                      .filter((ba) => ba.bankName === selectedBank)
-                      .map((ba) => ba.accountType)
-                  )].map((acct) => (
-                    <MenuItem key={acct} value={acct}>
-                      {acct}
-                    </MenuItem>
+                      .filter(ba => ba.bankName === selectedBank)
+                      .map(ba => ba.accountType)
+                  )].map(acct => (
+                    <MenuItem key={acct} value={acct}>{acct}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Box>
           </>
         )}
-
-        {/* Invoice */}
-        {!project.invoice ? (
-          <Box>
-            <Typography variant="subtitle2">Invoice Number:</Typography>
+        <Box>
+          <Typography variant="subtitle2">Invoice Number:</Typography>
+          {project.invoice ? (
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Typography variant="body1">{project.invoice}</Typography>
+              <IconButton onClick={handleViewClick} size="small">
+                <MoreVertIcon fontSize="small" />
+              </IconButton>
+              <Menu anchorEl={anchorEl} open={menuOpen} onClose={handleMenuClose}>
+                <MenuItem onClick={handleViewPdf}>View PDF</MenuItem>
+                <MenuItem onClick={handleEditInvoice}>Edit Invoice</MenuItem>
+              </Menu>
+            </Box>
+          ) : (
             <Typography variant="body2">(none)</Typography>
-          </Box>
-        ) : (
-          <Box>
-            <Typography variant="subtitle2">Invoice Number:</Typography>
-            <Typography variant="body1">{project.invoice}</Typography>
-            <IconButton onClick={handleViewClick}>
-              <MoreVertIcon />
-            </IconButton>
-            <Menu anchorEl={anchorEl} open={menuOpen} onClose={() => setAnchorEl(null)}>
-              <MenuItem onClick={handleViewPdf}>View PDF</MenuItem>
-            </Menu>
-          </Box>
-        )}
+          )}
+        </Box>
       </DialogContent>
       <DialogActions>
-        <Button color="error" onClick={handleDelete}>
-          Delete
-        </Button>
+        <Button color="error" onClick={handleDelete}>Delete</Button>
         <Box sx={{ flexGrow: 1 }} />
         <Button onClick={onToggleEdit}>Cancel</Button>
-        <Button variant="contained" onClick={handleSave}>
-          Save
-        </Button>
+        <Button variant="contained" onClick={handleSave}>Save</Button>
       </DialogActions>
     </Dialog>
   );

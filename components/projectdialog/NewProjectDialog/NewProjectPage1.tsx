@@ -1,7 +1,9 @@
-// components/projectdialog/newprojectdialog/NewProject/NewProjectPage1.tsx
+// components/projectdialog/newprojectdialog/NewProjectPage1.tsx
 
 import React from 'react';
-import { Box, Typography, TextField, Button, FormControl, Select, MenuItem, InputLabel } from '@mui/material';
+import {
+  Box, Typography, TextField, Button, FormControl, Select, MenuItem, InputLabel
+} from '@mui/material';
 
 interface ClientEntry {
   companyName: string;
@@ -42,43 +44,27 @@ export default function NewProjectPage1({
   setProjectNumber,
   editingProjectNumber,
   setEditingProjectNumber,
-
   projectDate,
   setProjectDate,
-
   clientCompany,
   setClientCompany,
   manualCompany,
   setManualCompany,
   useManualCompany,
   setUseManualCompany,
-
   projectTitle,
   setProjectTitle,
   projectNature,
   setProjectNature,
   amount,
   setAmount,
-
   clientsData,
-
   onClose,
   handleSaveAndExit,
   handleSaveAndNext,
 }: Page1Props) {
-  console.log('[NewProjectPage1] rendering => projectNumber=', projectNumber, ' projectDate=', projectDate);
-
-  function handleAddCompanyManually() {
-    setUseManualCompany(true);
-  }
-  function handleUseDropdownCompany() {
-    setUseManualCompany(false);
-    setManualCompany('');
-  }
-
   return (
     <>
-      {/* DIALOG TITLE & CONTENT come from the parent Dialog, so we just do our content */}
       <Box sx={{ mb: 2 }}>
         <Typography variant="subtitle2" gutterBottom>
           Project Number:
@@ -136,7 +122,10 @@ export default function NewProjectPage1({
               fullWidth
               placeholder="Enter new company name"
             />
-            <Button variant="outlined" onClick={handleUseDropdownCompany}>
+            <Button variant="outlined" onClick={() => {
+              setUseManualCompany(false);
+              setManualCompany('');
+            }}>
               Use dropdown
             </Button>
           </Box>
@@ -159,7 +148,7 @@ export default function NewProjectPage1({
                 ))}
               </Select>
             </FormControl>
-            <Button variant="outlined" onClick={handleAddCompanyManually}>
+            <Button variant="outlined" onClick={() => setUseManualCompany(true)}>
               Add New
             </Button>
           </Box>
@@ -200,8 +189,7 @@ export default function NewProjectPage1({
         />
       </Box>
 
-      {/* The parent <DialogContent> and <DialogActions> are in the parent file. */}
-      {/* We'll rely on parent's handleSaveAndExit, handleSaveAndNext, etc. */}
+      {/* The parent <Dialog> has the actions (save & next, etc.) */}
     </>
   );
 }

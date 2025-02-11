@@ -1,4 +1,4 @@
-// components/EditProject.tsx
+// components/projectdialog/editprojectdialog/EditProject.tsx
 
 import React, { useEffect, useState } from 'react';
 import ViewProjectDialog from './ViewProjectDialog';
@@ -28,6 +28,7 @@ interface ProjectData {
   paidOnDate: string;
   bankAccountIdentifier: string;
   invoice: string;
+  invoiceUrl?: string; // so we can handle hyperlink separately
 }
 
 interface EditProjectProps {
@@ -51,9 +52,7 @@ export default function EditProject({
   onCreateInvoice,
   companyNameOfFile,
 }: EditProjectProps) {
-  // We store the project details in state
   const [project, setProject] = useState<ProjectData | null>(null);
-  // isEditing => false => read-only, true => editable
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
@@ -63,11 +62,6 @@ export default function EditProject({
       setIsEditing(false);
     }
   }, [open, initialProject]);
-
-  // If no project or not open => no dialog
-  if (!project) {
-    return null;
-  }
 
   function handleToggleEdit() {
     setIsEditing((prev) => !prev);
@@ -80,7 +74,11 @@ export default function EditProject({
     }
   }
 
-  // In read-only mode => show <ViewProjectDialog>
+  if (!project) {
+    return null;
+  }
+
+  // If not editing => show <ViewProjectDialog>
   if (!isEditing) {
     return (
       <ViewProjectDialog
@@ -89,11 +87,13 @@ export default function EditProject({
         project={project}
         onToggleEdit={handleToggleEdit}
         onCreateInvoice={handleCreateInvoice}
+        bankAccounts={bankAccounts}
+        fileId={fileId}
       />
     );
   }
 
-  // In editing mode => show <EditProjectDialog>
+  // else => show <EditProjectDialog>
   return (
     <EditProjectDialog
       open={open}

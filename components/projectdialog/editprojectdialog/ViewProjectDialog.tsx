@@ -1,6 +1,6 @@
-// components/ViewProjectDialog.tsx
+// components/projectdialog/editprojectdialog/ViewProjectDialog.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -11,9 +11,21 @@ import {
   IconButton,
   Menu,
   MenuItem,
-  Box
+  Box,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+
+interface BankAccount {
+  companyName: string;
+  bankName: string;
+  bankCode: string;
+  accountType: string;
+  accountNumber: string;
+  fpsId?: string;
+  fpsEmail?: string;
+  comments?: string;
+  identifier?: string;
+}
 
 interface ProjectData {
   projectNumber: string;
@@ -25,8 +37,9 @@ interface ProjectData {
   amount: string;
   paid: 'TRUE' | 'FALSE';
   paidOnDate: string;
-  bankAccountIdentifier: string;
-  invoice: string;
+  bankAccountIdentifier: string; // Contains the identifier for Paid To
+  invoice: string; // Display text for invoice
+  invoiceUrl?: string | null; // Hyperlink if present (or null)
 }
 
 interface ViewProjectDialogProps {
@@ -35,6 +48,8 @@ interface ViewProjectDialogProps {
   project: ProjectData;
   onToggleEdit: () => void;
   onCreateInvoice?: () => void;
+  bankAccounts?: BankAccount[];
+  fileId: string; // used for editing invoice via API
 }
 
 export default function ViewProjectDialog({
@@ -43,9 +58,19 @@ export default function ViewProjectDialog({
   project,
   onToggleEdit,
   onCreateInvoice,
+  bankAccounts = [],
+  fileId,
 }: ViewProjectDialogProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
+
+  // Look up the bank account matching the project.bankAccountIdentifier.
+  const matchedBank = useMemo(() => {
+    if (!project.bankAccountIdentifier) return null;
+    return bankAccounts.find(
+      (b) => b.identifier === project.bankAccountIdentifier
+    );
+  }, [bankAccounts, project.bankAccountIdentifier]);
 
   function handleViewClick(e: React.MouseEvent<HTMLButtonElement>) {
     setAnchorEl(e.currentTarget);
@@ -55,12 +80,11 @@ export default function ViewProjectDialog({
   }
   function handleViewPdf() {
     handleMenuClose();
-    if (!project.invoice) {
+    if (!project.invoice && !project.invoiceUrl) {
       alert('No invoice link is set!');
       return;
     }
-    // open the link in new tab
-    window.open(project.invoice, '_blank');
+    window.open(project.invoiceUrl || project.invoice, '_blank');
   }
   function handleCreateInvoice() {
     if (onCreateInvoice) {
@@ -101,11 +125,17 @@ export default function ViewProjectDialog({
             <strong>Paid On Date:</strong> {project.paidOnDate}
           </Typography>
         )}
+        {/* Show "Paid To" only if a matching bank was found */}
+        {matchedBank && (
+          <Typography variant="body2">
+            <strong>Paid To:</strong> {matchedBank.bankName} - {matchedBank.accountType}
+          </Typography>
+        )}
 
-        {/* Invoice */}
+        {/* Invoice field */}
         {project.invoice ? (
-          <Box>
-            <Typography variant="body2">
+          <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+            <Typography variant="body2" sx={{ flexGrow: 1 }}>
               <strong>Invoice:</strong> {project.invoice}
             </Typography>
             <IconButton onClick={handleViewClick} size="small">
@@ -116,9 +146,9 @@ export default function ViewProjectDialog({
             </Menu>
           </Box>
         ) : (
-          <Box>
-            <Typography variant="subtitle2">Invoice Number:</Typography>
-            <Button variant="outlined" sx={{ mt: 1 }} onClick={handleCreateInvoice}>
+          // If no invoice number is fetched, show a Create Invoice button independently.
+          <Box sx={{ mt: 1 }}>
+            <Button variant="outlined" onClick={handleCreateInvoice}>
               Create Invoice
             </Button>
           </Box>
@@ -126,9 +156,7 @@ export default function ViewProjectDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
-        <Button variant="contained" onClick={onToggleEdit}>
-          Edit
-        </Button>
+        <Button variant="contained" onClick={onToggleEdit}>Edit</Button>
       </DialogActions>
     </Dialog>
   );

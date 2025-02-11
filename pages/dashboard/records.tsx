@@ -19,13 +19,15 @@ import {
   Button,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useSnackbar } from 'notistack';
 
-import EditClientDialog from '../../components/EditClientDialog';
-import NewClientDialog from '../../components/NewClientDialog';
+// Updated import paths for client dialogs:
+import ViewClientDialog from '../../components/clientdialog/ViewClientDialog';
+import EditClientDialog from '../../components/clientdialog/EditClientDialog';
+import NewClientDialog from '../../components/clientdialog/NewClientDialog';
 
 interface Client {
   companyName: string;
@@ -42,12 +44,12 @@ interface Client {
 interface BankAccount {
   companyName: string;
   bankName: string;
-  bankCode: string; // possibly has parentheses
+  bankCode: string;
   accountType: string;
   accountNumber: string;
   fpsId?: string;
   fpsEmail?: string;
-  comments?: string; // we won’t display
+  comments?: string;
 }
 
 interface RecordsPageProps {
@@ -70,27 +72,25 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
   const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
   const [filteredClients, setFilteredClients] = useState<Client[]>(clients);
 
-  // For editing an existing client
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  // For viewing a client (view-only dialog)
+  const [viewClientOpen, setViewClientOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
+  // For editing a client
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   // For adding a new client
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
-  // Group bank accounts by bankName + bankCode (minus parentheses)
+  // Group bank accounts (unused here but preserved)
   const bankGroups = bankAccounts.reduce((acc, account) => {
-    // Remove parentheses from bank code
     const codeNoParen = account.bankCode.replace('(', '').replace(')', '');
-    // e.g. group key: "OCBC 035"
     const groupKey = `${account.bankName} ${codeNoParen}`.trim();
-
     if (!acc[groupKey]) acc[groupKey] = [];
-    // store the updated code in the array
-    acc[groupKey].push({ ...account, bankCode: codeNoParen });
+    acc[groupKey].push(account);
     return acc;
   }, {} as Record<string, BankAccount[]>);
 
-  // Sync tab (clients/bank) with query
   useEffect(() => {
     if (router.query.view === 'bank') {
       setView('bank');
@@ -99,22 +99,28 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
     }
   }, [router.query.view]);
 
-  // Filter clients by letter
   useEffect(() => {
     if (selectedLetter) {
       setFilteredClients(
-        clients.filter(
-          (c) => c.companyName.charAt(0).toUpperCase() === selectedLetter
-        )
+        clients.filter(c => c.companyName.charAt(0).toUpperCase() === selectedLetter)
       );
     } else {
       setFilteredClients(clients);
     }
   }, [selectedLetter, clients]);
 
-  // ------ Editing client ------
+  // When a client is clicked, open the view-only dialog.
   function handleClientClick(client: Client) {
     setSelectedClient({ ...client });
+    setViewClientOpen(true);
+  }
+  function handleCloseViewClient() {
+    setViewClientOpen(false);
+    setSelectedClient(null);
+  }
+  // From the view dialog, if user wants to edit, close view and open edit dialog.
+  function handleEditFromView() {
+    setViewClientOpen(false);
     setEditDialogOpen(true);
   }
   function handleCloseEditDialog() {
@@ -146,13 +152,9 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
       enqueueSnackbar(`Failed: ${err.message}`, { variant: 'error' });
     }
   }
-
-  // ------ Deleting client from edit dialog ------
   async function handleDeleteClient() {
     if (!selectedClient) return;
-    if (!window.confirm(`Are you sure you want to DELETE client "${selectedClient.companyName}"?`)) {
-      return;
-    }
+    if (!window.confirm(`Are you sure you want to DELETE client "${selectedClient.companyName}"?`)) return;
     try {
       const resp = await fetch(`/api/clients?identifier=${encodeURIComponent(selectedClient.companyName)}`, {
         method: 'DELETE',
@@ -169,8 +171,6 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
       enqueueSnackbar(`Failed to delete client: ${err.message}`, { variant: 'error' });
     }
   }
-
-  // ------ Adding a new client ------
   function handleOpenAddDialog() {
     setAddDialogOpen(true);
   }
@@ -186,7 +186,6 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
     <SidebarLayout>
       <Typography variant="h4" gutterBottom>Records</Typography>
       {error && <Typography color="error">{error}</Typography>}
-
       <ToggleButtonGroup
         exclusive
         value={view}
@@ -201,10 +200,8 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
         <ToggleButton value="clients">Clients Account</ToggleButton>
         <ToggleButton value="bank">Company Bank Account</ToggleButton>
       </ToggleButtonGroup>
-
       {view === 'clients' && (
         <Box>
-          {/* Alphabet Filter */}
           <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {uniqueLetters.map((letter) => (
               <Button
@@ -216,24 +213,17 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
               </Button>
             ))}
           </Box>
-
-          {/* Add Client Button */}
           <Box sx={{ mb: 2 }}>
             <Button variant="contained" onClick={handleOpenAddDialog}>
               Add Client
             </Button>
           </Box>
-
-          {/* Client Listing */}
           {filteredClients.length === 0 ? (
             <Typography>No client data found.</Typography>
           ) : (
             <List>
               {filteredClients.map((client) => (
-                <ListItem
-                  key={client.companyName}
-                  disablePadding
-                >
+                <ListItem key={client.companyName} disablePadding>
                   <ListItemButton onClick={() => handleClientClick(client)}>
                     <ListItemText
                       primary={client.companyName}
@@ -244,8 +234,14 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
               ))}
             </List>
           )}
-
-          {/* EDIT CLIENT DIALOG */}
+          {/* View Client Dialog */}
+          <ViewClientDialog
+            open={viewClientOpen}
+            onClose={handleCloseViewClient}
+            client={selectedClient}
+            onEdit={handleEditFromView}
+          />
+          {/* Edit Client Dialog */}
           <EditClientDialog
             open={editDialogOpen}
             onClose={handleCloseEditDialog}
@@ -254,8 +250,7 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
             onSave={handleSaveClientEdit}
             onDelete={handleDeleteClient}
           />
-
-          {/* ADD NEW CLIENT DIALOG */}
+          {/* New Client Dialog */}
           <NewClientDialog
             open={addDialogOpen}
             onClose={handleCloseAddDialog}
@@ -263,17 +258,13 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
           />
         </Box>
       )}
-
       {view === 'bank' && (
         <Box>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Company Bank Account
-          </Typography>
+          <Typography variant="h6" sx={{ mb: 2 }}>Company Bank Account</Typography>
           {Object.keys(bankGroups).length === 0 ? (
             <Typography>No bank account data found.</Typography>
           ) : (
             Object.entries(bankGroups).map(([bankGroup, accounts]) => (
-              // do not expand by default => user must open
               <Accordion key={bankGroup}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                   <Typography variant="subtitle1">{bankGroup}</Typography>
@@ -281,28 +272,14 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
                 <AccordionDetails>
                   {accounts.map((acc) => (
                     <Box key={acc.accountNumber} sx={{ mb: 2 }}>
-                      <Typography>
-                        <strong>Type:</strong> {acc.accountType}
-                      </Typography>
-                      <Typography>
-                        <strong>Account #:</strong> {acc.accountNumber}
-                      </Typography>
-
-                      {/* Skip FPS ID if empty */}
+                      <Typography><strong>Type:</strong> {acc.accountType}</Typography>
+                      <Typography><strong>Account #:</strong> {acc.accountNumber}</Typography>
                       {acc.fpsId && acc.fpsId.trim() && (
-                        <Typography>
-                          <strong>FPS ID:</strong> {acc.fpsId}
-                        </Typography>
+                        <Typography><strong>FPS ID:</strong> {acc.fpsId}</Typography>
                       )}
-
-                      {/* Skip FPS Email if empty */}
                       {acc.fpsEmail && acc.fpsEmail.trim() && (
-                        <Typography>
-                          <strong>FPS Email:</strong> {acc.fpsEmail}
-                        </Typography>
+                        <Typography><strong>FPS Email:</strong> {acc.fpsEmail}</Typography>
                       )}
-
-                      {/* Omit comments entirely */}
                       <hr />
                     </Box>
                   ))}
@@ -314,7 +291,7 @@ export default function RecordsPage({ clients, bankAccounts, error }: RecordsPag
       )}
     </SidebarLayout>
   );
-}
+};
 
 export const getServerSideProps: GetServerSideProps<RecordsPageProps> = async (ctx) => {
   const session = await getSession(ctx);
@@ -327,14 +304,7 @@ export const getServerSideProps: GetServerSideProps<RecordsPageProps> = async (c
     });
     const pmsRefLogFileId = await findPMSReferenceLogFile(drive);
     const clients = await fetchAddressBook(sheets, pmsRefLogFileId);
-    let bankAccounts = await fetchBankAccounts(sheets, pmsRefLogFileId);
-
-    // optionally remove parentheses from bank code globally
-    // bankAccounts = bankAccounts.map((acc) => ({
-    //   ...acc,
-    //   bankCode: acc.bankCode.replace('(', '').replace(')', ''),
-    // }));
-
+    const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogFileId);
     return { props: { clients, bankAccounts } };
   } catch (err: any) {
     console.error('[getServerSideProps] Error:', err);

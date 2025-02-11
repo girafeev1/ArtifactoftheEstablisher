@@ -3,7 +3,26 @@
 import { drive_v3, sheets_v4 } from 'googleapis';
 
 /**
- * Convert date string from Sheets into YYYY-MM-DD (suitable for <input type='date' />).
+ * Local shape for a single Project row from "Project Overview"
+ */
+export interface ProjectRow {
+  rowIndex: number;               // 1-based row index
+  projectNumber: string;
+  projectDate: string;            // "YYYY-MM-DD"
+  agent: string;
+  invoiceCompany: string;
+  projectTitle: string;
+  projectNature: string;
+  amount: string;                 // numeric string
+  paid: 'TRUE' | 'FALSE';
+  paidOnDate: string;             // "YYYY-MM-DD"
+  bankAccountIdentifier: string;
+  invoice: string;                // displayed text
+  invoiceUrl: string | null;      // hyperlink if any; null if none
+}
+
+/**
+ * Converts a date string into "YYYY-MM-DD"
  */
 function parseAsYYYYMMDD(dateStr: string): string {
   const trimmed = (dateStr || '').trim();
@@ -19,43 +38,34 @@ function parseAsYYYYMMDD(dateStr: string): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function cleanValue(v: any): any {
-  if (typeof v === 'string') {
-    return v.replace(/^'/, '');
-  }
-  return v;
-}
-
-function cleanValues(values: any[]): any[] {
-  return values.map(cleanValue);
-}
-
 /**
- * Fetch project rows from the "Project Overview" sheet.
- * This version uses includeGridData so that if the invoice cell has a hyperlink,
- * that URL is used rather than the plain formatted text.
+ * Fetch project rows from "Project Overview" starting at row 6,
+ * skipping the last row (assumed totals) and filtering out rows with empty project numbers.
+ * Extracts both the invoice displayed text and hyperlink.
  */
 export async function fetchProjectRows(
   sheets: sheets_v4.Sheets,
   fileId: string,
   startRow = 6
-): Promise<any[]> {
+): Promise<ProjectRow[]> {
   const resp = await sheets.spreadsheets.get({
     spreadsheetId: fileId,
     ranges: [`Project Overview!A${startRow}:K`],
     includeGridData: true,
   });
-  const sheet = resp.data.sheets && resp.data.sheets[0];
+  const sheet = resp.data.sheets?.[0];
   if (!sheet?.data || sheet.data.length === 0) return [];
+
   const rowData = sheet.data[0].rowData || [];
-  // Skip the last row (assumed to be a totals row)
+  // Remove the last row (total row)
   const usableRows = rowData.slice(0, rowData.length - 1);
-  return usableRows.map((row, idx) => {
+
+  const projects: ProjectRow[] = usableRows.map((row, idx) => {
     const cells = row.values || [];
-    // Invoice is expected in column K (index 10). Use the hyperlink if present.
     const invoiceCell = cells[10] || {};
-    const invoice = invoiceCell.hyperlink || invoiceCell.formattedValue || '';
-    let paidVal = (cells[7]?.formattedValue || '').toString().trim();
+    const invoiceText = invoiceCell.formattedValue || '';
+    const invoiceUrl = invoiceCell.hyperlink || null;
+    let paidVal = (cells[7]?.formattedValue || '').trim();
     if (paidVal === '✔' || paidVal.toUpperCase() === 'TRUE') {
       paidVal = 'TRUE';
     } else {
@@ -69,15 +79,23 @@ export async function fetchProjectRows(
       invoiceCompany: cells[3]?.formattedValue || '',
       projectTitle: cells[4]?.formattedValue || '',
       projectNature: cells[5]?.formattedValue || '',
-      amount: (cells[6]?.formattedValue || '').toString().replace(/[^0-9.]/g, ''),
-      paid: paidVal,
+      amount: (cells[6]?.formattedValue || '').replace(/[^0-9.]/g, ''),
+      paid: paidVal as 'TRUE' | 'FALSE',
       paidOnDate: parseAsYYYYMMDD(cells[8]?.formattedValue || ''),
       bankAccountIdentifier: cells[9]?.formattedValue || '',
-      invoice: invoice,
+      invoice: invoiceText,
+      invoiceUrl: invoiceUrl,
     };
   });
+
+  // Filter out any rows where projectNumber is empty.
+  return projects.filter(p => p.projectNumber.trim() !== '');
 }
 
+/**
+ * Update an existing project row by matching the projectNumber in column A.
+ * (This writes plain text values.)
+ */
 export async function updateProjectRow(
   sheets: sheets_v4.Sheets,
   fileId: string,
@@ -97,19 +115,19 @@ export async function updateProjectRow(
   }
 ): Promise<void> {
   const rangeAll = 'Project Overview!A:K';
-  const resp = await sheets.spreadsheets.values.get({
+  const getResp = await sheets.spreadsheets.values.get({
     spreadsheetId: fileId,
     range: rangeAll,
   });
-  const rows = resp.data.values || [];
-  const rowIndex = rows.findIndex((r) => r[0] === originalProjectNumber);
+  const rows = getResp.data.values || [];
+  const rowIndex = rows.findIndex(r => r[0] === originalProjectNumber);
   if (rowIndex === -1) {
     throw new Error(`Project "${originalProjectNumber}" not found`);
   }
   const actualRow = rowIndex + 1;
-  let paidValue = 'FALSE';
+  let paidVal = 'FALSE';
   if (updates.paid && updates.paid.toUpperCase() === 'TRUE') {
-    paidValue = 'TRUE';
+    paidVal = 'TRUE';
   }
   let amtNum = 0;
   if (typeof updates.amount === 'string') {
@@ -125,20 +143,22 @@ export async function updateProjectRow(
     updates.projectTitle || '',
     updates.projectNature || '',
     `$ ${amtNum.toFixed(2)}`,
-    paidValue,
+    paidVal,
     updates.paidOnDate || '',
     updates.bankAccountIdentifier || '',
     updates.invoice || '',
   ];
-  const cleaned = cleanValues(newRowValues);
   await sheets.spreadsheets.values.update({
     spreadsheetId: fileId,
     range: `Project Overview!A${actualRow}:K${actualRow}`,
     valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [cleaned] },
+    requestBody: { values: [newRowValues] },
   });
 }
 
+/**
+ * Insert a new project row above the last (total) row.
+ */
 export async function addProjectRowBeforeTotal(
   sheets: sheets_v4.Sheets,
   fileId: string,
@@ -163,9 +183,9 @@ export async function addProjectRowBeforeTotal(
     spreadsheetId: fileId,
     includeGridData: false,
   });
-  const sheet = meta.data.sheets?.find((s) => s.properties?.title === 'Project Overview');
-  if (!sheet?.properties?.sheetId) {
-    throw new Error('Cannot find Project Overview sheet');
+  const sheet = meta.data.sheets?.find(s => s.properties?.title === 'Project Overview');
+  if (!sheet || !sheet.properties?.sheetId) {
+    throw new Error('Cannot find "Project Overview" sheet');
   }
   const sheetId = sheet.properties.sheetId;
   await sheets.spreadsheets.batchUpdate({
@@ -219,16 +239,17 @@ export async function addProjectRowBeforeTotal(
     data.bankAccountIdentifier,
     data.invoice,
   ];
-  const cleaned = cleanValues(rowValues);
   await sheets.spreadsheets.values.update({
     spreadsheetId: fileId,
     range: `Project Overview!A${totalRow1Based}:K${totalRow1Based}`,
     valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [cleaned] },
+    requestBody: { values: [rowValues] },
   });
-  console.log('Inserted new project row + copied formatting from row above');
 }
 
+/**
+ * Delete a project row by matching projectNumber in column A.
+ */
 export async function deleteProjectRow(
   sheets: sheets_v4.Sheets,
   fileId: string,
@@ -240,17 +261,17 @@ export async function deleteProjectRow(
     range: rangeAll,
   });
   const rows = resp.data.values || [];
-  const rowIndex = rows.findIndex((r) => r[0] === projectNumber);
+  const rowIndex = rows.findIndex(r => r[0] === projectNumber);
   if (rowIndex === -1) {
-    throw new Error(`Project "${projectNumber}" not found for deletion.`);
+    throw new Error(`Project "${projectNumber}" not found`);
   }
   const meta = await sheets.spreadsheets.get({
     spreadsheetId: fileId,
     includeGridData: false,
   });
-  const sheet = meta.data.sheets?.find((s) => s.properties?.title === 'Project Overview');
-  if (!sheet?.properties?.sheetId) {
-    throw new Error('Cannot find Project Overview sheet ID');
+  const sheet = meta.data.sheets?.find(s => s.properties?.title === 'Project Overview');
+  if (!sheet || !sheet.properties?.sheetId) {
+    throw new Error('Cannot find "Project Overview" sheet ID');
   }
   const sheetId = sheet.properties.sheetId;
   await sheets.spreadsheets.batchUpdate({
@@ -270,9 +291,11 @@ export async function deleteProjectRow(
       ],
     },
   });
-  console.log(`Deleted row ${rowIndex} for projectNumber=${projectNumber}`);
 }
 
+/**
+ * Optionally, list "Project Overview" files from Drive.
+ */
 export async function listProjectOverviewFiles(
   drive: drive_v3.Drive,
   subsidiaryData: Array<{ categoryIdentifier: string; fullCompanyName: string }> = []
@@ -291,13 +314,13 @@ export async function listProjectOverviewFiles(
     });
     const files = response.data.files || [];
     const projectsByCategory: Record<string, any[]> = {};
-    files.forEach((file) => {
+    files.forEach(file => {
       const fileName = file.name || '';
       const match = fileName.match(/^(\d{4})\s+(\S+)\s+Project Overview/i);
       if (match) {
         const [_, year, companyId] = match;
         if (!projectsByCategory[year]) projectsByCategory[year] = [];
-        const found = subsidiaryData.find((row) => row.categoryIdentifier === companyId);
+        const found = subsidiaryData.find(row => row.categoryIdentifier === companyId);
         const fullName = found ? found.fullCompanyName : companyId;
         projectsByCategory[year].push({
           companyIdentifier: companyId,

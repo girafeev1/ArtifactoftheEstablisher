@@ -1,4 +1,4 @@
-// components/EditClientDialog.tsx
+// components/clientdialog/EditClientDialog.tsx
 
 import React from 'react';
 import {
@@ -33,7 +33,7 @@ interface EditClientDialogProps {
   client: Client | null;
   onClientChange: (updated: Client) => void; // pass changes upward
   onSave: () => void; // parent triggers actual save
-  onDelete?: () => void; // new callback for deletion
+  onDelete?: () => void;
 }
 
 export default function EditClientDialog({
@@ -46,7 +46,6 @@ export default function EditClientDialog({
 }: EditClientDialogProps) {
   if (!client) return null;
 
-  // On local field change
   function handleChange<K extends keyof Client>(key: K, value: string) {
     onClientChange({ ...client, [key]: value });
   }

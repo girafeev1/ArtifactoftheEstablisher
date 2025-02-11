@@ -1,7 +1,6 @@
 // lib/pmsReference.ts
 
 import { drive_v3, sheets_v4 } from 'googleapis';
-import { TextDecoder } from 'util';
 
 export interface AddressBookEntry {
   companyName: string;
@@ -14,7 +13,6 @@ export interface AddressBookEntry {
   addressLine4: string;
   addressLine5: string;
 }
-
 export interface BankAccountRow {
   companyName: string;
   bankName: string;
@@ -26,7 +24,6 @@ export interface BankAccountRow {
   comments?: string;
   identifier?: string;
 }
-
 export interface SubsidiaryData {
   identifier: string;
   englishName: string;
@@ -53,11 +50,14 @@ export async function findPMSReferenceLogFile(drive: drive_v3.Drive): Promise<st
     throw new Error('PMS Reference Log not found.');
   }
   if (files.length > 1) {
-    console.warn('[findPMSReferenceLogFile] Found multiple PMS Reference Log files, using first.');
+    console.warn('[findPMSReferenceLogFile] Found multiple logs, using the first.');
   }
   return files[0].id!;
 }
 
+/**
+ * For the "Reference of Subsidiary Names!A2:B" or so
+ */
 export async function fetchReferenceNames(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
@@ -67,8 +67,8 @@ export async function fetchReferenceNames(
   const rows = resp.data.values || [];
   const mapping: Record<string, string> = {};
   for (const row of rows) {
-    const code = row[0]?.trim();
-    const fullName = row[1]?.trim();
+    const code = (row[0] || '').trim();
+    const fullName = (row[1] || '').trim();
     if (code && fullName) {
       mapping[code] = fullName;
     }
@@ -76,14 +76,18 @@ export async function fetchReferenceNames(
   return mapping;
 }
 
+/**
+ * For "Address Book of Accounts!A4:I"
+ */
 export async function fetchAddressBook(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
 ): Promise<AddressBookEntry[]> {
-  const range = 'Address Book of Accounts!A2:I';
+  // skip first 3 rows if your HTML indicates row 4 is actual data
+  const range = 'Address Book of Accounts!A4:I';
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  const results: AddressBookEntry[] = rows.map((r) => ({
+  return rows.map((r) => ({
     companyName: r[0] || '',
     title: r[1] || '',
     nameAddressed: r[2] || '',
@@ -94,18 +98,19 @@ export async function fetchAddressBook(
     addressLine4: r[7] || '',
     addressLine5: r[8] || '',
   }));
-  return results;
 }
 
+/**
+ * For "Bank Account Information of Subsidiaries!A4:I"
+ */
 export async function fetchBankAccounts(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
 ): Promise<BankAccountRow[]> {
-  // Adjusted range to include column I for the identifier.
-  const range = 'Bank Account Information of Subsidiaries!A2:I';
+  const range = 'Bank Account Information of Subsidiaries!A4:I';
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  const results: BankAccountRow[] = rows.map((r) => ({
+  return rows.map((r) => ({
     companyName: r[0] || '',
     bankName: r[1] || '',
     bankCode: r[2] || '',
@@ -116,9 +121,11 @@ export async function fetchBankAccounts(
     comments: r[7] || '',
     identifier: r[8] || '',
   }));
-  return results;
 }
 
+/**
+ * For "Reference of Subsidiary Names!A2:J"
+ */
 export async function fetchSubsidiaryData(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
@@ -126,7 +133,7 @@ export async function fetchSubsidiaryData(
   const range = 'Reference of Subsidiary Names!A2:J';
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  const results: SubsidiaryData[] = rows.map((r) => ({
+  return rows.map((r) => ({
     identifier: (r[0] || '').trim(),
     englishName: (r[1] || '').trim(),
     chineseName: (r[2] || '').trim(),
@@ -138,5 +145,4 @@ export async function fetchSubsidiaryData(
     district: (r[8] || '').trim(),
     region: (r[9] || '').trim(),
   }));
-  return results;
 }

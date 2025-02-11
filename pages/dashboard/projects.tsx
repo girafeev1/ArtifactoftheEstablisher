@@ -21,18 +21,14 @@ import {
   CardContent,
 } from '@mui/material';
 
-// NO direct import of googleApi at top-level
-
 interface ProjectFileRecord {
   companyIdentifier: string;
   fullCompanyName: string;
   file: { id?: string; name?: string };
 }
-
 interface ProjectsByYear {
   [year: string]: ProjectFileRecord[];
 }
-
 interface ProjectProps {
   projectsByCategory: ProjectsByYear;
   referenceMapping: Record<string, string>;
@@ -75,12 +71,7 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
 
   useEffect(() => {
     if (sortMethod === 'year' && uniqueYears.length) {
-      const numericYears = uniqueYears.filter((yr) => /^\d+$/.test(yr));
-      if (numericYears.length) {
-        setSelectedYear(numericYears[numericYears.length - 1]);
-      } else {
-        setSelectedYear(uniqueYears[uniqueYears.length - 1]);
-      }
+      setSelectedYear(uniqueYears[uniqueYears.length - 1]);
       setSelectedCompany('');
     } else if (sortMethod === 'company' && uniqueCompanies.length) {
       setSelectedCompany(uniqueCompanies[0]);
@@ -101,11 +92,8 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
   const sortedProjects = useMemo(() => {
     const clone = [...filteredProjects];
     if (sortMethod === 'year') {
-      clone.sort((a, b) => {
-        const aNum = /^\d+$/.test(a.year) ? parseInt(a.year) : -999999;
-        const bNum = /^\d+$/.test(b.year) ? parseInt(b.year) : -999999;
-        return bNum - aNum;
-      });
+      // sort descending by year
+      clone.sort((a, b) => b.year.localeCompare(a.year, undefined, { numeric: true }));
     } else {
       clone.sort((a, b) => a.displayCompanyName.localeCompare(b.displayCompanyName));
     }
@@ -121,9 +109,10 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
     <SidebarLayout>
       <Typography variant="h4" gutterBottom>Projects</Typography>
       {error && <Typography color="error">{error}</Typography>}
+
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {sortMethod === 'year' && (
+          {sortMethod === 'year' && uniqueYears.length > 0 && (
             <FormControl sx={{ minWidth: 120 }}>
               <InputLabel>Year</InputLabel>
               <Select
@@ -137,7 +126,7 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
               </Select>
             </FormControl>
           )}
-          {sortMethod === 'company' && (
+          {sortMethod === 'company' && uniqueCompanies.length > 0 && (
             <FormControl sx={{ minWidth: 200 }}>
               <InputLabel>Company</InputLabel>
               <Select
@@ -161,10 +150,12 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
             <ToggleButton value="company">By Company</ToggleButton>
           </ToggleButtonGroup>
         </Box>
+        {/* example placeholder => not sure if you are using a "global new project" here */}
         <Button variant="contained" onClick={() => setDialogOpen(true)}>
           New Project (Global Placeholder)
         </Button>
       </Box>
+
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
         {sortedProjects.length === 0 ? (
           <Typography>No Project Overview files found.</Typography>
@@ -175,7 +166,7 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
             return (
               <Card
                 key={idx}
-                sx={{ cursor: 'pointer', width: 'fit-content', minWidth: 280 }}
+                sx={{ cursor: 'pointer', width: 240 }}
                 onClick={() => handleCardClick(fileId)}
               >
                 <CardContent>
@@ -186,7 +177,7 @@ export default function ProjectsPage({ projectsByCategory, referenceMapping, err
           })
         )}
       </Box>
-      {/* Example placeholder for a global new project */}
+
       {dialogOpen && (
         <Typography sx={{ mt: 2 }}>
           Global New Project is not implemented yet. (Placeholder)
@@ -202,9 +193,7 @@ export const getServerSideProps: GetServerSideProps<ProjectProps> = async (ctx) 
     return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
   }
 
-  // -- Import googleApi here, so it's purely server side
   const { initializeApis } = require('../../lib/googleApi');
-
   try {
     const { drive, sheets } = initializeApis('user', {
       accessToken: session.accessToken as string,

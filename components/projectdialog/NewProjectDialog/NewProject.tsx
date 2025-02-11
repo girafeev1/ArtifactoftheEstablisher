@@ -1,9 +1,9 @@
-// components/NewProjectDialog.tsx
+// components/projectdialog/newprojectdialog/NewProject.tsx
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography } from '@mui/material';
-import NewProjectPage1 from './NewProjectDialog/NewProjectPage1';
-import NewProjectPage2 from './NewProjectDialog/NewProjectPage2';
+import NewProjectPage1 from './NewProjectPage1';
+import NewProjectPage2 from './NewProjectPage2';
 
 interface ClientEntry {
   companyName: string;
@@ -31,7 +31,7 @@ interface SubsidiaryData {
   region: string;
 }
 
-interface NewProjectDialogProps {
+interface NewProjectProps {
   open: boolean;
   onClose: () => void;
   onProjectAdded: () => void;
@@ -49,7 +49,7 @@ interface NewProjectDialogProps {
   existingProjectDate?: string;
 }
 
-export default function NewProjectDialog({
+export default function NewProject({
   open,
   onClose,
   onProjectAdded,
@@ -65,9 +65,7 @@ export default function NewProjectDialog({
   onGoBackToEditProject,
   existingProjectNumber,
   existingProjectDate,
-}: NewProjectDialogProps) {
-  console.log('[NewProjectDialog] rendering => open=', open, ' cameFromEditProject=', cameFromEditProject);
-
+}: NewProjectProps) {
   const [pageIndex, setPageIndex] = useState(initialPageIndex);
 
   // ---------- Page 1 States ----------
@@ -91,7 +89,6 @@ export default function NewProjectDialog({
   const [issuerRegion, setIssuerRegion] = useState('');
   const [issuerEmail, setIssuerEmail] = useState('');
   const [issuerPhone, setIssuerPhone] = useState('');
-
   const relevantBanks = bankAccounts.filter(b => b.companyName === fullCompanyName);
   const [selectedBank, setSelectedBank] = useState('');
   const [selectedAccountType, setSelectedAccountType] = useState('');
@@ -99,13 +96,12 @@ export default function NewProjectDialog({
     b => b.bankName === selectedBank && b.accountType === selectedAccountType
   );
 
-  // Reset on open
   useEffect(() => {
+    console.log('[NewProject] open=', open, 'cameFromEditProject=', cameFromEditProject);
     if (open) {
-      console.log('[NewProjectDialog] open => resetting. cameFromEditProject=', cameFromEditProject);
       setPageIndex(initialPageIndex || 0);
+      console.log('[NewProject] existingProjectNumber=', existingProjectNumber, 'existingProjectDate=', existingProjectDate);
       if (cameFromEditProject && existingProjectNumber && existingProjectDate) {
-        console.log('[NewProjectDialog] using existing project date/number =>', existingProjectNumber, existingProjectDate);
         setProjectNumber(existingProjectNumber);
         setProjectDate(existingProjectDate);
         setEditingProjectNumber(false);
@@ -146,7 +142,7 @@ export default function NewProjectDialog({
 
   async function saveProjectData() {
     if (cameFromEditProject) {
-      console.log('[NewProjectDialog] cameFromEditProject => skip creating new row in the sheet');
+      console.log('[NewProject] cameFromEditProject => skip creating new row');
       return;
     }
     if (!fileId) throw new Error('No fileId provided');
@@ -156,7 +152,8 @@ export default function NewProjectDialog({
     if (!amount) throw new Error('Amount is required');
     const invCo = useManualCompany ? manualCompany : clientCompany;
     if (!invCo) throw new Error('Client Company is required');
-    console.log('[NewProjectDialog] POST new project => number=', projectNumber, ' date=', projectDate);
+
+    console.log('[NewProject] Creating project:', projectNumber, projectDate);
     const payload = {
       fileId,
       projectNumber,
@@ -177,11 +174,11 @@ export default function NewProjectDialog({
     });
     if (!resp.ok) {
       const errJson = await resp.json().catch(() => ({}));
-      const errMsg = errJson.error || 'New project creation failed';
-      console.error('[NewProjectDialog] creation error =>', errMsg);
+      const errMsg = errJson.error || 'Project creation failed';
+      console.error('[NewProject] creation error:', errMsg);
       throw new Error(errMsg);
     }
-    console.log('[NewProjectDialog] project created => success');
+    console.log('[NewProject] Project created successfully');
   }
 
   async function handleSaveAndExit() {
@@ -190,7 +187,7 @@ export default function NewProjectDialog({
       onProjectAdded();
       onClose();
     } catch (err: any) {
-      console.error('[NewProjectDialog] handleSaveAndExit => error:', err);
+      console.error('[NewProject] handleSaveAndExit error:', err);
       alert(`Error: ${err.message}`);
     }
   }
@@ -200,30 +197,30 @@ export default function NewProjectDialog({
       await saveProjectData();
       setPageIndex(1);
     } catch (err: any) {
-      console.error('[NewProjectDialog] handleSaveAndNext => error:', err);
+      console.error('[NewProject] handleSaveAndNext error:', err);
       alert(`Error: ${err.message}`);
     }
   }
 
   function handleBack() {
-    console.log('[NewProjectDialog] user clicked BACK => pageIndex=', pageIndex);
+    console.log('[NewProject] Back clicked, pageIndex=', pageIndex);
     if (pageIndex === 1 && cameFromEditProject && onGoBackToEditProject) {
       onGoBackToEditProject();
     } else {
-      if (pageIndex > 0) {
-        setPageIndex(pageIndex - 1);
-      }
+      if (pageIndex > 0) setPageIndex(pageIndex - 1);
     }
   }
 
   function handleFinish() {
-    console.log('[NewProjectDialog] user clicked FINISH => close. no invoice logic');
+    console.log('[NewProject] Finish clicked, closing dialog');
     onClose();
   }
 
-  // Compute invoice number from projectDate and projectNumber.
+  // Debugging computeInvoiceNumber
   function computeInvoiceNumber(dateStr: string, pNum: string): string {
-    if (!dateStr || !pNum) return '???';
+    console.log('[NewProject] computeInvoiceNumber inputs:', dateStr, pNum);
+    if (!dateStr || !pNum)
+    return '???';
     const parts = dateStr.split('-');
     if (parts.length !== 3) return '???';
     const y = parts[0];
@@ -231,13 +228,15 @@ export default function NewProjectDialog({
     const dashIdx = pNum.lastIndexOf('-');
     if (dashIdx === -1) return `${y}-${mmdd}-???`;
     const nnn = pNum.slice(dashIdx + 1);
-    return `${y}-${mmdd}-${nnn}`;
+    const result = `${y}-${mmdd}-${nnn}`;
+    console.log('[NewProject] computeInvoiceNumber result:', result);
+    return result;
   }
   const invoiceNumber = computeInvoiceNumber(projectDate, projectNumber);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      {pageIndex === 0 && (
+      {pageIndex === 0 ? (
         <>
           <DialogTitle>New Project - Basic Info</DialogTitle>
           <DialogContent dividers>
@@ -279,10 +278,8 @@ export default function NewProjectDialog({
             </Button>
           </DialogActions>
         </>
-      )}
-      {pageIndex === 1 && (
+      ) : (
         <>
-          {/* The invoice header has been moved to DialogTitle */}
           <DialogTitle>Create Invoice - {invoiceNumber}</DialogTitle>
           <DialogContent dividers>
             <NewProjectPage2
@@ -307,12 +304,8 @@ export default function NewProjectDialog({
           </DialogContent>
           <DialogActions>
             <Button onClick={handleBack}>Back</Button>
-            <Button variant="outlined" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="contained" onClick={handleFinish}>
-              Finish
-            </Button>
+            <Button variant="outlined" onClick={onClose}>Cancel</Button>
+            <Button variant="contained" onClick={handleFinish}>Finish</Button>
           </DialogActions>
         </>
       )}

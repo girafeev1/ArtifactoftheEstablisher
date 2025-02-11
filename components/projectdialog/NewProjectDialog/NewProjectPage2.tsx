@@ -1,8 +1,18 @@
-// components/projectdialog/newprojectdialog/NewProject/NewProjectPage2.tsx
+// components/projectdialog/newprojectdialog/NewProjectPage2.tsx
 
 import React from 'react';
 import { Box, Typography, FormControl, Select, MenuItem } from '@mui/material';
-import type { InvoiceBankAccount } from '../../NewProject';
+
+interface InvoiceBankAccount {
+  companyName: string;
+  bankName: string;
+  bankCode: string;
+  accountType: string;
+  accountNumber: string;
+  fpsId?: string;
+  fpsEmail?: string;
+  identifier?: string;
+}
 
 interface Page2Props {
   projectDate: string;
@@ -43,19 +53,21 @@ export default function NewProjectPage2({
   setSelectedAccountType,
   matchedBank,
 }: Page2Props) {
+  console.log('[NewProjectPage2] rendering => projectDate=', projectDate, ' projectNumber=', projectNumber);
+
   function renderAddressLine(value?: string) {
     if (!value || !value.trim()) return null;
     return <Typography variant="body2">{value}</Typography>;
   }
+
   return (
     <>
+      <Typography variant="subtitle1" gutterBottom>
+        Invoice Issuing Company Information
+      </Typography>
       <Box sx={{ p: 2, border: '1px solid #ccc', borderRadius: 2, mb: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>
-          Invoice Issuing Company Information
-        </Typography>
         <Box sx={{ mb: 1 }}>
-          <strong>Name: </strong>
-          {issuerEnglish}
+          <strong>Name:</strong> {issuerEnglish}
           {issuerChinese ? ` (${issuerChinese})` : ''}
         </Box>
         <Box sx={{ mb: 1 }}>
@@ -69,18 +81,19 @@ export default function NewProjectPage2({
           </Box>
         </Box>
         <Box sx={{ mb: 1 }}>
-          <strong>Tel: </strong>{issuerPhone}
+          <strong>Tel: </strong> {issuerPhone}
         </Box>
         <Box sx={{ mb: 1 }}>
-          <strong>Email: </strong>{issuerEmail}
+          <strong>Email: </strong> {issuerEmail}
         </Box>
       </Box>
-      <Typography variant="h6" sx={{ mb: 2 }}>
+
+      <Typography variant="subtitle1" sx={{ mb: 2 }}>
         Bank Account Information
       </Typography>
       {relevantBanks.length === 0 ? (
         <Typography sx={{ color: 'red', mt: 2 }}>
-          No bank accounts found for the invoice issuing company
+          No bank accounts found for {issuerEnglish}
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
@@ -125,6 +138,7 @@ export default function NewProjectPage2({
           </FormControl>
         </Box>
       )}
+
       {matchedBank && (
         <Box sx={{ p: 2, border: '1px solid #ccc', borderRadius: 2, mt: 2 }}>
           <Typography variant="body2" gutterBottom>

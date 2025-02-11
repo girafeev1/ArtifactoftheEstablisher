@@ -11,7 +11,7 @@ import {
   fetchReferenceNames,
   fetchAddressBook,
   fetchBankAccounts,
-  fetchSubsidiaryData,
+  fetchSubsidiaryData
 } from '../../../lib/pmsReference';
 
 import { initializeApis } from '../../../lib/googleApi';
@@ -20,8 +20,10 @@ import { fetchProjectRows } from '../../../lib/projectOverview';
 import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
-import NewProjectDialog from '../../../components/NewProjectDialog';
-import EditProject from '../../../components/EditProject';  // The orchestrator
+// Instead of the old import from '../../components/NewProjectDialog' or 'EditProject',
+// we now import from the new folder paths:
+import NewProject from '../../../components/projectdialog/newprojectdialog/NewProject';
+import EditProject from '../../../components/projectdialog/editprojectdialog/EditProject';
 
 // Types
 interface SingleProjectData {
@@ -36,6 +38,7 @@ interface SingleProjectData {
   paidOnDate: string;
   bankAccountIdentifier: string;
   invoice: string;
+  invoiceUrl?: string; // to store hyperlink if any
 }
 interface BankAccount {
   companyName: string;
@@ -86,12 +89,11 @@ export default function SingleFilePage({
 }: FileViewProps) {
   const router = useRouter();
 
-  // =========== For "New Project" ===========
+  // For "New Project"
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [wizardPage, setWizardPage] = useState(0);
 
   function handleNewProject() {
-    console.log('[SingleFilePage] user clicked => open new project wizard');
     setWizardPage(0);
     setNewDialogOpen(true);
   }
@@ -99,16 +101,14 @@ export default function SingleFilePage({
     setNewDialogOpen(false);
   }
   function handleNewProjectAdded() {
-    console.log('[SingleFilePage] new project added => re-fetch data');
     router.replace(router.asPath);
   }
 
-  // =========== For "Edit Project" orchestrator ===========
+  // For "Edit Project"
   const [editOpen, setEditOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<SingleProjectData | null>(null);
 
   function handleProjectClick(proj: SingleProjectData) {
-    console.log('[SingleFilePage] user clicked project => open read-only =>', proj.projectNumber);
     setSelectedProject(proj);
     setEditOpen(true);
   }
@@ -117,26 +117,22 @@ export default function SingleFilePage({
     setSelectedProject(null);
   }
   function handleEditUpdated() {
-    console.log('[SingleFilePage] handleEditUpdated => re-fetch data');
     router.replace(router.asPath);
   }
 
-  // If user chooses "Create Invoice" in read-only => open new project wizard page=1 with existing date/number
+  // If user chooses "Create Invoice" in read-only => open new project wizard page=1
+  // with existing date/number
   function handleCreateInvoiceFromEditDialog() {
-    console.log('[SingleFilePage] handleCreateInvoiceFromEditDialog => project =>', selectedProject?.projectNumber);
     if (!selectedProject) {
       alert('No selected project to form an invoice from!');
       return;
     }
     setEditOpen(false);
-    // Suppose we want to open NewProjectDialog page 2, but reusing the existing date/number:
     setWizardPage(1);
     setNewDialogOpen(true);
   }
 
   function handleGoBackToEditProject() {
-    // page 2 => back to read-only project? or editing? Implementation detail
-    console.log('[SingleFilePage] handleGoBackToEditProject => re-open the edit orchestrator');
     setNewDialogOpen(false);
     setWizardPage(0);
     if (selectedProject) {
@@ -193,8 +189,8 @@ export default function SingleFilePage({
         </CardContent>
       </Card>
 
-      {/* NewProjectDialog => multi-page wizard */}
-      <NewProjectDialog
+      {/* NewProject => multi-page wizard */}
+      <NewProject
         open={newDialogOpen}
         onClose={handleCloseNewDialog}
         onProjectAdded={handleNewProjectAdded}
@@ -205,17 +201,13 @@ export default function SingleFilePage({
         bankAccounts={bankAccounts}
         subsidiaryInfo={subsidiaryInfo}
         initialPageIndex={wizardPage}
-
-        // If user pressed "Create Invoice" from an existing project => we might pass date/number
-        cameFromEditProject={wizardPage === 1} // if wizardPage=1 => we interpret that as "cameFromEditProject"
+        cameFromEditProject={wizardPage === 1}
         onGoBackToEditProject={handleGoBackToEditProject}
-
-        // The existing project data if we want to form the invoice from it
         existingProjectNumber={selectedProject?.projectNumber}
         existingProjectDate={selectedProject?.projectDate}
       />
 
-      {/* EditProject => orchestrator for read-only vs. editing */}
+      {/* EditProject => orchestrator */}
       <EditProject
         open={editOpen}
         onClose={handleCloseEditDialog}
@@ -280,7 +272,7 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     // bank accounts
     let bankAccounts = await fetchBankAccounts(sheets, pmsRefLogId);
 
-    // subsidiary info => for newProjectDialog page2
+    // subsidiary info => for newProject page2
     const allSubsidiaries = await fetchSubsidiaryData(sheets, pmsRefLogId);
     const row = allSubsidiaries.find((r) => r.identifier === shortCode) || null;
 
