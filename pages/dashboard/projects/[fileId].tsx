@@ -2,29 +2,28 @@
 
 import { GetServerSideProps } from 'next';
 import { getSession } from 'next-auth/react';
-import { initializeApis } from '../../../lib/googleApi';
-import SidebarLayout from '../../../components/SidebarLayout';
-import { findPMSReferenceLogFile, fetchReferenceNames } from '../../../lib/pmsReference';
-import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  List,
-  ListItem,
-  ListItemText,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
-  Checkbox,
-  FormControlLabel,
-} from '@mui/material';
-import { useState } from 'react';
+import { useRouter } from 'next/router';
+import React, { useState } from 'react';
 
-/** Adjust columns as needed. If "paid" is stored as "TRUE"/"FALSE", we convert to boolean client-side. */
+import SidebarLayout from '../../../components/SidebarLayout';
+import {
+  findPMSReferenceLogFile,
+  fetchReferenceNames,
+  fetchAddressBook,
+  fetchBankAccounts,
+  fetchSubsidiaryData
+} from '../../../lib/pmsReference';
+
+import { initializeApis } from '../../../lib/googleApi';
+import { fetchProjectRows } from '../../../lib/projectOverview';
+
+import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+
+// Import dialogs – these are our fully functional components.
+import NewProject from '../../../components/projectdialog/newprojectdialog/NewProject';
+import EditProject from '../../../components/projectdialog/editprojectdialog/EditProject';
+
 interface SingleProjectData {
   projectNumber: string;
   projectDate: string;
@@ -33,103 +32,146 @@ interface SingleProjectData {
   projectTitle: string;
   projectNature: string;
   amount: string;
-  paid: 'TRUE' | 'FALSE';      // store as string to keep it easy
+  paid: 'TRUE' | 'FALSE';
   paidOnDate: string;
+  bankAccountIdentifier: string;
   invoice: string;
+  invoiceUrl?: string;
 }
-
+interface BankAccount {
+  companyName: string;
+  bankName: string;
+  bankCode: string;
+  accountType: string;
+  accountNumber: string;
+  fpsId?: string;
+  fpsEmail?: string;
+  comments?: string;
+  identifier?: string;
+}
+interface SubsidiaryData {
+  identifier: string;
+  englishName: string;
+  chineseName: string;
+  email: string;
+  phone: string;
+  room: string;
+  building: string;
+  street: string;
+  district: string;
+  region: string;
+}
 interface FileViewProps {
   fileId: string;
-  fileLabel: string; // e.g. "Some Company - 2024"
-  projects: SingleProjectData[];
+  fileLabel: string;
+  projects?: SingleProjectData[];
   error?: string;
+  yearCode: string;
+  fullCompanyName: string;
+  clients: { companyName: string }[];
+  bankAccounts: BankAccount[];
+  subsidiaryInfo?: SubsidiaryData | null;
 }
 
-/**
- * The default export component
- */
 export default function SingleFilePage({
   fileId,
   fileLabel,
-  projects,
+  projects = [],
   error,
+  yearCode,
+  fullCompanyName,
+  clients,
+  bankAccounts,
+  subsidiaryInfo,
 }: FileViewProps) {
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editItem, setEditItem] = useState<SingleProjectData | null>(null);
+  const router = useRouter();
 
-  // Instead of an "Edit" button, we'll open the dialog on the entire row click
-  const handleProjectClick = (project: SingleProjectData) => {
-    setEditItem({ ...project }); // clone so we can edit
-    setEditDialogOpen(true);
-  };
+  // State for the NewProject wizard and EditProject dialog.
+  const [newDialogOpen, setNewDialogOpen] = useState(false);
+  const [wizardPage, setWizardPage] = useState(0);
 
-  const handleClose = () => {
-    setEditItem(null);
-    setEditDialogOpen(false);
-  };
+  // Preserve existing project data when creating an invoice.
+  const [existingNumber, setExistingNumber] = useState<string | undefined>(undefined);
+  const [existingDate, setExistingDate] = useState<string | undefined>(undefined);
 
-  // Save => call /api/info with method=PUT, type=project
-  const handleSaveEdit = async () => {
-    if (!editItem) return;
-    try {
-      // Here, originalIdentifier = the old projectNumber
-      // If user changed the projectNumber, that goes in data.projectNumber
-      const response = await fetch('/api/info', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // so session cookies are sent
-        body: JSON.stringify({
-          type: 'project',
-          data: {
-            originalIdentifier: editItem.projectNumber, // the old number
-            projectNumber: editItem.projectNumber,       // possibly updated
-            projectDate: editItem.projectDate,
-            agent: editItem.agent,
-            invoiceCompany: editItem.invoiceCompany,
-            projectTitle: editItem.projectTitle,
-            projectNature: editItem.projectNature,
-            amount: editItem.amount,
-            paid: editItem.paid,            // "TRUE"/"FALSE"
-            paidOnDate: editItem.paidOnDate,
-            invoice: editItem.invoice,
-          },
-        }),
-      });
-      if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error || 'Update failed');
-      }
-      console.log('Project updated successfully');
-      handleClose();
-      // If you want to refresh the page to see changes, do so:
-      // location.reload();
-    } catch (err) {
-      console.error('Error updating project:', err);
+  function handleNewProject() {
+    setExistingNumber(undefined);
+    setExistingDate(undefined);
+    setWizardPage(0);
+    setNewDialogOpen(true);
+  }
+  function handleCloseNewDialog() {
+    setNewDialogOpen(false);
+  }
+  function handleNewProjectAdded() {
+    router.replace(router.asPath);
+  }
+
+  // For editing a project.
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<SingleProjectData | null>(null);
+
+  function handleProjectClick(proj: SingleProjectData) {
+    setSelectedProject(proj);
+    setEditOpen(true);
+  }
+  function handleCloseEditDialog() {
+    setEditOpen(false);
+  }
+  function handleEditUpdated() {
+    router.replace(router.asPath);
+  }
+
+  // When "Create Invoice" is clicked in the EditProject dialog, preserve the project number and pickup date.
+  function handleCreateInvoiceFromEditDialog() {
+    if (!selectedProject) {
+      alert('No selected project to form an invoice from!');
+      return;
     }
-  };
+    console.log('[Parent] Create Invoice from edit for project:', selectedProject);
+    setExistingNumber(selectedProject.projectNumber);
+    setExistingDate(selectedProject.projectDate);
+    setEditOpen(false);
+    setWizardPage(1);
+    setNewDialogOpen(true);
+  }
 
-  // Convert from "TRUE"/"FALSE" to boolean in the checkbox
-  const isPaid = editItem?.paid === 'TRUE';
-  const handleCheckboxChange = (checked: boolean) => {
-    if (editItem) {
-      setEditItem({ ...editItem, paid: checked ? 'TRUE' : 'FALSE' });
+  function handleGoBackToEditProject() {
+    setNewDialogOpen(false);
+    setWizardPage(0);
+    if (selectedProject) {
+      setEditOpen(true);
     }
-  };
+  }
+
+  function handleBack() {
+    router.push('/dashboard/projects');
+  }
 
   return (
     <SidebarLayout>
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h5">{fileLabel}</Typography>
-        {error && <Typography color="error">{error}</Typography>}
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <IconButton onClick={handleBack}>
+          <ArrowBackIcon />
+        </IconButton>
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="h5">{fileLabel}</Typography>
+          <Typography variant="subtitle1">Project Overview</Typography>
+        </Box>
+        <Button variant="contained" onClick={handleNewProject}>
+          New Project
+        </Button>
       </Box>
 
-      <Card>
+      {error && <Typography color="error">{error}</Typography>}
+
+      <Card sx={{ mb: 2 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Projects in this file
+            Project List
           </Typography>
           {projects.length === 0 ? (
-            <Typography>No rows found.</Typography>
+            <Typography>No project rows found.</Typography>
           ) : (
             <List>
               {projects.map((proj) => (
@@ -140,8 +182,8 @@ export default function SingleFilePage({
                 >
                   <ListItemText
                     primary={`${proj.projectNumber} — ${proj.projectTitle}`}
-                    secondary={`$${proj.amount} | ${
-                      proj.paid === 'TRUE' ? 'Paid' : 'Unpaid'
+                    secondary={`$${proj.amount} | ${proj.paid === 'TRUE' ? 'Paid' : 'Unpaid'}${
+                      proj.paid === 'TRUE' && proj.paidOnDate ? ` | ${proj.paidOnDate}` : ''
                     }`}
                   />
                 </ListItem>
@@ -151,139 +193,94 @@ export default function SingleFilePage({
         </CardContent>
       </Card>
 
-      {/* Edit Dialog => opens upon row click */}
-      <Dialog open={editDialogOpen} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Project</DialogTitle>
-        {editItem && (
-          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
-              label="Project Number"
-              value={editItem.projectNumber}
-              onChange={(e) =>
-                setEditItem({ ...editItem, projectNumber: e.target.value })
-              }
-            />
-            <TextField
-              label="Project Title"
-              value={editItem.projectTitle}
-              onChange={(e) =>
-                setEditItem({ ...editItem, projectTitle: e.target.value })
-              }
-            />
-            <TextField
-              label="Amount"
-              value={editItem.amount}
-              onChange={(e) => setEditItem({ ...editItem, amount: e.target.value })}
-            />
-            {/* Paid as a checkbox */}
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={isPaid}
-                  onChange={(e) => handleCheckboxChange(e.target.checked)}
-                />
-              }
-              label="Paid"
-            />
-            {/* If paid===TRUE, show "Paid On Date" */}
-            {isPaid && (
-              <TextField
-                label="Paid On Date"
-                type="date"
-                value={editItem.paidOnDate}
-                onChange={(e) =>
-                  setEditItem({ ...editItem, paidOnDate: e.target.value })
-                }
-                InputLabelProps={{ shrink: true }}
-              />
-            )}
-            {/* You can add more fields, e.g. agent, invoice, etc. */}
-          </DialogContent>
-        )}
-        <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>
-          <Button variant="contained" onClick={handleSaveEdit}>
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* NewProject wizard (multi‑page) */}
+      <NewProject
+        open={newDialogOpen}
+        onClose={handleCloseNewDialog}
+        onProjectAdded={handleNewProjectAdded}
+        fileId={fileId}
+        yearCode={yearCode}
+        fullCompanyName={fullCompanyName}
+        clientsData={clients}
+        bankAccounts={bankAccounts}
+        subsidiaryInfo={subsidiaryInfo}
+        initialPageIndex={wizardPage}
+        cameFromEditProject={wizardPage === 1}
+        onGoBackToEditProject={handleGoBackToEditProject}
+        existingProjectNumber={existingNumber}
+        existingProjectDate={existingDate}
+        existingProjects={projects}
+      />
+
+      {/* EditProject orchestrator */}
+      <EditProject
+        open={editOpen}
+        onClose={handleCloseEditDialog}
+        fileId={fileId}
+        initialProject={selectedProject}
+        onUpdated={handleEditUpdated}
+        bankAccounts={bankAccounts}
+        companyNameOfFile={fullCompanyName}
+        onCreateInvoice={handleCreateInvoiceFromEditDialog}
+      />
     </SidebarLayout>
   );
 }
 
-/** SSR => read rows from e.g. "Project Overview!A5:J", parse them, and build your <FileViewProps>. */
+// SSR: Fetch live data from Google Sheets.
 export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx) => {
   const session = await getSession(ctx);
   if (!session?.accessToken) {
-    return {
-      redirect: { destination: '/api/auth/signin/google', permanent: false },
-    };
+    return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
   }
+
   const fileId = ctx.params?.fileId as string;
   if (!fileId) {
     return { notFound: true };
   }
 
   try {
-    // 1) Initialize
     const { drive, sheets } = initializeApis('user', {
       accessToken: session.accessToken as string,
     });
-    // 2) Maybe find the short code, year => build fileLabel
+
+    // Get file metadata and parse year and subsidiary code.
     const fileMeta = await drive.files.get({
       fileId,
       fields: 'id, name',
       supportsAllDrives: true,
     });
     const rawName = fileMeta.data.name || '';
-    // parse e.g. "2024 XYZ Project Overview"
-    let year = '';
+    let yearCode = '';
     let shortCode = '';
-    const nameMatch = rawName.match(/^(\d{4})\s+(\S+)\s+Project Overview/i);
-    if (nameMatch) {
-      year = nameMatch[1];
-      shortCode = nameMatch[2];
+    const re = /^(\d{4})\s+(\S+)\s+Project Overview/i;
+    const match = rawName.match(re);
+    if (match) {
+      yearCode = match[1];
+      shortCode = match[2];
     }
-    // get reference mapping => find the full name
+
+    // Fetch PMS Reference Log data.
     const pmsRefLogId = await findPMSReferenceLogFile(drive);
-    const refResp = await fetchReferenceNames(sheets, pmsRefLogId);
-    const fullCoName = refResp[shortCode] || shortCode || 'Unknown Company';
-    const fileLabel = `${fullCoName} - ${year}`;
-
-    // 3) read from A5:J (or whatever)
-    const range = 'Project Overview!A6:J';
-    const resp = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range,
-    });
-    const rows = resp.data.values || [];
-    const projects: SingleProjectData[] = [];
-
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      if (!r[0]) continue; // skip empty
-      // interpret paid as "TRUE"/"FALSE"
-      const paidVal = (r[7] || '').toString().toUpperCase(); // e.g. "TRUE" or "FALSE"
-      const amountRaw = (r[6] || '').toString().replace(/[^0-9.]/g, '');
-      projects.push({
-        projectNumber: r[0],
-        projectDate: r[1] || '',
-        agent: r[2] || '',
-        invoiceCompany: r[3] || '',
-        projectTitle: r[4] || '',
-        projectNature: r[5] || '',
-        amount: amountRaw || '0',
-        paid: paidVal === 'TRUE' ? 'TRUE' : 'FALSE',
-        paidOnDate: r[8] || '',
-        invoice: r[9] || '',
-      });
-    }
+    const refMapping = await fetchReferenceNames(sheets, pmsRefLogId);
+    const fullCompanyName = refMapping[shortCode] || shortCode;
+    const projects = await fetchProjectRows(sheets, fileId, 6);
+    const addressBook = await fetchAddressBook(sheets, pmsRefLogId);
+    const clients = addressBook.map((c) => ({ companyName: c.companyName }));
+    const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogId);
+    const allSubsidiaries = await fetchSubsidiaryData(sheets, pmsRefLogId);
+    const subsidiaryInfo = allSubsidiaries.find((r) => r.identifier === shortCode) || null;
 
     return {
       props: {
         fileId,
-        fileLabel,
+        fileLabel: `${fullCompanyName} - ${yearCode}`,
         projects,
+        yearCode,
+        fullCompanyName,
+        clients,
+        bankAccounts,
+        subsidiaryInfo,
       },
     };
   } catch (err: any) {
@@ -293,6 +290,11 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
         fileId,
         fileLabel: '',
         projects: [],
+        yearCode: '',
+        fullCompanyName: '',
+        clients: [],
+        bankAccounts: [],
+        subsidiaryInfo: null,
         error: err.message || 'Error retrieving file data',
       },
     };
