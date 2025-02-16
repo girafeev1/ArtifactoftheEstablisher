@@ -15,24 +15,16 @@ import {
 } from '../../../lib/pmsReference';
 
 import { initializeApis } from '../../../lib/googleApi';
-import { fetchProjectRows, listProjectOverviewFiles } from '../../../lib/projectOverview';
+import { fetchProjectRows } from '../../../lib/projectOverview';
 
-import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  Button
-} from '@mui/material';
+import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
+// Use the new NewProject and EditProject dialogs that implement the full Create Invoice and edit flows.
 import NewProject from '../../../components/projectdialog/newprojectdialog/NewProject';
 import EditProject from '../../../components/projectdialog/editprojectdialog/EditProject';
 
+// Types for clarity
 interface SingleProjectData {
   projectNumber: string;
   projectDate: string;
@@ -80,11 +72,6 @@ interface FileViewProps {
   clients: { companyName: string }[];
   bankAccounts: BankAccount[];
   subsidiaryInfo?: SubsidiaryData | null;
-  projectsByCategory: Record<string, Array<{
-    companyIdentifier: string;
-    fullCompanyName: string;
-    file: any;
-  }>>;
 }
 
 export default function SingleFilePage({
@@ -97,19 +84,15 @@ export default function SingleFilePage({
   clients,
   bankAccounts,
   subsidiaryInfo,
-  projectsByCategory,
 }: FileViewProps) {
   const router = useRouter();
 
-  // New Project / Create Invoice Dialog state
+  // State for the multi-page New Project (Create Invoice) wizard
   const [newDialogOpen, setNewDialogOpen] = useState(false);
+  // wizardPage === 0 for basic project info, === 1 for invoice creation
   const [wizardPage, setWizardPage] = useState(0);
-  const [existingNumber, setExistingNumber] = useState<string | undefined>(undefined);
-  const [existingDate, setExistingDate] = useState<string | undefined>(undefined);
 
   function handleNewProject() {
-    setExistingNumber(undefined);
-    setExistingDate(undefined);
     setWizardPage(0);
     setNewDialogOpen(true);
   }
@@ -120,7 +103,7 @@ export default function SingleFilePage({
     router.replace(router.asPath);
   }
 
-  // Edit Project Dialog state
+  // State for the Edit Project dialog
   const [editOpen, setEditOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<SingleProjectData | null>(null);
 
@@ -136,21 +119,19 @@ export default function SingleFilePage({
     router.replace(router.asPath);
   }
 
-  // When Create Invoice is initiated from the Edit dialog,
-  // pass the selected project's number and date to NewProject.
+  // When user clicks "Create Invoice" in an edit dialog,
+  // we pass the existing project’s number and pickup date to the NewProject wizard.
   function handleCreateInvoiceFromEditDialog() {
     if (!selectedProject) {
       alert('No selected project to form an invoice from!');
       return;
     }
-    console.log('[Parent] Create Invoice from edit for project:', selectedProject);
-    setExistingNumber(selectedProject.projectNumber);
-    setExistingDate(selectedProject.projectDate);
     setEditOpen(false);
     setWizardPage(1);
     setNewDialogOpen(true);
   }
 
+  // When coming back from NewProject wizard to edit, reset wizard page.
   function handleGoBackToEditProject() {
     setNewDialogOpen(false);
     setWizardPage(0);
@@ -190,10 +171,16 @@ export default function SingleFilePage({
           ) : (
             <List>
               {projects.map((proj) => (
-                <ListItem key={proj.projectNumber} sx={{ cursor: 'pointer' }} onClick={() => handleProjectClick(proj)}>
+                <ListItem
+                  key={proj.projectNumber}
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => handleProjectClick(proj)}
+                >
                   <ListItemText
                     primary={`${proj.projectNumber} — ${proj.projectTitle}`}
-                    secondary={`$${proj.amount} | ${proj.paid === 'TRUE' ? 'Paid' : 'Unpaid'}${proj.paid === 'TRUE' && proj.paidOnDate ? ` | ${proj.paidOnDate}` : ''}`}
+                    secondary={`$${proj.amount} | ${proj.paid === 'TRUE' ? 'Paid' : 'Unpaid'}${
+                      proj.paid === 'TRUE' && proj.paidOnDate ? ` | ${proj.paidOnDate}` : ''
+                    }`}
                   />
                 </ListItem>
               ))}
@@ -202,6 +189,7 @@ export default function SingleFilePage({
         </CardContent>
       </Card>
 
+      {/* NewProject Wizard (for creating/editing invoices) */}
       <NewProject
         open={newDialogOpen}
         onClose={handleCloseNewDialog}
@@ -215,11 +203,11 @@ export default function SingleFilePage({
         initialPageIndex={wizardPage}
         cameFromEditProject={wizardPage === 1}
         onGoBackToEditProject={handleGoBackToEditProject}
-        existingProjectNumber={existingNumber}
-        existingProjectDate={existingDate}
-        existingProjects={projects}
+        existingProjectNumber={selectedProject?.projectNumber}
+        existingProjectDate={selectedProject?.projectDate}
       />
 
+      {/* EditProject Dialog */}
       <EditProject
         open={editOpen}
         onClose={handleCloseEditDialog}
@@ -234,19 +222,24 @@ export default function SingleFilePage({
   );
 }
 
+// Server-Side Rendering
 export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx) => {
   const session = await getSession(ctx);
   if (!session?.accessToken) {
     return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
   }
+
   const fileId = ctx.params?.fileId as string;
   if (!fileId) {
     return { notFound: true };
   }
+
   try {
     const { drive, sheets } = initializeApis('user', {
       accessToken: session.accessToken as string,
     });
+
+    // Read file meta to extract year code and short code (e.g., "2025 ERL Project Overview")
     const fileMeta = await drive.files.get({
       fileId,
       fields: 'id, name',
@@ -261,16 +254,28 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
       yearCode = match[1];
       shortCode = match[2];
     }
+
+    // Locate the PMS Reference Log file
     const pmsRefLogId = await findPMSReferenceLogFile(drive);
+
+    // Get a mapping from short code to full company name
     const refMapping = await fetchReferenceNames(sheets, pmsRefLogId);
     const fullCompanyName = refMapping[shortCode] || shortCode;
+
+    // Fetch project rows from the selected project overview file
     const projects = await fetchProjectRows(sheets, fileId, 6);
+
+    // Fetch clients (address book entries) from PMS Reference Log
     const addressBook = await fetchAddressBook(sheets, pmsRefLogId);
     const clients = addressBook.map((c) => ({ companyName: c.companyName }));
+
+    // Fetch bank account rows from PMS Reference Log
     const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogId);
+
+    // Fetch subsidiary info (for invoice issuing company info)
     const allSubsidiaries = await fetchSubsidiaryData(sheets, pmsRefLogId);
     const subsidiaryInfo = allSubsidiaries.find((r) => r.identifier === shortCode) || null;
-    const projectsByCategory = await listProjectOverviewFiles(drive, []);
+
     return {
       props: {
         fileId,
@@ -281,7 +286,6 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
         clients,
         bankAccounts,
         subsidiaryInfo,
-        projectsByCategory,
       },
     };
   } catch (err: any) {
@@ -297,7 +301,6 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
         bankAccounts: [],
         subsidiaryInfo: null,
         error: err.message || 'Error retrieving file data',
-        projectsByCategory: {},
       },
     };
   }
