@@ -75,27 +75,34 @@ export default function EditProjectDialog({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
 
+  // If there's no project, render nothing.
   if (!project) return null;
 
-  // Filter bank accounts to those that match the current file's company name.
+  // Filter bank accounts by the company name (if provided).
   const safeBankAccounts = companyNameOfFile
     ? bankAccounts.filter((ba) => ba.companyName === companyNameOfFile)
     : bankAccounts;
 
   const isPaid = project.paid === 'TRUE';
+
+  // Local state for dropdown selections and a flag to mark when the user has manually edited the dropdown.
   const [selectedBank, setSelectedBank] = useState('');
   const [selectedAccountType, setSelectedAccountType] = useState('');
+  const [userBankEdited, setUserBankEdited] = useState(false);
 
+  // On mount (or when project.bankAccountIdentifier or safeBankAccounts change),
+  // if the user hasn’t yet changed the dropdowns manually, initialize them from the project.
   useEffect(() => {
+    if (userBankEdited) return;
     console.log('[EditProjectDialog] safeBankAccounts =>', safeBankAccounts);
-    if (!project.bankAccountIdentifier.trim() || !safeBankAccounts.length) {
+    if (!project.bankAccountIdentifier.trim() || safeBankAccounts.length === 0) {
       setSelectedBank('');
       setSelectedAccountType('');
       return;
     }
-    const id = project.bankAccountIdentifier.trim().toUpperCase();
+    const normalizedIdentifier = project.bankAccountIdentifier.trim().toUpperCase();
     const match = safeBankAccounts.find(
-      (ba) => (ba.identifier || '').trim().toUpperCase() === id
+      (ba) => (ba.identifier || '').trim().toUpperCase() === normalizedIdentifier
     );
     if (match) {
       setSelectedBank(match.bankName);
@@ -106,7 +113,7 @@ export default function EditProjectDialog({
       setSelectedBank('');
       setSelectedAccountType('');
     }
-  }, [project.bankAccountIdentifier, safeBankAccounts]);
+  }, [project.bankAccountIdentifier, safeBankAccounts, userBankEdited]);
 
   function handleCheckboxChange(checked: boolean) {
     setProject((prev) =>
@@ -122,6 +129,7 @@ export default function EditProjectDialog({
     if (!checked) {
       setSelectedBank('');
       setSelectedAccountType('');
+      setUserBankEdited(false);
     }
   }
 
@@ -129,13 +137,15 @@ export default function EditProjectDialog({
     const newBank = e.target.value as string;
     setSelectedBank(newBank);
     setSelectedAccountType('');
-    // Reset the project's bankAccountIdentifier to force a re-selection.
+    setUserBankEdited(true);
+    // Clear the project's bankAccountIdentifier until an account type is selected.
     setProject((prev) => (prev ? { ...prev, bankAccountIdentifier: '' } : prev));
   }
 
   function handleChangeAccountType(e: React.ChangeEvent<{ value: unknown }>) {
     const newType = e.target.value as string;
     setSelectedAccountType(newType);
+    setUserBankEdited(true);
     const row = safeBankAccounts.find(
       (b) => b.bankName === selectedBank && b.accountType === newType
     );
@@ -240,13 +250,10 @@ export default function EditProjectDialog({
   async function handleDelete() {
     if (!window.confirm(`Delete project "${project.projectNumber}"?`)) return;
     try {
-      const resp = await fetch(
-        `/api/projects/${fileId}?identifier=${encodeURIComponent(project.projectNumber)}`,
-        {
-          method: 'DELETE',
-          credentials: 'include',
-        }
-      );
+      const resp = await fetch(`/api/projects/${fileId}?identifier=${encodeURIComponent(project.projectNumber)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
       if (!resp.ok) {
         const text = await resp.text();
         throw new Error(text);
@@ -263,81 +270,50 @@ export default function EditProjectDialog({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Edit Project</DialogTitle>
-      <DialogContent
-        dividers
-        sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
-      >
+      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <TextField
           label="Project Number"
           value={project.projectNumber}
-          onChange={(e) =>
-            setProject((prev) =>
-              prev ? { ...prev, projectNumber: e.target.value } : prev
-            )
-          }
+          onChange={(e) => setProject(prev => prev ? { ...prev, projectNumber: e.target.value } : prev)}
           fullWidth
         />
         <TextField
           label="Project Date"
           type="date"
           value={project.projectDate}
-          onChange={(e) =>
-            setProject((prev) =>
-              prev ? { ...prev, projectDate: e.target.value } : prev
-            )
-          }
+          onChange={(e) => setProject(prev => prev ? { ...prev, projectDate: e.target.value } : prev)}
           fullWidth
           InputLabelProps={{ shrink: true }}
         />
         <TextField
           label="Agent"
           value={project.agent}
-          onChange={(e) =>
-            setProject((prev) =>
-              prev ? { ...prev, agent: e.target.value } : prev
-            )
-          }
+          onChange={(e) => setProject(prev => prev ? { ...prev, agent: e.target.value } : prev)}
           fullWidth
         />
         <TextField
           label="Invoice Company"
           value={project.invoiceCompany}
-          onChange={(e) =>
-            setProject((prev) =>
-              prev ? { ...prev, invoiceCompany: e.target.value } : prev
-            )
-          }
+          onChange={(e) => setProject(prev => prev ? { ...prev, invoiceCompany: e.target.value } : prev)}
           fullWidth
         />
         <TextField
           label="Project Title"
           value={project.projectTitle}
-          onChange={(e) =>
-            setProject((prev) =>
-              prev ? { ...prev, projectTitle: e.target.value } : prev
-            )
-          }
+          onChange={(e) => setProject(prev => prev ? { ...prev, projectTitle: e.target.value } : prev)}
           fullWidth
         />
         <TextField
           label="Project Nature"
           value={project.projectNature}
-          onChange={(e) =>
-            setProject((prev) =>
-              prev ? { ...prev, projectNature: e.target.value } : prev
-            )
-          }
+          onChange={(e) => setProject(prev => prev ? { ...prev, projectNature: e.target.value } : prev)}
           fullWidth
         />
         <TextField
           label="Amount"
           type="number"
           value={project.amount}
-          onChange={(e) =>
-            setProject((prev) =>
-              prev ? { ...prev, amount: e.target.value } : prev
-            )
-          }
+          onChange={(e) => setProject(prev => prev ? { ...prev, amount: e.target.value } : prev)}
           fullWidth
         />
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -353,11 +329,7 @@ export default function EditProjectDialog({
               label="Paid On Date"
               type="date"
               value={project.paidOnDate}
-              onChange={(e) =>
-                setProject((prev) =>
-                  prev ? { ...prev, paidOnDate: e.target.value } : prev
-                )
-              }
+              onChange={(e) => setProject(prev => prev ? { ...prev, paidOnDate: e.target.value } : prev)}
               fullWidth
               InputLabelProps={{ shrink: true }}
             />
@@ -372,13 +344,9 @@ export default function EditProjectDialog({
                   <MenuItem value="">
                     <em>-- Choose Bank --</em>
                   </MenuItem>
-                  {[...new Set(safeBankAccounts.map((ba) => ba.bankName))].map(
-                    (bn) => (
-                      <MenuItem key={bn} value={bn}>
-                        {bn}
-                      </MenuItem>
-                    )
-                  )}
+                  {[...new Set(safeBankAccounts.map(ba => ba.bankName))].map(bn => (
+                    <MenuItem key={bn} value={bn}>{bn}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
               <FormControl fullWidth disabled={!selectedBank}>
@@ -391,16 +359,12 @@ export default function EditProjectDialog({
                   <MenuItem value="">
                     <em>-- Choose Account Type --</em>
                   </MenuItem>
-                  {[
-                    ...new Set(
-                      safeBankAccounts
-                        .filter((ba) => ba.bankName === selectedBank)
-                        .map((ba) => ba.accountType)
-                    ),
-                  ].map((acct) => (
-                    <MenuItem key={acct} value={acct}>
-                      {acct}
-                    </MenuItem>
+                  {[...new Set(
+                    safeBankAccounts
+                      .filter(ba => ba.bankName === selectedBank)
+                      .map(ba => ba.accountType)
+                  )].map(acct => (
+                    <MenuItem key={acct} value={acct}>{acct}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
