@@ -1,7 +1,14 @@
 // components/projectdialog/newprojectdialog/NewProjectPage2.tsx
 
 import React from 'react';
-import { Box, Typography, FormControl, Select, MenuItem } from '@mui/material';
+import {
+  Box,
+  Typography,
+  FormControl,
+  Select,
+  MenuItem,
+  SelectChangeEvent
+} from '@mui/material';
 import type { InvoiceBankAccount } from '../../NewProject';
 
 interface Page2Props {
@@ -50,6 +57,17 @@ export default function NewProjectPage2({
     return <Typography variant="body2">{value}</Typography>;
   }
 
+  // Get unique bank names from the provided bank accounts
+  const bankNames = Array.from(new Set(relevantBanks.map(b => b.bankName)));
+  // For the selected bank, get the unique account types
+  const accountTypes = Array.from(
+    new Set(
+      relevantBanks
+        .filter(b => b.bankName === selectedBank)
+        .map(b => b.accountType)
+    )
+  );
+
   return (
     <>
       <Typography variant="subtitle1" gutterBottom>
@@ -90,16 +108,16 @@ export default function NewProjectPage2({
           <FormControl fullWidth>
             <Select
               value={selectedBank}
-              onChange={(e) => {
-                setSelectedBank(e.target.value as string);
-                setSelectedAccountType(''); // reset account type when bank changes
+              onChange={(e: SelectChangeEvent<string>) => {
+                setSelectedBank(e.target.value);
+                setSelectedAccountType(''); // Reset account type when bank changes
               }}
               displayEmpty
             >
               <MenuItem value="">
                 <em>-- Select Bank --</em>
               </MenuItem>
-              {[...new Set(relevantBanks.map((b) => b.bankName))].map((bn) => (
+              {bankNames.map((bn) => (
                 <MenuItem key={bn} value={bn}>
                   {bn}
                 </MenuItem>
@@ -109,17 +127,13 @@ export default function NewProjectPage2({
           <FormControl fullWidth disabled={!selectedBank}>
             <Select
               value={selectedAccountType}
-              onChange={(e) => setSelectedAccountType(e.target.value as string)}
+              onChange={(e: SelectChangeEvent<string>) => setSelectedAccountType(e.target.value)}
               displayEmpty
             >
               <MenuItem value="">
                 <em>-- Select Account Type --</em>
               </MenuItem>
-              {[...new Set(
-                relevantBanks
-                  .filter((b) => b.bankName === selectedBank)
-                  .map((b) => b.accountType)
-              )].map((acct) => (
+              {accountTypes.map((acct) => (
                 <MenuItem key={acct} value={acct}>
                   {acct}
                 </MenuItem>
