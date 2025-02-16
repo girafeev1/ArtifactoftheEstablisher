@@ -31,7 +31,6 @@ interface BankAccount {
   comments?: string;
   identifier?: string;
 }
-
 interface ProjectData {
   projectNumber: string;
   projectDate: string;
@@ -60,17 +59,6 @@ interface EditProjectDialogProps {
   onCreateInvoice?: (proj: ProjectData) => void;
 }
 
-// Helper: convert a date string into "yyyy-MM-dd" format.
-// If the date cannot be parsed, returns an empty string.
-function formatDateForInput(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '';
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 export default function EditProjectDialog({
   open,
   onClose,
@@ -86,73 +74,66 @@ export default function EditProjectDialog({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
 
-  // If no project provided, render nothing.
   if (!project) return null;
 
-  // Filter bank accounts for the given file/company.
+  // Filter bank accounts for the current company (if provided)
   const safeBankAccounts = companyNameOfFile
     ? bankAccounts.filter(ba => ba.companyName === companyNameOfFile)
     : bankAccounts;
 
   const isPaid = project.paid === 'TRUE';
+  const [selectedBank, setSelectedBank] = useState('');
+  const [selectedAccountType, setSelectedAccountType] = useState('');
 
-  // Local state for bank selection.
-  const [localBankIdentifier, setLocalBankIdentifier] = useState(project.bankAccountIdentifier);
-  const [localBankName, setLocalBankName] = useState('');
-  const [localAccountType, setLocalAccountType] = useState('');
-
-  // On initial mount (or when project.bankAccountIdentifier changes externally),
-  // derive local bank selection from project data.
+  // Only on initial open, load the bank info from the project's identifier.
   useEffect(() => {
-    console.log('[EditProjectDialog] safeBankAccounts =>', safeBankAccounts);
-    if (project.bankAccountIdentifier.trim() && safeBankAccounts.length > 0) {
-      const id = project.bankAccountIdentifier.trim().toUpperCase();
-      const match = safeBankAccounts.find(ba => (ba.identifier || '').trim().toUpperCase() === id);
-      if (match) {
-        setLocalBankName(match.bankName);
-        setLocalAccountType(match.accountType);
-        setLocalBankIdentifier(match.identifier || '');
-        console.log('[EditProjectDialog] matched bank =>', match);
+    if (open && project && safeBankAccounts.length > 0) {
+      if (project.bankAccountIdentifier.trim()) {
+        const id = project.bankAccountIdentifier.trim().toUpperCase();
+        const match = safeBankAccounts.find(ba => (ba.identifier || '').trim().toUpperCase() === id);
+        if (match) {
+          setSelectedBank(match.bankName);
+          setSelectedAccountType(match.accountType);
+          console.log('[EditProjectDialog] matched bank =>', match);
+        } else {
+          console.log('[EditProjectDialog] no match =>', project.bankAccountIdentifier);
+          setSelectedBank('');
+          setSelectedAccountType('');
+        }
       } else {
-        console.log('[EditProjectDialog] no match =>', project.bankAccountIdentifier);
-        setLocalBankName('');
-        setLocalAccountType('');
-        setLocalBankIdentifier('');
+        // No identifier in the project – leave the dropdowns blank.
+        setSelectedBank('');
+        setSelectedAccountType('');
       }
-    } else {
-      setLocalBankName('');
-      setLocalAccountType('');
-      setLocalBankIdentifier('');
     }
-    // We run this effect only when project.bankAccountIdentifier or safeBankAccounts changes.
-  }, [project.bankAccountIdentifier, safeBankAccounts]);
+  }, [open, safeBankAccounts, project]);
 
   function handleCheckboxChange(checked: boolean) {
     setProject(prev => prev ? {
       ...prev,
       paid: checked ? 'TRUE' : 'FALSE',
       paidOnDate: checked ? prev.paidOnDate : '',
-      // Do not immediately clear bank info here.
+      bankAccountIdentifier: checked ? prev.bankAccountIdentifier : '',
     } : prev);
     if (!checked) {
-      setLocalBankName('');
-      setLocalAccountType('');
-      setLocalBankIdentifier('');
+      setSelectedBank('');
+      setSelectedAccountType('');
     }
   }
 
   function handleChangeBank(e: React.ChangeEvent<{ value: unknown }>) {
     const newBank = e.target.value as string;
-    setLocalBankName(newBank);
-    setLocalAccountType('');
-    setLocalBankIdentifier('');
+    setSelectedBank(newBank);
+    setSelectedAccountType('');
+    // When the bank is changed, clear the bankAccountIdentifier in the project.
+    setProject(prev => prev ? { ...prev, bankAccountIdentifier: '' } : prev);
   }
 
   function handleChangeAccountType(e: React.ChangeEvent<{ value: unknown }>) {
     const newType = e.target.value as string;
-    setLocalAccountType(newType);
-    const row = safeBankAccounts.find(b => b.bankName === localBankName && b.accountType === newType);
-    setLocalBankIdentifier(row?.identifier || '');
+    setSelectedAccountType(newType);
+    const row = safeBankAccounts.find(b => b.bankName === selectedBank && b.accountType === newType);
+    setProject(prev => prev ? { ...prev, bankAccountIdentifier: row?.identifier || '' } : prev);
   }
 
   function handleViewClick(e: React.MouseEvent<HTMLButtonElement>) {
@@ -200,8 +181,12 @@ export default function EditProjectDialog({
   }
 
   function handleCreateInvoice() {
-    console.log('[EditProjectDialog] user clicked createInvoice =>', project);
-    if (onCreateInvoice) onCreateInvoice(project);
+    console.log('[EditProjectDialog] Create Invoice button clicked.', project);
+    if (onCreateInvoice) {
+      onCreateInvoice(project);
+    } else {
+      console.warn('[EditProjectDialog] onCreateInvoice prop not provided.');
+    }
   }
 
   async function handleSave() {
@@ -209,30 +194,25 @@ export default function EditProjectDialog({
       alert('Paid On Date is required if paid=TRUE');
       return;
     }
-    if (isPaid && !localBankIdentifier.trim()) {
+    if (isPaid && !project.bankAccountIdentifier.trim()) {
       alert('Select Paid To (Bank + Account Type)');
       return;
     }
     try {
-      // Merge local bank selection into project data.
-      const updatedProject = {
-        ...project,
-        bankAccountIdentifier: localBankIdentifier,
-      };
-      console.log('[EditProjectDialog] handleSave => saving =>', updatedProject);
+      console.log('[EditProjectDialog] handleSave => saving =>', project);
       const payload = {
-        originalIdentifier: updatedProject.projectNumber,
-        projectNumber: updatedProject.projectNumber,
-        projectDate: updatedProject.projectDate,
-        agent: updatedProject.agent,
-        invoiceCompany: updatedProject.invoiceCompany,
-        projectTitle: updatedProject.projectTitle,
-        projectNature: updatedProject.projectNature,
-        amount: updatedProject.amount,
-        paid: updatedProject.paid,
-        paidOnDate: updatedProject.paidOnDate,
-        bankAccountIdentifier: updatedProject.bankAccountIdentifier,
-        invoice: updatedProject.invoice,
+        originalIdentifier: project.projectNumber,
+        projectNumber: project.projectNumber,
+        projectDate: project.projectDate,
+        agent: project.agent,
+        invoiceCompany: project.invoiceCompany,
+        projectTitle: project.projectTitle,
+        projectNature: project.projectNature,
+        amount: project.amount,
+        paid: project.paid,
+        paidOnDate: project.paidOnDate,
+        bankAccountIdentifier: project.bankAccountIdentifier,
+        invoice: project.invoice,
       };
       const resp = await fetch(`/api/projects/${fileId}`, {
         method: 'PUT',
@@ -286,8 +266,7 @@ export default function EditProjectDialog({
         <TextField
           label="Project Date"
           type="date"
-          // Use formatted date for the input
-          value={formatDateForInput(project.projectDate)}
+          value={project.projectDate}
           onChange={(e) => setProject(prev => prev ? { ...prev, projectDate: e.target.value } : prev)}
           fullWidth
           InputLabelProps={{ shrink: true }}
@@ -335,7 +314,7 @@ export default function EditProjectDialog({
             <TextField
               label="Paid On Date"
               type="date"
-              value={formatDateForInput(project.paidOnDate)}
+              value={project.paidOnDate}
               onChange={(e) => setProject(prev => prev ? { ...prev, paidOnDate: e.target.value } : prev)}
               fullWidth
               InputLabelProps={{ shrink: true }}
@@ -344,7 +323,7 @@ export default function EditProjectDialog({
               <FormControl fullWidth>
                 <InputLabel>Paid To (Bank Name)</InputLabel>
                 <Select
-                  value={localBankName}
+                  value={selectedBank}
                   label="Paid To (Bank Name)"
                   onChange={handleChangeBank}
                 >
@@ -356,10 +335,10 @@ export default function EditProjectDialog({
                   ))}
                 </Select>
               </FormControl>
-              <FormControl fullWidth disabled={!localBankName}>
+              <FormControl fullWidth disabled={!selectedBank}>
                 <InputLabel>Account Type</InputLabel>
                 <Select
-                  value={localAccountType}
+                  value={selectedAccountType}
                   label="Account Type"
                   onChange={handleChangeAccountType}
                 >
@@ -368,7 +347,7 @@ export default function EditProjectDialog({
                   </MenuItem>
                   {[...new Set(
                     safeBankAccounts
-                      .filter(ba => ba.bankName === localBankName)
+                      .filter(ba => ba.bankName === selectedBank)
                       .map(ba => ba.accountType)
                   )].map(acct => (
                     <MenuItem key={acct} value={acct}>{acct}</MenuItem>
@@ -395,17 +374,3 @@ export default function EditProjectDialog({
             </Box>
           ) : (
             <Button variant="contained" color="primary" onClick={handleCreateInvoice}>
-              Create Invoice
-            </Button>
-          )}
-        </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button color="error" onClick={handleDelete}>Delete</Button>
-        <Box sx={{ flexGrow: 1 }} />
-        <Button onClick={onToggleEdit}>Cancel</Button>
-        <Button variant="contained" onClick={handleSave}>Save</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
