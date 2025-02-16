@@ -18,6 +18,7 @@ import {
   Checkbox,
   Menu,
 } from '@mui/material';
+import { SelectChangeEvent } from '@mui/material/Select';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 
 interface BankAccount {
@@ -75,26 +76,22 @@ export default function EditProjectDialog({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
 
-  // If there's no project, render nothing.
   if (!project) return null;
 
-  // Filter bank accounts by the company name (if provided).
   const safeBankAccounts = companyNameOfFile
     ? bankAccounts.filter((ba) => ba.companyName === companyNameOfFile)
     : bankAccounts;
 
   const isPaid = project.paid === 'TRUE';
 
-  // Local state for dropdown selections and a flag to mark when the user has manually edited the dropdown.
+  // Local state for dropdown selections and flag to preserve user changes.
   const [selectedBank, setSelectedBank] = useState('');
   const [selectedAccountType, setSelectedAccountType] = useState('');
   const [userBankEdited, setUserBankEdited] = useState(false);
 
-  // On mount (or when project.bankAccountIdentifier or safeBankAccounts change),
-  // if the user hasn’t yet changed the dropdowns manually, initialize them from the project.
   useEffect(() => {
-    if (userBankEdited) return;
     console.log('[EditProjectDialog] safeBankAccounts =>', safeBankAccounts);
+    if (userBankEdited) return;
     if (!project.bankAccountIdentifier.trim() || safeBankAccounts.length === 0) {
       setSelectedBank('');
       setSelectedAccountType('');
@@ -133,17 +130,17 @@ export default function EditProjectDialog({
     }
   }
 
-  function handleChangeBank(e: React.ChangeEvent<{ value: unknown }>) {
-    const newBank = e.target.value as string;
+  function handleChangeBank(e: SelectChangeEvent<string>) {
+    const newBank = e.target.value;
     setSelectedBank(newBank);
     setSelectedAccountType('');
     setUserBankEdited(true);
-    // Clear the project's bankAccountIdentifier until an account type is selected.
+    // Reset the project’s bankAccountIdentifier until account type is selected.
     setProject((prev) => (prev ? { ...prev, bankAccountIdentifier: '' } : prev));
   }
 
-  function handleChangeAccountType(e: React.ChangeEvent<{ value: unknown }>) {
-    const newType = e.target.value as string;
+  function handleChangeAccountType(e: SelectChangeEvent<string>) {
+    const newType = e.target.value;
     setSelectedAccountType(newType);
     setUserBankEdited(true);
     const row = safeBankAccounts.find(
@@ -250,10 +247,13 @@ export default function EditProjectDialog({
   async function handleDelete() {
     if (!window.confirm(`Delete project "${project.projectNumber}"?`)) return;
     try {
-      const resp = await fetch(`/api/projects/${fileId}?identifier=${encodeURIComponent(project.projectNumber)}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      const resp = await fetch(
+        `/api/projects/${fileId}?identifier=${encodeURIComponent(project.projectNumber)}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+        }
+      );
       if (!resp.ok) {
         const text = await resp.text();
         throw new Error(text);
@@ -274,54 +274,71 @@ export default function EditProjectDialog({
         <TextField
           label="Project Number"
           value={project.projectNumber}
-          onChange={(e) => setProject(prev => prev ? { ...prev, projectNumber: e.target.value } : prev)}
+          onChange={(e) =>
+            setProject((prev) => (prev ? { ...prev, projectNumber: e.target.value } : prev))
+          }
           fullWidth
         />
         <TextField
           label="Project Date"
           type="date"
           value={project.projectDate}
-          onChange={(e) => setProject(prev => prev ? { ...prev, projectDate: e.target.value } : prev)}
+          onChange={(e) =>
+            setProject((prev) => (prev ? { ...prev, projectDate: e.target.value } : prev))
+          }
           fullWidth
           InputLabelProps={{ shrink: true }}
         />
         <TextField
           label="Agent"
           value={project.agent}
-          onChange={(e) => setProject(prev => prev ? { ...prev, agent: e.target.value } : prev)}
+          onChange={(e) =>
+            setProject((prev) => (prev ? { ...prev, agent: e.target.value } : prev))
+          }
           fullWidth
         />
         <TextField
           label="Invoice Company"
           value={project.invoiceCompany}
-          onChange={(e) => setProject(prev => prev ? { ...prev, invoiceCompany: e.target.value } : prev)}
+          onChange={(e) =>
+            setProject((prev) =>
+              prev ? { ...prev, invoiceCompany: e.target.value } : prev
+            )
+          }
           fullWidth
         />
         <TextField
           label="Project Title"
           value={project.projectTitle}
-          onChange={(e) => setProject(prev => prev ? { ...prev, projectTitle: e.target.value } : prev)}
+          onChange={(e) =>
+            setProject((prev) =>
+              prev ? { ...prev, projectTitle: e.target.value } : prev
+            )
+          }
           fullWidth
         />
         <TextField
           label="Project Nature"
           value={project.projectNature}
-          onChange={(e) => setProject(prev => prev ? { ...prev, projectNature: e.target.value } : prev)}
+          onChange={(e) =>
+            setProject((prev) =>
+              prev ? { ...prev, projectNature: e.target.value } : prev
+            )
+          }
           fullWidth
         />
         <TextField
           label="Amount"
           type="number"
           value={project.amount}
-          onChange={(e) => setProject(prev => prev ? { ...prev, amount: e.target.value } : prev)}
+          onChange={(e) =>
+            setProject((prev) => (prev ? { ...prev, amount: e.target.value } : prev))
+          }
           fullWidth
         />
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Typography sx={{ mr: 1 }}>Paid:</Typography>
-          <Checkbox
-            checked={isPaid}
-            onChange={(e) => handleCheckboxChange(e.target.checked)}
-          />
+          <Checkbox checked={isPaid} onChange={(e) => handleCheckboxChange(e.target.checked)} />
         </Box>
         {isPaid && (
           <>
@@ -329,23 +346,23 @@ export default function EditProjectDialog({
               label="Paid On Date"
               type="date"
               value={project.paidOnDate}
-              onChange={(e) => setProject(prev => prev ? { ...prev, paidOnDate: e.target.value } : prev)}
+              onChange={(e) =>
+                setProject((prev) => (prev ? { ...prev, paidOnDate: e.target.value } : prev))
+              }
               fullWidth
               InputLabelProps={{ shrink: true }}
             />
             <Box sx={{ display: 'flex', gap: 2 }}>
               <FormControl fullWidth>
                 <InputLabel>Paid To (Bank Name)</InputLabel>
-                <Select
-                  value={selectedBank}
-                  label="Paid To (Bank Name)"
-                  onChange={handleChangeBank}
-                >
+                <Select value={selectedBank} label="Paid To (Bank Name)" onChange={handleChangeBank}>
                   <MenuItem value="">
                     <em>-- Choose Bank --</em>
                   </MenuItem>
-                  {[...new Set(safeBankAccounts.map(ba => ba.bankName))].map(bn => (
-                    <MenuItem key={bn} value={bn}>{bn}</MenuItem>
+                  {[...new Set(safeBankAccounts.map((ba) => ba.bankName))].map((bn) => (
+                    <MenuItem key={bn} value={bn}>
+                      {bn}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -359,12 +376,16 @@ export default function EditProjectDialog({
                   <MenuItem value="">
                     <em>-- Choose Account Type --</em>
                   </MenuItem>
-                  {[...new Set(
-                    safeBankAccounts
-                      .filter(ba => ba.bankName === selectedBank)
-                      .map(ba => ba.accountType)
-                  )].map(acct => (
-                    <MenuItem key={acct} value={acct}>{acct}</MenuItem>
+                  {[
+                    ...new Set(
+                      safeBankAccounts
+                        .filter((ba) => ba.bankName === selectedBank)
+                        .map((ba) => ba.accountType)
+                    ),
+                  ].map((acct) => (
+                    <MenuItem key={acct} value={acct}>
+                      {acct}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -394,10 +415,14 @@ export default function EditProjectDialog({
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button color="error" onClick={handleDelete}>Delete</Button>
+        <Button color="error" onClick={handleDelete}>
+          Delete
+        </Button>
         <Box sx={{ flexGrow: 1 }} />
         <Button onClick={onToggleEdit}>Cancel</Button>
-        <Button variant="contained" onClick={handleSave}>Save</Button>
+        <Button variant="contained" onClick={handleSave}>
+          Save
+        </Button>
       </DialogActions>
     </Dialog>
   );
