@@ -177,7 +177,7 @@ export default function NewProject(props: NewProjectProps) {
     if (!fileId) throw new Error('No fileId provided');
     if (!projectNumber) throw new Error('Project Number is required');
     if (!projectDate) throw new Error('Project Date is required');
-    // Your actual save logic here.
+    // Replace this with your actual save logic.
   }
 
   async function handleSaveAndExit() {

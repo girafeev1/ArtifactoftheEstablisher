@@ -1,51 +1,20 @@
 // pages/index.tsx
 
 import { GetServerSideProps } from 'next';
-import { getSession, signOut } from 'next-auth/react';
-import { Box, Typography, Button, Divider } from '@mui/material';
+import { getSession } from 'next-auth/react';
+import { Box, Typography } from '@mui/material';
+import SidebarLayout from '../components/SidebarLayout';
 
 export default function MainPage({ firstName }: { firstName: string }) {
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Welcome, {firstName}
-      </Typography>
-      <Typography sx={{ mb: 2 }}>Select an option below to navigate:</Typography>
-      <Divider sx={{ mb: 3 }} />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Button
-          variant="contained"
-          fullWidth
-          href="/dashboard/projects"
-          sx={{ justifyContent: 'flex-start' }}
-        >
-          Projects
-        </Button>
-        <Button
-          variant="contained"
-          fullWidth
-          href="/dashboard/clients"
-          sx={{ justifyContent: 'flex-start' }}
-        >
-          Clients
-        </Button>
-        <Button
-          variant="contained"
-          fullWidth
-          href="/dashboard/internal"
-          sx={{ justifyContent: 'flex-start' }}
-        >
-          Internal
-        </Button>
+    <SidebarLayout>
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" gutterBottom>
+          Welcome, {firstName}
+        </Typography>
+        <Typography variant="body1">Please select an option from the sidebar.</Typography>
       </Box>
-      <Button
-        onClick={() => signOut()}
-        color="secondary"
-        sx={{ mt: 3, justifyContent: 'flex-start' }}
-      >
-        Sign Out
-      </Button>
-    </Box>
+    </SidebarLayout>
   );
 }
 
