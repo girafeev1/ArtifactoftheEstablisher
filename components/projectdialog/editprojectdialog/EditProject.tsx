@@ -36,8 +36,8 @@ interface EditProjectProps {
   initialProject: ProjectData | null;
   onUpdated: () => void;
   bankAccounts?: BankAccount[];
-  onCreateInvoice?: (proj: ProjectData) => void;
   companyNameOfFile?: string;
+  onCreateInvoice?: (proj: ProjectData) => void;
 }
 
 export default function EditProject({
@@ -47,8 +47,8 @@ export default function EditProject({
   initialProject,
   onUpdated,
   bankAccounts,
-  onCreateInvoice,
   companyNameOfFile,
+  onCreateInvoice,
 }: EditProjectProps) {
   const [project, setProject] = useState<ProjectData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -62,7 +62,7 @@ export default function EditProject({
   }, [open, initialProject]);
 
   function handleToggleEdit() {
-    setIsEditing(prev => !prev);
+    setIsEditing((prev) => !prev);
   }
 
   function handleCreateInvoice() {
@@ -74,7 +74,9 @@ export default function EditProject({
     }
   }
 
-  if (!project) return null;
+  if (!project) {
+    return null;
+  }
 
   if (!isEditing) {
     return (
@@ -89,6 +91,7 @@ export default function EditProject({
       />
     );
   }
+
   return (
     <EditProjectDialog
       open={open}

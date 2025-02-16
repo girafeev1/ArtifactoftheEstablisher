@@ -15,11 +15,12 @@ import NewProjectPage2 from './NewProjectPage2';
 
 export interface ProjectRow {
   projectNumber: string;
+  // Other fields not used here
 }
 interface ClientEntry {
   companyName: string;
 }
-interface InvoiceBankAccount {
+export interface InvoiceBankAccount {
   companyName: string;
   bankName: string;
   bankCode: string;
@@ -27,6 +28,7 @@ interface InvoiceBankAccount {
   accountNumber: string;
   fpsId?: string;
   fpsEmail?: string;
+  // Now, identifier comes from column I
   identifier?: string;
 }
 interface SubsidiaryData {
@@ -41,6 +43,7 @@ interface SubsidiaryData {
   district: string;
   region: string;
 }
+
 interface NewProjectProps {
   open: boolean;
   onClose: () => void;
@@ -79,6 +82,7 @@ function computeInvoiceNumber(dateStr: string, pNum: string): string {
     console.warn('[NewProject] Either project date or project number is missing => ???');
     return '???';
   }
+  // Ensure date is in YYYY-MM-DD format
   let formattedDate = dateStr;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const tmp = new Date(dateStr);
@@ -101,7 +105,10 @@ function computeInvoiceNumber(dateStr: string, pNum: string): string {
 
 const useInvoiceNumber = (projectDate: string, projectNumber: string, cameFromEditProject: boolean) => {
   return useMemo(() => {
-    if (!projectDate && cameFromEditProject) {
+    if (cameFromEditProject && projectDate && projectNumber) {
+      return computeInvoiceNumber(projectDate, projectNumber);
+    }
+    if (!projectDate) {
       const now = new Date();
       const y = now.getFullYear();
       const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -139,6 +146,10 @@ export default function NewProject(props: NewProjectProps) {
   const [editingProjectNumber, setEditingProjectNumber] = useState(false);
   const [projectDate, setProjectDate] = useState('');
 
+  // Bank dropdown state for NewProjectPage2
+  const [selectedBank, setSelectedBank] = useState('');
+  const [selectedAccountType, setSelectedAccountType] = useState('');
+
   const invoiceNumber = useInvoiceNumber(projectDate, projectNumber, cameFromEditProject);
 
   useEffect(() => {
@@ -146,12 +157,9 @@ export default function NewProject(props: NewProjectProps) {
     console.log('[NewProject] existingProjectNumber=', existingProjectNumber, 'existingProjectDate=', existingProjectDate);
     if (open) {
       setPageIndex(initialPageIndex);
-      if (cameFromEditProject && existingProjectNumber) {
+      if (cameFromEditProject && existingProjectNumber && existingProjectDate) {
         setProjectNumber(existingProjectNumber);
-        setProjectDate(existingProjectDate || (() => {
-          const dt = new Date();
-          return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-        })());
+        setProjectDate(existingProjectDate);
         setEditingProjectNumber(false);
       } else {
         if (existingProjects.length > 0) {
@@ -177,7 +185,7 @@ export default function NewProject(props: NewProjectProps) {
     if (!fileId) throw new Error('No fileId provided');
     if (!projectNumber) throw new Error('Project Number is required');
     if (!projectDate) throw new Error('Project Date is required');
-    // Replace this with your actual save logic.
+    // Here you would normally POST the new project data to your API.
   }
 
   async function handleSaveAndExit() {
@@ -273,11 +281,14 @@ export default function NewProject(props: NewProjectProps) {
               issuerEmail={subsidiaryInfo?.email || ''}
               issuerPhone={subsidiaryInfo?.phone || ''}
               relevantBanks={bankAccounts}
-              selectedBank={''}
-              setSelectedBank={() => {}}
-              selectedAccountType={''}
-              setSelectedAccountType={() => {}}
-              matchedBank={null}
+              selectedBank={selectedBank}
+              setSelectedBank={setSelectedBank}
+              selectedAccountType={selectedAccountType}
+              setSelectedAccountType={setSelectedAccountType}
+              matchedBank={bankAccounts.find(
+                (ba) =>
+                  ba.bankName === selectedBank && ba.accountType === selectedAccountType
+              )}
             />
           </DialogContent>
           <DialogActions>

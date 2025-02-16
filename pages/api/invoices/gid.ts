@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const fileId = req.query.fileId as string;
-    const title = req.query.title as string; // invoice number as tab name
+    const title = req.query.title as string;
     if (!fileId || !title) {
       return res.status(400).json({ error: 'Missing fileId or title' });
     }

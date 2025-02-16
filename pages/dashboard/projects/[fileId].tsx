@@ -17,7 +17,17 @@ import {
 import { initializeApis } from '../../../lib/googleApi';
 import { fetchProjectRows, listProjectOverviewFiles } from '../../../lib/projectOverview';
 
-import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  List,
+  ListItem,
+  ListItemText,
+  IconButton,
+  Button
+} from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 import NewProject from '../../../components/projectdialog/newprojectdialog/NewProject';
@@ -91,7 +101,7 @@ export default function SingleFilePage({
 }: FileViewProps) {
   const router = useRouter();
 
-  // New Project wizard state.
+  // New Project / Create Invoice Dialog state
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [wizardPage, setWizardPage] = useState(0);
   const [existingNumber, setExistingNumber] = useState<string | undefined>(undefined);
@@ -110,7 +120,7 @@ export default function SingleFilePage({
     router.replace(router.asPath);
   }
 
-  // Edit project state.
+  // Edit Project Dialog state
   const [editOpen, setEditOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<SingleProjectData | null>(null);
 
@@ -126,7 +136,8 @@ export default function SingleFilePage({
     router.replace(router.asPath);
   }
 
-  // When "Create Invoice" is clicked in the edit dialog.
+  // When Create Invoice is initiated from the Edit dialog,
+  // pass the selected project's number and date to NewProject.
   function handleCreateInvoiceFromEditDialog() {
     if (!selectedProject) {
       alert('No selected project to form an invoice from!');
@@ -179,16 +190,10 @@ export default function SingleFilePage({
           ) : (
             <List>
               {projects.map((proj) => (
-                <ListItem
-                  key={proj.projectNumber}
-                  sx={{ cursor: 'pointer' }}
-                  onClick={() => handleProjectClick(proj)}
-                >
+                <ListItem key={proj.projectNumber} sx={{ cursor: 'pointer' }} onClick={() => handleProjectClick(proj)}>
                   <ListItemText
                     primary={`${proj.projectNumber} — ${proj.projectTitle}`}
-                    secondary={`$${proj.amount} | ${proj.paid === 'TRUE' ? 'Paid' : 'Unpaid'}${
-                      proj.paid === 'TRUE' && proj.paidOnDate ? ` | ${proj.paidOnDate}` : ''
-                    }`}
+                    secondary={`$${proj.amount} | ${proj.paid === 'TRUE' ? 'Paid' : 'Unpaid'}${proj.paid === 'TRUE' && proj.paidOnDate ? ` | ${proj.paidOnDate}` : ''}`}
                   />
                 </ListItem>
               ))}
@@ -234,18 +239,14 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
   if (!session?.accessToken) {
     return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
   }
-
   const fileId = ctx.params?.fileId as string;
   if (!fileId) {
     return { notFound: true };
   }
-
   try {
     const { drive, sheets } = initializeApis('user', {
       accessToken: session.accessToken as string,
     });
-
-    // Get file metadata to extract year and subsidiary code.
     const fileMeta = await drive.files.get({
       fileId,
       fields: 'id, name',
@@ -260,7 +261,6 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
       yearCode = match[1];
       shortCode = match[2];
     }
-
     const pmsRefLogId = await findPMSReferenceLogFile(drive);
     const refMapping = await fetchReferenceNames(sheets, pmsRefLogId);
     const fullCompanyName = refMapping[shortCode] || shortCode;
@@ -271,7 +271,6 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const allSubsidiaries = await fetchSubsidiaryData(sheets, pmsRefLogId);
     const subsidiaryInfo = allSubsidiaries.find((r) => r.identifier === shortCode) || null;
     const projectsByCategory = await listProjectOverviewFiles(drive, []);
-
     return {
       props: {
         fileId,

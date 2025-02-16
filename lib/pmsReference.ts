@@ -22,7 +22,7 @@ export interface BankAccountRow {
   accountNumber: string;
   fpsId?: string;
   fpsEmail?: string;
-  comments?: string;
+  // Remove comments field if not used; identifier is the key field for matching.
   identifier?: string;
 }
 
@@ -53,14 +53,16 @@ export async function findPMSReferenceLogFile(
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
   });
+
   const files = response.data.files || [];
   if (!files.length) {
     throw new Error('PMS Reference Log not found.');
   }
   if (files.length > 1) {
-    console.warn('[findPMSReferenceLogFile] Found multiple PMS Reference Log files, using the first.');
+    console.warn(
+      '[findPMSReferenceLogFile] Found multiple PMS Reference Log files, using the first.'
+    );
   }
-  console.log('[findPMSReferenceLogFile] Using PMS Reference Log file with id:', files[0].id);
   return files[0].id!;
 }
 
@@ -76,14 +78,13 @@ export async function fetchReferenceNames(
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
   const mapping: Record<string, string> = {};
-  rows.forEach((row, index) => {
+  for (const row of rows) {
     const code = (row[0] || '').trim();
     const fullName = (row[1] || '').trim();
-    console.log(`[fetchReferenceNames] Row ${index + 2}: code="${code}", fullName="${fullName}"`);
     if (code && fullName) {
       mapping[code] = fullName;
     }
-  });
+  }
   return mapping;
 }
 
@@ -98,33 +99,34 @@ export async function fetchAddressBook(
   const range = 'Address Book of Accounts!A4:I';
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  const entries = rows.map((r, index) => ({
-    companyName: (r[0] || '').trim(),
-    title: (r[1] || '').trim(),
-    nameAddressed: (r[2] || '').trim(),
-    emailAddress: (r[3] || '').trim(),
-    addressLine1: (r[4] || '').trim(),
-    addressLine2: (r[5] || '').trim(),
-    addressLine3: (r[6] || '').trim(),
-    addressLine4: (r[7] || '').trim(),
-    addressLine5: (r[8] || '').trim(),
+  return rows.map((r) => ({
+    companyName: r[0] || '',
+    title: r[1] || '',
+    nameAddressed: r[2] || '',
+    emailAddress: r[3] || '',
+    addressLine1: r[4] || '',
+    addressLine2: r[5] || '',
+    addressLine3: r[6] || '',
+    addressLine4: r[7] || '',
+    addressLine5: r[8] || '',
   }));
-  console.log('[fetchAddressBook] Retrieved', entries.length, 'address book entries.');
-  return entries;
 }
 
 /**
  * Fetch Bank Account rows from the "Bank Account Information of Subsidiaries" sheet.
- * Assumes that the data starts at row 4 (i.e. A4:I).
+ * UPDATED: Assumes that the data starts at row 4 (i.e. A4:H) so that the identifier is fetched from column H.
  */
 export async function fetchBankAccounts(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
 ): Promise<BankAccountRow[]> {
-  const range = 'Bank Account Information of Subsidiaries!A4:I';
+  // Use range A4:H – columns: A: Company Name, B: Bank Name, C: Bank Code, D: Account Type,
+  // E: Account Number, F: FPS ID, G: FPS Email, H: Identifier.
+  const range = 'Bank Account Information of Subsidiaries!A4:H';
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  const accounts = rows.map((r, index) => ({
+  console.log('[fetchBankAccounts] Raw rows:', rows);
+  return rows.map((r) => ({
     companyName: (r[0] || '').trim(),
     bankName: (r[1] || '').trim(),
     bankCode: (r[2] || '').trim(),
@@ -132,11 +134,9 @@ export async function fetchBankAccounts(
     accountNumber: (r[4] || '').trim(),
     fpsId: (r[5] || '').trim(),
     fpsEmail: (r[6] || '').trim(),
-    comments: (r[7] || '').trim(),
-    identifier: (r[8] || '').trim(),
+    // Correctly assign the identifier from column H.
+    identifier: (r[7] || '').trim(),
   }));
-  console.log('[fetchBankAccounts] Retrieved', accounts.length, 'bank account rows.');
-  return accounts;
 }
 
 /**
@@ -150,7 +150,7 @@ export async function fetchSubsidiaryData(
   const range = 'Reference of Subsidiary Names!A2:J';
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  const subsidiaries = rows.map((r, index) => ({
+  return rows.map((r) => ({
     identifier: (r[0] || '').trim(),
     englishName: (r[1] || '').trim(),
     chineseName: (r[2] || '').trim(),
@@ -162,6 +162,4 @@ export async function fetchSubsidiaryData(
     district: (r[8] || '').trim(),
     region: (r[9] || '').trim(),
   }));
-  console.log('[fetchSubsidiaryData] Retrieved', subsidiaries.length, 'subsidiary rows.');
-  return subsidiaries;
 }

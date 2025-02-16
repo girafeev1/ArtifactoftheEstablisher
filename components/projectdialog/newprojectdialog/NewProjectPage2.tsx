@@ -2,17 +2,7 @@
 
 import React from 'react';
 import { Box, Typography, FormControl, Select, MenuItem } from '@mui/material';
-
-interface InvoiceBankAccount {
-  companyName: string;
-  bankName: string;
-  bankCode: string;
-  accountType: string;
-  accountNumber: string;
-  fpsId?: string;
-  fpsEmail?: string;
-  identifier?: string;
-}
+import type { InvoiceBankAccount } from '../../NewProject';
 
 interface Page2Props {
   projectDate: string;
@@ -65,10 +55,10 @@ export default function NewProjectPage2({
       <Typography variant="subtitle1" gutterBottom>
         Invoice Issuing Company Information
       </Typography>
-      <Box sx={{ border: '1px solid #ccc', borderRadius: 2, p: 2, mb: 2 }}>
+      <Box sx={{ p: 2, border: '1px solid #ccc', borderRadius: 2, mb: 2 }}>
         <Box sx={{ mb: 1 }}>
-          <strong>Name: </strong>
-          {issuerEnglish}{issuerChinese ? ` (${issuerChinese})` : ''}
+          <strong>Name:</strong> {issuerEnglish}
+          {issuerChinese ? ` (${issuerChinese})` : ''}
         </Box>
         <Box sx={{ mb: 1 }}>
           <strong>Address: </strong>
@@ -81,13 +71,14 @@ export default function NewProjectPage2({
           </Box>
         </Box>
         <Box sx={{ mb: 1 }}>
-          <strong>Tel: </strong>{issuerPhone}
+          <strong>Tel: </strong> {issuerPhone}
         </Box>
         <Box sx={{ mb: 1 }}>
-          <strong>Email: </strong>{issuerEmail}
+          <strong>Email: </strong> {issuerEmail}
         </Box>
       </Box>
-      <Typography variant="subtitle1" gutterBottom>
+
+      <Typography variant="subtitle1" sx={{ mb: 2 }}>
         Bank Account Information
       </Typography>
       {relevantBanks.length === 0 ? (
@@ -100,27 +91,25 @@ export default function NewProjectPage2({
             <Select
               value={selectedBank}
               onChange={(e) => {
-                console.log('[NewProjectPage2] Bank selected =>', e.target.value);
                 setSelectedBank(e.target.value as string);
-                setSelectedAccountType('');
+                setSelectedAccountType(''); // reset account type when bank changes
               }}
               displayEmpty
             >
               <MenuItem value="">
                 <em>-- Select Bank --</em>
               </MenuItem>
-              {[...new Set(relevantBanks.map(b => b.bankName))].map(bn => (
-                <MenuItem key={bn} value={bn}>{bn}</MenuItem>
+              {[...new Set(relevantBanks.map((b) => b.bankName))].map((bn) => (
+                <MenuItem key={bn} value={bn}>
+                  {bn}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
           <FormControl fullWidth disabled={!selectedBank}>
             <Select
               value={selectedAccountType}
-              onChange={(e) => {
-                console.log('[NewProjectPage2] Account Type selected =>', e.target.value);
-                setSelectedAccountType(e.target.value as string);
-              }}
+              onChange={(e) => setSelectedAccountType(e.target.value as string)}
               displayEmpty
             >
               <MenuItem value="">
@@ -128,17 +117,20 @@ export default function NewProjectPage2({
               </MenuItem>
               {[...new Set(
                 relevantBanks
-                  .filter(b => b.bankName === selectedBank)
-                  .map(b => b.accountType)
-              )].map(acct => (
-                <MenuItem key={acct} value={acct}>{acct}</MenuItem>
+                  .filter((b) => b.bankName === selectedBank)
+                  .map((b) => b.accountType)
+              )].map((acct) => (
+                <MenuItem key={acct} value={acct}>
+                  {acct}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
         </Box>
       )}
+
       {matchedBank && (
-        <Box sx={{ border: '1px solid #ccc', borderRadius: 2, p: 2, mt: 2 }}>
+        <Box sx={{ p: 2, border: '1px solid #ccc', borderRadius: 2, mt: 2 }}>
           <Typography variant="body2" gutterBottom>
             Bank: {matchedBank.bankName} {matchedBank.bankCode}
           </Typography>
