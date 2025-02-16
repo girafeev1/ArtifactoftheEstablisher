@@ -7,9 +7,21 @@ import {
   FormControl,
   Select,
   MenuItem,
-  SelectChangeEvent
+  SelectChangeEvent,
 } from '@mui/material';
-import type { InvoiceBankAccount } from '../../NewProject';
+
+// Define the InvoiceBankAccount type locally
+export interface InvoiceBankAccount {
+  companyName: string;
+  bankName: string;
+  bankCode: string;
+  accountType: string;
+  accountNumber: string;
+  fpsId?: string;
+  fpsEmail?: string;
+  comments?: string;
+  identifier?: string;
+}
 
 interface Page2Props {
   projectDate: string;
@@ -50,7 +62,12 @@ export default function NewProjectPage2({
   setSelectedAccountType,
   matchedBank,
 }: Page2Props) {
-  console.log('[NewProjectPage2] rendering => projectDate=', projectDate, ' projectNumber=', projectNumber);
+  console.log(
+    '[NewProjectPage2] rendering => projectDate=',
+    projectDate,
+    ' projectNumber=',
+    projectNumber
+  );
 
   function renderAddressLine(value?: string) {
     if (!value || !value.trim()) return null;
@@ -58,13 +75,13 @@ export default function NewProjectPage2({
   }
 
   // Get unique bank names from the provided bank accounts
-  const bankNames = Array.from(new Set(relevantBanks.map(b => b.bankName)));
+  const bankNames = Array.from(new Set(relevantBanks.map((b) => b.bankName)));
   // For the selected bank, get the unique account types
   const accountTypes = Array.from(
     new Set(
       relevantBanks
-        .filter(b => b.bankName === selectedBank)
-        .map(b => b.accountType)
+        .filter((b) => b.bankName === selectedBank)
+        .map((b) => b.accountType)
     )
   );
 
@@ -110,7 +127,7 @@ export default function NewProjectPage2({
               value={selectedBank}
               onChange={(e: SelectChangeEvent<string>) => {
                 setSelectedBank(e.target.value);
-                setSelectedAccountType(''); // Reset account type when bank changes
+                setSelectedAccountType(''); // reset account type when bank changes
               }}
               displayEmpty
             >
@@ -127,7 +144,9 @@ export default function NewProjectPage2({
           <FormControl fullWidth disabled={!selectedBank}>
             <Select
               value={selectedAccountType}
-              onChange={(e: SelectChangeEvent<string>) => setSelectedAccountType(e.target.value)}
+              onChange={(e: SelectChangeEvent<string>) =>
+                setSelectedAccountType(e.target.value)
+              }
               displayEmpty
             >
               <MenuItem value="">
