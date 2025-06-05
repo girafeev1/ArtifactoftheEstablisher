@@ -8,10 +8,14 @@ import {
   DialogActions,
   TextField,
   Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Grid
 } from '@mui/material';
 
-interface Client {
+export interface Client {
   companyName: string;
   title: string;
   nameAddressed: string;
@@ -29,28 +33,24 @@ interface NewClientDialogProps {
   onSubmitted: () => void;
 }
 
-export default function NewClientDialog({
-  open,
-  onClose,
-  onSubmitted,
-}: NewClientDialogProps) {
+export default function NewClientDialog({ open, onClose, onSubmitted }: NewClientDialogProps) {
   const [newClient, setNewClient] = useState<Client>({
     companyName: '',
-    title: '',
+    title: 'Mr.',
     nameAddressed: '',
     emailAddress: '',
     addressLine1: '',
     addressLine2: '',
     addressLine3: '',
     addressLine4: '',
-    addressLine5: '',
+    addressLine5: 'Kowloon',
   });
 
-  function handleChange<K extends keyof Client>(key: K, value: string) {
-    setNewClient(prev => ({ ...prev, [key]: value }));
-  }
+  const handleChange = (key: keyof Client, value: string) => {
+    setNewClient((prev) => ({ ...prev, [key]: value }));
+  };
 
-  async function handleSubmitNewClient() {
+  const handleSubmit = async () => {
     try {
       const resp = await fetch('/api/clients', {
         method: 'POST',
@@ -66,10 +66,9 @@ export default function NewClientDialog({
       onClose();
     } catch (err: any) {
       console.error('[handleSubmitNewClient] error:', err);
-      // Fix: Use backticks so that the template literal is parsed correctly.
       alert(`Failed: ${err.message}`);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth>
@@ -78,90 +77,100 @@ export default function NewClientDialog({
         <Grid container spacing={2}>
           <Grid item xs={12}>
             <TextField
-              fullWidth
               label="Company Name"
+              fullWidth
+              margin="normal"
               value={newClient.companyName}
               onChange={(e) => handleChange('companyName', e.target.value)}
-              margin="normal"
             />
           </Grid>
           <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Title"
-              value={newClient.title}
-              onChange={(e) => handleChange('title', e.target.value)}
-              margin="normal"
-            />
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Title</InputLabel>
+              <Select
+                value={newClient.title}
+                label="Title"
+                onChange={(e) => handleChange('title', e.target.value)}
+              >
+                <MenuItem value="Mr.">Mr.</MenuItem>
+                <MenuItem value="Mrs.">Mrs.</MenuItem>
+                <MenuItem value="Ms.">Ms.</MenuItem>
+              </Select>
+            </FormControl>
           </Grid>
           <Grid item xs={12} sm={6}>
             <TextField
-              fullWidth
               label="Name Addressed"
+              fullWidth
+              margin="normal"
               value={newClient.nameAddressed}
               onChange={(e) => handleChange('nameAddressed', e.target.value)}
-              margin="normal"
             />
           </Grid>
           <Grid item xs={12}>
             <TextField
-              fullWidth
               label="Email Address"
+              fullWidth
+              margin="normal"
               value={newClient.emailAddress}
               onChange={(e) => handleChange('emailAddress', e.target.value)}
-              margin="normal"
             />
           </Grid>
           <Grid item xs={12}>
             <TextField
-              fullWidth
               label="Address Line 1"
+              fullWidth
+              margin="normal"
               value={newClient.addressLine1}
               onChange={(e) => handleChange('addressLine1', e.target.value)}
-              margin="normal"
             />
           </Grid>
           <Grid item xs={12}>
             <TextField
-              fullWidth
               label="Address Line 2"
+              fullWidth
+              margin="normal"
               value={newClient.addressLine2}
               onChange={(e) => handleChange('addressLine2', e.target.value)}
-              margin="normal"
             />
           </Grid>
           <Grid item xs={12}>
             <TextField
-              fullWidth
               label="Address Line 3"
+              fullWidth
+              margin="normal"
               value={newClient.addressLine3}
               onChange={(e) => handleChange('addressLine3', e.target.value)}
-              margin="normal"
             />
           </Grid>
           <Grid item xs={12}>
             <TextField
-              fullWidth
               label="Address Line 4"
+              fullWidth
+              margin="normal"
               value={newClient.addressLine4}
               onChange={(e) => handleChange('addressLine4', e.target.value)}
-              margin="normal"
             />
           </Grid>
           <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="Address Line 5"
-              value={newClient.addressLine5}
-              onChange={(e) => handleChange('addressLine5', e.target.value)}
-              margin="normal"
-            />
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Region</InputLabel>
+              <Select
+                value={newClient.addressLine5}
+                label="Region"
+                onChange={(e) => handleChange('addressLine5', e.target.value)}
+              >
+                <MenuItem value="Kowloon">Kowloon</MenuItem>
+                <MenuItem value="Hong Kong">Hong Kong</MenuItem>
+                <MenuItem value="New Territories">New Territories</MenuItem>
+              </Select>
+            </FormControl>
           </Grid>
         </Grid>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSubmitNewClient}>
+        <Button variant="contained" onClick={handleSubmit}>
           Submit
         </Button>
       </DialogActions>

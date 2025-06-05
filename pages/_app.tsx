@@ -1,13 +1,14 @@
 // pages/_app.tsx
-
-import { SessionProvider, useSession } from 'next-auth/react';
+import { SessionProvider } from 'next-auth/react';
+import { SnackbarProvider } from 'notistack';
 import type { AppProps } from 'next/app';
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <SessionProvider session={pageProps.session}>
-      <SessionChecker />
-      <Component {...pageProps} />
+      <SnackbarProvider maxSnack={3}>
+        <Component {...pageProps} />
+      </SnackbarProvider>
     </SessionProvider>
   );
 }

@@ -8,14 +8,23 @@ import { Box, Typography, Button, Divider, Menu, MenuItem } from '@mui/material'
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   const firstName = session?.user?.name?.split(' ')[0] || 'User';
-  const [recordsAnchorEl, setRecordsAnchorEl] = useState<null | HTMLElement>(null);
+  const [businessAnchorEl, setBusinessAnchorEl] = useState<null | HTMLElement>(null);
+  const [databaseAnchorEl, setDatabaseAnchorEl] = useState<null | HTMLElement>(null);
 
-  const handleRecordsClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setRecordsAnchorEl(event.currentTarget);
+  const handleBusinessClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setBusinessAnchorEl(event.currentTarget);
   };
 
-  const handleRecordsClose = () => {
-    setRecordsAnchorEl(null);
+  const handleBusinessClose = () => {
+    setBusinessAnchorEl(null);
+  };
+
+  const handleDatabaseClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setDatabaseAnchorEl(event.currentTarget);
+  };
+
+  const handleDatabaseClose = () => {
+    setDatabaseAnchorEl(null);
   };
 
   return (
@@ -42,23 +51,41 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
               Main Page
             </Button>
           </Link>
-          <Link href="/dashboard/projects" passHref>
-            <Button fullWidth sx={{ justifyContent: 'flex-start', mb: 1 }}>
-              Projects
-            </Button>
-          </Link>
-          <Button fullWidth onClick={handleRecordsClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
-            Records
+          <Button fullWidth onClick={handleBusinessClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
+            Businesses
           </Button>
-          <Menu anchorEl={recordsAnchorEl} open={Boolean(recordsAnchorEl)} onClose={handleRecordsClose}>
-            <MenuItem onClick={handleRecordsClose}>
-              <Link href="/dashboard/records?view=clients" passHref>
-                <Button sx={{ textTransform: 'none' }}>Clients Account</Button>
+          <Menu anchorEl={businessAnchorEl} open={Boolean(businessAnchorEl)} onClose={handleBusinessClose}>
+            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
+              <Link href="/dashboard/businesses/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+                  Projects
+                </Button>
               </Link>
             </MenuItem>
-            <MenuItem onClick={handleRecordsClose}>
-              <Link href="/dashboard/records?view=bank" passHref>
-                <Button sx={{ textTransform: 'none' }}>Company Bank Account</Button>
+            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
+              <Link href="/dashboard/businesses/coachingsessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+                  Coaching Sessions
+                </Button>
+              </Link>
+            </MenuItem>
+          </Menu>
+          <Button fullWidth onClick={handleDatabaseClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
+            Database
+          </Button>
+          <Menu anchorEl={databaseAnchorEl} open={Boolean(databaseAnchorEl)} onClose={handleDatabaseClose}>
+            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
+              <Link href="/dashboard/database?view=clients" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+                  Client Accounts
+                </Button>
+              </Link>
+            </MenuItem>
+            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
+              <Link href="/dashboard/database?view=bank" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+                  Company Bank Accounts
+                </Button>
               </Link>
             </MenuItem>
           </Menu>

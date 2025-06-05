@@ -1,29 +1,12 @@
-// components/projectdialog/newprojectdialog/NewProjectPage2.tsx
+// components/invoicedialog/BasicInfoDialog.tsx
 
 import React from 'react';
-import {
-  Box,
-  Typography,
-  FormControl,
-  Select,
-  MenuItem,
-  SelectChangeEvent,
-} from '@mui/material';
+import { Box, Typography, FormControl, Select, MenuItem, InputLabel } from '@mui/material';
+import type { InvoiceBankAccount } from '../../projectdialog/ProjectOverview';
 
-// Define the InvoiceBankAccount type locally
-export interface InvoiceBankAccount {
-  companyName: string;
-  bankName: string;
-  bankCode: string;
-  accountType: string;
-  accountNumber: string;
-  fpsId?: string;
-  fpsEmail?: string;
-  comments?: string;
-  identifier?: string;
-}
-
-interface Page2Props {
+interface BasicInfoDialogProps {
+  fileId: string;
+  invoiceSheetId: string;
   projectDate: string;
   projectNumber: string;
   issuerEnglish: string;
@@ -41,9 +24,13 @@ interface Page2Props {
   selectedAccountType: string;
   setSelectedAccountType: (val: string) => void;
   matchedBank: InvoiceBankAccount | undefined;
+  invoiceNumber: string;
+  onSaveAndNext: () => void;
 }
 
-export default function NewProjectPage2({
+export default function BasicInfoDialog({
+  fileId,
+  invoiceSheetId,
   projectDate,
   projectNumber,
   issuerEnglish,
@@ -61,39 +48,26 @@ export default function NewProjectPage2({
   selectedAccountType,
   setSelectedAccountType,
   matchedBank,
-}: Page2Props) {
-  console.log(
-    '[NewProjectPage2] rendering => projectDate=',
-    projectDate,
-    ' projectNumber=',
-    projectNumber
-  );
-
+  invoiceNumber,
+  onSaveAndNext,
+}: BasicInfoDialogProps) {
   function renderAddressLine(value?: string) {
     if (!value || !value.trim()) return null;
     return <Typography variant="body2">{value}</Typography>;
   }
 
-  // Get unique bank names from the provided bank accounts
-  const bankNames = Array.from(new Set(relevantBanks.map((b) => b.bankName)));
-  // For the selected bank, get the unique account types
-  const accountTypes = Array.from(
-    new Set(
-      relevantBanks
-        .filter((b) => b.bankName === selectedBank)
-        .map((b) => b.accountType)
-    )
-  );
-
   return (
-    <>
+    <Box>
+      {/* Updated title */}
+      <Typography variant="h6" gutterBottom>
+        Create Invoice - #{invoiceNumber}
+      </Typography>
       <Typography variant="subtitle1" gutterBottom>
         Invoice Issuing Company Information
       </Typography>
       <Box sx={{ p: 2, border: '1px solid #ccc', borderRadius: 2, mb: 2 }}>
         <Box sx={{ mb: 1 }}>
-          <strong>Name:</strong> {issuerEnglish}
-          {issuerChinese ? ` (${issuerChinese})` : ''}
+          <strong>Name:</strong> {issuerEnglish}{issuerChinese ? ` (${issuerChinese})` : ''}
         </Box>
         <Box sx={{ mb: 1 }}>
           <strong>Address: </strong>
@@ -112,7 +86,6 @@ export default function NewProjectPage2({
           <strong>Email: </strong> {issuerEmail}
         </Box>
       </Box>
-
       <Typography variant="subtitle1" sx={{ mb: 2 }}>
         Bank Account Information
       </Typography>
@@ -123,18 +96,19 @@ export default function NewProjectPage2({
       ) : (
         <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
           <FormControl fullWidth>
+            <InputLabel>Bank</InputLabel>
             <Select
               value={selectedBank}
-              onChange={(e: SelectChangeEvent<string>) => {
-                setSelectedBank(e.target.value);
-                setSelectedAccountType(''); // reset account type when bank changes
+              onChange={(e) => {
+                setSelectedBank(e.target.value as string);
+                setSelectedAccountType('');
               }}
               displayEmpty
             >
               <MenuItem value="">
                 <em>-- Select Bank --</em>
               </MenuItem>
-              {bankNames.map((bn) => (
+              {[...new Set(relevantBanks.map((b) => b.bankName))].map((bn) => (
                 <MenuItem key={bn} value={bn}>
                   {bn}
                 </MenuItem>
@@ -142,17 +116,18 @@ export default function NewProjectPage2({
             </Select>
           </FormControl>
           <FormControl fullWidth disabled={!selectedBank}>
+            <InputLabel>Account Type</InputLabel>
             <Select
               value={selectedAccountType}
-              onChange={(e: SelectChangeEvent<string>) =>
-                setSelectedAccountType(e.target.value)
-              }
+              onChange={(e) => setSelectedAccountType(e.target.value as string)}
               displayEmpty
             >
               <MenuItem value="">
                 <em>-- Select Account Type --</em>
               </MenuItem>
-              {accountTypes.map((acct) => (
+              {[...new Set(
+                relevantBanks.filter((b) => b.bankName === selectedBank).map((b) => b.accountType)
+              )].map((acct) => (
                 <MenuItem key={acct} value={acct}>
                   {acct}
                 </MenuItem>
@@ -161,7 +136,6 @@ export default function NewProjectPage2({
           </FormControl>
         </Box>
       )}
-
       {matchedBank && (
         <Box sx={{ p: 2, border: '1px solid #ccc', borderRadius: 2, mt: 2 }}>
           <Typography variant="body2" gutterBottom>
@@ -185,6 +159,10 @@ export default function NewProjectPage2({
           )}
         </Box>
       )}
-    </>
+      <Box sx={{ mt: 3 }}>
+        <Typography variant="subtitle1">Invoice Number:</Typography>
+        <Typography variant="h6">#{invoiceNumber || 'Generating...'}</Typography>
+      </Box>
+    </Box>
   );
 }

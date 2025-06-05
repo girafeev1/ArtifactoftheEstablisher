@@ -6,17 +6,16 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Typography,
   Button,
+  Typography,
   Box,
 } from '@mui/material';
 
-interface Client {
+export interface ClientDetails {
   companyName: string;
   title: string;
   nameAddressed: string;
   emailAddress: string;
-  phone?: string; // added phone as an optional property
   addressLine1: string;
   addressLine2: string;
   addressLine3: string;
@@ -27,7 +26,7 @@ interface Client {
 interface ViewClientDialogProps {
   open: boolean;
   onClose: () => void;
-  client: Client | null;
+  client: ClientDetails | null;
   onEdit: () => void;
 }
 
@@ -39,56 +38,34 @@ export default function ViewClientDialog({
 }: ViewClientDialogProps) {
   if (!client) return null;
 
-  // Helper: Render a line only if a value is provided.
-  const renderLine = (value?: string) =>
-    value && value.trim() ? (
-      <Typography variant="body2">{value}</Typography>
-    ) : null;
-
   return (
-    <Dialog open={open} onClose={onClose} fullWidth>
-      <DialogTitle>Client Information</DialogTitle>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Client Details</DialogTitle>
       <DialogContent dividers>
-        {client.companyName && (
-          <Typography variant="h5" gutterBottom>
-            {client.companyName}
-          </Typography>
+        <Typography variant="h6" sx={{ mb: 1 }}>
+          {client.companyName}
+        </Typography>
+        <Typography variant="subtitle1" sx={{ mt: 1 }}>
+          Contact
+        </Typography>
+        <Typography variant="body2">
+          {client.title} {client.nameAddressed}
+        </Typography>
+        {client.emailAddress && (
+          <Typography variant="body2">{client.emailAddress}</Typography>
         )}
-        <Typography variant="subtitle1" gutterBottom>
+        <Typography variant="subtitle1" sx={{ mt: 1 }}>
           Address:
         </Typography>
-        {renderLine(client.addressLine1)}
-        {renderLine(client.addressLine2)}
-        {renderLine(client.addressLine3)}
-        {(client.addressLine4 || client.addressLine5) && (
-          <Typography variant="body2">
-            {client.addressLine4 ? client.addressLine4 : ''}
-            {client.addressLine4 && client.addressLine5 ? ', ' : ''}
-            {client.addressLine5 ? client.addressLine5 : ''}
-          </Typography>
-        )}
-        <Typography variant="body2">Hong Kong</Typography>
-        <Box mt={1}>
-          <Typography variant="subtitle1" gutterBottom>
-            Contact:
-          </Typography>
-          {(client.title || client.nameAddressed) && (
-            <Typography variant="body2">
-              {client.title} {client.nameAddressed}
-            </Typography>
-          )}
-          {(client.emailAddress || client.phone) && (
-            <Typography variant="body2">
-              {client.emailAddress} {client.phone}
-            </Typography>
-          )}
-        </Box>
+        {client.addressLine1 && <Typography variant="body2">{client.addressLine1}</Typography>}
+        {client.addressLine2 && <Typography variant="body2">{client.addressLine2}</Typography>}
+        {client.addressLine3 && <Typography variant="body2">{client.addressLine3}</Typography>}
+        {client.addressLine4 && <Typography variant="body2">{client.addressLine4}</Typography>}
+        {client.addressLine5 && <Typography variant="body2">{client.addressLine5}</Typography>}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
-        <Button variant="contained" onClick={onEdit}>
-          Edit
-        </Button>
+        <Button onClick={onEdit}>Edit</Button>
       </DialogActions>
     </Dialog>
   );

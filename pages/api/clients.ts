@@ -4,11 +4,35 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { getAuthOptions } from './auth/[...nextauth]';
 import { initializeApis } from '../../lib/googleApi';
-import { findPMSReferenceLogFile } from '../../lib/pmsReference';
+import { findPMSReferenceLogFile, fetchAddressBook } from '../../lib/pmsReference';
 
-/**
- * Helper to find row index (1-based) for a company name in the Address Book
- */
+async function sortAddressBook(sheets: any, spreadsheetId: string, sheetId: number): Promise<void> {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          sortRange: {
+            range: {
+              sheetId,
+              startRowIndex: 3, // Start at row 4 (0-based index 3, skipping headers)
+              endRowIndex: undefined, // Sort to the end
+              startColumnIndex: 0, // Column A (Company Name)
+              endColumnIndex: 9, // Column I
+            },
+            sortSpecs: [
+              {
+                dimensionIndex: 0, // Sort by Column A
+                sortOrder: 'ASCENDING',
+              },
+            ],
+          },
+        },
+      ],
+    },
+  });
+}
+
 async function findRowIndexForCompany(
   sheets: any,
   spreadsheetId: string,
@@ -17,14 +41,10 @@ async function findRowIndexForCompany(
 ): Promise<number | null> {
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = resp.data.values || [];
-  // We assume the first column is companyName => row[0]
   const rowIndex = rows.findIndex((row: any) => row[0] === companyName);
-  return rowIndex === -1 ? null : rowIndex + 1; // 1-based
+  return rowIndex === -1 ? null : rowIndex + 1;
 }
 
-/**
- * Helper to find sheetId for a given sheet title
- */
 async function getSheetIdByTitle(sheets: any, spreadsheetId: string, sheetTitle: string): Promise<number> {
   const metadata = await sheets.spreadsheets.get({
     spreadsheetId,
@@ -32,44 +52,9 @@ async function getSheetIdByTitle(sheets: any, spreadsheetId: string, sheetTitle:
   });
   const sheet = metadata.data.sheets?.find((s: any) => s.properties?.title === sheetTitle);
   if (!sheet) {
-    throw new Error(Sheet "${sheetTitle}" not found in spreadsheet.);
+    throw new Error(`Sheet "${sheetTitle}" not found in spreadsheet.`);
   }
   return sheet.properties.sheetId;
-}
-
-/**
- * Helper to sort the entire address book range by the first column
- */
-async function sortAddressBook(sheets: any, spreadsheetId: string, sheetId: number) {
-  // The first 2 rows are headers, so maybe the actual data starts at row 4.
-  // But from your code, you skip the first 3 rows with data?
-  // Adjust as needed. For example, if real data starts at row 4 => startRowIndex=3
-  // We'll guess the last row as something large or dynamically found. For simplicity, let's do a big guess.
-  // Or we can do an approach to find the last row. For brevity, let's do row 1000 as an upper bound.
-  const requests = [
-    {
-      sortRange: {
-        range: {
-          sheetId,
-          startRowIndex: 3, // skipping header rows (rows 0..2)
-          endRowIndex: 1000, // arbitrary
-          startColumnIndex: 0,
-          endColumnIndex: 9, // A..I
-        },
-        sortSpecs: [
-          {
-            dimensionIndex: 0, // sort by column 0
-            sortOrder: 'ASCENDING',
-          },
-        ],
-      },
-    },
-  ];
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId,
-    requestBody: { requests },
-  });
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -86,13 +71,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     const referenceLogId = await findPMSReferenceLogFile(drive);
 
-    // The "Address Book of Accounts" sheet
     const sheetTitle = 'Address Book of Accounts';
-    const sheetRange = ${sheetTitle}!A:I; // columns A..I
+    const sheetRange = `${sheetTitle}!A:I`;
     const sheetId = await getSheetIdByTitle(sheets, referenceLogId, sheetTitle);
 
-    if (req.method === 'POST') {
-      // Add new client
+    if (req.method === 'GET') {
+      const clientsData = await fetchAddressBook(sheets, referenceLogId);
+      return res.status(200).json(clientsData);
+    } else if (req.method === 'POST') {
       const { data } = req.body;
       if (!data) return res.status(400).json({ error: 'Missing client data' });
       const rowValues = [
@@ -113,17 +99,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         requestBody: { values: [rowValues] },
       });
 
-      // Now sort
       await sortAddressBook(sheets, referenceLogId, sheetId);
-
       return res.status(200).json({ message: 'Client added successfully' });
     } else if (req.method === 'PUT') {
-      // Update existing client
       const { data } = req.body;
-      if (!data || !data.originalIdentifier) {
-        return res.status(400).json({ error: 'Missing originalIdentifier or data' });
+      if (!data || !data.companyName) {
+        return res.status(400).json({ error: 'Missing companyName in data' });
       }
-      const rowIndex = await findRowIndexForCompany(sheets, referenceLogId, sheetRange, data.originalIdentifier);
+      const rowIndex = await findRowIndexForCompany(sheets, referenceLogId, sheetRange, data.companyName);
       if (!rowIndex) {
         return res.status(404).json({ error: 'Client not found' });
       }
@@ -139,20 +122,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         data.addressLine5 || '',
       ];
 
-      // Update row
       await sheets.spreadsheets.values.update({
         spreadsheetId: referenceLogId,
-        range: Address Book of Accounts!A${rowIndex}:I${rowIndex},
+        range: `Address Book of Accounts!A${rowIndex}:I${rowIndex}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: [rowValues] },
       });
 
-      // Sort again
       await sortAddressBook(sheets, referenceLogId, sheetId);
-
       return res.status(200).json({ message: 'Client updated successfully' });
     } else if (req.method === 'DELETE') {
-      // DELETE => remove client row
       const { identifier } = req.query;
       if (!identifier || typeof identifier !== 'string') {
         return res.status(400).json({ error: 'Missing or invalid identifier' });
@@ -162,7 +141,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(404).json({ error: 'Client not found' });
       }
 
-      // The dimension range is zero-based, so if rowIndex is 1-based, we do rowIndex-1
       const requests = [
         {
           deleteDimension: {
@@ -180,10 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         requestBody: { requests },
       });
 
-      // After deletion, also re-sort if needed (though the row is gone).
-      // Possibly not necessary. But let's do it anyway:
       await sortAddressBook(sheets, referenceLogId, sheetId);
-
       return res.status(200).json({ message: 'Client deleted successfully' });
     } else {
       return res.status(405).json({ error: 'Method not allowed' });
