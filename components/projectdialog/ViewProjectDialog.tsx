@@ -23,6 +23,7 @@ export interface ProjectData {
   projectDate: string;
   agent: string;
   invoiceCompany: string;
+  presenterWorkType: string;
   projectTitle: string;
   projectNature: string;
   amount: string;
@@ -75,6 +76,7 @@ export default function ViewProjectDialog({
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Typography variant="subtitle1">{project.projectNumber}</Typography>
         <Typography variant="subtitle1">{project.invoiceCompany}</Typography>
+        <Typography variant="subtitle1">{project.presenterWorkType}</Typography>
         <Typography variant="h4">{project.projectTitle}</Typography>
         <Typography variant="body2"> - {project.projectNature}</Typography>
         <Divider />
