@@ -37,6 +37,7 @@ export interface ProjectData {
   projectDate: string;
   agent: string;
   invoiceCompany: string;
+  presenterWorkType: string;
   projectTitle: string;
   projectNature: string;
   amount: string;
@@ -138,6 +139,7 @@ export default function EditProjectDialog({
         projectDate: project.projectDate,
         agent: project.agent,
         invoiceCompany: project.invoiceCompany,
+        presenterWorkType: project.presenterWorkType,
         projectTitle: project.projectTitle,
         projectNature: project.projectNature,
         amount: project.amount,
@@ -201,6 +203,12 @@ export default function EditProjectDialog({
           label="Invoice Company"
           value={project.invoiceCompany}
           onChange={(e) => setProject({ ...project, invoiceCompany: e.target.value })}
+          fullWidth
+        />
+        <TextField
+          label="Presenter / Work Type"
+          value={project.presenterWorkType}
+          onChange={(e) => setProject({ ...project, presenterWorkType: e.target.value })}
           fullWidth
         />
         <TextField
