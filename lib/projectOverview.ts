@@ -8,6 +8,7 @@ export interface ProjectRow {
   projectDate: string;
   agent: string;
   invoiceCompany: string;
+  presenterWorkType: string;
   projectTitle: string;
   projectNature: string;
   amount: string;
@@ -62,29 +63,30 @@ export async function fetchProjectRows(
       console.log(`[fetchProjectRows] Skipping row ${rowIndex + startRow}: "${firstCell}"`);
       return;
     }
-    const rawAmount = cellText(6, values);
+    const rawAmount = cellText(7, values);
     const numericAmount = parseFloat(rawAmount.replace(/[^\d.-]+/g, '')) || 0;
     // For the invoice cell (index 10), check for hyperlink in the cell object.
-    let invoice = cellText(10, values);
+    let invoice = cellText(11, values);
     let invoiceUrl = '';
-    if (values[10] && values[10].hyperlink) {
-      invoiceUrl = values[10].hyperlink;
+    if (values[11] && values[11].hyperlink) {
+      invoiceUrl = values[11].hyperlink;
     }
     rows.push({
       projectNumber: cellText(0, values),
       projectDate: cellText(1, values),
       agent: cellText(2, values),
       invoiceCompany: cellText(3, values),
-      projectTitle: cellText(4, values),
-      projectNature: cellText(5, values),
+      presenterWorkType: cellText(4, values),
+      projectTitle: cellText(5, values),
+      projectNature: cellText(6, values),
       amount: numericAmount.toFixed(2),
-      paid: cellText(7, values) || 'FALSE',
-      paidOnDate: cellText(8, values),
-      bankAccountIdentifier: cellText(9, values),
+      paid: cellText(8, values) || 'FALSE',
+      paidOnDate: cellText(9, values),
+      bankAccountIdentifier: cellText(10, values),
       invoice,
       invoiceUrl,
     });
-    console.log(`[fetchProjectRows] Row ${rowIndex + startRow}: projectDate="${cellText(1, values)}", paid="${cellText(7, values)}", bankAccountIdentifier="${cellText(9, values)}", invoiceUrl="${invoiceUrl}"`);
+    console.log(`[fetchProjectRows] Row ${rowIndex + startRow}: projectDate="${cellText(1, values)}", paid="${cellText(8, values)}", bankAccountIdentifier="${cellText(10, values)}", invoiceUrl="${invoiceUrl}"`);
   });
   return rows;
 }
