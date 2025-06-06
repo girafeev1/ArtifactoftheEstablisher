@@ -216,12 +216,6 @@ export default function EditProjectDialog({
           fullWidth
         />
         <TextField
-          label="Presenter / Work Type"
-          value={project.presenterWorkType}
-          onChange={(e) => setProject({ ...project, presenterWorkType: e.target.value })}
-          fullWidth
-        />
-        <TextField
           label="Agent"
           value={project.agent}
           onChange={(e) => setProject({ ...project, agent: e.target.value })}

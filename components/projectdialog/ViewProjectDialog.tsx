@@ -80,10 +80,10 @@ export default function ViewProjectDialog({
         <Typography variant="body2"> - {project.projectNature}</Typography>
         <Divider />
         <Typography variant="body2">
-          <strong>Project Pickup Date:</strong> {project.projectDate || 'Not set'}
+          <strong>Invoice Company:</strong> {project.invoiceCompany}
         </Typography>
         <Typography variant="body2">
-          <strong>Invoice Company:</strong> {project.invoiceCompany}
+          <strong>Project Pickup Date:</strong> {project.projectDate || 'Not set'}
         </Typography>
         <Typography variant="body2">
           <strong>Amount:</strong> {formattedAmount}
