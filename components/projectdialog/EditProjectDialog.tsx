@@ -171,7 +171,11 @@ export default function EditProjectDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Edit Project | {project.projectNumber} | {project.projectTitle}</DialogTitle>
+      <DialogTitle>
+        Edit Project | {project.projectNumber} |
+        {project.presenter ? `${project.presenter} - ` : ''}
+        {project.projectTitle}
+      </DialogTitle>
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <TextField
           label="Project Number"
