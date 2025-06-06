@@ -79,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log('[API POST] Fetching sheet metadata for fileId:', fileId);
       const sheetMeta = await sheets.spreadsheets.get({
         spreadsheetId: fileId,
-        fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)),bandedRanges)',
+        fields: 'sheets.properties,sheets.bandedRanges',
       });
       console.log('[API POST] Sheet metadata:', JSON.stringify(sheetMeta.data, null, 2));
       const sheet = sheetMeta.data.sheets?.find(s => s.properties?.title === 'Project Overview');
@@ -182,6 +182,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           requestBody: { requests: deleteRequests },
         });
         console.log('[API POST] Deleted existing banding ranges.');
+      }
+
+      // Re-fetch metadata to verify all banding has been removed and clean up any leftovers
+      const metaAfterDelete = await sheets.spreadsheets.get({
+        spreadsheetId: fileId,
+        fields: 'sheets.properties,sheets.bandedRanges',
+      });
+      const updatedSheet = metaAfterDelete.data.sheets?.find(
+        s => s.properties?.sheetId === sheetId
+      );
+      if (updatedSheet?.bandedRanges?.length) {
+        const cleanupRequests = updatedSheet.bandedRanges.map(banding => ({
+          deleteBanding: { bandedRangeId: banding.bandedRangeId }
+        }));
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: fileId,
+          requestBody: { requests: cleanupRequests },
+        });
+        console.log('[API POST] Cleaned up remaining banding ranges.');
       }
 
       // 8. Add new banding to cover the updated table range.
