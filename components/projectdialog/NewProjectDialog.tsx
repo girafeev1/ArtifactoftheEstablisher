@@ -24,6 +24,8 @@ interface NewProjectDialogProps {
   setProjectTitle: (val: string) => void;
   projectNature: string;
   setProjectNature: (val: string) => void;
+  presenter: string;
+  setPresenter: (val: string) => void;
   amount: string;
   setAmount: (val: string) => void;
   clientsData: ClientEntry[];
@@ -49,6 +51,8 @@ export default function NewProjectDialog({
   setProjectTitle,
   projectNature,
   setProjectNature,
+  presenter,
+  setPresenter,
   amount,
   setAmount,
   clientsData,
@@ -70,7 +74,7 @@ export default function NewProjectDialog({
 
   const handleSaveInternal = async (next: boolean) => {
     const finalCompany = useManualCompany ? manualCompany : clientCompany;
-    if (!projectNumber || !projectDate || !finalCompany || !projectTitle || !projectNature || !amount) {
+    if (!projectNumber || !projectDate || !finalCompany || !presenter || !projectTitle || !projectNature || !amount) {
       console.log('[NewProjectDialog] Validation failed: Missing required fields');
       alert('All fields are required');
       return;
@@ -81,6 +85,7 @@ export default function NewProjectDialog({
         projectDate,
         agent: '',
         invoiceCompany: finalCompany,
+        presenter,
         projectTitle,
         projectNature,
         amount,
@@ -201,6 +206,16 @@ export default function NewProjectDialog({
             </Button>
           </Box>
         )}
+      </Box>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle2" gutterBottom>
+          Presenter / Work Type:
+        </Typography>
+        <TextField
+          value={presenter}
+          onChange={(e) => setPresenter(e.target.value)}
+          fullWidth
+        />
       </Box>
       <Box sx={{ mb: 2 }}>
         <Typography variant="subtitle2" gutterBottom>

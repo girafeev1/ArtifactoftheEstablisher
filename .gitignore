@@ -5,3 +5,5 @@
 /.next
 .env
 .DS_Store
+*.DS_Store
+Invoice.JSON
