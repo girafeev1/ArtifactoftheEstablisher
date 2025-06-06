@@ -262,7 +262,7 @@ export default function SingleFilePage({
               {projects.map((proj) => (
                 <ListItem key={proj.projectNumber} sx={{ cursor: 'pointer' }} onClick={() => handleProjectClick(proj)}>
                   <ListItemText
-                    primary={`${proj.projectNumber} — ${proj.presenterWorkType} - ${proj.projectTitle}`}
+                    primary={`${proj.projectNumber} — ${proj.presenter ? proj.presenter + ' - ' : ''}${proj.projectTitle}`}
                     secondary={`HK$${Number(proj.amount).toLocaleString()} | ${proj.paid === 'TRUE' ? 'Paid' : 'Unpaid'}${proj.paid === 'TRUE' && proj.paidOnDate ? ` | ${proj.paidOnDate}` : ''}`}
                   />
                 </ListItem>

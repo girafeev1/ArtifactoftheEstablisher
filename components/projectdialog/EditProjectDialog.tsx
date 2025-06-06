@@ -37,7 +37,7 @@ export interface ProjectData {
   projectDate: string;
   agent: string;
   invoiceCompany: string;
-  presenterWorkType: string;
+  presenter: string;
   projectTitle: string;
   projectNature: string;
   amount: string;
@@ -139,7 +139,7 @@ export default function EditProjectDialog({
         projectDate: project.projectDate,
         agent: project.agent,
         invoiceCompany: project.invoiceCompany,
-        presenterWorkType: project.presenterWorkType,
+        presenter: project.presenter,
         projectTitle: project.projectTitle,
         projectNature: project.projectNature,
         amount: project.amount,
@@ -177,6 +177,12 @@ export default function EditProjectDialog({
           label="Project Number"
           value={project.projectNumber}
           onChange={(e) => setProject({ ...project, projectNumber: e.target.value })}
+          fullWidth
+        />
+        <TextField
+          label="Presenter / Work Type"
+          value={project.presenter}
+          onChange={(e) => setProject({ ...project, presenter: e.target.value })}
           fullWidth
         />
         <TextField
@@ -249,7 +255,7 @@ export default function EditProjectDialog({
             />
             <Box sx={{ display: 'flex', gap: 2 }}>
               <FormControl fullWidth>
-                <InputLabel id="bank-name-label">Paid To (Bank Name)</InputLabel>
+                <InputLabel id="bank-name-label" shrink>Paid To (Bank Name)</InputLabel>
                 <Select
                   labelId="bank-name-label"
                   value={selectedBank}
@@ -277,7 +283,7 @@ export default function EditProjectDialog({
                 </Select>
               </FormControl>
               <FormControl fullWidth disabled={!selectedBank}>
-                <InputLabel id="account-type-label">Account Type</InputLabel>
+                <InputLabel id="account-type-label" shrink>Account Type</InputLabel>
                 <Select
                   labelId="account-type-label"
                   value={selectedAccountType}

@@ -136,13 +136,13 @@ async function handleProjectPost(
 ) {
   // e.g. "Project Overview!A:L"
   // Make sure `data` is in the same order as your columns
-  // [ projectNumber, projectDate, agent, invoiceCompany, presenterWorkType, projectTitle, projectNature, amount, paid, paidOnDate, invoice ]
+  // [ projectNumber, projectDate, agent, invoiceCompany, presenter, projectTitle, projectNature, amount, paid, paidOnDate, invoice ]
   const rowValues = [
     data.projectNumber || '',
     data.projectDate || '',
     data.agent || '',
     data.invoiceCompany || '',
-    data.presenterWorkType || '',
+    data.presenter || '',
     data.projectTitle || '',
     data.projectNature || '',
     data.amount || '',
@@ -185,7 +185,7 @@ async function handleProjectPut(
     data.projectDate || '',
     data.agent || '',
     data.invoiceCompany || '',
-    data.presenterWorkType || '',
+    data.presenter || '',
     data.projectTitle || '',
     data.projectNature || '',
     data.amount || '',

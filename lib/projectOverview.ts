@@ -8,7 +8,7 @@ export interface ProjectRow {
   projectDate: string;
   agent: string;
   invoiceCompany: string;
-  presenterWorkType: string;
+  presenter: string;
   projectTitle: string;
   projectNature: string;
   amount: string;
@@ -76,7 +76,7 @@ export async function fetchProjectRows(
       projectDate: cellText(1, values),
       agent: cellText(2, values),
       invoiceCompany: cellText(3, values),
-      presenterWorkType: cellText(4, values),
+      presenter: cellText(4, values),
       projectTitle: cellText(5, values),
       projectNature: cellText(6, values),
       amount: numericAmount.toFixed(2),

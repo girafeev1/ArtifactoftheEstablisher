@@ -12,7 +12,7 @@ export interface ProjectData {
   projectDate: string;
   agent: string;
   invoiceCompany: string;
-  presenterWorkType: string;
+  presenter: string;
   projectTitle: string;
   projectNature: string;
   amount: string;
@@ -108,7 +108,7 @@ export default function ProjectOverview({
       projectDate: '',
       agent: '',
       invoiceCompany: '',
-      presenterWorkType: '',
+      presenter: '',
       projectTitle: '',
       projectNature: '',
       amount: '',
@@ -165,7 +165,7 @@ export default function ProjectOverview({
         projectDate: '',
         agent: '',
         invoiceCompany: '',
-        presenterWorkType: '',
+        presenter: '',
         projectTitle: '',
         projectNature: '',
         amount: '',
@@ -197,7 +197,7 @@ export default function ProjectOverview({
       projectDate: '',
       agent: '',
       invoiceCompany: '',
-      presenterWorkType: '',
+      presenter: '',
       projectTitle: '',
       projectNature: '',
       amount: '',
@@ -274,8 +274,8 @@ export default function ProjectOverview({
                 setManualCompany={setManualCompany}
                 useManualCompany={useManualCompany}
                 setUseManualCompany={setUseManualCompany}
-                presenterWorkType={projectData.presenterWorkType}
-                setPresenterWorkType={(val) => setProjectData({ ...projectData, presenterWorkType: val })}
+                presenter={projectData.presenter}
+                setPresenter={(val) => setProjectData({ ...projectData, presenter: val })}
                 projectTitle={projectData.projectTitle}
                 setProjectTitle={(val) => setProjectData({ ...projectData, projectTitle: val })}
                 projectNature={projectData.projectNature}
