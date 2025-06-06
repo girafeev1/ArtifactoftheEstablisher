@@ -79,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log('[API POST] Fetching sheet metadata for fileId:', fileId);
       const sheetMeta = await sheets.spreadsheets.get({
         spreadsheetId: fileId,
-        fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)),bandedRanges)',
+        fields: 'sheets.properties,sheets.bandedRanges',
       });
       console.log('[API POST] Sheet metadata:', JSON.stringify(sheetMeta.data, null, 2));
       const sheet = sheetMeta.data.sheets?.find(s => s.properties?.title === 'Project Overview');
@@ -91,44 +91,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log('[API POST] Total rows in sheet:', totalRows);
 
       // 3. Determine where to insert the new row.
-      // Rows are fetched starting at A6, so add 5 to convert to an absolute row number.
-      // Here, we assume that a cell in column A containing "total" (case-insensitive) marks the total row.
-      const totalRowIndex = rows.findIndex((row) => row[0] && row[0].toLowerCase().includes('total'));
+      // Look for the "total" row and the first empty project row
+      const isProjectRowEmpty = (row: any[]): boolean => {
+        const idx = [0, 1, 3, 4, 5, 6, 7];
+        return idx.every(i => !row[i] || String(row[i]).trim() === '');
+      };
+      let totalRowIndex = -1;
+      let emptyRowIndex = -1;
+      rows.forEach((row, i) => {
+        const cellA = (row[0] || '').toString().toLowerCase();
+        if (totalRowIndex === -1 && cellA.includes('total')) {
+          totalRowIndex = i;
+        }
+        if (emptyRowIndex === -1 && isProjectRowEmpty(row)) {
+          emptyRowIndex = i;
+        }
+      });
       let insertRowIndex: number;
-      if (totalRowIndex !== -1) {
-        // Insert the new row just above the total row.
-        insertRowIndex = totalRowIndex + 5;
+      if (emptyRowIndex !== -1 && (totalRowIndex === -1 || emptyRowIndex < totalRowIndex)) {
+        // Use the first empty row found before the total row
+        insertRowIndex = emptyRowIndex + 6;
+      } else if (totalRowIndex !== -1) {
+        // Insert directly above the total row
+        insertRowIndex = totalRowIndex + 6;
       } else {
-        // Otherwise, append after existing data.
-        insertRowIndex = rows.length > 0 ? rows.length + 5 : 6;
+        // Otherwise append after the last row we fetched
+        insertRowIndex = rows.length + 6;
       }
       console.log('[API POST] Insert row at index:', insertRowIndex);
 
       // 4. Define the new table’s last row and the new total row position.
-      // (For example, if new row is inserted at row 11 then table data covers rows 6–11 and the total row moves to row 12.)
       const newTableEndRow = insertRowIndex;
       const totalRowNewIndex = newTableEndRow + 1;
 
-      // 5. Expand the sheet to exactly the needed number of rows (so the total row is at the right place).
+      // 5. Ensure the sheet has enough rows for the new total row
       if (totalRowNewIndex > totalRows) {
         await sheets.spreadsheets.batchUpdate({
           spreadsheetId: fileId,
           requestBody: {
             requests: [{
-              updateSheetProperties: {
-                properties: {
-                  sheetId,
-                  gridProperties: {
-                    rowCount: totalRowNewIndex, // Set to exactly the new total row index (e.g. 12)
-                    columnCount: Math.max(sheet.properties.gridProperties?.columnCount || 12, 12),
-                  },
-                },
-                fields: 'gridProperties(rowCount,columnCount)',
+              appendDimension: {
+                sheetId,
+                dimension: 'ROWS',
+                length: totalRowNewIndex - totalRows,
               },
             }],
           },
         });
-        console.log('[API POST] Expanded sheet to rowCount:', totalRowNewIndex);
+        console.log('[API POST] Appended rows to sheet:', totalRowNewIndex - totalRows);
       }
 
       // 6. Insert the new row and copy formatting from the row above it.
@@ -182,6 +192,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           requestBody: { requests: deleteRequests },
         });
         console.log('[API POST] Deleted existing banding ranges.');
+      }
+
+      // Re-fetch metadata to verify all banding has been removed and clean up any leftovers
+      const metaAfterDelete = await sheets.spreadsheets.get({
+        spreadsheetId: fileId,
+        fields: 'sheets.properties,sheets.bandedRanges',
+      });
+      const updatedSheet = metaAfterDelete.data.sheets?.find(
+        s => s.properties?.sheetId === sheetId
+      );
+      if (updatedSheet?.bandedRanges?.length) {
+        const cleanupRequests = updatedSheet.bandedRanges.map(banding => ({
+          deleteBanding: { bandedRangeId: banding.bandedRangeId }
+        }));
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: fileId,
+          requestBody: { requests: cleanupRequests },
+        });
+        console.log('[API POST] Cleaned up remaining banding ranges.');
       }
 
       // 8. Add new banding to cover the updated table range.
