@@ -14,3 +14,6 @@ Then run the test suite with:
 npm test
 ```
  
+
+## Changelog
+- Removed leftover `.DS_Store` files and updated `.gitignore` to exclude them.
