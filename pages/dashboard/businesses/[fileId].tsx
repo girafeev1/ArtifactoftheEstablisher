@@ -5,7 +5,8 @@ import { getSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import React, { useState, useMemo, useEffect } from 'react';
 import SidebarLayout from '../../../components/SidebarLayout';
-import { findPMSReferenceLogFile, fetchReferenceNames, fetchAddressBook, fetchBankAccounts, fetchSubsidiaryData } from '../../../lib/pmsReference';
+import { findPMSReferenceLogFile, fetchAddressBook, fetchBankAccounts } from '../../../lib/pmsReference';
+import { fetchSubsidiaries } from '../../../lib/firestoreSubsidiaries';
 import { initializeApis } from '../../../lib/googleApi';
 import { fetchProjectRows, listProjectOverviewFiles, ProjectRow } from '../../../lib/projectOverview';
 import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button, FormControl, InputLabel, Select, MenuItem, ToggleButton, ToggleButtonGroup } from '@mui/material';
@@ -306,7 +307,9 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
     const pmsRefLogId = await findPMSReferenceLogFile(drive);
-    const referenceMapping = await fetchReferenceNames(sheets, pmsRefLogId);
+    const subsidiaries = await fetchSubsidiaries();
+    const referenceMapping: Record<string, string> = {};
+    subsidiaries.forEach(s => { referenceMapping[s.identifier] = s.englishName; });
 
     if (!fileId || fileId === 'select') {
       return {
@@ -366,8 +369,7 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const addressBook = await fetchAddressBook(sheets, pmsRefLogId);
     const clients = addressBook.map((c) => ({ companyName: c.companyName }));
     const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogId);
-    const allSubsidiaries = await fetchSubsidiaryData(sheets, pmsRefLogId);
-    const subsidiaryInfo = allSubsidiaries.find((r) => r.identifier === shortCode) || null;
+    const subsidiaryInfo = subsidiaries.find((r) => r.identifier === shortCode) || null;
 
     return {
       props: {
@@ -387,8 +389,9 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     console.error('[getServerSideProps fileId] error:', err);
     const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
-    const pmsRefLogId = await findPMSReferenceLogFile(drive);
-    const referenceMapping = await fetchReferenceNames(sheets, pmsRefLogId);
+    const subsidiaries = await fetchSubsidiaries();
+    const referenceMapping: Record<string, string> = {};
+    subsidiaries.forEach(s => { referenceMapping[s.identifier] = s.englishName; });
     return {
       props: {
         fileId: 'select',
