@@ -5,6 +5,7 @@ import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../../components/SidebarLayout';
 import { initializeApis } from '../../../lib/googleApi';
 import { listProjectOverviewFiles } from '../../../lib/projectOverview';
+import { fetchSubsidiaries } from '../../../lib/firestoreSubsidiaries';
 import { useRouter } from 'next/router';
 import { Box, Typography, List, ListItem, ListItemText, Button } from '@mui/material';
 
@@ -16,18 +17,22 @@ interface BusinessFile {
 
 interface BusinessesPageProps {
   projectsByCategory: Record<string, BusinessFile[]>;
+  referenceMapping: Record<string, string>;
 }
 
-export default function BusinessesPage({ projectsByCategory }: BusinessesPageProps) {
+export default function BusinessesPage({ projectsByCategory, referenceMapping }: BusinessesPageProps) {
   const router = useRouter();
 
-  // Flatten the grouped projects into a single array.
-  // (The original code grouped them by subsidiary code; now we sort them alphabetically by fullCompanyName.)
+  // Flatten the grouped projects into a single array and sort them by the mapped English name.
   const files: BusinessFile[] = [];
   for (const key in projectsByCategory) {
     projectsByCategory[key].forEach((file) => files.push(file));
   }
-  files.sort((a, b) => a.fullCompanyName.localeCompare(b.fullCompanyName));
+  files.sort((a, b) =>
+    (referenceMapping[a.companyIdentifier] || a.companyIdentifier).localeCompare(
+      referenceMapping[b.companyIdentifier] || b.companyIdentifier
+    )
+  );
 
   return (
     <SidebarLayout>
@@ -48,7 +53,10 @@ export default function BusinessesPage({ projectsByCategory }: BusinessesPagePro
             button
             onClick={() => router.push(`/dashboard/businesses/${file.file.id}`)}
           >
-            <ListItemText primary={file.fullCompanyName} secondary={file.file.name} />
+            <ListItemText
+              primary={referenceMapping[file.companyIdentifier] || file.companyIdentifier}
+              secondary={file.file.name}
+            />
           </ListItem>
         ))}
       </List>
@@ -65,9 +73,13 @@ export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async
   const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
   // Get the grouped project files using your existing sorting utility
   const projectsByCategory = await listProjectOverviewFiles(drive, []);
+  const subsidiaries = await fetchSubsidiaries();
+  const referenceMapping: Record<string, string> = {};
+  subsidiaries.forEach(s => { referenceMapping[s.identifier] = s.englishName; });
   return {
     props: {
       projectsByCategory,
+      referenceMapping,
     },
   };
 };
