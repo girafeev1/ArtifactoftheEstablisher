@@ -76,6 +76,12 @@ export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async
   const subsidiaries = await fetchSubsidiaries();
   const referenceMapping: Record<string, string> = {};
   subsidiaries.forEach(s => { referenceMapping[s.identifier] = s.englishName; });
+  for (const year in projectsByCategory) {
+    projectsByCategory[year] = projectsByCategory[year].map(file => ({
+      ...file,
+      fullCompanyName: referenceMapping[file.companyIdentifier] || file.companyIdentifier,
+    }));
+  }
   return {
     props: {
       projectsByCategory,

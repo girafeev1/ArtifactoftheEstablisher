@@ -310,6 +310,13 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const subsidiaries = await fetchSubsidiaries();
     const referenceMapping: Record<string, string> = {};
     subsidiaries.forEach(s => { referenceMapping[s.identifier] = s.englishName; });
+    for (const year in projectsByCategory) {
+      projectsByCategory[year] = projectsByCategory[year].map(file => ({
+        ...file,
+        fullCompanyName:
+          referenceMapping[file.companyIdentifier] || file.companyIdentifier,
+      }));
+    }
 
     if (!fileId || fileId === 'select') {
       return {
@@ -392,6 +399,12 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const subsidiaries = await fetchSubsidiaries();
     const referenceMapping: Record<string, string> = {};
     subsidiaries.forEach(s => { referenceMapping[s.identifier] = s.englishName; });
+    for (const year in projectsByCategory) {
+      projectsByCategory[year] = projectsByCategory[year].map(file => ({
+        ...file,
+        fullCompanyName: referenceMapping[file.companyIdentifier] || file.companyIdentifier,
+      }));
+    }
     return {
       props: {
         fileId: 'select',
