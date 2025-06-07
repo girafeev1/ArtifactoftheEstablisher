@@ -1,6 +1,8 @@
 // lib/pmsReference.ts
 
 import { drive_v3, sheets_v4 } from 'googleapis';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from './firebase';
 
 export interface AddressBookEntry {
   companyName: string;
@@ -162,4 +164,41 @@ export async function fetchSubsidiaryData(
     district: (r[8] || '').trim(),
     region: (r[9] || '').trim(),
   }));
+}
+
+/**
+ * Fetch subsidiary reference names from Firestore.
+ */
+export async function fetchReferenceNamesFS(): Promise<Record<string, string>> {
+  const snap = await getDocs(collection(db, 'Subsidiaries'));
+  const mapping: Record<string, string> = {};
+  snap.forEach((doc) => {
+    const data = doc.data() as any;
+    if (data.englishName) {
+      mapping[doc.id] = data.englishName as string;
+    }
+  });
+  return mapping;
+}
+
+/**
+ * Fetch subsidiary data from Firestore.
+ */
+export async function fetchSubsidiaryDataFS(): Promise<SubsidiaryData[]> {
+  const snap = await getDocs(collection(db, 'Subsidiaries'));
+  return snap.docs.map((d) => {
+    const data = d.data() as any;
+    return {
+      identifier: d.id,
+      englishName: data.englishName || '',
+      chineseName: data.chineseName || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      room: data.addressLine1 || '',
+      building: data.addressLine2 || '',
+      street: data.addressLine3 || '',
+      district: data.addressLine4 || '',
+      region: data.region || '',
+    } as SubsidiaryData;
+  });
 }
