@@ -65,8 +65,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } else if (req.method === 'POST') {
     const projectData = req.body;
     try {
-      // 1. Fetch table data from A6:L
-      const range = 'Project Overview!A6:L';
+      // 1. Detect the header row so the app works regardless of where the table starts
+      const headerTitles = [
+        'Project #',
+        'Project Date',
+        'Agent',
+        'Client Company',
+        'Presenter/ Work Type',
+        'Project Title',
+        'Project Nature',
+        'Amount',
+        'Paid',
+        'On Date',
+        'Paid To',
+        'Invoice',
+      ];
+      const headerResp = await sheets.spreadsheets.values.get({
+        spreadsheetId: fileId,
+        range: 'Project Overview!A1:L20',
+      });
+      const headerRows = headerResp.data.values || [];
+      const isHeaderRow = (row: any[]): boolean =>
+        headerTitles.every((title, idx) => (row[idx] || '').toString().trim() === title);
+      let headerRowIndex = headerRows.findIndex(isHeaderRow);
+      if (headerRowIndex === -1) {
+        headerRowIndex = 4; // Default to row 5 if not found
+      }
+      const dataStartRow = headerRowIndex + 2;
+
+      // 2. Fetch table data below the header
+      const range = `Project Overview!A${dataStartRow}:L`;
       console.log('[API POST] Fetching range:', range);
       const valueResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: fileId,
@@ -75,11 +103,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const rows = valueResponse.data.values || [];
       console.log('[API POST] Existing rows count:', rows.length);
 
-      // 2. Fetch sheet metadata (including banding info)
+      // 3. Fetch sheet metadata for row count
       console.log('[API POST] Fetching sheet metadata for fileId:', fileId);
       const sheetMeta = await sheets.spreadsheets.get({
         spreadsheetId: fileId,
-        fields: 'sheets.properties,sheets.bandedRanges',
+        fields: 'sheets.properties',
       });
       console.log('[API POST] Sheet metadata:', JSON.stringify(sheetMeta.data, null, 2));
       const sheet = sheetMeta.data.sheets?.find(s => s.properties?.title === 'Project Overview');
@@ -90,8 +118,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const totalRows = sheet.properties.gridProperties?.rowCount || 0;
       console.log('[API POST] Total rows in sheet:', totalRows);
 
-      // 3. Determine where to insert the new row.
-      // Look for the "total" row and the first empty project row
+      // 3. Determine where to insert the new row. Search for the total row and the first empty row
       const isProjectRowEmpty = (row: any[]): boolean => {
         const idx = [0, 1, 3, 4, 5, 6, 7];
         return idx.every(i => !row[i] || String(row[i]).trim() === '');
@@ -107,139 +134,115 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           emptyRowIndex = i;
         }
       });
-      let insertRowIndex: number;
+
+      let writeRowIndex = dataStartRow + rows.length;
+      let needsInsert = true;
       if (emptyRowIndex !== -1 && (totalRowIndex === -1 || emptyRowIndex < totalRowIndex)) {
-        // Use the first empty row found before the total row
-        insertRowIndex = emptyRowIndex + 6;
+        // Use the first empty row before the total row
+        writeRowIndex = dataStartRow + emptyRowIndex;
+        needsInsert = false;
       } else if (totalRowIndex !== -1) {
         // Insert directly above the total row
-        insertRowIndex = totalRowIndex + 6;
-      } else {
-        // Otherwise append after the last row we fetched
-        insertRowIndex = rows.length + 6;
+        writeRowIndex = dataStartRow + totalRowIndex;
+        needsInsert = true;
       }
-      console.log('[API POST] Insert row at index:', insertRowIndex);
+      console.log('[API POST] Write row index:', writeRowIndex, 'needsInsert:', needsInsert);
 
-      // 4. Define the new table’s last row and the new total row position.
-      const newTableEndRow = insertRowIndex;
-      const totalRowNewIndex = newTableEndRow + 1;
-
-      // 5. Ensure the sheet has enough rows for the new total row
-      if (totalRowNewIndex > totalRows) {
+      // 4. Ensure the sheet has enough rows
+      const currentRowCount = sheet.properties?.gridProperties?.rowCount || 0;
+      if (writeRowIndex > currentRowCount) {
         await sheets.spreadsheets.batchUpdate({
           spreadsheetId: fileId,
           requestBody: {
-            requests: [{
-              appendDimension: {
-                sheetId,
-                dimension: 'ROWS',
-                length: totalRowNewIndex - totalRows,
+            requests: [
+              {
+                appendDimension: {
+                  sheetId,
+                  dimension: 'ROWS',
+                  length: writeRowIndex - currentRowCount,
+                },
               },
-            }],
+            ],
           },
         });
-        console.log('[API POST] Appended rows to sheet:', totalRowNewIndex - totalRows);
+        console.log('[API POST] Appended rows to sheet:', writeRowIndex - currentRowCount);
       }
 
-      // 6. Insert the new row and copy formatting from the row above it.
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: fileId,
-        requestBody: {
-          requests: [
-            {
-              insertRange: {
-                range: {
-                  sheetId,
-                  startRowIndex: insertRowIndex - 1, // New row inserted here (e.g. A11)
-                  endRowIndex: insertRowIndex,
-                  startColumnIndex: 0,
-                  endColumnIndex: 12,
-                },
-                shiftDimension: 'ROWS',
-              },
-            },
-            {
-              copyPaste: {
-                source: {
-                  sheetId,
-                  startRowIndex: insertRowIndex - 2, // Copy formatting from the row above (e.g. A10)
-                  endRowIndex: insertRowIndex - 1,
-                  startColumnIndex: 0,
-                  endColumnIndex: 12,
-                },
-                destination: {
-                  sheetId,
-                  startRowIndex: insertRowIndex - 1, // Paste into the new row (e.g. A11)
-                  endRowIndex: insertRowIndex,
-                  startColumnIndex: 0,
-                  endColumnIndex: 12,
-                },
-                pasteType: 'PASTE_FORMAT',
-              },
-            },
-          ],
-        },
-      });
-      console.log('[API POST] Inserted new row and copied formatting at row:', insertRowIndex);
-
-      // 7. Delete all existing banding (alternating color formatting) to clear any conflict.
-      if (sheet.bandedRanges && sheet.bandedRanges.length > 0) {
-        const deleteRequests = sheet.bandedRanges.map(banding => ({
-          deleteBanding: { bandedRangeId: banding.bandedRangeId }
-        }));
+      // 5. Insert a new row if required and copy formatting from the row above
+      if (needsInsert) {
         await sheets.spreadsheets.batchUpdate({
           spreadsheetId: fileId,
-          requestBody: { requests: deleteRequests },
-        });
-        console.log('[API POST] Deleted existing banding ranges.');
-      }
-
-      // Re-fetch metadata to verify all banding has been removed and clean up any leftovers
-      const metaAfterDelete = await sheets.spreadsheets.get({
-        spreadsheetId: fileId,
-        fields: 'sheets.properties,sheets.bandedRanges',
-      });
-      const updatedSheet = metaAfterDelete.data.sheets?.find(
-        s => s.properties?.sheetId === sheetId
-      );
-      if (updatedSheet?.bandedRanges?.length) {
-        const cleanupRequests = updatedSheet.bandedRanges.map(banding => ({
-          deleteBanding: { bandedRangeId: banding.bandedRangeId }
-        }));
-        await sheets.spreadsheets.batchUpdate({
-          spreadsheetId: fileId,
-          requestBody: { requests: cleanupRequests },
-        });
-        console.log('[API POST] Cleaned up remaining banding ranges.');
-      }
-
-      // 8. Add new banding to cover the updated table range.
-      // Our table range here is assumed to start at row 5 (header) and extend down to newTableEndRow.
-      const bandingRequest = {
-        addBanding: {
-          bandedRange: {
-            range: {
-              sheetId,
-              startRowIndex: 5, // Header row is at A5; data from A6 downward.
-              endRowIndex: newTableEndRow, // New table data ends here (exclusive, so covers up to row newTableEndRow-1)
-              startColumnIndex: 0,
-              endColumnIndex: 12,
-            },
-            rowProperties: {
-              firstBandColor: { red: 1, green: 1, blue: 1 }, // white
-              secondBandColor: { red: 0.9647059, green: 0.972549, blue: 0.9764706 } // light gray
-            },
+          requestBody: {
+            requests: [
+              {
+                insertRange: {
+                  range: {
+                    sheetId,
+                    startRowIndex: writeRowIndex - 1,
+                    endRowIndex: writeRowIndex,
+                    startColumnIndex: 0,
+                    endColumnIndex: 12,
+                  },
+                  shiftDimension: 'ROWS',
+                },
+              },
+              {
+                copyPaste: {
+                  source: {
+                    sheetId,
+                    startRowIndex: writeRowIndex - 2,
+                    endRowIndex: writeRowIndex - 1,
+                    startColumnIndex: 0,
+                    endColumnIndex: 12,
+                  },
+                  destination: {
+                    sheetId,
+                    startRowIndex: writeRowIndex - 1,
+                    endRowIndex: writeRowIndex,
+                    startColumnIndex: 0,
+                    endColumnIndex: 12,
+                  },
+                  pasteType: 'PASTE_FORMAT',
+                },
+              },
+            ],
           },
-        },
-      };
-      console.log('[API POST] Banding request (addBanding):', JSON.stringify(bandingRequest, null, 2));
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: fileId,
-        requestBody: { requests: [bandingRequest] },
-      });
-      console.log('[API POST] Added new banding for table.');
+        });
+        console.log('[API POST] Inserted new row at:', writeRowIndex);
+      } else {
+        // If reusing an empty row, ensure formatting matches the row above
+        if (writeRowIndex > dataStartRow) {
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: fileId,
+            requestBody: {
+              requests: [
+                {
+                  copyPaste: {
+                    source: {
+                      sheetId,
+                      startRowIndex: writeRowIndex - 2,
+                      endRowIndex: writeRowIndex - 1,
+                      startColumnIndex: 0,
+                      endColumnIndex: 12,
+                    },
+                    destination: {
+                      sheetId,
+                      startRowIndex: writeRowIndex - 1,
+                      endRowIndex: writeRowIndex,
+                      startColumnIndex: 0,
+                      endColumnIndex: 12,
+                    },
+                    pasteType: 'PASTE_FORMAT',
+                  },
+                },
+              ],
+            },
+          });
+          console.log('[API POST] Applied formatting to existing empty row:', writeRowIndex);
+        }
+      }
 
-      // 9. Update the new row with the project data.
+      // 6. Update the new row with the project data.
       const rowValues = [
         projectData.projectNumber,
         projectData.projectDate,
@@ -254,24 +257,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         projectData.bankAccountIdentifier,
         projectData.invoice,
       ];
-      const updateDataRange = `Project Overview!A${insertRowIndex}:L${insertRowIndex}`;
+      const updateDataRange = `Project Overview!A${writeRowIndex}:L${writeRowIndex}`;
       console.log('[API POST] Updating range:', updateDataRange, 'with values:', rowValues);
       await sheets.spreadsheets.values.update({
         spreadsheetId: fileId,
         range: updateDataRange,
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: [rowValues] },
-      });
-
-      // 10. Update the "total" row's formula in column G (e.g. G12 becomes =SUM(G6:G11))
-      const totalFormula = `=SUM(H6:H${newTableEndRow})`;
-      const totalUpdateRange = `Project Overview!H${totalRowNewIndex}`;
-      console.log('[API POST] Updating total formula at:', totalUpdateRange, 'to:', totalFormula);
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: fileId,
-        range: totalUpdateRange,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [[totalFormula]] },
       });
 
       // 11. Verify that the new row was updated correctly.
