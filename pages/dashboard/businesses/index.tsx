@@ -1,17 +1,15 @@
 // pages/dashboard/businesses/index.tsx
 
 import { GetServerSideProps } from 'next';
-import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../../components/SidebarLayout';
-import { initializeApis } from '../../../lib/googleApi';
-import { listProjectOverviewFiles } from '../../../lib/projectOverview';
+import { fetchReferenceMapping, listCompanyYears } from '../../../lib/firestoreProjects';
 import { useRouter } from 'next/router';
 import { Box, Typography, List, ListItem, ListItemText, Button } from '@mui/material';
 
 interface BusinessFile {
   companyIdentifier: string;
   fullCompanyName: string;
-  file: { id: string; name: string };
+  year: string;
 }
 
 interface BusinessesPageProps {
@@ -24,8 +22,8 @@ export default function BusinessesPage({ projectsByCategory }: BusinessesPagePro
   // Flatten the grouped projects into a single array.
   // (The original code grouped them by subsidiary code; now we sort them alphabetically by fullCompanyName.)
   const files: BusinessFile[] = [];
-  for (const key in projectsByCategory) {
-    projectsByCategory[key].forEach((file) => files.push(file));
+  for (const year in projectsByCategory) {
+    projectsByCategory[year].forEach((file) => files.push(file));
   }
   files.sort((a, b) => a.fullCompanyName.localeCompare(b.fullCompanyName));
 
@@ -44,11 +42,11 @@ export default function BusinessesPage({ projectsByCategory }: BusinessesPagePro
       <List>
         {files.map((file) => (
           <ListItem
-            key={file.file.id}
+            key={`${file.companyIdentifier}-${file.year}`}
             button
-            onClick={() => router.push(`/dashboard/businesses/${file.file.id}`)}
+            onClick={() => router.push(`/dashboard/businesses/${file.companyIdentifier}-${file.year}`)}
           >
-            <ListItemText primary={file.fullCompanyName} secondary={file.file.name} />
+            <ListItemText primary={file.fullCompanyName} secondary={file.year} />
           </ListItem>
         ))}
       </List>
@@ -56,15 +54,20 @@ export default function BusinessesPage({ projectsByCategory }: BusinessesPagePro
   );
 }
 
-export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async (ctx) => {
-  const session = await getSession(ctx);
-  if (!session?.accessToken) {
-    return { redirect: { destination: '/api/auth/signin', permanent: false } };
+export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async () => {
+  const referenceMapping = await fetchReferenceMapping();
+  const projectsByCategory: Record<string, BusinessFile[]> = {};
+  for (const [code, name] of Object.entries(referenceMapping)) {
+    const years = await listCompanyYears(code);
+    years.forEach(year => {
+      if (!projectsByCategory[year]) projectsByCategory[year] = [];
+      projectsByCategory[year].push({
+        companyIdentifier: code,
+        fullCompanyName: name,
+        year,
+      });
+    });
   }
-  const { initializeApis } = await import('../../../lib/googleApi');
-  const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
-  // Get the grouped project files using your existing sorting utility
-  const projectsByCategory = await listProjectOverviewFiles(drive, []);
   return {
     props: {
       projectsByCategory,
