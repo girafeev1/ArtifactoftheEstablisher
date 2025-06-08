@@ -1,6 +1,17 @@
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from './firebase'
 
+// Dynamically import the Firebase Admin SDK when running on the server
+let adminDb: import('firebase-admin/firestore').Firestore | null = null
+if (typeof window === 'undefined') {
+  try {
+    const admin = require('./server/firebaseAdmin') as typeof import('./server/firebaseAdmin')
+    adminDb = admin.adminDb
+  } catch (err) {
+    console.error('[firestoreSubsidiaries] Failed to load firebase-admin', err)
+  }
+}
+
 export interface SubsidiaryData {
   identifier: string
   englishName: string
@@ -21,7 +32,12 @@ export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
     collection: 'Subsidiaries',
   })
   try {
-    const snap = await getDocs(collection(db, 'Subsidiaries'))
+    let snap: any
+    if (adminDb) {
+      snap = await adminDb.collection('Subsidiaries').get()
+    } else {
+      snap = await getDocs(collection(db, 'Subsidiaries'))
+    }
     console.log('[fetchSubsidiaries] Retrieved', snap.size, 'documents')
     return snap.docs.map(d => {
       const data = d.data() as any
