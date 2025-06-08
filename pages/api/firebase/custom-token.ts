@@ -1,12 +1,13 @@
 // pages/api/firebase/custom-token.ts
 import { NextApiRequest, NextApiResponse } from 'next'
-import { getSession } from 'next-auth/react'
+import { getServerSession } from 'next-auth/next'
+import { getAuthOptions } from '../auth/[...nextauth]'
 import { OAuth2Client } from 'google-auth-library'
 import { adminAuth } from '../../../lib/server/firebaseAdmin'
 import { loadSecrets } from '../../../lib/server/secretManager'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getSession({ req })
+  const session = await getServerSession(req, res, await getAuthOptions())
   const idToken = (session as any)?.idToken as string | undefined
   if (!idToken) {
     return res.status(401).json({ error: 'Missing id token' })
