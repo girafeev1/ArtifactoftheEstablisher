@@ -1,11 +1,18 @@
 // pages/_app.tsx
-import { SessionProvider } from 'next-auth/react';
+import { SessionProvider, useSession } from 'next-auth/react';
 import { SnackbarProvider } from 'notistack';
 import type { AppProps } from 'next/app';
+import { useFirebaseAuth } from '../lib/hooks/useFirebaseAuth';
+
+function FirebaseAuthInit() {
+  useFirebaseAuth();
+  return null;
+}
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <SessionProvider session={pageProps.session}>
+      <FirebaseAuthInit />
       <SnackbarProvider maxSnack={3}>
         <Component {...pageProps} />
       </SnackbarProvider>
