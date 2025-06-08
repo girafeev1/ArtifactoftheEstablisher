@@ -11,6 +11,7 @@ import {
   mapSubsidiaryNames,
   resolveSubsidiaryName,
 } from '../../../lib/firestoreSubsidiaries';
+import { waitForAuth } from '../../../lib/waitForAuth';
 import { initializeApis } from '../../../lib/googleApi';
 import { fetchProjectRows, listProjectOverviewFiles, ProjectRow } from '../../../lib/projectOverview';
 import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button, FormControl, InputLabel, Select, MenuItem, ToggleButton, ToggleButtonGroup } from '@mui/material';
@@ -84,7 +85,8 @@ export default function SingleFilePage({
 
   const [mapping, setMapping] = useState(referenceMapping);
   useEffect(() => {
-    fetchSubsidiaries()
+    waitForAuth()
+      .then(() => fetchSubsidiaries())
       .then((subs) => setMapping(mapSubsidiaryNames(subs)))
       .catch((err) => console.error('[SingleFilePage] Failed to fetch subsidiaries', err));
   }, []);

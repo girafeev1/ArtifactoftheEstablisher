@@ -11,6 +11,7 @@ import {
   mapSubsidiaryNames,
   resolveSubsidiaryName,
 } from '../../../lib/firestoreSubsidiaries';
+import { waitForAuth } from '../../../lib/waitForAuth';
 import { useRouter } from 'next/router';
 import { Box, Typography, List, ListItem, ListItemText, Button } from '@mui/material';
 
@@ -30,7 +31,8 @@ export default function BusinessesPage({ projectsByCategory, referenceMapping }:
   const [mapping, setMapping] = useState(referenceMapping);
 
   useEffect(() => {
-    fetchSubsidiaries()
+    waitForAuth()
+      .then(() => fetchSubsidiaries())
       .then((subs) => {
         setMapping(mapSubsidiaryNames(subs));
       })
