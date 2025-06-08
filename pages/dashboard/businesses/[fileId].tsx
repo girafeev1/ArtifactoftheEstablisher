@@ -82,6 +82,13 @@ export default function SingleFilePage({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<SingleProjectData | null>(null);
 
+  const [mapping, setMapping] = useState(referenceMapping);
+  useEffect(() => {
+    fetchSubsidiaries()
+      .then((subs) => setMapping(mapSubsidiaryNames(subs)))
+      .catch((err) => console.error('[SingleFilePage] Failed to fetch subsidiaries', err));
+  }, []);
+
   // Sorting page state
   const [sortMethod, setSortMethod] = useState<'year' | 'company'>('year');
   const [selectedYear, setSelectedYear] = useState<string>('');
@@ -95,10 +102,10 @@ export default function SingleFilePage({
           fileId: item.file.id!,
           year,
           companyIdentifier: item.companyIdentifier,
-          fullCompanyName: resolveSubsidiaryName(item.companyIdentifier, referenceMapping),
+          fullCompanyName: resolveSubsidiaryName(item.companyIdentifier, mapping),
         }))
       );
-  }, [projectsByCategory, referenceMapping]);
+  }, [projectsByCategory, mapping]);
 
   const uniqueYears = useMemo(() => {
     return Array.from(new Set(allFiles.map(f => f.year))).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
@@ -311,16 +318,6 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
     const pmsRefLogId = await findPMSReferenceLogFile(drive);
-    console.log('[FileView] Fetching subsidiaries for mapping');
-    const subsidiaries = await fetchSubsidiaries();
-    console.log('[FileView] Subsidiaries fetched:', subsidiaries.length);
-    const referenceMapping = mapSubsidiaryNames(subsidiaries);
-    for (const year in projectsByCategory) {
-      projectsByCategory[year] = projectsByCategory[year].map(file => ({
-        ...file,
-        fullCompanyName: resolveSubsidiaryName(file.companyIdentifier, referenceMapping),
-      }));
-    }
 
     if (!fileId || fileId === 'select') {
       return {
@@ -334,7 +331,7 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
           bankAccounts: [],
           subsidiaryInfo: null,
           projectsByCategory,
-          referenceMapping,
+          referenceMapping: {},
         },
       };
     }
@@ -359,7 +356,7 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
           bankAccounts: [],
           subsidiaryInfo: null,
           projectsByCategory,
-          referenceMapping,
+          referenceMapping: {},
           error: 'Invalid file ID, please select a project file',
         },
       };
@@ -375,12 +372,12 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
       shortCode = match[2];
     }
 
-    const fullCompanyName = resolveSubsidiaryName(shortCode, referenceMapping);
+    const fullCompanyName = shortCode;
     const projects = await fetchProjectRows(sheets, fileId, 6);
     const addressBook = await fetchAddressBook(sheets, pmsRefLogId);
     const clients = addressBook.map((c) => ({ companyName: c.companyName }));
     const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogId);
-    const subsidiaryInfo = subsidiaries.find((r) => r.identifier === shortCode) || null;
+    const subsidiaryInfo = null;
 
     return {
       props: {
@@ -393,23 +390,14 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
         bankAccounts,
         subsidiaryInfo,
         projectsByCategory,
-        referenceMapping,
+        referenceMapping: {},
       },
     };
   } catch (err: any) {
     console.error('[getServerSideProps fileId] error:', err);
     const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
-    console.log('[FileView] Fetching subsidiaries after error');
-    const subsidiaries = await fetchSubsidiaries();
-    console.log('[FileView] Subsidiaries fetched:', subsidiaries.length);
-    const referenceMapping = mapSubsidiaryNames(subsidiaries);
-    for (const year in projectsByCategory) {
-      projectsByCategory[year] = projectsByCategory[year].map(file => ({
-        ...file,
-        fullCompanyName: resolveSubsidiaryName(file.companyIdentifier, referenceMapping),
-      }));
-    }
+
     return {
       props: {
         fileId: 'select',
@@ -422,7 +410,7 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
         subsidiaryInfo: null,
         error: err.message || 'Error retrieving file data',
         projectsByCategory,
-        referenceMapping,
+        referenceMapping: {},
       },
     };
   }

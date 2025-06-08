@@ -2,9 +2,6 @@
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from './firebase'
 
-// Will hold the Admin Firestore instance when running server-side
-let adminDb: import('firebase-admin/firestore').Firestore | null = null
-
 export interface SubsidiaryData {
   identifier: string
   englishName: string
@@ -24,27 +21,9 @@ export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
     database: 'aote-ref',
     collection: 'Subsidiaries',
   })
-  if (typeof window === 'undefined' && !adminDb) {
-    try {
-      const admin = require('./server/firebaseAdmin') as typeof import('./server/firebaseAdmin')
-      adminDb = admin.adminDb
-      console.log('[fetchSubsidiaries] Loaded adminDb')
-    } catch (err) {
-      console.error('[fetchSubsidiaries] Failed to load firebase-admin', err)
-    }
-    if (!adminDb) {
-      console.warn('[fetchSubsidiaries] adminDb not initialized; using client Firestore')
-    }
-  }
   try {
-    let snap: any
-    if (adminDb) {
-      console.log('[fetchSubsidiaries] Using adminDb for query')
-      snap = await adminDb.collection('Subsidiaries').get()
-    } else {
-      console.log('[fetchSubsidiaries] Using client Firestore for query')
-      snap = await getDocs(collection(db, 'Subsidiaries'))
-    }
+    console.log('[fetchSubsidiaries] Using client Firestore for query')
+    const snap = await getDocs(collection(db, 'Subsidiaries'))
     console.log('[fetchSubsidiaries] Retrieved', snap.size, 'documents')
     return snap.docs.map(d => {
       const data = d.data() as any

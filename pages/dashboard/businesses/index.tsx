@@ -2,6 +2,7 @@
 
 import { GetServerSideProps } from 'next';
 import { getSession } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 import SidebarLayout from '../../../components/SidebarLayout';
 import { initializeApis } from '../../../lib/googleApi';
 import { listProjectOverviewFiles } from '../../../lib/projectOverview';
@@ -26,6 +27,17 @@ interface BusinessesPageProps {
 
 export default function BusinessesPage({ projectsByCategory, referenceMapping }: BusinessesPageProps) {
   const router = useRouter();
+  const [mapping, setMapping] = useState(referenceMapping);
+
+  useEffect(() => {
+    fetchSubsidiaries()
+      .then((subs) => {
+        setMapping(mapSubsidiaryNames(subs));
+      })
+      .catch((err) => {
+        console.error('[BusinessesPage] Failed to fetch subsidiaries', err);
+      });
+  }, []);
 
   // Flatten the grouped projects into a single array and sort them by the mapped English name.
   const files: BusinessFile[] = [];
@@ -33,8 +45,8 @@ export default function BusinessesPage({ projectsByCategory, referenceMapping }:
     projectsByCategory[key].forEach((file) => files.push(file));
   }
   files.sort((a, b) =>
-    resolveSubsidiaryName(a.companyIdentifier, referenceMapping).localeCompare(
-      resolveSubsidiaryName(b.companyIdentifier, referenceMapping)
+    resolveSubsidiaryName(a.companyIdentifier, mapping).localeCompare(
+      resolveSubsidiaryName(b.companyIdentifier, mapping)
     )
   );
 
@@ -58,7 +70,7 @@ export default function BusinessesPage({ projectsByCategory, referenceMapping }:
             onClick={() => router.push(`/dashboard/businesses/${file.file.id}`)}
           >
             <ListItemText
-              primary={resolveSubsidiaryName(file.companyIdentifier, referenceMapping)}
+              primary={resolveSubsidiaryName(file.companyIdentifier, mapping)}
               secondary={file.file.name}
             />
           </ListItem>
@@ -77,20 +89,10 @@ export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async
   const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
   // Get the grouped project files using your existing sorting utility
   const projectsByCategory = await listProjectOverviewFiles(drive, []);
-  console.log('[BusinessesPage] Fetching subsidiaries for mapping');
-  const subsidiaries = await fetchSubsidiaries();
-  console.log('[BusinessesPage] Subsidiaries fetched:', subsidiaries.length);
-  const referenceMapping = mapSubsidiaryNames(subsidiaries);
-  for (const year in projectsByCategory) {
-    projectsByCategory[year] = projectsByCategory[year].map(file => ({
-      ...file,
-      fullCompanyName: resolveSubsidiaryName(file.companyIdentifier, referenceMapping),
-    }));
-  }
   return {
     props: {
       projectsByCategory,
-      referenceMapping,
+      referenceMapping: {},
     },
   };
 };
