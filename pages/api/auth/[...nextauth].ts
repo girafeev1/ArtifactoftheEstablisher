@@ -9,7 +9,7 @@ let dynamicAuthOptions: NextAuthOptions | null = null;
 /**
  * Helper to refresh Google OAuth tokens if they're expired.
  */
-async function refreshAccessToken(token: any, secrets: Record<string, string>) {
+export async function refreshAccessToken(token: any, secrets: Record<string, string>) {
   console.log('Attempting to refresh access token...');
   try {
     const url = 'https://oauth2.googleapis.com/token';

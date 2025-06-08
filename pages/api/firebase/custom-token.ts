@@ -1,33 +1,44 @@
 // pages/api/firebase/custom-token.ts
 import { NextApiRequest, NextApiResponse } from 'next'
-import { getServerSession } from 'next-auth/next'
-import { getAuthOptions } from '../auth/[...nextauth]'
+import { getToken } from 'next-auth/jwt'
+import { getAuthOptions, refreshAccessToken } from '../auth/[...nextauth]'
 import { OAuth2Client } from 'google-auth-library'
 import { adminAuth } from '../../../lib/server/firebaseAdmin'
 import { loadSecrets } from '../../../lib/server/secretManager'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, await getAuthOptions())
-  const idToken = (session as any)?.idToken as string | undefined
-  if (!idToken) {
+  const options = await getAuthOptions()
+  const token = await getToken({ req, secret: options.secret }) as any
+  if (!token?.idToken) {
     return res.status(401).json({ error: 'Missing id token' })
   }
+  const { secrets } = await loadSecrets()
+  let currentToken = token
+  let idToken = token.idToken as string
+  let ticket
   try {
-    // Verify the Google ID token against the OAuth client ID
-    const { secrets } = await loadSecrets()
     const client = new OAuth2Client(secrets.OAUTH_CLIENT_ID)
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: secrets.OAUTH_CLIENT_ID,
-    })
-    const payload = ticket.getPayload()
-    const uid = payload?.sub
-    if (!uid) throw new Error('Invalid Google ID token')
-
-    const customToken = await adminAuth.createCustomToken(uid)
-    res.status(200).json({ customToken })
+    ticket = await client.verifyIdToken({ idToken, audience: secrets.OAUTH_CLIENT_ID })
   } catch (err) {
-    console.error('[custom-token] error', err)
-    res.status(500).json({ error: 'Failed to create custom token' })
+    console.warn('[custom-token] verify failed, attempting refresh', err)
+    if (token.refreshToken) {
+      currentToken = await refreshAccessToken(token, secrets)
+      idToken = currentToken.idToken as string
+      const client = new OAuth2Client(secrets.OAUTH_CLIENT_ID)
+      ticket = await client.verifyIdToken({ idToken, audience: secrets.OAUTH_CLIENT_ID })
+    } else {
+      console.error('[custom-token] No refresh token available')
+      return res.status(401).json({ error: 'Invalid id token and no refresh token' })
+    }
   }
+
+  const payload = ticket.getPayload()
+  const uid = payload?.sub
+  if (!uid) {
+    console.error('[custom-token] Invalid Google ID token payload')
+    return res.status(500).json({ error: 'Invalid id token payload' })
+  }
+
+  const customToken = await adminAuth.createCustomToken(uid)
+  res.status(200).json({ customToken })
 }
