@@ -35,8 +35,10 @@ export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
   try {
     let snap: any
     if (adminDb) {
+      console.log('[fetchSubsidiaries] Using adminDb for query')
       snap = await adminDb.collection('Subsidiaries').get()
     } else {
+      console.log('[fetchSubsidiaries] Using client Firestore for query')
       snap = await getDocs(collection(db, 'Subsidiaries'))
     }
     console.log('[fetchSubsidiaries] Retrieved', snap.size, 'documents')
