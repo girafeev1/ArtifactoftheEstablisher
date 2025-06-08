@@ -1,6 +1,18 @@
 // lib/firestoreSubsidiaries.ts
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from './firebase'
+import type { Firestore } from 'firebase-admin/firestore'
+
+let adminDb: Firestore | null = null
+if (typeof window === 'undefined') {
+  try {
+    const admin = require('./server/firebaseAdmin') as typeof import('./server/firebaseAdmin')
+    adminDb = admin.adminDb
+    console.log('[firestoreSubsidiaries] Loaded adminDb')
+  } catch (err) {
+    console.warn('[firestoreSubsidiaries] Failed to load firebase-admin', err)
+  }
+}
 
 export interface SubsidiaryData {
   identifier: string
@@ -22,8 +34,14 @@ export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
     collection: 'Subsidiaries',
   })
   try {
-    console.log('[fetchSubsidiaries] Using client Firestore for query')
-    const snap = await getDocs(collection(db, 'Subsidiaries'))
+    let snap: any
+    if (adminDb) {
+      console.log('[fetchSubsidiaries] Using adminDb for query')
+      snap = await adminDb.collection('Subsidiaries').get()
+    } else {
+      console.log('[fetchSubsidiaries] Using client Firestore for query')
+      snap = await getDocs(collection(db, 'Subsidiaries'))
+    }
     console.log('[fetchSubsidiaries] Retrieved', snap.size, 'documents')
     return snap.docs.map(d => {
       const data = d.data() as any

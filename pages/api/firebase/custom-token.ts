@@ -33,6 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const payload = ticket.getPayload()
+  console.log('[custom-token] token timestamps', { iat: payload?.iat, exp: payload?.exp })
   const uid = payload?.sub
   if (!uid) {
     console.error('[custom-token] Invalid Google ID token payload')
