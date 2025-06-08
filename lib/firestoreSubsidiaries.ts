@@ -15,7 +15,11 @@ export interface SubsidiaryData {
 }
 
 export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
-  console.log('[fetchSubsidiaries] Fetching subsidiaries from Firestore')
+  console.log('[fetchSubsidiaries] Fetching subsidiaries from Firestore', {
+    projectId: db.app.options.projectId,
+    database: 'aote-ref',
+    collection: 'Subsidiaries',
+  })
   try {
     const snap = await getDocs(collection(db, 'Subsidiaries'))
     console.log('[fetchSubsidiaries] Retrieved', snap.size, 'documents')
@@ -36,6 +40,9 @@ export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
     })
   } catch (err) {
     console.error('[fetchSubsidiaries] Error fetching documents', err)
+    if ((err as any)?.code === 'permission-denied') {
+      console.error('[fetchSubsidiaries] Permission denied when accessing Firestore')
+    }
     throw err
   }
 }
