@@ -2,19 +2,8 @@
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from './firebase'
 
-// Dynamically import the Firebase Admin SDK when running on the server
+// Will hold the Admin Firestore instance when running server-side
 let adminDb: import('firebase-admin/firestore').Firestore | null = null
-if (typeof window === 'undefined') {
-  try {
-    const admin = require('./server/firebaseAdmin') as typeof import('./server/firebaseAdmin')
-    adminDb = admin.adminDb
-  } catch (err) {
-    console.error('[firestoreSubsidiaries] Failed to load firebase-admin', err)
-  }
-  if (!adminDb) {
-    console.warn('[firestoreSubsidiaries] adminDb not initialized; using client Firestore')
-  }
-}
 
 export interface SubsidiaryData {
   identifier: string
@@ -35,6 +24,18 @@ export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
     database: 'aote-ref',
     collection: 'Subsidiaries',
   })
+  if (typeof window === 'undefined' && !adminDb) {
+    try {
+      const admin = require('./server/firebaseAdmin') as typeof import('./server/firebaseAdmin')
+      adminDb = admin.adminDb
+      console.log('[fetchSubsidiaries] Loaded adminDb')
+    } catch (err) {
+      console.error('[fetchSubsidiaries] Failed to load firebase-admin', err)
+    }
+    if (!adminDb) {
+      console.warn('[fetchSubsidiaries] adminDb not initialized; using client Firestore')
+    }
+  }
   try {
     let snap: any
     if (adminDb) {
