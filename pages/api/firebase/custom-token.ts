@@ -1,3 +1,4 @@
+// pages/api/firebase/custom-token.ts
 import { NextApiRequest, NextApiResponse } from 'next'
 import { getSession } from 'next-auth/react'
 import { OAuth2Client } from 'google-auth-library'

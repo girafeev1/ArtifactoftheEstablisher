@@ -1,3 +1,4 @@
+// lib/hooks/useFirebaseAuth.ts
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { signInWithCustomToken } from 'firebase/auth'
