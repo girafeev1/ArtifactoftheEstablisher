@@ -18,7 +18,8 @@ const app = !getApps().length
   ? initializeApp(firebaseConfig)
   : getApp()
 
-export const db = getFirestore(app)
+// Connect to the "aote-ref" Firestore database within the aote-pms project
+export const db = getFirestore(app, 'aote-ref')
 // after you create/export `db`...
 if (typeof window !== 'undefined') {
   // @ts-ignore

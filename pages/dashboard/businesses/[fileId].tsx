@@ -5,7 +5,12 @@ import { getSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import React, { useState, useMemo, useEffect } from 'react';
 import SidebarLayout from '../../../components/SidebarLayout';
-import { findPMSReferenceLogFile, fetchReferenceNames, fetchAddressBook, fetchBankAccounts, fetchSubsidiaryData } from '../../../lib/pmsReference';
+import { findPMSReferenceLogFile, fetchAddressBook, fetchBankAccounts } from '../../../lib/pmsReference';
+import {
+  fetchSubsidiaries,
+  mapSubsidiaryNames,
+  resolveSubsidiaryName,
+} from '../../../lib/firestoreSubsidiaries';
 import { initializeApis } from '../../../lib/googleApi';
 import { fetchProjectRows, listProjectOverviewFiles, ProjectRow } from '../../../lib/projectOverview';
 import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button, FormControl, InputLabel, Select, MenuItem, ToggleButton, ToggleButtonGroup } from '@mui/material';
@@ -90,7 +95,7 @@ export default function SingleFilePage({
           fileId: item.file.id!,
           year,
           companyIdentifier: item.companyIdentifier,
-          fullCompanyName: referenceMapping[item.companyIdentifier] || item.companyIdentifier,
+          fullCompanyName: resolveSubsidiaryName(item.companyIdentifier, referenceMapping),
         }))
       );
   }, [projectsByCategory, referenceMapping]);
@@ -306,7 +311,16 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
     const pmsRefLogId = await findPMSReferenceLogFile(drive);
-    const referenceMapping = await fetchReferenceNames(sheets, pmsRefLogId);
+    console.log('[FileView] Fetching subsidiaries for mapping');
+    const subsidiaries = await fetchSubsidiaries();
+    console.log('[FileView] Subsidiaries fetched:', subsidiaries.length);
+    const referenceMapping = mapSubsidiaryNames(subsidiaries);
+    for (const year in projectsByCategory) {
+      projectsByCategory[year] = projectsByCategory[year].map(file => ({
+        ...file,
+        fullCompanyName: resolveSubsidiaryName(file.companyIdentifier, referenceMapping),
+      }));
+    }
 
     if (!fileId || fileId === 'select') {
       return {
@@ -361,13 +375,12 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
       shortCode = match[2];
     }
 
-    const fullCompanyName = referenceMapping[shortCode] || shortCode;
+    const fullCompanyName = resolveSubsidiaryName(shortCode, referenceMapping);
     const projects = await fetchProjectRows(sheets, fileId, 6);
     const addressBook = await fetchAddressBook(sheets, pmsRefLogId);
     const clients = addressBook.map((c) => ({ companyName: c.companyName }));
     const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogId);
-    const allSubsidiaries = await fetchSubsidiaryData(sheets, pmsRefLogId);
-    const subsidiaryInfo = allSubsidiaries.find((r) => r.identifier === shortCode) || null;
+    const subsidiaryInfo = subsidiaries.find((r) => r.identifier === shortCode) || null;
 
     return {
       props: {
@@ -387,8 +400,16 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     console.error('[getServerSideProps fileId] error:', err);
     const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
-    const pmsRefLogId = await findPMSReferenceLogFile(drive);
-    const referenceMapping = await fetchReferenceNames(sheets, pmsRefLogId);
+    console.log('[FileView] Fetching subsidiaries after error');
+    const subsidiaries = await fetchSubsidiaries();
+    console.log('[FileView] Subsidiaries fetched:', subsidiaries.length);
+    const referenceMapping = mapSubsidiaryNames(subsidiaries);
+    for (const year in projectsByCategory) {
+      projectsByCategory[year] = projectsByCategory[year].map(file => ({
+        ...file,
+        fullCompanyName: resolveSubsidiaryName(file.companyIdentifier, referenceMapping),
+      }));
+    }
     return {
       props: {
         fileId: 'select',
