@@ -41,6 +41,8 @@ async function refreshAccessToken(token: any, secrets: Record<string, string>) {
       accessToken: refreshedTokens.access_token,
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+      // include new id_token if provided so Firebase custom token flow works
+      idToken: refreshedTokens.id_token ?? token.idToken,
     };
   } catch (error) {
     console.error('Error refreshing access token:', error);
