@@ -91,6 +91,7 @@ async function getDynamicAuthOptions(): Promise<NextAuthOptions> {
             ...token,
             accessToken: account.access_token,
             refreshToken: account.refresh_token,
+            idToken: account.id_token,
             accessTokenExpires: account.expires_at
               ? account.expires_at * 1000
               : undefined,
@@ -114,6 +115,11 @@ async function getDynamicAuthOptions(): Promise<NextAuthOptions> {
         if (token) {
           session.accessToken = token.accessToken;
           session.user = token.user;
+          // expose idToken to the client for custom Firebase auth
+          // only if available in the JWT token
+          if (token.idToken) {
+            (session as any).idToken = token.idToken;
+          }
         }
         return session;
       },

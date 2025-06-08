@@ -1,18 +1,20 @@
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth'
+import { signInWithCustomToken } from 'firebase/auth'
 import { auth } from '../firebase'
 
 export function useFirebaseAuth() {
   const { data: session } = useSession()
 
   useEffect(() => {
-    const accessToken = session?.accessToken as string | undefined
-    if (!accessToken) return
+    const idToken = (session as any)?.idToken as string | undefined
+    if (!idToken) return
     if (auth.currentUser) return
-
-    const credential = GoogleAuthProvider.credential(null, accessToken)
-    signInWithCredential(auth, credential)
+    fetch('/api/firebase/custom-token')
+      .then(res => res.json())
+      .then(data => {
+        return signInWithCustomToken(auth, data.customToken)
+      })
       .then(userCred => {
         console.log('[useFirebaseAuth] Signed in to Firebase as', userCred.user.email)
       })
