@@ -34,6 +34,7 @@ export default function BusinessesPage({ projectsByCategory, referenceMapping }:
     waitForAuth()
       .then(() => fetchSubsidiaries())
       .then((subs) => {
+        console.log('[BusinessesPage] Subsidiaries fetched:', subs.length)
         setMapping(mapSubsidiaryNames(subs));
       })
       .catch((err) => {

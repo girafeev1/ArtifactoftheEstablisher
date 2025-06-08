@@ -87,7 +87,10 @@ export default function SingleFilePage({
   useEffect(() => {
     waitForAuth()
       .then(() => fetchSubsidiaries())
-      .then((subs) => setMapping(mapSubsidiaryNames(subs)))
+      .then((subs) => {
+        console.log('[FileView] Subsidiaries fetched:', subs.length)
+        setMapping(mapSubsidiaryNames(subs))
+      })
       .catch((err) => console.error('[SingleFilePage] Failed to fetch subsidiaries', err));
   }, []);
 
