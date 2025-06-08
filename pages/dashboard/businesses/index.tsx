@@ -5,7 +5,11 @@ import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../../components/SidebarLayout';
 import { initializeApis } from '../../../lib/googleApi';
 import { listProjectOverviewFiles } from '../../../lib/projectOverview';
-import { fetchSubsidiaries } from '../../../lib/firestoreSubsidiaries';
+import {
+  fetchSubsidiaries,
+  mapSubsidiaryNames,
+  resolveSubsidiaryName,
+} from '../../../lib/firestoreSubsidiaries';
 import { useRouter } from 'next/router';
 import { Box, Typography, List, ListItem, ListItemText, Button } from '@mui/material';
 
@@ -29,8 +33,8 @@ export default function BusinessesPage({ projectsByCategory, referenceMapping }:
     projectsByCategory[key].forEach((file) => files.push(file));
   }
   files.sort((a, b) =>
-    (referenceMapping[a.companyIdentifier] || a.companyIdentifier).localeCompare(
-      referenceMapping[b.companyIdentifier] || b.companyIdentifier
+    resolveSubsidiaryName(a.companyIdentifier, referenceMapping).localeCompare(
+      resolveSubsidiaryName(b.companyIdentifier, referenceMapping)
     )
   );
 
@@ -54,7 +58,7 @@ export default function BusinessesPage({ projectsByCategory, referenceMapping }:
             onClick={() => router.push(`/dashboard/businesses/${file.file.id}`)}
           >
             <ListItemText
-              primary={referenceMapping[file.companyIdentifier] || file.companyIdentifier}
+              primary={resolveSubsidiaryName(file.companyIdentifier, referenceMapping)}
               secondary={file.file.name}
             />
           </ListItem>
@@ -74,12 +78,11 @@ export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async
   // Get the grouped project files using your existing sorting utility
   const projectsByCategory = await listProjectOverviewFiles(drive, []);
   const subsidiaries = await fetchSubsidiaries();
-  const referenceMapping: Record<string, string> = {};
-  subsidiaries.forEach(s => { referenceMapping[s.identifier] = s.englishName; });
+  const referenceMapping = mapSubsidiaryNames(subsidiaries);
   for (const year in projectsByCategory) {
     projectsByCategory[year] = projectsByCategory[year].map(file => ({
       ...file,
-      fullCompanyName: referenceMapping[file.companyIdentifier] || file.companyIdentifier,
+      fullCompanyName: resolveSubsidiaryName(file.companyIdentifier, referenceMapping),
     }));
   }
   return {

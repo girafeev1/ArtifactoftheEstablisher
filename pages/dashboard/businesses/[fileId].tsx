@@ -6,7 +6,11 @@ import { useRouter } from 'next/router';
 import React, { useState, useMemo, useEffect } from 'react';
 import SidebarLayout from '../../../components/SidebarLayout';
 import { findPMSReferenceLogFile, fetchAddressBook, fetchBankAccounts } from '../../../lib/pmsReference';
-import { fetchSubsidiaries } from '../../../lib/firestoreSubsidiaries';
+import {
+  fetchSubsidiaries,
+  mapSubsidiaryNames,
+  resolveSubsidiaryName,
+} from '../../../lib/firestoreSubsidiaries';
 import { initializeApis } from '../../../lib/googleApi';
 import { fetchProjectRows, listProjectOverviewFiles, ProjectRow } from '../../../lib/projectOverview';
 import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button, FormControl, InputLabel, Select, MenuItem, ToggleButton, ToggleButtonGroup } from '@mui/material';
@@ -91,7 +95,7 @@ export default function SingleFilePage({
           fileId: item.file.id!,
           year,
           companyIdentifier: item.companyIdentifier,
-          fullCompanyName: referenceMapping[item.companyIdentifier] || item.companyIdentifier,
+          fullCompanyName: resolveSubsidiaryName(item.companyIdentifier, referenceMapping),
         }))
       );
   }, [projectsByCategory, referenceMapping]);
@@ -308,13 +312,11 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const projectsByCategory = await listProjectOverviewFiles(drive);
     const pmsRefLogId = await findPMSReferenceLogFile(drive);
     const subsidiaries = await fetchSubsidiaries();
-    const referenceMapping: Record<string, string> = {};
-    subsidiaries.forEach(s => { referenceMapping[s.identifier] = s.englishName; });
+    const referenceMapping = mapSubsidiaryNames(subsidiaries);
     for (const year in projectsByCategory) {
       projectsByCategory[year] = projectsByCategory[year].map(file => ({
         ...file,
-        fullCompanyName:
-          referenceMapping[file.companyIdentifier] || file.companyIdentifier,
+        fullCompanyName: resolveSubsidiaryName(file.companyIdentifier, referenceMapping),
       }));
     }
 
@@ -371,7 +373,7 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
       shortCode = match[2];
     }
 
-    const fullCompanyName = referenceMapping[shortCode] || shortCode;
+    const fullCompanyName = resolveSubsidiaryName(shortCode, referenceMapping);
     const projects = await fetchProjectRows(sheets, fileId, 6);
     const addressBook = await fetchAddressBook(sheets, pmsRefLogId);
     const clients = addressBook.map((c) => ({ companyName: c.companyName }));
@@ -397,12 +399,11 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
     const subsidiaries = await fetchSubsidiaries();
-    const referenceMapping: Record<string, string> = {};
-    subsidiaries.forEach(s => { referenceMapping[s.identifier] = s.englishName; });
+    const referenceMapping = mapSubsidiaryNames(subsidiaries);
     for (const year in projectsByCategory) {
       projectsByCategory[year] = projectsByCategory[year].map(file => ({
         ...file,
-        fullCompanyName: referenceMapping[file.companyIdentifier] || file.companyIdentifier,
+        fullCompanyName: resolveSubsidiaryName(file.companyIdentifier, referenceMapping),
       }));
     }
     return {

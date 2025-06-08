@@ -32,3 +32,26 @@ export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
     }
   })
 }
+
+export function normalizeIdentifier(id: string): string {
+  return id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
+export function mapSubsidiaryNames(subsidiaries: SubsidiaryData[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  subsidiaries.forEach(s => {
+    map[s.identifier] = s.englishName;
+  });
+  return map;
+}
+
+export function resolveSubsidiaryName(code: string, mapping: Record<string, string>): string {
+  if (mapping[code]) return mapping[code];
+  const norm = normalizeIdentifier(code);
+  for (const key of Object.keys(mapping)) {
+    if (normalizeIdentifier(key) === norm) {
+      return mapping[key];
+    }
+  }
+  return code;
+}
