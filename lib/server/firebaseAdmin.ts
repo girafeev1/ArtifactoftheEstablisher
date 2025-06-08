@@ -4,6 +4,13 @@ import { getAuth } from 'firebase-admin/auth'
 import { getFirestore } from 'firebase-admin/firestore'
 import { serviceAccountCredentials } from '../config'
 
+const credsInfo = {
+  projectId: serviceAccountCredentials.project_id,
+  clientEmail: serviceAccountCredentials.client_email,
+  hasPrivateKey: Boolean(serviceAccountCredentials.private_key),
+}
+console.log('[firebaseAdmin] Credentials', JSON.stringify(credsInfo))
+
 export function getAdminApp() {
   if (!getApps().length) {
     initializeApp({

@@ -11,6 +11,9 @@ if (typeof window === 'undefined') {
   } catch (err) {
     console.error('[firestoreSubsidiaries] Failed to load firebase-admin', err)
   }
+  if (!adminDb) {
+    console.warn('[firestoreSubsidiaries] adminDb not initialized; using client Firestore')
+  }
 }
 
 export interface SubsidiaryData {
