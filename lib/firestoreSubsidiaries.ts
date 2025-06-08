@@ -15,22 +15,29 @@ export interface SubsidiaryData {
 }
 
 export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
-  const snap = await getDocs(collection(db, 'Subsidiaries'))
-  return snap.docs.map(d => {
-    const data = d.data() as any
-    return {
-      identifier: d.id,
-      englishName: data.englishName || '',
-      chineseName: data.chineseName || '',
-      email: data.email || '',
-      phone: data.phone || '',
-      room: data.addressLine1 || '',
-      building: data.addressLine2 || '',
-      street: data.addressLine3 || '',
-      district: data.addressLine4 || '',
-      region: data.region || '',
-    }
-  })
+  console.log('[fetchSubsidiaries] Fetching subsidiaries from Firestore')
+  try {
+    const snap = await getDocs(collection(db, 'Subsidiaries'))
+    console.log('[fetchSubsidiaries] Retrieved', snap.size, 'documents')
+    return snap.docs.map(d => {
+      const data = d.data() as any
+      return {
+        identifier: d.id,
+        englishName: data.englishName || '',
+        chineseName: data.chineseName || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        room: data.addressLine1 || '',
+        building: data.addressLine2 || '',
+        street: data.addressLine3 || '',
+        district: data.addressLine4 || '',
+        region: data.region || '',
+      }
+    })
+  } catch (err) {
+    console.error('[fetchSubsidiaries] Error fetching documents', err)
+    throw err
+  }
 }
 
 export function normalizeIdentifier(id: string): string {

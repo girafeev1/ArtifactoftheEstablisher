@@ -77,7 +77,9 @@ export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async
   const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
   // Get the grouped project files using your existing sorting utility
   const projectsByCategory = await listProjectOverviewFiles(drive, []);
+  console.log('[BusinessesPage] Fetching subsidiaries for mapping');
   const subsidiaries = await fetchSubsidiaries();
+  console.log('[BusinessesPage] Subsidiaries fetched:', subsidiaries.length);
   const referenceMapping = mapSubsidiaryNames(subsidiaries);
   for (const year in projectsByCategory) {
     projectsByCategory[year] = projectsByCategory[year].map(file => ({

@@ -311,7 +311,9 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
     const pmsRefLogId = await findPMSReferenceLogFile(drive);
+    console.log('[FileView] Fetching subsidiaries for mapping');
     const subsidiaries = await fetchSubsidiaries();
+    console.log('[FileView] Subsidiaries fetched:', subsidiaries.length);
     const referenceMapping = mapSubsidiaryNames(subsidiaries);
     for (const year in projectsByCategory) {
       projectsByCategory[year] = projectsByCategory[year].map(file => ({
@@ -398,7 +400,9 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     console.error('[getServerSideProps fileId] error:', err);
     const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
+    console.log('[FileView] Fetching subsidiaries after error');
     const subsidiaries = await fetchSubsidiaries();
+    console.log('[FileView] Subsidiaries fetched:', subsidiaries.length);
     const referenceMapping = mapSubsidiaryNames(subsidiaries);
     for (const year in projectsByCategory) {
       projectsByCategory[year] = projectsByCategory[year].map(file => ({
