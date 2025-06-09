@@ -2,7 +2,6 @@
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from './firebase'
 import type { Firestore } from 'firebase-admin/firestore'
-import { logFirestoreDiagnostics } from './server/firestoreDiagnostics'
 
 let adminDb: Firestore | null = null
 
@@ -67,7 +66,14 @@ export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
     console.error('[fetchSubsidiaries] Error fetching documents', err)
     if ((err as any)?.code === 'permission-denied') {
       console.error('[fetchSubsidiaries] Permission denied when accessing Firestore')
-      await logFirestoreDiagnostics()
+      if (typeof window === 'undefined') {
+        try {
+          const diag = await import('./server/firestoreDiagnostics')
+          await diag.logFirestoreDiagnostics()
+        } catch (e) {
+          console.error('[fetchSubsidiaries] Failed to load diagnostics helper', e)
+        }
+      }
     }
     throw err
   }
