@@ -1,22 +1,6 @@
 // lib/firestoreSubsidiaries.ts
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from './firebase'
-import type { Firestore } from 'firebase-admin/firestore'
-
-let adminDb: Firestore | null = null
-
-async function ensureAdminDb(): Promise<Firestore | null> {
-  if (adminDb || typeof window !== 'undefined') return adminDb
-  try {
-    // Use eval to avoid bundling firebase-admin in the client build
-    const admin = (eval('require')('./server/firebaseAdmin')) as typeof import('./server/firebaseAdmin')
-    adminDb = admin.adminDb
-    console.log('[firestoreSubsidiaries] Loaded adminDb')
-  } catch (err) {
-    console.warn('[firestoreSubsidiaries] Failed to load firebase-admin', err)
-  }
-  return adminDb
-}
 
 export interface SubsidiaryData {
   identifier: string
@@ -38,15 +22,8 @@ export async function fetchSubsidiaries(): Promise<SubsidiaryData[]> {
     collection: 'Subsidiaries',
   })
   try {
-    const admin = await ensureAdminDb()
-    let snap: any
-    if (admin) {
-      console.log('[fetchSubsidiaries] Using adminDb for query')
-      snap = await admin.collection('Subsidiaries').get()
-    } else {
-      console.log('[fetchSubsidiaries] Using client Firestore for query')
-      snap = await getDocs(collection(db, 'Subsidiaries'))
-    }
+    console.log('[fetchSubsidiaries] Using client Firestore for query')
+    const snap = await getDocs(collection(db, 'Subsidiaries'))
     console.log('[fetchSubsidiaries] Retrieved', snap.size, 'documents')
     return snap.docs.map(d => {
       const data = d.data() as any
