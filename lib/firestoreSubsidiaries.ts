@@ -8,7 +8,8 @@ let adminDb: Firestore | null = null
 async function ensureAdminDb(): Promise<Firestore | null> {
   if (adminDb || typeof window !== 'undefined') return adminDb
   try {
-    const admin = await import('./server/firebaseAdmin') as typeof import('./server/firebaseAdmin')
+    // Use eval to avoid bundling firebase-admin in the client build
+    const admin = (eval('require')('./server/firebaseAdmin')) as typeof import('./server/firebaseAdmin')
     adminDb = admin.adminDb
     console.log('[firestoreSubsidiaries] Loaded adminDb')
   } catch (err) {
