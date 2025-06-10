@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "public": "build",
+    "rewrites": [
+      { "source": "/api/**", "run": {
+          "serviceId": "my-backend-service",
+          "region": "us-central1"
+      }},
+      { "source": "**", "destination": "/index.html" }
+    ]
+  }
+}
