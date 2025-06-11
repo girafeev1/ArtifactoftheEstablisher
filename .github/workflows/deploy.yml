@@ -8,8 +8,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-          gcloud run deploy next-app \
-      - uses: actions/checkout@v4
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+            --region=us-central1 \
+            --platform=managed \
+            --allow-unauthenticated \
+            --quiet
 
       # 2️⃣ Use Node.js 20
       - uses: actions/setup-node@v4
