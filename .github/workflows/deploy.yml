@@ -8,24 +8,33 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # 1️⃣ Checkout your code
       - uses: actions/checkout@v4
 
+      # 2️⃣ Use Node.js 20
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # 3️⃣ Install & build
       - run: npm ci
       - run: npm run build
 
+      # 4️⃣ Authenticate to GCP using your secret JSON key
       - uses: google-github-actions/auth@v1
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # 5️⃣ Install / configure gcloud
       - uses: google-github-actions/setup-gcloud@v1
         with:
           version: 'latest'
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      # 6️⃣ Deploy to Firebase Hosting
       - run: npx firebase deploy --only hosting
+
+      # 7️⃣ Build & deploy your container to Cloud Run
       - run: |
           gcloud builds submit --quiet
           gcloud run deploy my-backend-service \
