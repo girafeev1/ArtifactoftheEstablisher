@@ -1,18 +1,7 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/next-app', '.']
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:latest', '.']
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/next-app']
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
-    args:
-      - run
-      - deploy
-      - next-app
-      - --image=gcr.io/$PROJECT_ID/next-app
-      - --region=us-central1
-      - --platform=managed
-      - --quiet
-      - --allow-unauthenticated
+    args: ['push', 'us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:latest']
 images:
-  - 'gcr.io/$PROJECT_ID/next-app'
+  - 'us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:latest'

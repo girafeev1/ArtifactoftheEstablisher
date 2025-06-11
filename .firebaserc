@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "aote-pms"
-  }
+    "default": "aote-pms",
+    "aote-pms": "aote-pms"
+  },
+  "targets": {},
+  "etags": {}
 }
