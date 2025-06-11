@@ -8,11 +8,26 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    steps:
-          gcloud run deploy my-backend-service \
 
-      # 2️⃣ Use Node.js 20
-      - uses: actions/setup-node@v4
+    steps:
+      # 1. Check out code
+
+      # 2. Set up Node.js
+
+      # 3. Install & build
+
+      # 4. Authenticate to GCP
+
+      # 5. Install gcloud
+          version: latest
+
+      # 6. Deploy to Firebase Hosting
+
+      # 7. Build & deploy to Cloud Run
+      - name: Build & Cloud Run deploy
+        run: |
+            --region us-central1 \
+            --platform managed \
         with:
           node-version: 20
 
