@@ -1,7 +1,6 @@
----
 name: CI/CD
 
-'on':
+on:
   push:
     branches:
       - main
@@ -10,11 +9,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-            --region=us-central1 \
-            --platform=managed \
-            --allow-unauthenticated \
-            --quiet
+          gcloud run deploy my-backend-service \
 
       # 2️⃣ Use Node.js 20
       - uses: actions/setup-node@v4
