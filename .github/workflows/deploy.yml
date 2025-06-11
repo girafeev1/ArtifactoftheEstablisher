@@ -8,7 +8,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Checkout your code
+          gcloud run deploy next-app \
       - uses: actions/checkout@v4
 
       # 2️⃣ Use Node.js 20
