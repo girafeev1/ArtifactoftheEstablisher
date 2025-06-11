@@ -26,7 +26,7 @@ jobs:
       # 7. Build & deploy to Cloud Run
       - name: Build & Cloud Run deploy
         run: |
-            --region us-central1 \
+          gcloud run deploy next-app \
             --platform managed \
         with:
           node-version: 20
