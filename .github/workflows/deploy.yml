@@ -28,4 +28,6 @@ jobs:
       - run: npx firebase deploy --only hosting
       - run: |
           gcloud builds submit --quiet
-          gcloud run deploy my-backend-service --region=us-central1 --platform=managed --quiet
+          gcloud run deploy my-backend-service \
+            --image us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:latest \
+            --region=us-central1 --platform=managed --quiet
