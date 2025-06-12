@@ -7,6 +7,8 @@
       "**/node_modules/**"
     ],
     "rewrites": [
+      { "source": "/api/clients", "function": "clients" },
+      { "source": "/api/businesses", "function": "businesses" },
       {
         "source": "**",
         "run": {
