@@ -1,18 +1,13 @@
 // pages/dashboard/businesses/[fileId].tsx
 
-import { GetServerSideProps } from 'next';
-import { getSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import React, { useState, useMemo, useEffect } from 'react';
 import SidebarLayout from '../../../components/SidebarLayout';
-import { findPMSReferenceLogFile, fetchReferenceNames, fetchAddressBook, fetchBankAccounts, fetchSubsidiaryData } from '../../../lib/pmsReference';
-import { initializeApis } from '../../../lib/googleApi';
-import { fetchProjectRows, listProjectOverviewFiles, ProjectRow } from '../../../lib/projectOverview';
+import { ProjectRow } from '../../../lib/projectOverview';
 import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button, FormControl, InputLabel, Select, MenuItem, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ProjectOverview from '../../../components/projectdialog/ProjectOverview';
 import { useSnackbar } from 'notistack';
-import { drive_v3 } from 'googleapis';
 
 interface SingleProjectData extends ProjectRow {}
 
@@ -41,39 +36,43 @@ interface SubsidiaryData {
   region: string;
 }
 
-interface FileViewProps {
-  fileId: string;
-  fileLabel: string;
-  projects: SingleProjectData[];
-  error?: string;
-  yearCode: string;
-  fullCompanyName: string;
-  clients: { companyName: string }[];
-  bankAccounts: BankAccount[];
-  subsidiaryInfo?: SubsidiaryData | null;
-  projectsByCategory: Record<string, Array<{
-    companyIdentifier: string;
-    fullCompanyName: string;
-    file: drive_v3.Schema$File;
-  }>>;
-  referenceMapping: Record<string, string>;
-}
 
-export default function SingleFilePage({
-  fileId,
-  fileLabel,
-  projects,
-  error,
-  yearCode,
-  fullCompanyName,
-  clients,
-  bankAccounts,
-  subsidiaryInfo,
-  projectsByCategory,
-  referenceMapping,
-}: FileViewProps) {
+export default function SingleFilePage() {
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
+
+  const [fileId, setFileId] = useState('select');
+  const [fileLabel, setFileLabel] = useState('');
+  const [projects, setProjects] = useState<SingleProjectData[]>([]);
+  const [error, setError] = useState<string | undefined>();
+  const [yearCode, setYearCode] = useState('');
+  const [fullCompanyName, setFullCompanyName] = useState('');
+  const [clients, setClients] = useState<{ companyName: string }[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [subsidiaryInfo, setSubsidiaryInfo] = useState<SubsidiaryData | null>(null);
+  const [projectsByCategory, setProjectsByCategory] = useState<Record<string, Array<{ companyIdentifier: string; fullCompanyName: string; file: any }>>>({});
+  const [referenceMapping, setReferenceMapping] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fid = router.query.fileId as string | undefined;
+    if (!fid) return;
+    fetch(`/api/businesses?fileId=${fid}`)
+      .then(res => res.json())
+      .then(data => {
+        setFileId(data.fileId);
+        setFileLabel(data.fileLabel);
+        setProjects(data.projects || []);
+        setError(data.error);
+        setYearCode(data.yearCode);
+        setFullCompanyName(data.fullCompanyName);
+        setClients(data.clients || []);
+        setBankAccounts(data.bankAccounts || []);
+        setSubsidiaryInfo(data.subsidiaryInfo || null);
+        setProjectsByCategory(data.projectsByCategory || {});
+        setReferenceMapping(data.referenceMapping || {});
+      })
+      .catch(err => setError(err.message));
+  }, [router.query.fileId]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<SingleProjectData | null>(null);
 
@@ -294,115 +293,3 @@ export default function SingleFilePage({
   );
 }
 
-export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx) => {
-  const session = await getSession(ctx);
-  if (!session?.accessToken) {
-    return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
-  }
-
-  let fileId = ctx.params?.fileId as string;
-
-  try {
-    const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken as string });
-    const projectsByCategory = await listProjectOverviewFiles(drive);
-    const pmsRefLogId = await findPMSReferenceLogFile(drive);
-    const referenceMapping = await fetchReferenceNames(sheets, pmsRefLogId);
-
-    if (!fileId || fileId === 'select') {
-      return {
-        props: {
-          fileId: 'select',
-          fileLabel: '',
-          projects: [],
-          yearCode: '',
-          fullCompanyName: '',
-          clients: [],
-          bankAccounts: [],
-          subsidiaryInfo: null,
-          projectsByCategory,
-          referenceMapping,
-        },
-      };
-    }
-
-    let fileMeta;
-    try {
-      fileMeta = await drive.files.get({
-        fileId,
-        fields: 'id, name',
-        supportsAllDrives: true,
-      });
-    } catch (err) {
-      console.log('[getServerSideProps] Invalid fileId, showing selection page:', fileId);
-      return {
-        props: {
-          fileId: 'select',
-          fileLabel: 'No Projects Found',
-          projects: [],
-          yearCode: '',
-          fullCompanyName: '',
-          clients: [],
-          bankAccounts: [],
-          subsidiaryInfo: null,
-          projectsByCategory,
-          referenceMapping,
-          error: 'Invalid file ID, please select a project file',
-        },
-      };
-    }
-
-    const rawName = fileMeta.data.name || '';
-    let yearCode = '';
-    let shortCode = '';
-    const re = /^(\d{4})\s+(\S+)\s+Project Overview/i;
-    const match = rawName.match(re);
-    if (match) {
-      yearCode = match[1];
-      shortCode = match[2];
-    }
-
-    const fullCompanyName = referenceMapping[shortCode] || shortCode;
-    const projects = await fetchProjectRows(sheets, fileId, 6);
-    const addressBook = await fetchAddressBook(sheets, pmsRefLogId);
-    const clients = addressBook.map((c) => ({ companyName: c.companyName }));
-    const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogId);
-    const allSubsidiaries = await fetchSubsidiaryData(sheets, pmsRefLogId);
-    const subsidiaryInfo = allSubsidiaries.find((r) => r.identifier === shortCode) || null;
-
-    return {
-      props: {
-        fileId,
-        fileLabel: `${fullCompanyName} - ${yearCode}`,
-        projects,
-        yearCode,
-        fullCompanyName,
-        clients,
-        bankAccounts,
-        subsidiaryInfo,
-        projectsByCategory,
-        referenceMapping,
-      },
-    };
-  } catch (err: any) {
-    console.error('[getServerSideProps fileId] error:', err);
-    const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
-    const projectsByCategory = await listProjectOverviewFiles(drive);
-    const pmsRefLogId = await findPMSReferenceLogFile(drive);
-    const referenceMapping = await fetchReferenceNames(sheets, pmsRefLogId);
-    return {
-      props: {
-        fileId: 'select',
-        fileLabel: '',
-        projects: [],
-        yearCode: '',
-        fullCompanyName: '',
-        clients: [],
-        bankAccounts: [],
-        subsidiaryInfo: null,
-        error: err.message || 'Error retrieving file data',
-        projectsByCategory,
-        referenceMapping,
-      },
-    };
-  }
-};

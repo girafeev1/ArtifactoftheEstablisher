@@ -1,11 +1,27 @@
 // pages/index.tsx
 
-import { GetServerSideProps } from 'next';
-import { getSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 import { Box, Typography } from '@mui/material';
 import SidebarLayout from '../components/SidebarLayout';
 
-export default function MainPage({ firstName }: { firstName: string }) {
+export default function MainPage() {
+  const { data: session } = useSession();
+
+  if (!session) {
+    return (
+      <SidebarLayout>
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            You are not signed in.
+          </Typography>
+          <button onClick={() => signIn('google')}>Sign In</button>
+        </Box>
+      </SidebarLayout>
+    );
+  }
+
+  const firstName = session.user?.name?.split(' ')[0] || '';
+
   return (
     <SidebarLayout>
       <Box sx={{ p: 3 }}>
@@ -17,12 +33,3 @@ export default function MainPage({ firstName }: { firstName: string }) {
     </SidebarLayout>
   );
 }
-
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const session = await getSession(ctx);
-  if (!session) {
-    return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
-  }
-  const firstName = session.user?.name?.split(' ')[0] || '';
-  return { props: { firstName } };
-};
