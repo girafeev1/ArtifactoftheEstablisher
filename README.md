@@ -4,6 +4,9 @@ This project is a Next.js application that integrates with Google Workspace to
 generate invoices and manage project data. It exports static files and relies on
 Firebase Hosting with Cloud Functions for dynamic API routes.
 
+**Note:** The project is moving to a completely serverless architecture. Future
+development happens on the `serverless` branch rather than `main`.
+
 ## Prerequisites
 
 - **Node.js 20** – use Node 20 locally to match the Firebase Functions runtime.
