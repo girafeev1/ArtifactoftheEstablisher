@@ -1,7 +1,7 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:latest', '.']
+    args: ['build', '-t', 'gcr.io/aote-pms/aote-pms:latest', '.']
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:latest']
+    args: ['push', 'gcr.io/aote-pms/aote-pms:latest']
 images:
-  - 'us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:latest'
+  - 'gcr.io/aote-pms/aote-pms:latest'
