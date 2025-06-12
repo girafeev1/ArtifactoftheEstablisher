@@ -1,9 +1,12 @@
 // pages/dashboard/businesses/index.tsx
 
+import { GetServerSideProps } from 'next';
+import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../../components/SidebarLayout';
+import { initializeApis } from '../../../lib/googleApi';
+import { listProjectOverviewFiles } from '../../../lib/projectOverview';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
-import { Box, Typography, List, ListItem, ListItemText, Button, Alert } from '@mui/material';
+import { Box, Typography, List, ListItem, ListItemText, Button } from '@mui/material';
 
 interface BusinessFile {
   companyIdentifier: string;
@@ -11,29 +14,20 @@ interface BusinessFile {
   file: { id: string; name: string };
 }
 
-export default function BusinessesPage() {
-  const router = useRouter();
-  const [files, setFiles] = useState<BusinessFile[]>([]);
-  const [error, setError] = useState<string | null>(null);
+interface BusinessesPageProps {
+  projectsByCategory: Record<string, BusinessFile[]>;
+}
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const resp = await fetch('/api/businesses');
-        const json = await resp.json();
-        const grouped: Record<string, BusinessFile[]> = json.projectsByCategory || {};
-        const list: BusinessFile[] = [];
-        for (const key in grouped) {
-          grouped[key].forEach(f => list.push(f));
-        }
-        list.sort((a, b) => a.fullCompanyName.localeCompare(b.fullCompanyName));
-        setFiles(list);
-      } catch (err: any) {
-        setError(err.message);
-      }
-    };
-    load();
-  }, []);
+export default function BusinessesPage({ projectsByCategory }: BusinessesPageProps) {
+  const router = useRouter();
+
+  // Flatten the grouped projects into a single array.
+  // (The original code grouped them by subsidiary code; now we sort them alphabetically by fullCompanyName.)
+  const files: BusinessFile[] = [];
+  for (const key in projectsByCategory) {
+    projectsByCategory[key].forEach((file) => files.push(file));
+  }
+  files.sort((a, b) => a.fullCompanyName.localeCompare(b.fullCompanyName));
 
   return (
     <SidebarLayout>
@@ -44,11 +38,6 @@ export default function BusinessesPage() {
           New Project
         </Button>
       </Box>
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
       <Typography variant="subtitle1" sx={{ mb: 1 }}>
         Select a project overview file:
       </Typography>
@@ -67,3 +56,18 @@ export default function BusinessesPage() {
   );
 }
 
+export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async (ctx) => {
+  const session = await getSession(ctx);
+  if (!session?.accessToken) {
+    return { redirect: { destination: '/api/auth/signin', permanent: false } };
+  }
+  const { initializeApis } = await import('../../../lib/googleApi');
+  const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
+  // Get the grouped project files using your existing sorting utility
+  const projectsByCategory = await listProjectOverviewFiles(drive, []);
+  return {
+    props: {
+      projectsByCategory,
+    },
+  };
+};
