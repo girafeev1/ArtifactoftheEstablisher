@@ -1,47 +1,63 @@
 name: CI/CD
 
 on:
+  # Triggers the workflow on push events to the main branch
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
+  # Defines a single job named "deploy"
   deploy:
+    # Specifies the type of virtual machine to run the job on
     runs-on: ubuntu-latest
+
+    # Groups all the sequential tasks for this job
     steps:
+      # Step 1: Check out your repository code
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Step 2: Set up Node.js environment
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # Step 3: Install project dependencies
       - name: Install dependencies
         run: npm ci
 
+      # Step 4: Build the application
       - name: Build application
         run: npm run build
 
+      # Step 5: Authenticate with Google Cloud
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+      # Step 6: Set up the gcloud CLI
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      # Step 7: Deploy to Firebase Hosting
       - name: Deploy to Firebase Hosting
         run: npx firebase deploy --only hosting
-
+      
+      # Step 8: Build container and deploy to Cloud Run
       - name: Build and Deploy to Cloud Run
         run: |
-          gcloud builds submit --quiet
+          # First, build the container image using Cloud Build
+          # The image will be tagged and pushed to Google Container Registry
+          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/next-app --quiet
+
+          # Second, deploy the newly built image to Cloud Run
           gcloud run deploy next-app \
-            --image gcr.io/aote-pms/aote-pms:latest \
-            --region=us-central1 \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/next-app \
+            --region us-central1 \
             --platform managed \
             --allow-unauthenticated \
             --quiet
