@@ -1,23 +1,21 @@
 // pages/index.tsx
 
 import { useSession, signIn } from 'next-auth/react';
+import { useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import SidebarLayout from '../components/SidebarLayout';
 
 export default function MainPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
-  if (!session) {
-    return (
-      <SidebarLayout>
-        <Box sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            You are not signed in.
-          </Typography>
-          <button onClick={() => signIn('google')}>Sign In</button>
-        </Box>
-      </SidebarLayout>
-    );
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      signIn('google');
+    }
+  }, [status]);
+
+  if (status === 'loading' || !session) {
+    return <div>Loading...</div>;
   }
 
   const firstName = session.user?.name?.split(' ')[0] || '';
