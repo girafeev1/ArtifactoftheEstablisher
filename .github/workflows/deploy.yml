@@ -26,7 +26,7 @@ jobs:
       # 7. Build & deploy to Cloud Run
       - name: Build & Cloud Run deploy
         run: |
-          gcloud run deploy next-app \
+          gcloud builds submit --tag us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:latest --quiet
             --platform managed \
         with:
           node-version: 20
