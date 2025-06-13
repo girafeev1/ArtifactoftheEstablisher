@@ -36,6 +36,7 @@ npm test
   it.
 - Deploy Firebase Hosting rewrites with **`npm run deploy:hosting`** after Cloud
   Run is updated.
+- Cloud Run uses `npx next start`; there is no separate Express server.
 
 ## Roadmap
 
