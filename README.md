@@ -31,7 +31,7 @@ npm test
 ## Development and Deployment
 
 - Start a development server with **`npm run dev`**.
-- Create a production build with **`npm run build`**. This exports the site to static HTML so no container is needed for the frontend.
+- Create a production build with **`npm run build`**. The `output: 'export'` setting generates static HTML in the `out` directory so no container is needed for the frontend.
 - Deploy the backend logic to Firebase Functions with **`npm run deploy:functions`**.
 - Deploy the static site to Firebase Hosting with **`npm run deploy:hosting`** after the API is updated.
 
