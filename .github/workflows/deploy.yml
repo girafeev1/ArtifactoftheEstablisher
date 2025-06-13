@@ -32,7 +32,7 @@ jobs:
         run: npm ci
 
       # Step 4: Build the application
-      - name: Build static site
+      - name: Build application
         run: npm run build
 
       # Step 5: Authenticate with Google Cloud
@@ -51,4 +51,9 @@ jobs:
       - name: Deploy to Firebase Hosting
         run: npx firebase deploy --only hosting
       
+      # Step 8: Submit build to Google Cloud Build and deploy to Cloud Run
+      - name: Build and Deploy to Cloud Run
+        run: |
+          gcloud builds submit --quiet
+          gcloud run deploy my-backend-service --region=us-central1 --platform=managed --quiet
 

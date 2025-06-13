@@ -1,9 +1,12 @@
 // pages/dashboard/database.tsx
 
-import { useEffect, useState } from 'react';
-import { useSession, signIn } from 'next-auth/react';
+import { GetServerSideProps } from 'next';
+import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../components/SidebarLayout';
+import { initializeApis } from '../../lib/googleApi';
+import { findPMSReferenceLogFile, fetchAddressBook, fetchBankAccounts } from '../../lib/pmsReference';
 import { useRouter } from 'next/router';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -48,11 +51,13 @@ interface BankAccount {
   // Removed comments field from display
 }
 
-export default function DatabasePage() {
-  const { status } = useSession();
-  const [clients, setClients] = useState<AddressBookEntry[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [error, setError] = useState<string | null>(null);
+interface DatabasePageProps {
+  clients: AddressBookEntry[];
+  bankAccounts: BankAccount[];
+  error?: string;
+}
+
+export default function DatabasePage({ clients, bankAccounts, error }: DatabasePageProps) {
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
 
@@ -66,20 +71,6 @@ export default function DatabasePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      signIn('google');
-    } else if (status === 'authenticated') {
-      fetch('/api/clients')
-        .then(res => res.json())
-        .then(data => {
-          setClients(data.clients || []);
-          setBankAccounts(data.bankAccounts || []);
-        })
-        .catch(err => setError(err.message));
-    }
-  }, [status]);
 
   useEffect(() => {
     if (selectedLetter) {
@@ -289,3 +280,21 @@ export default function DatabasePage() {
   );
 }
 
+export const getServerSideProps: GetServerSideProps<DatabasePageProps> = async (ctx) => {
+  try {
+    const session = await getSession(ctx);
+    if (!session?.accessToken) {
+      return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
+    }
+    const { drive, sheets } = initializeApis('user', {
+      accessToken: session.accessToken as string,
+    });
+    const pmsRefLogFileId = await findPMSReferenceLogFile(drive);
+    const companies = await fetchAddressBook(sheets, pmsRefLogFileId);
+    const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogFileId);
+    return { props: { clients: companies, bankAccounts } };
+  } catch (err: any) {
+    console.error('[getServerSideProps] Error:', err);
+    return { props: { clients: [], bankAccounts: [], error: err.message || 'Error fetching database' } };
+  }
+};

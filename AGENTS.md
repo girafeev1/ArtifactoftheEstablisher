@@ -6,6 +6,3 @@
 
 ## Test commands
 - Run `npm test` from the repository root before committing any changes.
-
-## Notes
-- Development now targets the `serverless` branch instead of `main` as the project transitions to a serverless architecture. Contributors should base any new work on `serverless` and open pull requests against that branch.

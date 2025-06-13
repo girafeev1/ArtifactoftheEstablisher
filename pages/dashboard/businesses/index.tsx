@@ -1,8 +1,10 @@
 // pages/dashboard/businesses/index.tsx
 
-import { useEffect, useState } from 'react';
-import { useSession, signIn } from 'next-auth/react';
+import { GetServerSideProps } from 'next';
+import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../../components/SidebarLayout';
+import { initializeApis } from '../../../lib/googleApi';
+import { listProjectOverviewFiles } from '../../../lib/projectOverview';
 import { useRouter } from 'next/router';
 import { Box, Typography, List, ListItem, ListItemText, Button } from '@mui/material';
 
@@ -12,21 +14,12 @@ interface BusinessFile {
   file: { id: string; name: string };
 }
 
-export default function BusinessesPage() {
-  const { status } = useSession();
-  const [projectsByCategory, setProjectsByCategory] = useState<Record<string, BusinessFile[]>>({});
-  const router = useRouter();
+interface BusinessesPageProps {
+  projectsByCategory: Record<string, BusinessFile[]>;
+}
 
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      signIn('google');
-    } else if (status === 'authenticated') {
-      fetch('/api/businesses')
-        .then(res => res.json())
-        .then(data => setProjectsByCategory(data.projectsByCategory || {}))
-        .catch(() => {});
-    }
-  }, [status]);
+export default function BusinessesPage({ projectsByCategory }: BusinessesPageProps) {
+  const router = useRouter();
 
   // Flatten the grouped projects into a single array.
   // (The original code grouped them by subsidiary code; now we sort them alphabetically by fullCompanyName.)
@@ -63,3 +56,18 @@ export default function BusinessesPage() {
   );
 }
 
+export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async (ctx) => {
+  const session = await getSession(ctx);
+  if (!session?.accessToken) {
+    return { redirect: { destination: '/api/auth/signin', permanent: false } };
+  }
+  const { initializeApis } = await import('../../../lib/googleApi');
+  const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
+  // Get the grouped project files using your existing sorting utility
+  const projectsByCategory = await listProjectOverviewFiles(drive, []);
+  return {
+    props: {
+      projectsByCategory,
+    },
+  };
+};
