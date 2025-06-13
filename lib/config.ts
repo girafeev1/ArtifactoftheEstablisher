@@ -30,7 +30,13 @@ if (
 }
 
 export const serviceAccountCredentials = {
-  project_id: envCreds.project_id || fileCreds?.project_id || '',
-  client_email: envCreds.client_email || fileCreds?.client_email || '',
-  private_key: envCreds.private_key || fileCreds?.private_key || '',
+  project_id: envCreds.project_id || fileCreds?.project_id,
+  client_email: envCreds.client_email || fileCreds?.client_email,
+  private_key: envCreds.private_key || fileCreds?.private_key,
 };
+
+export const googleProjectId =
+  serviceAccountCredentials.project_id ||
+  process.env.GOOGLE_CLOUD_PROJECT ||
+  process.env.GCP_PROJECT ||
+  '';
