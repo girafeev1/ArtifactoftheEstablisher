@@ -5,7 +5,9 @@ generate invoices and manage project data. It is designed to run on
 Firebase Hosting backed by Cloud Run.
 
 **Note:** Development now targets the `serverless` branch instead of `main` as
-the project evolves toward more serverless components.
+the project evolves toward more serverless components. When contributing,
+please base your work on the `serverless` branch and open pull requests
+against it.
 
 ## Prerequisites
 
