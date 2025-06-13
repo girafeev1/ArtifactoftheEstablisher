@@ -10,7 +10,7 @@
       {
         "source": "**",
         "run": {
-          "serviceId": "next-app",
+          "serviceId": "artifact-service",
           "region": "us-central1"
         }
       }
