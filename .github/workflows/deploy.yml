@@ -33,7 +33,7 @@ jobs:
 
       # Step 4: Build the application
       - name: Build application
-        run: npm run build
+        run: npm run export
 
       # Step 5: Authenticate with Google Cloud
       - name: Authenticate to Google Cloud
