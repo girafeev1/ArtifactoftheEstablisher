@@ -38,4 +38,5 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}                                # for status checks/comments
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_AOTE_PMS }}
           projectId: aote-pms
-          runOnly: hosting:github  # ensures this is a preview deploy on PR
+          channelId: pr${{ github.event.number }}
+          expires: 7d
