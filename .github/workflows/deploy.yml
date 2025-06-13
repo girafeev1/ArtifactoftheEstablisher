@@ -1,4 +1,4 @@
-# .github/workflows/main.yml
+# .github/workflows/deploy.yml
 
 name: CI/CD
 
@@ -41,19 +41,14 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # Step 6: Set up the gcloud CLI
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       # Step 7: Deploy to Firebase Hosting
       - name: Deploy to Firebase Hosting
         run: npx firebase deploy --only hosting
       
-      # Step 8: Submit build to Google Cloud Build and deploy to Cloud Run
-      - name: Build and Deploy to Cloud Run
+      # Step 8: Build and deploy Firebase Functions
+      - name: Deploy Firebase Functions
         run: |
-          gcloud builds submit --quiet
-          gcloud run deploy my-backend-service --region=us-central1 --platform=managed --quiet
+          npm --prefix functions run build
+          npx firebase deploy --only functions
 
