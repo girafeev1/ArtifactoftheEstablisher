@@ -4,13 +4,11 @@ import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import React, { useState, useMemo, useEffect } from 'react';
 import SidebarLayout from '../../../components/SidebarLayout';
-import { findPMSReferenceLogFile, fetchReferenceNames, fetchAddressBook, fetchBankAccounts, fetchSubsidiaryData } from '../../../lib/pmsReference';
-import { fetchProjectRows, listProjectOverviewFiles, ProjectRow } from '../../../lib/projectOverview';
+import { ProjectRow } from '../../../lib/projectOverview';
 import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button, FormControl, InputLabel, Select, MenuItem, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ProjectOverview from '../../../components/projectdialog/ProjectOverview';
 import { useSnackbar } from 'notistack';
-import { drive_v3 } from 'googleapis';
 
 interface SingleProjectData extends ProjectRow {}
 
@@ -52,28 +50,51 @@ interface FileViewProps {
   projectsByCategory: Record<string, Array<{
     companyIdentifier: string;
     fullCompanyName: string;
-    file: drive_v3.Schema$File;
+    file: { id?: string; name?: string };
   }>>;
   referenceMapping: Record<string, string>;
 }
 
-export default function SingleFilePage({
-  fileId,
-  fileLabel,
-  projects,
-  error,
-  yearCode,
-  fullCompanyName,
-  clients,
-  bankAccounts,
-  subsidiaryInfo,
-  projectsByCategory,
-  referenceMapping,
-}: FileViewProps) {
+export default function SingleFilePage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
+  const fileId = typeof router.query.fileId === 'string' ? router.query.fileId : 'select';
+
+  const [fileLabel, setFileLabel] = useState('');
+  const [projects, setProjects] = useState<SingleProjectData[]>([]);
+  const [error, setError] = useState<string | undefined>();
+  const [yearCode, setYearCode] = useState('');
+  const [fullCompanyName, setFullCompanyName] = useState('');
+  const [clients, setClients] = useState<{ companyName: string }[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [subsidiaryInfo, setSubsidiaryInfo] = useState<SubsidiaryData | null>(null);
+  const [projectsByCategory, setProjectsByCategory] = useState<Record<string, any[]>>({});
+  const [referenceMapping, setReferenceMapping] = useState<Record<string, string>>({});
   const { enqueueSnackbar } = useSnackbar();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<SingleProjectData | null>(null);
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      signIn('google');
+    } else if (status === 'authenticated') {
+      fetch(`/api/businesses/${fileId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) throw new Error(data.error);
+          setProjectsByCategory(data.projectsByCategory || {});
+          setReferenceMapping(data.referenceMapping || {});
+          setProjects(data.projects || []);
+          setFileLabel(data.fileLabel || '');
+          setYearCode(data.yearCode || '');
+          setFullCompanyName(data.fullCompanyName || '');
+          setClients(data.clients || []);
+          setBankAccounts(data.bankAccounts || []);
+          setSubsidiaryInfo(data.subsidiaryInfo || null);
+        })
+        .catch(err => setError(err.message));
+    }
+  }, [status, fileId]);
 
   // Sorting page state
   const [sortMethod, setSortMethod] = useState<'year' | 'company'>('year');

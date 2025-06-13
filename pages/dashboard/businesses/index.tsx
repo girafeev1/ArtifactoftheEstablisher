@@ -3,7 +3,6 @@
 import { useSession, signIn } from 'next-auth/react';
 import SidebarLayout from '../../../components/SidebarLayout';
 import { useEffect, useState } from 'react';
-import { listProjectOverviewFiles } from '../../../lib/projectOverview';
 import { useRouter } from 'next/router';
 import { Box, Typography, List, ListItem, ListItemText, Button } from '@mui/material';
 
@@ -26,8 +25,9 @@ export default function BusinessesPage() {
         .then(res => res.json())
         .then((data) => {
           const all: BusinessFile[] = [];
-          for (const key in data) {
-            data[key].forEach((f: BusinessFile) => all.push(f));
+          const projectsByCategory = data.projectsByCategory || {};
+          for (const key in projectsByCategory) {
+            projectsByCategory[key].forEach((f: BusinessFile) => all.push(f));
           }
           all.sort((a, b) => a.fullCompanyName.localeCompare(b.fullCompanyName));
           setFiles(all);

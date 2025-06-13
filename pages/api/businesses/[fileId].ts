@@ -4,6 +4,17 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { getAuthOptions } from '../auth/[...nextauth]';
 import { initializeApis } from '../../../lib/googleApi';
+import {
+  listProjectOverviewFiles,
+  fetchProjectRows,
+} from '../../../lib/projectOverview';
+import {
+  findPMSReferenceLogFile,
+  fetchReferenceNames,
+  fetchAddressBook,
+  fetchBankAccounts,
+  fetchSubsidiaryData,
+} from '../../../lib/pmsReference';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const authOptions = await getAuthOptions();
@@ -16,9 +27,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (typeof fileId !== 'string' || !fileId) {
     return res.status(400).json({ error: 'Invalid fileId' });
   }
-  const { sheets } = initializeApis('user', { accessToken: session.accessToken as string });
+  const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken as string });
 
-  if (req.method === 'PUT') {
+  if (req.method === 'GET') {
+    try {
+      const projectsByCategory = await listProjectOverviewFiles(drive);
+      const refLogId = await findPMSReferenceLogFile(drive);
+      const referenceMapping = await fetchReferenceNames(sheets, refLogId);
+
+      if (fileId === 'select') {
+        return res.status(200).json({
+          fileId: 'select',
+          projects: [],
+          fileLabel: '',
+          yearCode: '',
+          fullCompanyName: '',
+          clients: [],
+          bankAccounts: [],
+          subsidiaryInfo: null,
+          projectsByCategory,
+          referenceMapping,
+        });
+      }
+
+      // fetch file metadata
+      const meta = await drive.files.get({
+        fileId,
+        fields: 'id, name',
+        supportsAllDrives: true,
+      });
+      const rawName = meta.data.name || '';
+      const match = rawName.match(/^(\d{4})\s+(\S+)\s+Project Overview/i);
+      const yearCode = match ? match[1] : '';
+      const shortCode = match ? match[2] : '';
+      const fullCompanyName = referenceMapping[shortCode] || shortCode;
+
+      const projects = await fetchProjectRows(sheets, fileId, 6);
+      const addressBook = await fetchAddressBook(sheets, refLogId);
+      const clients = addressBook.map(c => ({ companyName: c.companyName }));
+      const bankAccounts = await fetchBankAccounts(sheets, refLogId);
+      const subs = await fetchSubsidiaryData(sheets, refLogId);
+      const subsidiaryInfo = subs.find(r => r.identifier === shortCode) || null;
+
+      return res.status(200).json({
+        fileId,
+        fileLabel: `${fullCompanyName} - ${yearCode}`,
+        projects,
+        yearCode,
+        fullCompanyName,
+        clients,
+        bankAccounts,
+        subsidiaryInfo,
+        projectsByCategory,
+        referenceMapping,
+      });
+    } catch (err: any) {
+      console.error('[GET /api/businesses/:fileId] error:', err);
+      return res.status(500).json({ error: err.message || 'Internal server error' });
+    }
+  } else if (req.method === 'PUT') {
     // (PUT handler unchanged)
     const { originalIdentifier, ...projectData } = req.body;
     try {
