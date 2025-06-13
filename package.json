@@ -33,13 +33,15 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "copy-lib": "node copy-lib.js",
     "start": "next start",
     "lint": "eslint . || true",
     "lint:fix": "eslint . --fix",
     "test": "node ./node_modules/jest/bin/jest.js --version",
     "login:firebase": "npx firebase login",
     "deploy:hosting": "npx firebase deploy --only hosting",
-    "deploy:run": "gcloud builds submit && gcloud run deploy my-backend-service --region=us-central1 --platform=managed --quiet"
+    "deploy:run": "gcloud builds submit && gcloud run deploy my-backend-service --region=us-central1 --platform=managed --quiet",
+    "deploy:functions": "npm run copy-lib && npx firebase deploy --only functions"
   },
   "author": "",
   "license": "ISC",

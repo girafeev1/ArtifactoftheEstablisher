@@ -1,0 +1,11 @@
+{
+  "name": "cloud-functions",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "firebase": "^11.6.1",
+    "googleapis": "^144.0.0",
+    "google-auth-library": "^9.15.0",
+    "@google-cloud/secret-manager": "^5.6.0"
+  }
+}
