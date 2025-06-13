@@ -6,3 +6,6 @@
 
 ## Test commands
 - Run `npm test` from the repository root before committing any changes.
+
+## Branch policy
+Development should target the `serverless` branch, not `main`.

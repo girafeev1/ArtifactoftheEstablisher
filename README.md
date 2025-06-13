@@ -4,6 +4,8 @@ This project is a Next.js application that integrates with Google Workspace to
 generate invoices and manage project data. It is designed to run on
 Firebase Hosting backed by Cloud Run.
 
+**Development happens on the `serverless` branch.**
+
 ## Prerequisites
 
 - **Node.js 20** – the Dockerfile and Cloud Run build use Node 20, so local
