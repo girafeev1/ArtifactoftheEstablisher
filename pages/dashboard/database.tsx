@@ -1,12 +1,9 @@
 // pages/dashboard/database.tsx
 
-import { GetServerSideProps } from 'next';
-import { getSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 import SidebarLayout from '../../components/SidebarLayout';
-import { initializeApis } from '../../lib/googleApi';
-import { findPMSReferenceLogFile, fetchAddressBook, fetchBankAccounts } from '../../lib/pmsReference';
 import { useRouter } from 'next/router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -51,26 +48,41 @@ interface BankAccount {
   // Removed comments field from display
 }
 
-interface DatabasePageProps {
-  clients: AddressBookEntry[];
-  bankAccounts: BankAccount[];
-  error?: string;
-}
-
-export default function DatabasePage({ clients, bankAccounts, error }: DatabasePageProps) {
+export default function DatabasePage() {
+  const { data: session, status } = useSession();
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
+  const [clients, setClients] = useState<AddressBookEntry[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [error, setError] = useState<string | undefined>();
 
   const initialView = router.query.view === 'bank' ? 'bank' : 'clients';
   const [view, setView] = useState<'clients' | 'bank'>(initialView);
-  const uniqueLetters = Array.from(new Set(clients.map(c => c.companyName.charAt(0).toUpperCase()))).sort();
+  const uniqueLetters = useMemo(() => {
+    return Array.from(new Set(clients.map(c => c.companyName.charAt(0).toUpperCase()))).sort();
+  }, [clients]);
   const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
-  const [filteredClients, setFilteredClients] = useState<AddressBookEntry[]>(clients);
+  const [filteredClients, setFilteredClients] = useState<AddressBookEntry[]>([]);
 
   const [selectedClient, setSelectedClient] = useState<AddressBookEntry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      signIn('google');
+    } else if (status === 'authenticated') {
+      fetch('/api/clients')
+        .then(res => res.json())
+        .then(setClients)
+        .catch(err => setError(err.message));
+      fetch('/api/bankAccounts')
+        .then(res => res.json())
+        .then(setBankAccounts)
+        .catch(err => setError(err.message));
+    }
+  }, [status]);
 
   useEffect(() => {
     if (selectedLetter) {
@@ -280,21 +292,3 @@ export default function DatabasePage({ clients, bankAccounts, error }: DatabaseP
   );
 }
 
-export const getServerSideProps: GetServerSideProps<DatabasePageProps> = async (ctx) => {
-  try {
-    const session = await getSession(ctx);
-    if (!session?.accessToken) {
-      return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
-    }
-    const { drive, sheets } = initializeApis('user', {
-      accessToken: session.accessToken as string,
-    });
-    const pmsRefLogFileId = await findPMSReferenceLogFile(drive);
-    const companies = await fetchAddressBook(sheets, pmsRefLogFileId);
-    const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogFileId);
-    return { props: { clients: companies, bankAccounts } };
-  } catch (err: any) {
-    console.error('[getServerSideProps] Error:', err);
-    return { props: { clients: [], bankAccounts: [], error: err.message || 'Error fetching database' } };
-  }
-};
