@@ -7,13 +7,13 @@
       "**/node_modules/**"
     ],
     "rewrites": [
+      { "source": "/api/clients", "function": "clients" },
+      { "source": "/api/businesses", "function": "businesses" },
       {
         "source": "**",
-        "run": {
-          "serviceId": "next-app",
-          "region": "us-central1"
-        }
+        "run": { "serviceId": "next-app", "region": "us-central1" }
       }
     ]
   }
 }
+
