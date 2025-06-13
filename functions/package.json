@@ -1,0 +1,19 @@
+{
+  "name": "functions",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "firebase-functions": "^4.4.1",
+    "next": "^15.2.1",
+    "next-auth": "^4.24.10"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}
