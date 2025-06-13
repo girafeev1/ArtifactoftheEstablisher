@@ -2,18 +2,17 @@
 
 This project is a Next.js application that integrates with Google Workspace to
 generate invoices and manage project data. It is designed to run on
-Firebase Hosting backed by Cloud Run.
+Firebase Hosting backed by serverless functions.
 
 **Development happens on the `serverless` branch.**
 
 ## Prerequisites
 
-- **Node.js 20** – the Dockerfile and Cloud Run build use Node 20, so local
-  development should match.
+- **Node.js 20** - required for local development and Firebase functions.
 - **Firebase CLI** – required for deploying hosting configuration and logging
   in (`npm run login:firebase`).
 - **Google Cloud credentials** – a service account with access to Secret
-  Manager, Cloud Run, and the required Google APIs.
+  Manager, and the required Google APIs.
 
 Install dependencies if you haven't already:
 
@@ -33,11 +32,7 @@ npm test
 
 - Start a development server with **`npm run dev`**.
 - Create a production build with **`npm run build`**.
-- Deploy the container to Cloud Run with **`npm run deploy:run`**. This command
-  uses `gcloud` to build the Docker image defined in the `Dockerfile` and deploy
-  it.
-- Deploy Firebase Hosting rewrites with **`npm run deploy:hosting`** after Cloud
-  Run is updated.
+- Deploy Firebase Hosting rewrites with **`npm run deploy:hosting`**.
 
 ## Roadmap
 
