@@ -32,8 +32,8 @@ npm test
 - Start a development server with **`npm run dev`**.
 - Create a production build with **`npm run build`**.
 - Deploy the container to Cloud Run with **`npm run deploy:run`**. This command
-  uses `gcloud` to build the Docker image defined in the `Dockerfile` and deploy
-  it.
+  uses `gcloud` to build the Docker image defined in the `Dockerfile` and then
+  explicitly deploys that image with `gcloud run deploy`.
 - Deploy Firebase Hosting rewrites with **`npm run deploy:hosting`** after Cloud
   Run is updated.
 
