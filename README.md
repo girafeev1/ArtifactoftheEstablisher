@@ -36,6 +36,8 @@ npm test
   it.
 - Deploy Firebase Hosting rewrites with **`npm run deploy:hosting`** after Cloud
   Run is updated.
+- GitHub Actions automatically deploy when changes are pushed to the
+  **`serverless`** branch.
 
 ## Roadmap
 
