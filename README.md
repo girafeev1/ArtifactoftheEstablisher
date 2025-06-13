@@ -14,6 +14,26 @@ Functions.
 - **Google Cloud credentials** – a service account with access to Secret
   Manager, Cloud Functions, and the required Google APIs.
 
+### Environment Variables
+
+Create a `.env` file using `.env.example` as a template and provide the
+following values:
+
+```
+GOOGLE_PROJECT_ID=<your-gcp-project>
+GOOGLE_CLIENT_EMAIL=<service-account-email>
+GOOGLE_PRIVATE_KEY=<service-account-private-key>
+NEXT_PUBLIC_FIREBASE_API_KEY=<firebase-api-key>
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=<firebase-auth-domain>
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=<firebase-project-id>
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=<firebase-storage-bucket>
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=<firebase-msg-sender-id>
+NEXT_PUBLIC_FIREBASE_APP_ID=<firebase-app-id>
+```
+
+Secrets like `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, and `NEXTAUTH_SECRET`
+should be stored in Google Secret Manager for production.
+
 Install dependencies if you haven't already:
 
 ```bash
