@@ -31,11 +31,11 @@ npm test
 
 - Start a development server with **`npm run dev`**.
 - Create a production build with **`npm run build`**.
-- Deploy the container to Cloud Run with **`npm run deploy:run`**. This command
-  uses `gcloud` to build the Docker image defined in the `Dockerfile` and deploy
-  it.
-- Deploy Firebase Hosting rewrites with **`npm run deploy:hosting`** after Cloud
-  Run is updated.
+- Deploy the backend API to Cloud Run with **`npm run deploy:run`**. This command
+  builds the Docker image defined in `Dockerfile` and deploys it as the
+  `api-service` service.
+- Deploy the static site to Firebase Hosting with **`npm run deploy:hosting`**
+  after the API is updated.
 
 ## Roadmap
 

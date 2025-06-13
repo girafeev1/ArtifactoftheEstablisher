@@ -1,4 +1,4 @@
-# Dockerfile for Next.js app on Cloud Run
+# Dockerfile for API service on Cloud Run
 # 1) Build stage
 FROM node:20-alpine AS builder
 WORKDIR /app
