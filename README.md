@@ -35,7 +35,7 @@ npm test
 ## Development and Deployment
 
 - Start a development server with **`npm run dev`**.
-- Export the static site with **`npm run export`** (generates the `out` directory).
+- Build the static site with **`npm run build`** (generates the `out` directory).
 - Deploy Firebase Functions from `functions/`.
 - Deploy the static site to Firebase Hosting with **`npm run deploy:hosting`**.
 

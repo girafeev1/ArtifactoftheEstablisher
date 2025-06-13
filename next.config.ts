@@ -1,5 +1,8 @@
+// next.config.ts
 // Lint errors should fail the build on CI, but remain optional locally.
-module.exports = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'export',
   eslint: {
     // CI is generally set to "true" in continuous integration environments.
     // When CI is present, do not ignore lint errors during builds so failures
@@ -13,3 +16,5 @@ module.exports = {
     ignoreBuildErrors: true,
   },
 };
+
+module.exports = nextConfig;
