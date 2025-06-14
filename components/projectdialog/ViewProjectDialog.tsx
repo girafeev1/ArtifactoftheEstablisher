@@ -1,4 +1,4 @@
-// components/invoicedialog/ViewProjectDialog.tsx
+// components/projectdialog/ViewProjectDialog.tsx
 
 import React from 'react';
 import {

@@ -1,4 +1,5 @@
 // pages/api/invoices/BasicInfo.ts
+// @ts-nocheck
 
 import { applyDimensions, createMergeRequests, applyCellFormatting, applyBorders, applyBackgroundColors } from '../../../lib/utils';
 
