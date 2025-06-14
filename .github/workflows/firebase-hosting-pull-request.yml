@@ -39,3 +39,14 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_AOTE_PMS }}
           projectId: aote-pms
           runOnly: hosting:github  # ensures this is a preview deploy on PR
+
+      # 5. Authenticate with Google Cloud for Firebase CLI
+      - uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_AOTE_PMS }}
+
+      # 6. Build and deploy Firebase Functions so preview URLs can hit the API
+      - run: |
+          npm --prefix functions install
+          npm --prefix functions run build
+          npx firebase deploy --only functions --project aote-pms --force
