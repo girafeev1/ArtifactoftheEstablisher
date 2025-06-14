@@ -39,7 +39,7 @@
     "test": "node ./node_modules/jest/bin/jest.js --version",
     "login:firebase": "npx firebase login",
     "deploy:hosting": "npx firebase deploy --only hosting",
-    "deploy:run": "gcloud builds submit && gcloud run deploy my-backend-service --region=us-central1 --platform=managed --quiet"
+    "deploy:functions": "npm --prefix functions run build && npx firebase deploy --only functions"
   },
   "author": "",
   "license": "ISC",
