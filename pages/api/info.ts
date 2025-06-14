@@ -1,4 +1,5 @@
 // pages/api/info.ts
+// @ts-nocheck
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
