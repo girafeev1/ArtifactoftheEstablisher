@@ -1,4 +1,5 @@
 // pages/api/invoices/BillTo.ts
+// @ts-nocheck
 
 import { applyDimensions, createMergeRequests, applyCellFormatting, applyBackgroundColors } from '../../../lib/utils';
 

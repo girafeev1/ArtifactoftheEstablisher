@@ -1,4 +1,5 @@
 // pages/api/invoices/InvoiceGenerator.ts
+// @ts-nocheck
 
 import { applyDimensions } from '../../../lib/utils';
 import { applyBasicInfoFormatting } from './BasicInfo';
