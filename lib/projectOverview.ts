@@ -80,7 +80,7 @@ export async function fetchProjectRows(
       projectTitle: cellText(5, values),
       projectNature: cellText(6, values),
       amount: numericAmount.toFixed(2),
-      paid: cellText(8, values) || 'FALSE',
+      paid: (cellText(8, values) as 'TRUE' | 'FALSE') || 'FALSE',
       paidOnDate: cellText(9, values),
       bankAccountIdentifier: cellText(10, values),
       invoice,
