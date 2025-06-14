@@ -1,14 +1,14 @@
 {
-  "compilerOptions": {
-    "lib": ["es2022"],
-    "module": "commonjs",
-    "target": "es2019",
-    "outDir": "lib",
-    "esModuleInterop": true,
-    "strict": false,
-    "skipLibCheck": true,
-    "noEmitOnError": false,
-    "types": ["node"]
-  },
-  "include": ["src/**/*", "../pages/api/**/*"]
+"compilerOptions": {
+  "lib": ["es2022"],
+  "module": "commonjs",
+  "target": "es2019",
+  "outDir": "lib",
+  "esModuleInterop": true,
+  "strict": false,
+  "skipLibCheck": true,
+  "noEmitOnError": false,
+  "types": ["node"]
+},
+"include": ["src/**/*", "../pages/api/**/*"]
 }
