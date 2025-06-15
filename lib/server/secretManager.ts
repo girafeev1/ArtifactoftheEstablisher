@@ -20,6 +20,15 @@ export async function loadSecrets(): Promise<SecretFetchResult> {
     Boolean(serviceAccountCredentials.private_key);
 
   if (!hasExplicitCreds) {
+    const missing: string[] = [];
+    if (!serviceAccountCredentials.project_id) missing.push('GOOGLE_PROJECT_ID');
+    if (!serviceAccountCredentials.client_email)
+      missing.push('GOOGLE_CLIENT_EMAIL');
+    if (!serviceAccountCredentials.private_key)
+      missing.push('GOOGLE_PRIVATE_KEY');
+    console.warn(
+      `[secretManager] Missing credentials: ${missing.join(', ') || 'unknown'}`
+    );
     console.log(
       '[secretManager] Falling back to Application Default Credentials.'
     );
