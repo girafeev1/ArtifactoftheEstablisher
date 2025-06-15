@@ -14,21 +14,23 @@ interface SecretFetchResult {
 }
 
 export async function loadSecrets(): Promise<SecretFetchResult> {
-  if (
-    !serviceAccountCredentials.project_id ||
-    !serviceAccountCredentials.client_email ||
-    !serviceAccountCredentials.private_key
-  ) {
-    throw new Error('Service account credentials are missing.');
-  }
+  const credentialsProvided =
+    serviceAccountCredentials.project_id &&
+    serviceAccountCredentials.client_email &&
+    serviceAccountCredentials.private_key;
 
-  const client = new SecretManagerServiceClient({
-    credentials: {
-      client_email: serviceAccountCredentials.client_email,
-      private_key: serviceAccountCredentials.private_key,
-    },
-    projectId: serviceAccountCredentials.project_id,
-  });
+  const client = credentialsProvided
+    ? new SecretManagerServiceClient({
+        credentials: {
+          client_email: serviceAccountCredentials.client_email,
+          private_key: serviceAccountCredentials.private_key,
+        },
+        projectId: serviceAccountCredentials.project_id,
+      })
+    : new SecretManagerServiceClient();
+
+  const projectId =
+    serviceAccountCredentials.project_id || (await client.getProjectId());
 
   const secrets: Record<string, string> = {};
   const diagnostics = {
@@ -48,7 +50,7 @@ export async function loadSecrets(): Promise<SecretFetchResult> {
   for (const { name, key } of secretNames) {
     try {
       const [version] = await client.accessSecretVersion({
-        name: `projects/${serviceAccountCredentials.project_id}/secrets/${name}/versions/latest`,
+        name: `projects/${projectId}/secrets/${name}/versions/latest`,
       });
 
       const data = version.payload?.data;
