@@ -27,6 +27,17 @@ The repository includes a minimal Jest configuration. Run tests with:
 npm test
 ```
 
+## Configuring Secrets
+
+Provide the following environment variables with your service account credentials:
+
+- `GOOGLE_PROJECT_ID`
+- `GOOGLE_CLIENT_EMAIL`
+- `GOOGLE_PRIVATE_KEY`
+
+Ensure these variables are available in your deployment environment so the
+application can retrieve additional secrets from Secret Manager.
+
 ## Development and Deployment
 
 - Start a development server with **`npm run dev`**.
