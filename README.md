@@ -27,15 +27,38 @@ The repository includes a minimal Jest configuration. Run tests with:
 npm test
 ```
 
+## Configuring Secrets
+
+Provide the following environment variables with your service account credentials:
+
+- `GOOGLE_PROJECT_ID`
+- `GOOGLE_CLIENT_EMAIL`
+- `GOOGLE_PRIVATE_KEY`
+
+Ensure these variables are available in your deployment environment so the
+application can retrieve additional secrets from Secret Manager.
+
 ## Development and Deployment
 
 - Start a development server with **`npm run dev`**.
 - Create a production build with **`npm run build`**.
-- Deploy the container to Cloud Run with **`npm run deploy:run`**. This command
-  uses `gcloud` to build the Docker image defined in the `Dockerfile` and deploy
-  it.
-- Deploy Firebase Hosting rewrites with **`npm run deploy:hosting`** after Cloud
-  Run is updated.
+- Deploy to Cloud Run manually:
+
+  ```bash
+  gcloud builds submit --tag gcr.io/$GOOGLE_PROJECT_ID/next-app
+  gcloud run deploy next-app \
+    --image gcr.io/$GOOGLE_PROJECT_ID/next-app \
+    --region us-central1 --platform managed
+  ```
+
+- Deploy Firebase Hosting rewrites with **`npx firebase deploy --only hosting`**
+  after Cloud Run is updated.
+
+- Check Cloud Run logs if the service seems unreachable:
+
+  ```bash
+  gcloud run services logs read next-app --region us-central1
+  ```
 
 ## Roadmap
 
