@@ -1,12 +1,27 @@
 // functions/src/index.ts
 import * as functions from 'firebase-functions';
 import { initializeApis } from '../../lib/googleApi';
+import {
+  loadSecrets,
+  GOOGLE_PROJECT_ID,
+  GOOGLE_CLIENT_EMAIL,
+  GOOGLE_PRIVATE_KEY,
+} from '../../lib/server/loadSecrets';
 import { findPMSReferenceLogFile, fetchAddressBook, fetchBankAccounts, fetchReferenceNames, fetchSubsidiaryData } from '../../lib/pmsReference';
 import { listProjectOverviewFiles, fetchProjectRows } from '../../lib/projectOverview';
 
-export const clients = functions.https.onRequest(async (req, res) => {
+export const clients = functions
+  .runWith({ secrets: [GOOGLE_PROJECT_ID, GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY] })
+  .https.onRequest(async (req, res) => {
   try {
-    const { drive, sheets } = initializeApis('service', {});
+    const creds = loadSecrets();
+    const { drive, sheets } = initializeApis('service', {
+      credentials: {
+        project_id: creds.projectId,
+        client_email: creds.clientEmail,
+        private_key: creds.privateKey,
+      },
+    });
     const logId = await findPMSReferenceLogFile(drive);
     const clientsData = await fetchAddressBook(sheets, logId);
     const bankAccounts = await fetchBankAccounts(sheets, logId);
@@ -17,9 +32,18 @@ export const clients = functions.https.onRequest(async (req, res) => {
   }
 });
 
-export const businesses = functions.https.onRequest(async (req, res) => {
+export const businesses = functions
+  .runWith({ secrets: [GOOGLE_PROJECT_ID, GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY] })
+  .https.onRequest(async (req, res) => {
   try {
-    const { drive, sheets } = initializeApis('service', {});
+    const creds = loadSecrets();
+    const { drive, sheets } = initializeApis('service', {
+      credentials: {
+        project_id: creds.projectId,
+        client_email: creds.clientEmail,
+        private_key: creds.privateKey,
+      },
+    });
     const fileId = req.query.fileId as string | undefined;
 
     if (fileId) {

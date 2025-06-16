@@ -12,6 +12,7 @@
     "browserify-zlib": "^0.2.0",
     "date-fns": "^4.1.0",
     "firebase": "^11.6.1",
+    "firebase-functions": "^4.4.1",
     "google-auth-library": "^9.15.0",
     "googleapis": "^144.0.0",
     "jwt-decode": "^4.0.0",
