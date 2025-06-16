@@ -3,6 +3,15 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { loadAppSecrets } from '../../../lib/server/secretManager';
+import {
+  onRequest,
+} from 'firebase-functions/v2/https';
+import {
+  loadSecrets,
+  GOOGLE_PROJECT_ID,
+  GOOGLE_CLIENT_EMAIL,
+  GOOGLE_PRIVATE_KEY,
+} from '../../../lib/server/loadSecrets';
 
 let dynamicAuthOptions: NextAuthOptions | null = null;
 
@@ -144,3 +153,13 @@ export default async function auth(req, res) {
     return res.status(500).json({ error: 'Could not initialize NextAuth' });
   }
 }
+
+export const authHandler = onRequest(
+  {
+    secrets: [GOOGLE_PROJECT_ID, GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY],
+  },
+  async (req, res) => {
+    const { clientEmail } = loadSecrets();
+    res.status(200).send(`NextAuth ready with client: ${clientEmail}`);
+  }
+);
