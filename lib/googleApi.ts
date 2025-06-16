@@ -9,6 +9,11 @@ import { google, sheets_v4, drive_v3 } from 'googleapis';
  */
 interface InitializeApisOptions {
   accessToken?: string; // only required when type === 'user'
+  credentials?: {
+    client_email: string;
+    private_key: string;
+    project_id?: string;
+  };
 }
 
 /**
@@ -30,7 +35,12 @@ export const initializeApis = (
     auth.setCredentials({ access_token: options.accessToken });
   } else {
     // Service account authentication
+    const creds = options.credentials;
     auth = new google.auth.GoogleAuth({
+      credentials: creds
+        ? { client_email: creds.client_email, private_key: creds.private_key }
+        : undefined,
+      projectId: creds?.project_id,
       scopes: [
         'https://www.googleapis.com/auth/drive',
         'https://www.googleapis.com/auth/spreadsheets',
