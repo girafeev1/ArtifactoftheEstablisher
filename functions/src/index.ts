@@ -1,5 +1,6 @@
 // functions/src/index.ts
 import * as functions from 'firebase-functions';
+import { defineSecret } from 'firebase-functions/params';
 import { initializeApis } from '../../lib/googleApi';
 import {
   loadSecrets,
