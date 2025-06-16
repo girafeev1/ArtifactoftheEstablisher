@@ -7,8 +7,8 @@ export const GOOGLE_PRIVATE_KEY = defineSecret('GOOGLE_PRIVATE_KEY');
 
 export function loadSecrets() {
   return {
-    projectId: GOOGLE_PROJECT_ID.value(),
-    clientEmail: GOOGLE_CLIENT_EMAIL.value(),
-    privateKey: GOOGLE_PRIVATE_KEY.value(),
+    projectId: GOOGLE_PROJECT_ID.value() || process.env.GOOGLE_PROJECT_ID,
+    clientEmail: GOOGLE_CLIENT_EMAIL.value() || process.env.GOOGLE_CLIENT_EMAIL,
+    privateKey: GOOGLE_PRIVATE_KEY.value() || process.env.GOOGLE_PRIVATE_KEY,
   };
 }
