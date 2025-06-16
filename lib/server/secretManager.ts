@@ -1,8 +1,12 @@
 // lib/server/secretManager.ts
 
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import { serviceAccountCredentials } from '../config';
 import { TextDecoder } from 'util';
+import { defineSecret } from 'firebase-functions/params';
+
+const GOOGLE_PROJECT_ID = defineSecret('GOOGLE_PROJECT_ID');
+const GOOGLE_CLIENT_EMAIL = defineSecret('GOOGLE_CLIENT_EMAIL');
+const GOOGLE_PRIVATE_KEY = defineSecret('GOOGLE_PRIVATE_KEY');
 
 interface SecretFetchResult {
   secrets: Record<string, string>;
@@ -14,21 +18,42 @@ interface SecretFetchResult {
 }
 
 export async function loadSecrets(): Promise<SecretFetchResult> {
-  if (
-    !serviceAccountCredentials.project_id ||
-    !serviceAccountCredentials.client_email ||
-    !serviceAccountCredentials.private_key
-  ) {
-    throw new Error('Service account credentials are missing.');
+  const creds = {
+    project_id: GOOGLE_PROJECT_ID.value() || process.env.GOOGLE_PROJECT_ID || '',
+    client_email: GOOGLE_CLIENT_EMAIL.value() || process.env.GOOGLE_CLIENT_EMAIL || '',
+    private_key:
+      (GOOGLE_PRIVATE_KEY.value() || process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+  };
+
+  const hasExplicitCreds =
+    Boolean(creds.project_id) &&
+    Boolean(creds.client_email) &&
+    Boolean(creds.private_key);
+
+  if (!hasExplicitCreds) {
+    const missing: string[] = [];
+    if (!creds.project_id) missing.push('GOOGLE_PROJECT_ID');
+    if (!creds.client_email) missing.push('GOOGLE_CLIENT_EMAIL');
+    if (!creds.private_key) missing.push('GOOGLE_PRIVATE_KEY');
+    console.warn(
+      `[secretManager] Missing credentials: ${missing.join(', ') || 'unknown'}`
+    );
+    console.log(
+      '[secretManager] Falling back to Application Default Credentials.'
+    );
   }
 
-  const client = new SecretManagerServiceClient({
-    credentials: {
-      client_email: serviceAccountCredentials.client_email,
-      private_key: serviceAccountCredentials.private_key,
-    },
-    projectId: serviceAccountCredentials.project_id,
-  });
+  const client = hasExplicitCreds
+    ? new SecretManagerServiceClient({
+        credentials: {
+          client_email: creds.client_email,
+          private_key: creds.private_key,
+        },
+        projectId: creds.project_id,
+      })
+    : new SecretManagerServiceClient();
+
+  const projectId = hasExplicitCreds ? creds.project_id : await client.getProjectId();
 
   const secrets: Record<string, string> = {};
   const diagnostics = {
@@ -48,7 +73,7 @@ export async function loadSecrets(): Promise<SecretFetchResult> {
   for (const { name, key } of secretNames) {
     try {
       const [version] = await client.accessSecretVersion({
-        name: `projects/${serviceAccountCredentials.project_id}/secrets/${name}/versions/latest`,
+        name: `projects/${projectId}/secrets/${name}/versions/latest`,
       });
 
       const data = version.payload?.data;
