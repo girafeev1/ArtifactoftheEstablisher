@@ -54,7 +54,9 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
       })
     : new SecretManagerServiceClient();
 
-  const projectId = hasExplicitCreds ? creds.project_id : await client.getProjectId();
+  const resolvedProjectId = hasExplicitCreds
+    ? creds.project_id
+    : await client.getProjectId();
 
   const secrets: Record<string, string> = {};
   const diagnostics = {
@@ -74,7 +76,7 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
   for (const { name, key } of secretNames) {
     try {
       const [version] = await client.accessSecretVersion({
-        name: `projects/${projectId}/secrets/${name}/versions/latest`,
+        name: `projects/${resolvedProjectId}/secrets/${name}/versions/latest`,
       });
 
       const data = version.payload?.data;
