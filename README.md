@@ -29,7 +29,19 @@ npm test
 
 ## Configuring Secrets
 
-Provide the following environment variables with your service account credentials:
+Provide the following environment variables with your service account credentials.
+If you deploy via **Firebase Functions**, set them using `firebase functions:secrets:set`:
+
+```bash
+firebase functions:secrets:set GOOGLE_PROJECT_ID
+firebase functions:secrets:set GOOGLE_CLIENT_EMAIL
+firebase functions:secrets:set GOOGLE_PRIVATE_KEY
+```
+
+Otherwise ensure they are available in the Cloud Run service configuration.
+
+Required variables:
+
 
 - `GOOGLE_PROJECT_ID`
 - `GOOGLE_CLIENT_EMAIL`
@@ -51,14 +63,24 @@ application can retrieve additional secrets from Secret Manager.
     --region us-central1 --platform managed
   ```
 
-- Deploy Firebase Hosting rewrites with **`npx firebase deploy --only hosting`**
-  after Cloud Run is updated.
+- Deploy Firebase Hosting and functions with **`npx firebase deploy --only hosting,functions`** when using Cloud Functions. For Cloud Run, deploy Hosting with **`npx firebase deploy --only hosting`** after the service is updated.
 
-- Check Cloud Run logs if the service seems unreachable:
+- Check logs if the service seems unreachable:
 
   ```bash
-  gcloud run services logs read next-app --region us-central1
+  gcloud run services logs read next-app --region us-central1   # Cloud Run
+firebase functions:log                                       # Cloud Functions
   ```
+
+### Static Export
+
+Set `NEXT_PUBLIC_API_BASE_URL` to your backend API and run:
+
+```bash
+npm run export
+```
+
+Static files will be created in the `out` directory for deployment to any static host.
 
 ## Roadmap
 
