@@ -1,12 +1,25 @@
 // functions/src/index.ts
 import * as functions from 'firebase-functions';
+import { defineSecret } from 'firebase-functions/params';
 import { initializeApis } from '../../lib/googleApi';
 import { findPMSReferenceLogFile, fetchAddressBook, fetchBankAccounts, fetchReferenceNames, fetchSubsidiaryData } from '../../lib/pmsReference';
 import { listProjectOverviewFiles, fetchProjectRows } from '../../lib/projectOverview';
 
-export const clients = functions.https.onRequest(async (req, res) => {
+const GOOGLE_PROJECT_ID = defineSecret('GOOGLE_PROJECT_ID');
+const GOOGLE_CLIENT_EMAIL = defineSecret('GOOGLE_CLIENT_EMAIL');
+const GOOGLE_PRIVATE_KEY = defineSecret('GOOGLE_PRIVATE_KEY');
+
+export const clients = functions
+  .runWith({ secrets: [GOOGLE_PROJECT_ID, GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY] })
+  .https.onRequest(async (req, res) => {
   try {
-    const { drive, sheets } = initializeApis('service', {});
+    const { drive, sheets } = initializeApis('service', {
+      credentials: {
+        project_id: GOOGLE_PROJECT_ID.value(),
+        client_email: GOOGLE_CLIENT_EMAIL.value(),
+        private_key: GOOGLE_PRIVATE_KEY.value(),
+      },
+    });
     const logId = await findPMSReferenceLogFile(drive);
     const clientsData = await fetchAddressBook(sheets, logId);
     const bankAccounts = await fetchBankAccounts(sheets, logId);
@@ -17,9 +30,17 @@ export const clients = functions.https.onRequest(async (req, res) => {
   }
 });
 
-export const businesses = functions.https.onRequest(async (req, res) => {
+export const businesses = functions
+  .runWith({ secrets: [GOOGLE_PROJECT_ID, GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY] })
+  .https.onRequest(async (req, res) => {
   try {
-    const { drive, sheets } = initializeApis('service', {});
+    const { drive, sheets } = initializeApis('service', {
+      credentials: {
+        project_id: GOOGLE_PROJECT_ID.value(),
+        client_email: GOOGLE_CLIENT_EMAIL.value(),
+        private_key: GOOGLE_PRIVATE_KEY.value(),
+      },
+    });
     const fileId = req.query.fileId as string | undefined;
 
     if (fileId) {
