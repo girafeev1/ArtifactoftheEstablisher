@@ -2,22 +2,25 @@
 import * as functions from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
 import { initializeApis } from '../../lib/googleApi';
+import {
+  loadSecrets,
+  GOOGLE_PROJECT_ID,
+  GOOGLE_CLIENT_EMAIL,
+  GOOGLE_PRIVATE_KEY,
+} from '../../lib/server/loadSecrets';
 import { findPMSReferenceLogFile, fetchAddressBook, fetchBankAccounts, fetchReferenceNames, fetchSubsidiaryData } from '../../lib/pmsReference';
 import { listProjectOverviewFiles, fetchProjectRows } from '../../lib/projectOverview';
-
-const GOOGLE_PROJECT_ID = defineSecret('GOOGLE_PROJECT_ID');
-const GOOGLE_CLIENT_EMAIL = defineSecret('GOOGLE_CLIENT_EMAIL');
-const GOOGLE_PRIVATE_KEY = defineSecret('GOOGLE_PRIVATE_KEY');
 
 export const clients = functions
   .runWith({ secrets: [GOOGLE_PROJECT_ID, GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY] })
   .https.onRequest(async (req, res) => {
   try {
+    const creds = loadSecrets();
     const { drive, sheets } = initializeApis('service', {
       credentials: {
-        project_id: GOOGLE_PROJECT_ID.value(),
-        client_email: GOOGLE_CLIENT_EMAIL.value(),
-        private_key: GOOGLE_PRIVATE_KEY.value(),
+        project_id: creds.projectId,
+        client_email: creds.clientEmail,
+        private_key: creds.privateKey,
       },
     });
     const logId = await findPMSReferenceLogFile(drive);
@@ -34,11 +37,12 @@ export const businesses = functions
   .runWith({ secrets: [GOOGLE_PROJECT_ID, GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY] })
   .https.onRequest(async (req, res) => {
   try {
+    const creds = loadSecrets();
     const { drive, sheets } = initializeApis('service', {
       credentials: {
-        project_id: GOOGLE_PROJECT_ID.value(),
-        client_email: GOOGLE_CLIENT_EMAIL.value(),
-        private_key: GOOGLE_PRIVATE_KEY.value(),
+        project_id: creds.projectId,
+        client_email: creds.clientEmail,
+        private_key: creds.privateKey,
       },
     });
     const fileId = req.query.fileId as string | undefined;

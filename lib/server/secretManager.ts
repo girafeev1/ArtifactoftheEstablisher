@@ -1,8 +1,13 @@
 // lib/server/secretManager.ts
 
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import { serviceAccountCredentials } from '../config';
 import { TextDecoder } from 'util';
+import {
+  loadSecrets,
+  GOOGLE_PROJECT_ID,
+  GOOGLE_CLIENT_EMAIL,
+  GOOGLE_PRIVATE_KEY,
+} from './loadSecrets';
 
 interface SecretFetchResult {
   secrets: Record<string, string>;
@@ -13,19 +18,24 @@ interface SecretFetchResult {
   };
 }
 
-export async function loadSecrets(): Promise<SecretFetchResult> {
+export async function loadAppSecrets(): Promise<SecretFetchResult> {
+  const { projectId, clientEmail, privateKey } = loadSecrets();
+  const creds = {
+    project_id: projectId,
+    client_email: clientEmail,
+    private_key: privateKey.replace(/\\n/g, '\n'),
+  };
+
   const hasExplicitCreds =
-    Boolean(serviceAccountCredentials.project_id) &&
-    Boolean(serviceAccountCredentials.client_email) &&
-    Boolean(serviceAccountCredentials.private_key);
+    Boolean(creds.project_id) &&
+    Boolean(creds.client_email) &&
+    Boolean(creds.private_key);
 
   if (!hasExplicitCreds) {
     const missing: string[] = [];
-    if (!serviceAccountCredentials.project_id) missing.push('GOOGLE_PROJECT_ID');
-    if (!serviceAccountCredentials.client_email)
-      missing.push('GOOGLE_CLIENT_EMAIL');
-    if (!serviceAccountCredentials.private_key)
-      missing.push('GOOGLE_PRIVATE_KEY');
+    if (!creds.project_id) missing.push('GOOGLE_PROJECT_ID');
+    if (!creds.client_email) missing.push('GOOGLE_CLIENT_EMAIL');
+    if (!creds.private_key) missing.push('GOOGLE_PRIVATE_KEY');
     console.warn(
       `[secretManager] Missing credentials: ${missing.join(', ') || 'unknown'}`
     );
@@ -37,16 +47,14 @@ export async function loadSecrets(): Promise<SecretFetchResult> {
   const client = hasExplicitCreds
     ? new SecretManagerServiceClient({
         credentials: {
-          client_email: serviceAccountCredentials.client_email,
-          private_key: serviceAccountCredentials.private_key,
+          client_email: creds.client_email,
+          private_key: creds.private_key,
         },
-        projectId: serviceAccountCredentials.project_id,
+        projectId: creds.project_id,
       })
     : new SecretManagerServiceClient();
 
-  const projectId = hasExplicitCreds
-    ? serviceAccountCredentials.project_id
-    : await client.getProjectId();
+  const projectId = hasExplicitCreds ? creds.project_id : await client.getProjectId();
 
   const secrets: Record<string, string> = {};
   const diagnostics = {
