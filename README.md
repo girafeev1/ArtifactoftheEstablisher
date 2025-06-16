@@ -47,7 +47,6 @@ Required variables:
 - `GOOGLE_CLIENT_EMAIL`
 - `GOOGLE_PRIVATE_KEY`
 
-
 Ensure these variables are available in your deployment environment so the
 application can retrieve additional secrets from Secret Manager.
 
