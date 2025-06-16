@@ -2,7 +2,7 @@
 
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
-import { loadSecrets } from '../../../lib/server/secretManager';
+import { loadAppSecrets } from '../../../lib/server/secretManager';
 
 let dynamicAuthOptions: NextAuthOptions | null = null;
 
@@ -58,7 +58,7 @@ async function refreshAccessToken(token: any, secrets: Record<string, string>) {
 async function getDynamicAuthOptions(): Promise<NextAuthOptions> {
   if (dynamicAuthOptions) return dynamicAuthOptions;
 
-  const { secrets, diagnostics } = await loadSecrets();
+  const { secrets, diagnostics } = await loadAppSecrets();
   if (!diagnostics.success) {
     console.error('Failed to load secrets:', diagnostics.errors);
     throw new Error('Failed to load secrets');

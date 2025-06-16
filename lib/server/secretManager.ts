@@ -2,11 +2,12 @@
 
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { TextDecoder } from 'util';
-import { defineSecret } from 'firebase-functions/params';
-
-const GOOGLE_PROJECT_ID = defineSecret('GOOGLE_PROJECT_ID');
-const GOOGLE_CLIENT_EMAIL = defineSecret('GOOGLE_CLIENT_EMAIL');
-const GOOGLE_PRIVATE_KEY = defineSecret('GOOGLE_PRIVATE_KEY');
+import {
+  loadSecrets,
+  GOOGLE_PROJECT_ID,
+  GOOGLE_CLIENT_EMAIL,
+  GOOGLE_PRIVATE_KEY,
+} from './loadSecrets';
 
 interface SecretFetchResult {
   secrets: Record<string, string>;
@@ -17,12 +18,12 @@ interface SecretFetchResult {
   };
 }
 
-export async function loadSecrets(): Promise<SecretFetchResult> {
+export async function loadAppSecrets(): Promise<SecretFetchResult> {
+  const { projectId, clientEmail, privateKey } = loadSecrets();
   const creds = {
-    project_id: GOOGLE_PROJECT_ID.value() || process.env.GOOGLE_PROJECT_ID || '',
-    client_email: GOOGLE_CLIENT_EMAIL.value() || process.env.GOOGLE_CLIENT_EMAIL || '',
-    private_key:
-      (GOOGLE_PRIVATE_KEY.value() || process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    project_id: projectId,
+    client_email: clientEmail,
+    private_key: privateKey.replace(/\\n/g, '\n'),
   };
 
   const hasExplicitCreds =
