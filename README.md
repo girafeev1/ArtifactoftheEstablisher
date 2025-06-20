@@ -64,6 +64,9 @@ application can retrieve additional secrets from Secret Manager.
     --region us-central1 --platform managed
   ```
 
+- Pull requests automatically build and deploy a preview of the service to
+  Cloud Run. The preview URL is posted to the PR.
+
 - Deploy Firebase Hosting and functions with **`npx firebase deploy --only hosting,functions`** when using Cloud Functions. For Cloud Run, deploy Hosting with **`npx firebase deploy --only hosting`** after the service is updated.
 
 - Check logs if the service seems unreachable:
