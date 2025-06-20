@@ -3,9 +3,14 @@
 name: CI/CD
 
 on:
-  # Triggers the workflow on push events to the main branch
+  # Triggers the workflow on push events to the serverless branch
   push:
-    branches: [ main ]
+    branches:
+      - serverless
+  # Optionally build previews for pull requests targeting serverless
+  pull_request:
+    branches:
+      - serverless
 
 jobs:
   # Defines a single job named "deploy"
