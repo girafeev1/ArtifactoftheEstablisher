@@ -1,4 +1,3 @@
-// next.config.ts
 // Lint errors should fail the build on CI, but remain optional locally.
 module.exports = {
   eslint: {
@@ -13,5 +12,4 @@ module.exports = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  output: 'export',
 };

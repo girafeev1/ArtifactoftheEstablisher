@@ -1,4 +1,4 @@
-// common/InlineEdit.tsx
+// components/common/InlineEdit.tsx
 
 import React, { useState, useRef, useEffect } from 'react'
 import { TextField, MenuItem, Typography } from '@mui/material'

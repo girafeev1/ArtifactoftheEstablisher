@@ -1,8 +1,12 @@
 // pages/dashboard/database.tsx
 
+import { GetServerSideProps } from 'next';
+import { getSession } from 'next-auth/react';
 import SidebarLayout from '../../components/SidebarLayout';
-import { useState, useEffect } from 'react';
+import { initializeApis } from '../../lib/googleApi';
+import { findPMSReferenceLogFile, fetchAddressBook, fetchBankAccounts } from '../../lib/pmsReference';
 import { useRouter } from 'next/router';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -47,22 +51,15 @@ interface BankAccount {
   // Removed comments field from display
 }
 
-export default function DatabasePage() {
+interface DatabasePageProps {
+  clients: AddressBookEntry[];
+  bankAccounts: BankAccount[];
+  error?: string;
+}
+
+export default function DatabasePage({ clients, bankAccounts, error }: DatabasePageProps) {
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
-  const [clients, setClients] = useState<AddressBookEntry[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [error, setError] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/clients`)
-      .then(res => res.ok ? res.json() : Promise.reject())
-      .then(data => {
-        setClients(data.clients || []);
-        setBankAccounts(data.bankAccounts || []);
-      })
-      .catch(() => setError('Failed to load data'));
-  }, []);
 
   const initialView = router.query.view === 'bank' ? 'bank' : 'clients';
   const [view, setView] = useState<'clients' | 'bank'>(initialView);
@@ -283,3 +280,21 @@ export default function DatabasePage() {
   );
 }
 
+export const getServerSideProps: GetServerSideProps<DatabasePageProps> = async (ctx) => {
+  try {
+    const session = await getSession(ctx);
+    if (!session?.accessToken) {
+      return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
+    }
+    const { drive, sheets } = initializeApis('user', {
+      accessToken: session.accessToken as string,
+    });
+    const pmsRefLogFileId = await findPMSReferenceLogFile(drive);
+    const companies = await fetchAddressBook(sheets, pmsRefLogFileId);
+    const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogFileId);
+    return { props: { clients: companies, bankAccounts } };
+  } catch (err: any) {
+    console.error('[getServerSideProps] Error:', err);
+    return { props: { clients: [], bankAccounts: [], error: err.message || 'Error fetching database' } };
+  }
+};
