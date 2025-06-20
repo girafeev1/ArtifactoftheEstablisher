@@ -3,9 +3,14 @@
 name: CI/CD
 
 on:
-  # Triggers the workflow on push events to the main branch
+  # Triggers the workflow on push events to the serverless branch
   push:
-    branches: [ main ]
+    branches:
+      - serverless
+  # Optionally build previews for pull requests targeting serverless
+  pull_request:
+    branches:
+      - serverless
 
 jobs:
   # Defines a single job named "deploy"
@@ -45,7 +50,7 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v1
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          project_id: aote-pms
 
       # Step 7: Deploy to Firebase Hosting
       - name: Deploy to Firebase Hosting
@@ -53,7 +58,9 @@ jobs:
       
       # Step 8: Submit build to Google Cloud Build and deploy to Cloud Run
       - name: Build and Deploy to Cloud Run
+        env:
+          IMAGE: us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:${{ github.sha }}
         run: |
-          gcloud builds submit --quiet
-          gcloud run deploy my-backend-service --region=us-central1 --platform=managed --quiet
+          gcloud builds submit --tag "$IMAGE" --project aote-pms --quiet
+          gcloud run deploy next-app --image "$IMAGE" --region us-central1 --platform managed --quiet
 

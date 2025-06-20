@@ -13,10 +13,11 @@ Firebase Hosting backed by Cloud Run.
 - **Google Cloud credentials** – a service account with access to Secret
   Manager, Cloud Run, and the required Google APIs.
 
-Install dependencies if you haven't already:
+Install dependencies if you haven't already. For a clean, reproducible setup
+use **`npm ci`**; for local development you can also use **`npm install`**:
 
 ```bash
-npm install
+npm ci
 ```
 
 ## Running Tests
@@ -27,15 +28,63 @@ The repository includes a minimal Jest configuration. Run tests with:
 npm test
 ```
 
+## Configuring Secrets
+
+Provide the following environment variables with your service account credentials.
+If you deploy via **Firebase Functions**, set them using `firebase functions:secrets:set`:
+
+```bash
+firebase functions:secrets:set GOOGLE_PROJECT_ID
+firebase functions:secrets:set GOOGLE_CLIENT_EMAIL
+firebase functions:secrets:set GOOGLE_PRIVATE_KEY
+```
+
+Otherwise ensure they are available in the Cloud Run service configuration.
+
+Required variables:
+
+
+- `GOOGLE_PROJECT_ID`
+- `GOOGLE_CLIENT_EMAIL`
+- `GOOGLE_PRIVATE_KEY`
+
+Ensure these variables are available in your deployment environment so the
+application can retrieve additional secrets from Secret Manager.
+
 ## Development and Deployment
 
 - Start a development server with **`npm run dev`**.
 - Create a production build with **`npm run build`**.
-- Deploy the container to Cloud Run with **`npm run deploy:run`**. This command
-  uses `gcloud` to build the Docker image defined in the `Dockerfile` and deploy
-  it.
-- Deploy Firebase Hosting rewrites with **`npm run deploy:hosting`** after Cloud
-  Run is updated.
+- Deploy to Cloud Run manually:
+
+  ```bash
+  gcloud builds submit --tag gcr.io/aote-pms/next-app
+  gcloud run deploy next-app \
+    --image gcr.io/aote-pms/next-app \
+    --region us-central1 --platform managed
+  ```
+
+- Pull requests automatically build and deploy a preview of the service to
+  Cloud Run. The preview URL is posted to the PR.
+
+- Deploy Firebase Hosting and functions with **`npx firebase deploy --only hosting,functions`** when using Cloud Functions. For Cloud Run, deploy Hosting with **`npx firebase deploy --only hosting`** after the service is updated.
+
+- Check logs if the service seems unreachable:
+
+  ```bash
+  gcloud run services logs read next-app --region us-central1   # Cloud Run
+firebase functions:log                                       # Cloud Functions
+  ```
+
+### Static Export
+
+Set `NEXT_PUBLIC_API_BASE_URL` to your backend API and run:
+
+```bash
+npm run export
+```
+
+Static files will be created in the `out` directory for deployment to any static host.
 
 ## Roadmap
 
