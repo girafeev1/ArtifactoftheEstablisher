@@ -58,9 +58,9 @@ application can retrieve additional secrets from Secret Manager.
 - Deploy to Cloud Run manually:
 
   ```bash
-  gcloud builds submit --tag gcr.io/$GOOGLE_PROJECT_ID/next-app
+  gcloud builds submit --tag gcr.io/aote-pms/next-app
   gcloud run deploy next-app \
-    --image gcr.io/$GOOGLE_PROJECT_ID/next-app \
+    --image gcr.io/aote-pms/next-app \
     --region us-central1 --platform managed
   ```
 
