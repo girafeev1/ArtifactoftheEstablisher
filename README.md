@@ -13,10 +13,11 @@ Firebase Hosting backed by Cloud Run.
 - **Google Cloud credentials** – a service account with access to Secret
   Manager, Cloud Run, and the required Google APIs.
 
-Install dependencies if you haven't already:
+Install dependencies if you haven't already. For a clean, reproducible setup
+use **`npm ci`**; for local development you can also use **`npm install`**:
 
 ```bash
-npm install
+npm ci
 ```
 
 ## Running Tests
