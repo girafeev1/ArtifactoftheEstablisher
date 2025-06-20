@@ -32,29 +32,10 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      # 4. Authenticate with Google Cloud
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      # 5. Set up the gcloud CLI
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-
-      # 6. Build and deploy the Cloud Run service
-      - name: Build and Deploy Cloud Run
-        run: |
-          gcloud builds submit --quiet
-          gcloud run deploy next-app --region=us-central1 --platform=managed --quiet
-
-      # 7. Deploy to a Firebase Hosting preview channel
+      # 4. Deploy to a Firebase Hosting preview channel
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          repoToken: ${{ secrets.GITHUB_TOKEN }}                                # for status checks/comments
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_AOTE_PMS }}
           projectId: aote-pms
-          channelId: pr${{ github.event.number }}
-
+          runOnly: hosting:github  # ensures this is a preview deploy on PR
