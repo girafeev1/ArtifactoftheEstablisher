@@ -47,9 +47,10 @@ jobs:
       # 6. Build and deploy the Cloud Run service
       - name: Build and Deploy Cloud Run
         env:
-          IMAGE: us-central1-docker.pkg.dev/$GCP_PROJECT_ID/cloud-run-source-deploy/next-app:${{ github.sha }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cloud-run-source-deploy/next-app:${{ github.sha }}
         run: |
-          gcloud builds submit --tag "$IMAGE" --project $GCP_PROJECT_ID --quiet
+          gcloud builds submit --tag "$IMAGE" --project "$GCP_PROJECT_ID" --quiet
           gcloud run deploy next-app --image "$IMAGE" --region us-central1 --platform managed --quiet
 
       # 7. Deploy to a Firebase Hosting preview channel
