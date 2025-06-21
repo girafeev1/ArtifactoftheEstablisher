@@ -54,7 +54,6 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
       })
     : new SecretManagerServiceClient();
 
-
   const resolvedProjectId = hasExplicitCreds
     ? creds.project_id
     : await client.getProjectId();
