@@ -62,5 +62,10 @@ jobs:
           IMAGE: us-central1-docker.pkg.dev/aote-pms/cloud-run-source-deploy/next-app:${{ github.sha }}
         run: |
           gcloud builds submit --tag "$IMAGE" --project aote-pms --quiet
-          gcloud run deploy next-app --image "$IMAGE" --region us-central1 --platform managed --quiet
+          gcloud run deploy next-app \
+            --image "$IMAGE" \
+            --region us-central1 \
+            --platform managed \
+            --allow-unauthenticated \
+            --quiet
 
