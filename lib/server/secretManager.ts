@@ -2,12 +2,7 @@
 
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { TextDecoder } from 'util';
-import {
-  loadSecrets,
-  GOOGLE_PROJECT_ID,
-  GOOGLE_CLIENT_EMAIL,
-  GOOGLE_PRIVATE_KEY,
-} from './loadSecrets';
+import { loadSecrets } from './loadSecrets';
 
 interface SecretFetchResult {
   secrets: Record<string, string>;
