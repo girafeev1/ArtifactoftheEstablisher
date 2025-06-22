@@ -66,6 +66,8 @@ application can retrieve additional secrets from Secret Manager.
 
 - Pull requests automatically build and deploy a preview of the service to
   Cloud Run. The preview URL is posted to the PR.
+- Pushes to the `serverless` branch (or any `feature/*` branch) automatically
+  deploy the latest code to Firebase Hosting and Cloud Run.
 
 - Deploy Firebase Hosting and functions with **`npx firebase deploy --only hosting,functions`** when using Cloud Functions. For Cloud Run, deploy Hosting with **`npx firebase deploy --only hosting`** after the service is updated.
 
