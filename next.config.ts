@@ -13,5 +13,5 @@ module.exports = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  output: 'export',
+  output: 'standalone',
 };
