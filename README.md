@@ -13,10 +13,11 @@ Firebase Hosting backed by Cloud Run.
 - **Google Cloud credentials** – a service account with access to Secret
   Manager, Cloud Run, and the required Google APIs.
 
-Install dependencies if you haven't already:
+Install dependencies if you haven't already. For a clean, reproducible setup
+use **`npm ci`**; for local development you can also use **`npm install`**:
 
 ```bash
-npm install
+npm ci
 ```
 
 ## Running Tests
@@ -57,11 +58,14 @@ application can retrieve additional secrets from Secret Manager.
 - Deploy to Cloud Run manually:
 
   ```bash
-  gcloud builds submit --tag gcr.io/$GOOGLE_PROJECT_ID/next-app
+  gcloud builds submit --tag gcr.io/aote-pms/next-app
   gcloud run deploy next-app \
-    --image gcr.io/$GOOGLE_PROJECT_ID/next-app \
+    --image gcr.io/aote-pms/next-app \
     --region us-central1 --platform managed
   ```
+
+- Pull requests automatically build and deploy a preview of the service to
+  Cloud Run. The preview URL is posted to the PR.
 
 - Deploy Firebase Hosting and functions with **`npx firebase deploy --only hosting,functions`** when using Cloud Functions. For Cloud Run, deploy Hosting with **`npx firebase deploy --only hosting`** after the service is updated.
 
