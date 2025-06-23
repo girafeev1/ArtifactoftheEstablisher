@@ -40,6 +40,8 @@ firebase functions:secrets:set GOOGLE_PRIVATE_KEY
 ```
 
 Otherwise ensure they are available in the Cloud Run service configuration.
+The Cloud Run service account must also have the
+`roles/secretmanager.secretAccessor` role so the runtime can read your secrets.
 
 Required variables:
 
@@ -49,7 +51,9 @@ Required variables:
 - `GOOGLE_PRIVATE_KEY`
 
 Ensure these variables are available in your deployment environment so the
-application can retrieve additional secrets from Secret Manager.
+application can retrieve additional secrets from Secret Manager. You can provide
+them as environment variables or bind them directly from Secret Manager when
+deploying the service.
 
 ## Development and Deployment
 
