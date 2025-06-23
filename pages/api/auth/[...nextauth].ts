@@ -3,7 +3,6 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { loadAppSecrets } from '../../../lib/server/secretManager';
-import { loadSecrets } from '../../../lib/server/loadSecrets';
 
 let dynamicAuthOptions: NextAuthOptions | null = null;
 

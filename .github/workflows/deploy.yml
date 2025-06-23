@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - serverless
+      - work
   # Optionally build previews for pull requests targeting serverless
   pull_request:
     branches:
