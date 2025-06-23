@@ -1,4 +1,4 @@
-# .github/workflows/main.yml
+# .github/workflows/deploy.yml
 
 name: CI/CD
 
@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - serverless
+      - work
   # Optionally build previews for pull requests targeting serverless
   pull_request:
     branches:
@@ -67,5 +68,8 @@ jobs:
             --region us-central1 \
             --platform managed \
             --allow-unauthenticated \
+            --set-secrets="GOOGLE_PROJECT_ID=GOOGLE_PROJECT_ID:latest" \
+            --set-secrets="GOOGLE_CLIENT_EMAIL=GOOGLE_CLIENT_EMAIL:latest" \
+            --set-secrets="GOOGLE_PRIVATE_KEY=GOOGLE_PRIVATE_KEY:latest" \
             --quiet
 
