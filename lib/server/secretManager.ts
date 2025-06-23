@@ -18,7 +18,7 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
   const creds = {
     project_id: projectId,
     client_email: clientEmail,
-    private_key: privateKey.replace(/\\n/g, '\n'),
+    private_key: privateKey ? privateKey.replace(/\\n/g, '\n') : '',
   };
 
   const hasExplicitCreds =
