@@ -2,12 +2,7 @@
 
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { TextDecoder } from 'util';
-import {
-  loadSecrets,
-  GOOGLE_PROJECT_ID,
-  GOOGLE_CLIENT_EMAIL,
-  GOOGLE_PRIVATE_KEY,
-} from './loadSecrets';
+import { loadSecrets } from './loadSecrets';
 
 interface SecretFetchResult {
   secrets: Record<string, string>;
@@ -23,7 +18,7 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
   const creds = {
     project_id: projectId,
     client_email: clientEmail,
-    private_key: privateKey.replace(/\\n/g, '\n'),
+    private_key: privateKey ? privateKey.replace(/\\n/g, '\n') : '',
   };
 
   const hasExplicitCreds =

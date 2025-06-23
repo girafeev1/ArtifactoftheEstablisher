@@ -40,6 +40,8 @@ firebase functions:secrets:set GOOGLE_PRIVATE_KEY
 ```
 
 Otherwise ensure they are available in the Cloud Run service configuration.
+The Cloud Run service account must also have the
+`roles/secretmanager.secretAccessor` role so the runtime can read your secrets.
 
 Required variables:
 
@@ -49,7 +51,35 @@ Required variables:
 - `GOOGLE_PRIVATE_KEY`
 
 Ensure these variables are available in your deployment environment so the
-application can retrieve additional secrets from Secret Manager.
+application can retrieve additional secrets from Secret Manager. You can provide
+them as environment variables or bind them directly from Secret Manager when
+deploying the service.
+
+### Grant Cloud Run access to secrets
+
+1. Give the Cloud Run service account permission to read your secrets:
+
+   ```bash
+   gcloud secrets add-iam-policy-binding GOOGLE_PROJECT_ID \
+     --member="serviceAccount:YOUR_SERVICE_ACCOUNT" \
+     --role="roles/secretmanager.secretAccessor"
+   ```
+
+   Repeat for `GOOGLE_CLIENT_EMAIL` and `GOOGLE_PRIVATE_KEY`.
+
+2. Bind the secrets to the service when deploying:
+
+   ```bash
+   gcloud run deploy next-app \
+     --image gcr.io/aote-pms/next-app \
+     --region us-central1 \
+     --set-secrets="GOOGLE_PROJECT_ID=GOOGLE_PROJECT_ID:latest" \
+     --set-secrets="GOOGLE_CLIENT_EMAIL=GOOGLE_CLIENT_EMAIL:latest" \
+     --set-secrets="GOOGLE_PRIVATE_KEY=GOOGLE_PRIVATE_KEY:latest"
+   ```
+
+   You can also configure these bindings in the Cloud Run console under
+   **Variables & Secrets** when editing and deploying a revision.
 
 ## Development and Deployment
 
