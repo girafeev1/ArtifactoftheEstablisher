@@ -14,9 +14,10 @@ interface BusinessFile {
 export default function BusinessesPage() {
   const router = useRouter();
   const [projectsByCategory, setProjectsByCategory] = useState<Record<string, BusinessFile[]>>({});
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/businesses`)
+    fetch(`${API_BASE_URL}/businesses`)
       .then(res => res.ok ? res.json() : { projectsByCategory: {} })
       .then(data => setProjectsByCategory(data.projectsByCategory || {}))
       .catch(() => {});

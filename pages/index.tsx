@@ -7,8 +7,10 @@ import SidebarLayout from '../components/SidebarLayout';
 export default function MainPage() {
   const [firstName, setFirstName] = useState('');
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/session`)
+    fetch(`${API_BASE_URL}/auth/session`)
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (data?.user?.name) {
