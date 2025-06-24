@@ -53,9 +53,10 @@ export default function DatabasePage() {
   const [clients, setClients] = useState<AddressBookEntry[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [error, setError] = useState<string | undefined>(undefined);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/clients`)
+    fetch(`${API_BASE_URL}/clients`)
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(data => {
         setClients(data.clients || []);

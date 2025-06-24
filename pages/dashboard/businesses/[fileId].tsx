@@ -61,11 +61,12 @@ export default function SingleFilePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<SingleProjectData | null>(null);
   const [data, setData] = useState<FileViewProps | null>(null);
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
   useEffect(() => {
     if (!router.isReady) return;
     const id = (router.query.fileId as string) || 'select';
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/businesses/${id}`)
+    fetch(`${API_BASE_URL}/businesses/${id}`)
       .then(res => (res.ok ? res.json() : null))
       .then(setData)
       .catch(() => {});
