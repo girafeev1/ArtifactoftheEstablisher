@@ -55,6 +55,14 @@ application can retrieve additional secrets from Secret Manager. You can provide
 them as environment variables or bind them directly from Secret Manager when
 deploying the service.
 
+When deploying to **Vercel**, you must also define the NextAuth variables so
+authentication can succeed:
+
+- `NEXTAUTH_URL`
+- `OAUTH_CLIENT_ID`
+- `OAUTH_CLIENT_SECRET`
+- `NEXTAUTH_SECRET`
+
 ## Development and Deployment
 
 - Start a development server with **`npm run dev`**.

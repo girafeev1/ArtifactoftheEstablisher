@@ -62,7 +62,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const authOptions = await getAuthOptions();
     const session = await getServerSession(req, res, authOptions);
     if (!session?.accessToken) {
-      console.log('[api/clients] No session');
+      console.warn('[api/clients] Missing access token', {
+        hasCookies: Boolean(req.headers.cookie),
+        session,
+      });
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
