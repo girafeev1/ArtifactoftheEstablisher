@@ -3,7 +3,6 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { loadAppSecrets } from '../../../lib/server/secretManager';
-import { loadSecrets } from '../../../lib/server/loadSecrets';
 
 let dynamicAuthOptions: NextAuthOptions | null = null;
 
@@ -137,6 +136,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
  * Default export for the NextAuth API route.
  */
 export default async function auth(req, res) {
+  if (!process.env.NEXTAUTH_URL && req.headers.host) {
+    process.env.NEXTAUTH_URL = `https://${req.headers.host}`;
+  }
   try {
     const options = await getDynamicAuthOptions();
     return await NextAuth(req, res, options);
