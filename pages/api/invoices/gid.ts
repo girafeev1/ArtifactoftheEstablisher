@@ -12,7 +12,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!session?.accessToken) {
       console.warn('[api/invoices/gid] Missing access token', {
         hasCookies: Boolean(req.headers.cookie),
-        session,
+        cookieNames: Object.keys(req.cookies || {}),
+        sessionKeys: session ? Object.keys(session) : null,
       });
       return res.status(401).json({ error: 'Unauthorized' });
     }
