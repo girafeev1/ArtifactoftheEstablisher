@@ -14,6 +14,40 @@ interface SecretFetchResult {
 }
 
 export async function loadAppSecrets(): Promise<SecretFetchResult> {
+  const envSecrets = [
+    'OAUTH_CLIENT_ID',
+    'OAUTH_CLIENT_SECRET',
+    'NEXTAUTH_SECRET',
+    'PMS_REFERENCE_LOG_ID',
+    'NEXTAUTH_URL',
+  ];
+
+  const secrets: Record<string, string> = {};
+  const diagnostics = {
+    success: true,
+    fetchedSecrets: [] as string[],
+    errors: [] as { secret: string; message: string }[],
+  };
+
+  let allEnv = true;
+  for (const name of envSecrets) {
+    const val = process.env[name];
+    if (val) {
+      secrets[name] = val;
+      diagnostics.fetchedSecrets.push(`${name} (env)`);
+      if (name === 'NEXTAUTH_URL') {
+        process.env.NEXTAUTH_URL = val;
+      }
+    } else {
+      allEnv = false;
+    }
+  }
+
+  if (allEnv) {
+    console.log('[secretManager] Loaded secrets from environment variables');
+    return { secrets, diagnostics };
+  }
+
   const { projectId, clientEmail, privateKey } = loadSecrets();
   const creds = {
     project_id: projectId,
@@ -52,13 +86,6 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
   const resolvedProjectId = hasExplicitCreds
     ? creds.project_id
     : await client.getProjectId();
-
-  const secrets: Record<string, string> = {};
-  const diagnostics = {
-    success: true,
-    fetchedSecrets: [] as string[],
-    errors: [] as { secret: string; message: string }[],
-  };
 
   const secretNames = [
     { name: 'OAUTH_CLIENT_ID', key: 'OAUTH_CLIENT_ID' },
