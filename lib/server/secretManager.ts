@@ -29,7 +29,7 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
     errors: [] as { secret: string; message: string }[],
   };
 
-  let allEnv = true;
+  const missingSecrets: string[] = [];
   for (const name of envSecrets) {
     const val = process.env[name];
     if (val) {
@@ -39,11 +39,11 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
         process.env.NEXTAUTH_URL = val;
       }
     } else {
-      allEnv = false;
+      missingSecrets.push(name);
     }
   }
 
-  if (allEnv) {
+  if (missingSecrets.length === 0) {
     console.log('[secretManager] Loaded secrets from environment variables');
     return { secrets, diagnostics };
   }
@@ -71,6 +71,16 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
     console.log(
       '[secretManager] Falling back to Application Default Credentials.'
     );
+    if (missingSecrets.length > 0 && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      console.warn(
+        `[secretManager] Missing env vars for: ${missingSecrets.join(', ')} and no credentials provided.`
+      );
+      diagnostics.success = false;
+      for (const n of missingSecrets) {
+        diagnostics.errors.push({ secret: n, message: 'missing env and credentials' });
+      }
+      return { secrets, diagnostics };
+    }
   }
 
   const client = hasExplicitCreds
@@ -96,6 +106,9 @@ export async function loadAppSecrets(): Promise<SecretFetchResult> {
   ];
 
   for (const { name, key } of secretNames) {
+    if (secrets[key]) {
+      continue;
+    }
     try {
       const [version] = await client.accessSecretVersion({
         name: `projects/${resolvedProjectId}/secrets/${name}/versions/latest`,
