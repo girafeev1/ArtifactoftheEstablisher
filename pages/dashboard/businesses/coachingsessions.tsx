@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
 import {
@@ -49,65 +50,69 @@ export default function CoachingSessions() {
 
   useEffect(() => {
     let mounted = true
+    const auth = getAuth()
+    const unsub = onAuthStateChanged(auth, user => {
+      if (!user) { setLoading(false); return }
 
-    async function loadAll() {
-      const snap = await getDocs(collection(db, 'Students'))
-      const basics = snap.docs.map(d => ({
-        abbr:    d.id,
-        account: (d.data() as any).account,
-      }))
+      async function loadAll() {
+        const snap = await getDocs(collection(db, 'Students'))
+        const basics = snap.docs.map(d => ({
+          abbr:    d.id,
+          account: (d.data() as any).account,
+        }))
 
-      if (!mounted) return
-      setStudents(basics.map(b => ({
-        ...b,
-        total:      0,
-        upcoming:   0,
-        sex:        undefined,
-        balanceDue: 0,
-      })))
-      setLoading(false)
+        if (!mounted) return
+        setStudents(basics.map(b => ({
+          ...b,
+          total:      0,
+          upcoming:   0,
+          sex:        undefined,
+          balanceDue: 0,
+        })))
+        setLoading(false)
 
-      basics.forEach(b => {
-        ;(async () => {
-          const latest = async (col: string) => {
-            const sub = await getDocs(
-              collection(db, 'Students', b.abbr, col)
+        basics.forEach(b => {
+          ;(async () => {
+            const latest = async (col: string) => {
+              const sub = await getDocs(
+                collection(db, 'Students', b.abbr, col)
+              )
+              return sub.empty
+                ? undefined
+                : (sub.docs[0].data() as any).value
+            }
+            const [sex, balRaw] = await Promise.all([
+              latest('sex'),
+              latest('balanceDue'),
+            ])
+            const balanceDue = parseFloat(balRaw as any) || 0
+
+            // scan Sessions (simplified)
+            const sessSnap = await getDocs(collection(db, 'Sessions'))
+            let total = 0, upcoming = 0
+            const now = new Date()
+            sessSnap.docs
+              .filter(sd => (sd.data() as any).sessionName === b.account)
+              .forEach(sd => {
+                total++
+                // here you would compute dt from appointmentHistory…
+              })
+
+            if (!mounted) return
+            setStudents(prev =>
+              prev.map(s =>
+                s.abbr === b.abbr
+                  ? { ...s, sex, balanceDue, total, upcoming }
+                  : s
+              )
             )
-            return sub.empty
-              ? undefined
-              : (sub.docs[0].data() as any).value
-          }
-          const [sex, balRaw] = await Promise.all([
-            latest('sex'),
-            latest('balanceDue'),
-          ])
-          const balanceDue = parseFloat(balRaw as any) || 0
+          })().catch(console.error)
+        })
+      }
 
-          // scan Sessions (simplified)
-          const sessSnap = await getDocs(collection(db, 'Sessions'))
-          let total = 0, upcoming = 0
-          const now = new Date()
-          sessSnap.docs
-            .filter(sd => (sd.data() as any).sessionName === b.account)
-            .forEach(sd => {
-              total++
-              // here you would compute dt from appointmentHistory…
-            })
-
-          if (!mounted) return
-          setStudents(prev =>
-            prev.map(s =>
-              s.abbr === b.abbr
-                ? { ...s, sex, balanceDue, total, upcoming }
-                : s
-            )
-          )
-        })().catch(console.error)
-      })
-    }
-
-    loadAll().catch(console.error)
-    return () => { mounted = false }
+      loadAll().catch(console.error)
+    })
+    return () => { mounted = false; unsub() }
   }, [])
 
   const filtered = students.filter(s =>

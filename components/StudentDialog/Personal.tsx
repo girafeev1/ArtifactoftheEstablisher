@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { Box, Typography, CircularProgress } from '@mui/material'
 
@@ -30,28 +31,32 @@ export default function Personal({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
-    getDoc(doc(db, 'Students', abbr))
-      .then((snap) => {
-        if (mounted && snap.exists()) {
-          const d = snap.data() as any
-          setInfo({
-            firstName:  d.firstName,
-            lastName:   d.lastName,
-            sex:        d.sex,
-            birthDate:  d.birthDate,
-            age:        d.age,
-            occupation: d.occupation,
-            address1:   d.addressLine1,
-            address2:   d.addressLine2,
-            address3:   d.addressLine3,
-            address4:   d.addressLine4,
-          })
-        }
-      })
-      .catch(console.error)
-      .finally(() => mounted && setLoading(false))
+    const auth = getAuth()
+    const unsub = onAuthStateChanged(auth, user => {
+      if (!user) { setLoading(false); return }
+      getDoc(doc(db, 'Students', abbr))
+        .then((snap) => {
+          if (mounted && snap.exists()) {
+            const d = snap.data() as any
+            setInfo({
+              firstName:  d.firstName,
+              lastName:   d.lastName,
+              sex:        d.sex,
+              birthDate:  d.birthDate,
+              age:        d.age,
+              occupation: d.occupation,
+              address1:   d.addressLine1,
+              address2:   d.addressLine2,
+              address3:   d.addressLine3,
+              address4:   d.addressLine4,
+            })
+          }
+        })
+        .catch(console.error)
+        .finally(() => mounted && setLoading(false))
+    })
 
-    return () => { mounted = false }
+    return () => { mounted = false; unsub() }
   }, [abbr])
 
   if (loading) {

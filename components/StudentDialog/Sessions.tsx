@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { collection, getDocs, query, orderBy } from 'firebase/firestore'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import {
   Box,
@@ -38,35 +39,39 @@ export default function Sessions({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
-    getDocs(
-      query(
-        collection(db, 'Students', abbr, 'sessions'),
-        orderBy('date', 'desc')
-      )
-    ).then(snap => {
-      if (!mounted) return
-      setRows(
-        snap.docs.map(d => {
-          const data = d.data() as any
-          const dt: Date = data.date?.toDate() ?? new Date()
-          return {
-            id:            d.id,
-            date:          dt,
-            time:          dt,
-            duration:      data.duration,
-            sessionType:   data.topic,
-            billingType:   data.billingType,
-            baseRate:      data.baseRate,
-            retainerStatus:data.retainerStatus,
-            rateCharged:   data.amount,
-            paymentStatus: data.paymentStatus,
-          }
-        })
-      )
-    }).catch(console.error)
-      .finally(() => mounted && setLoading(false))
+    const auth = getAuth()
+    const unsub = onAuthStateChanged(auth, user => {
+      if (!user) { setLoading(false); return }
+      getDocs(
+        query(
+          collection(db, 'Students', abbr, 'sessions'),
+          orderBy('date', 'desc')
+        )
+      ).then(snap => {
+        if (!mounted) return
+        setRows(
+          snap.docs.map(d => {
+            const data = d.data() as any
+            const dt: Date = data.date?.toDate() ?? new Date()
+            return {
+              id:            d.id,
+              date:          dt,
+              time:          dt,
+              duration:      data.duration,
+              sessionType:   data.topic,
+              billingType:   data.billingType,
+              baseRate:      data.baseRate,
+              retainerStatus:data.retainerStatus,
+              rateCharged:   data.amount,
+              paymentStatus: data.paymentStatus,
+            }
+          })
+        )
+      }).catch(console.error)
+        .finally(() => mounted && setLoading(false))
+    })
 
-    return () => { mounted = false }
+    return () => { mounted = false; unsub() }
   }, [abbr])
 
   if (loading) {

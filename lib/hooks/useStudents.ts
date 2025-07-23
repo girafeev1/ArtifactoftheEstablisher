@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { collection, getDocs, query, orderBy, limit, getCountFromServer, where } from 'firebase/firestore'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { db } from '../firebase'
 
 export function useStudents() {
@@ -10,22 +11,26 @@ export function useStudents() {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
-      const snap = await getDocs(collection(db, 'Students'))
-      const today = new Date()
-      const list = await Promise.all(
-        snap.docs.map(async d => {
-          const { account } = d.data() as any
-          // ... the rest of your per-student load logic here ...
-          return { account, /* sex, balanceDue, total, upcoming */ }
-        })
-      )
-      if (!cancelled) {
-        setStudents(list)
-        setLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
+    const auth = getAuth()
+    const unsub = onAuthStateChanged(auth, user => {
+      if (!user) { setLoading(false); return }
+      ;(async () => {
+        const snap = await getDocs(collection(db, 'Students'))
+        const today = new Date()
+        const list = await Promise.all(
+          snap.docs.map(async d => {
+            const { account } = d.data() as any
+            // ... the rest of your per-student load logic here ...
+            return { account, /* sex, balanceDue, total, upcoming */ }
+          })
+        )
+        if (!cancelled) {
+          setStudents(list)
+          setLoading(false)
+        }
+      })()
+    })
+    return () => { cancelled = true; unsub() }
   }, [])
 
   return { students, loading }

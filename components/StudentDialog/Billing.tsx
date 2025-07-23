@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { Box, Typography, CircularProgress, List, ListItem, ListItemText } from '@mui/material'
 
@@ -23,28 +24,32 @@ export default function Billing({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
+    const auth = getAuth()
+    const unsub = onAuthStateChanged(auth, user => {
+      if (!user) { setLoading(false); return }
 
-    // 1) fetch root student doc
-    getDoc(doc(db, 'Students', abbr))
-      .then(snap => {
-        if (mounted && snap.exists()) setData(snap.data())
-      })
+      // 1) fetch root student doc
+      getDoc(doc(db, 'Students', abbr))
+        .then(snap => {
+          if (mounted && snap.exists()) setData(snap.data())
+        })
 
-    // 2) fetch payments subcollection (hypothetical path)
-    getDocs(query(collection(db, 'Students', abbr, 'payments'), orderBy('date','desc')))
-      .then(snap => {
-        if (!mounted) return
-        setPaymentHistory(
-          snap.docs.map(d => {
-            const doc = d.data() as any
-            return { date: doc.date, amount: doc.amount }
-          })
-        )
-      })
-      .catch(() => { /* no payments */ })
-      .finally(() => mounted && setLoading(false))
+      // 2) fetch payments subcollection
+      getDocs(query(collection(db, 'Students', abbr, 'payments'), orderBy('date','desc')))
+        .then(snap => {
+          if (!mounted) return
+          setPaymentHistory(
+            snap.docs.map(d => {
+              const doc = d.data() as any
+              return { date: doc.date, amount: doc.amount }
+            })
+          )
+        })
+        .catch(() => { /* no payments */ })
+        .finally(() => mounted && setLoading(false))
+    })
 
-    return () => { mounted = false }
+    return () => { mounted = false; unsub() }
   }, [abbr])
 
   if (loading) {

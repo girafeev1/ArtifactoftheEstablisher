@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { Box, Typography, CircularProgress } from '@mui/material'
 
@@ -16,14 +17,18 @@ export default function Overview({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
-    getDoc(doc(db, 'students', abbr))
-      .then(snap => {
-        if (mounted && snap.exists()) {
-          setData(snap.data())
-        }
-      })
-      .finally(() => mounted && setLoading(false))
-    return () => { mounted = false }
+    const auth = getAuth()
+    const unsub = onAuthStateChanged(auth, user => {
+      if (!user) { setLoading(false); return }
+      getDoc(doc(db, 'students', abbr))
+        .then(snap => {
+          if (mounted && snap.exists()) {
+            setData(snap.data())
+          }
+        })
+        .finally(() => mounted && setLoading(false))
+    })
+    return () => { mounted = false; unsub() }
   }, [abbr])
 
   if (loading) {
