@@ -20,7 +20,7 @@ export default function Overview({ abbr, serviceMode }: Props) {
     const auth = getAuth()
     const unsub = onAuthStateChanged(auth, user => {
       if (!user) { setLoading(false); return }
-      getDoc(doc(db, 'students', abbr))
+      getDoc(doc(db, 'Students', abbr))
         .then(snap => {
           if (mounted && snap.exists()) {
             setData(snap.data())
