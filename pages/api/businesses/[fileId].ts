@@ -9,8 +9,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const authOptions = await getAuthOptions();
   const session = await getServerSession(req, res, authOptions);
   if (!session?.accessToken) {
+    console.log('[api/businesses] No session');
+    console.log('[api/businesses] cookies:', req.headers.cookie);
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  console.log('[api/businesses] session loaded:', {
+    user: session.user,
+    hasToken: !!session.accessToken,
+  });
   const { fileId } = req.query;
   console.log('[API businesses] fileId:', fileId);
   if (typeof fileId !== 'string' || !fileId) {

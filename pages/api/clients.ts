@@ -63,8 +63,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const session = await getServerSession(req, res, authOptions);
     if (!session?.accessToken) {
       console.log('[api/clients] No session');
+      console.log('[api/clients] cookies:', req.headers.cookie);
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    console.log('[api/clients] session loaded:', {
+      user: session.user,
+      hasToken: !!session.accessToken,
+    });
 
     const { drive, sheets } = initializeApis('user', {
       accessToken: session.accessToken as string,
