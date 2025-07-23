@@ -97,10 +97,10 @@ export default function Sessions({ abbr, serviceMode }: Props) {
         </TableRow>
       </TableHead>
       <TableBody>
-        {rows.map(r => (
+          {rows.map(r => (
           <TableRow key={r.id}>
-            <TableCell>{r.date?.toDate().toLocaleDateString() ?? '–'}</TableCell>
-            <TableCell>{r.time?.toDate().toLocaleTimeString()  ?? '–'}</TableCell>
+            <TableCell>{r.date?.toLocaleDateString() ?? '–'}</TableCell>
+            <TableCell>{r.time?.toLocaleTimeString()  ?? '–'}</TableCell>
             <TableCell>{r.duration ?? '–'}</TableCell>
             <TableCell>{r.sessionType ?? '–'}</TableCell>
             <TableCell>{r.billingType ?? '–'}</TableCell>
