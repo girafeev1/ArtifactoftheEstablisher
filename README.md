@@ -55,6 +55,11 @@ application can retrieve additional secrets from Secret Manager. You can provide
 them as environment variables or bind them directly from Secret Manager when
 deploying the service.
 
+To confirm that your deployment passes the expected Firebase environment values,
+you can query the **`/api/env-check`** API route after the service starts. It
+returns the Firebase-related environment variables as JSON and is useful for
+debugging misconfigured previews.
+
 ## Development and Deployment
 
 - Start a development server with **`npm run dev`**.
