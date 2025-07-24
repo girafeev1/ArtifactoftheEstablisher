@@ -39,6 +39,7 @@ export default function Sessions({ abbr, serviceMode }: Props) {
   useEffect(() => {
     let mounted = true
     ;(async () => {
+      console.log('[Sessions] fetching sessions for', abbr)
       const stu = await getDoc(doc(db, 'Students', abbr))
       const account = stu.exists() ? (stu.data() as any).account : abbr
 
@@ -47,6 +48,7 @@ export default function Sessions({ abbr, serviceMode }: Props) {
         where('sessionName', '==', account)
       )
       const sessSnap = await getDocs(sessQ)
+      console.log('[Sessions] found', sessSnap.size, 'sessions')
 
       const rowsData = await Promise.all(
         sessSnap.docs.map(async d => {
@@ -83,6 +85,7 @@ export default function Sessions({ abbr, serviceMode }: Props) {
 
       if (!mounted) return
       setRows(rowsData.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)))
+      console.log('[Sessions] rows loaded', rowsData.length)
     })()
       .catch(console.error)
       .finally(() => mounted && setLoading(false))

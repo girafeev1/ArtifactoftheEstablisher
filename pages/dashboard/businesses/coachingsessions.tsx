@@ -51,11 +51,13 @@ export default function CoachingSessions() {
     let mounted = true
 
     async function loadAll() {
+      console.log('[CoachingSessions] Fetching Students collection')
       const snap = await getDocs(collection(db, 'Students'))
       const basics = snap.docs.map(d => ({
         abbr:    d.id,
         account: (d.data() as any).account,
       }))
+      console.log('[CoachingSessions] Found', basics.length, 'students')
 
       if (!mounted) return
       setStudents(basics.map(b => ({
@@ -115,6 +117,12 @@ export default function CoachingSessions() {
                 : s
             )
           )
+          console.log(`[CoachingSessions] Updated ${b.abbr}`, {
+            sex,
+            balanceDue,
+            total,
+            upcoming,
+          })
         })().catch(console.error)
       })
     }
