@@ -55,4 +55,4 @@ if (typeof window !== 'undefined') {
   getDb()
 }
 
-export { db, getDb }
+export { getDb }
