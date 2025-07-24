@@ -54,5 +54,3 @@ export function getDb() {
 if (typeof window !== 'undefined') {
   getDb()
 }
-
-export { getDb }
