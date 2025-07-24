@@ -1,9 +1,11 @@
 // pages/dashboard/businesses/coachingsessions.tsx
 
 import React, { useEffect, useState } from 'react'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
+
+interface Status { firebaseReady: boolean; serviceAccountReady: boolean }
 import {
    Typography,
    Grid,
@@ -46,16 +48,37 @@ export default function CoachingSessions() {
   const [viewMode, setViewMode] = useState<'card'|'list'>('card')
   const [searchTerm, setSearchTerm] = useState('')
   const [tabIndex, setTabIndex] = useState(0)
+  const [status, setStatus] = useState<Status | null>(null)
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null)
 
   useEffect(() => {
     let mounted = true
 
+    Promise.all([
+      fetch('/api/status').then(r => r.ok ? r.json() : null),
+      fetch('/api/auth/session').then(r => r.ok ? r.json() : null)
+    ]).then(([st, ses]) => {
+      setStatus(st || { firebaseReady:false, serviceAccountReady:false })
+      setAuthenticated(!!ses)
+      if (st?.firebaseReady && st.serviceAccountReady && ses) {
+        loadAll().catch(console.error)
+      } else {
+        setLoading(false)
+      }
+    }).catch(() => {
+      setStatus({ firebaseReady: false, serviceAccountReady: false })
+      setAuthenticated(false)
+      setLoading(false)
+    })
+
     async function loadAll() {
+      console.log('[CoachingSessions] Fetching Students collection')
       const snap = await getDocs(collection(db, 'Students'))
       const basics = snap.docs.map(d => ({
         abbr:    d.id,
         account: (d.data() as any).account,
       }))
+      console.log('[CoachingSessions] Found', basics.length, 'students')
 
       if (!mounted) return
       setStudents(basics.map(b => ({
@@ -70,12 +93,8 @@ export default function CoachingSessions() {
       basics.forEach(b => {
         ;(async () => {
           const latest = async (col: string) => {
-            const sub = await getDocs(
-              collection(db, 'Students', b.abbr, col)
-            )
-            return sub.empty
-              ? undefined
-              : (sub.docs[0].data() as any).value
+            const sub = await getDocs(collection(db, 'Students', b.abbr, col))
+            return sub.empty ? undefined : (sub.docs[0].data() as any).value
           }
           const [sex, balRaw] = await Promise.all([
             latest('sex'),
@@ -83,16 +102,33 @@ export default function CoachingSessions() {
           ])
           const balanceDue = parseFloat(balRaw as any) || 0
 
-          // scan Sessions (simplified)
-          const sessSnap = await getDocs(collection(db, 'Sessions'))
-          let total = 0, upcoming = 0
+          const sessSnap = await getDocs(
+            query(
+              collection(db, 'Sessions'),
+              where('sessionName', '==', b.account)
+            )
+          )
+
+          let total = 0,
+            upcoming = 0
           const now = new Date()
-          sessSnap.docs
-            .filter(sd => (sd.data() as any).sessionName === b.account)
-            .forEach(sd => {
+          await Promise.all(
+            sessSnap.docs.map(async sd => {
               total++
-              // here you would compute dt from appointmentHistory…
+              const histSnap = await getDocs(
+                query(
+                  collection(db, 'Sessions', sd.id, 'AppointmentHistory'),
+                  orderBy('dateStamp', 'desc'),
+                  limit(1)
+                )
+              )
+              const hist = histSnap.docs[0]?.data() as any
+              const start =
+                hist?.newStartTimestamp?.toDate?.() ||
+                hist?.origStartTimestamp?.toDate?.()
+              if (start && start > now) upcoming++
             })
+          )
 
           if (!mounted) return
           setStudents(prev =>
@@ -102,11 +138,16 @@ export default function CoachingSessions() {
                 : s
             )
           )
+          console.log(`[CoachingSessions] Updated ${b.abbr}`, {
+            sex,
+            balanceDue,
+            total,
+            upcoming,
+          })
         })().catch(console.error)
       })
     }
 
-    loadAll().catch(console.error)
     return () => { mounted = false }
   }, [])
 
@@ -117,6 +158,21 @@ export default function CoachingSessions() {
 
   return (
     <SidebarLayout>
+      {status && !status.firebaseReady && (
+        <Box p={3} color="error.main">
+          <Typography variant="h6">Configuration error: backend not available.</Typography>
+        </Box>
+      )}
+      {status && status.firebaseReady && !status.serviceAccountReady && (
+        <Box p={3} color="error.main">
+          <Typography variant="h6">Service account not configured.</Typography>
+        </Box>
+      )}
+      {authenticated === false && (
+        <Box p={3} color="error.main">
+          <Typography variant="h6">You must be signed in to view this page.</Typography>
+        </Box>
+      )}
       {/* header */}
       <Box sx={{ p:3, display:'flex', alignItems:'center', gap:2 }}>
         <Typography variant="h4" sx={{ flexGrow:1 }}>
