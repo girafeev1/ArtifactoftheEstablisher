@@ -3,7 +3,9 @@
 import React, { useEffect, useState } from 'react'
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
-import { db, firebaseReady } from '../../../lib/firebase'
+import { db } from '../../../lib/firebase'
+
+interface Status { firebaseReady: boolean; serviceAccountReady: boolean }
 import {
    Typography,
    Grid,
@@ -46,15 +48,28 @@ export default function CoachingSessions() {
   const [viewMode, setViewMode] = useState<'card'|'list'>('card')
   const [searchTerm, setSearchTerm] = useState('')
   const [tabIndex, setTabIndex] = useState(0)
+  const [status, setStatus] = useState<Status | null>(null)
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null)
 
   useEffect(() => {
     let mounted = true
 
-    if (!firebaseReady) {
-      console.error('Firebase not initialized')
+    Promise.all([
+      fetch('/api/status').then(r => r.ok ? r.json() : null),
+      fetch('/api/auth/session').then(r => r.ok ? r.json() : null)
+    ]).then(([st, ses]) => {
+      setStatus(st || { firebaseReady:false, serviceAccountReady:false })
+      setAuthenticated(!!ses)
+      if (st?.firebaseReady && st.serviceAccountReady && ses) {
+        loadAll().catch(console.error)
+      } else {
+        setLoading(false)
+      }
+    }).catch(() => {
+      setStatus({ firebaseReady: false, serviceAccountReady: false })
+      setAuthenticated(false)
       setLoading(false)
-      return
-    }
+    })
 
     async function loadAll() {
       console.log('[CoachingSessions] Fetching Students collection')
@@ -133,7 +148,6 @@ export default function CoachingSessions() {
       })
     }
 
-    loadAll().catch(console.error)
     return () => { mounted = false }
   }, [])
 
@@ -144,9 +158,19 @@ export default function CoachingSessions() {
 
   return (
     <SidebarLayout>
-      {!firebaseReady && (
+      {status && !status.firebaseReady && (
         <Box p={3} color="error.main">
-          <Typography variant="h6">Configuration error: Firebase not available.</Typography>
+          <Typography variant="h6">Configuration error: backend not available.</Typography>
+        </Box>
+      )}
+      {status && status.firebaseReady && !status.serviceAccountReady && (
+        <Box p={3} color="error.main">
+          <Typography variant="h6">Service account not configured.</Typography>
+        </Box>
+      )}
+      {authenticated === false && (
+        <Box p={3} color="error.main">
+          <Typography variant="h6">You must be signed in to view this page.</Typography>
         </Box>
       )}
       {/* header */}
