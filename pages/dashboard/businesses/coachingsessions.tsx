@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
-import { db } from '../../../lib/firebase'
+import { db, firebaseReady } from '../../../lib/firebase'
 import {
    Typography,
    Grid,
@@ -49,6 +49,12 @@ export default function CoachingSessions() {
 
   useEffect(() => {
     let mounted = true
+
+    if (!firebaseReady) {
+      console.error('Firebase not initialized')
+      setLoading(false)
+      return
+    }
 
     async function loadAll() {
       console.log('[CoachingSessions] Fetching Students collection')
@@ -138,6 +144,11 @@ export default function CoachingSessions() {
 
   return (
     <SidebarLayout>
+      {!firebaseReady && (
+        <Box p={3} color="error.main">
+          <Typography variant="h6">Configuration error: Firebase not available.</Typography>
+        </Box>
+      )}
       {/* header */}
       <Box sx={{ p:3, display:'flex', alignItems:'center', gap:2 }}>
         <Typography variant="h4" sx={{ flexGrow:1 }}>
