@@ -13,5 +13,5 @@ module.exports = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  output: 'export',
+  // Remove static export so API routes (like NextAuth) work on Vercel
 };

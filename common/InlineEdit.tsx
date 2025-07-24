@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { TextField, MenuItem, Typography } from '@mui/material'
 import { doc, updateDoc, collection, getDocs, orderBy } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { getDb } from '../lib/firebase'
 
 export interface InlineEditProps {
   value: any
@@ -33,6 +33,8 @@ export default function InlineEdit({
 
   const save = async (v: any) => {
     const [col, docId, field] = fieldPath.split('/')
+    const db = getDb()
+    if (!db) return
     try {
       await updateDoc(doc(db, col, docId), {
         [field]: v,
@@ -47,6 +49,8 @@ export default function InlineEdit({
   // — you wanted **all** history when in Service Mode —
   const showHistory = async () => {
     const [col, docId, field] = fieldPath.split('/')
+    const db = getDb()
+    if (!db) return
     // **removed** limit(10) so we fetch _all_ history
     const snap = await getDocs(
       collection(db, col, docId, field)

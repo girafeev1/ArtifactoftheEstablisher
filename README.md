@@ -48,6 +48,47 @@ Required variables:
 - `GOOGLE_CLIENT_EMAIL`
 - `GOOGLE_PRIVATE_KEY`
 
+The frontend needs Firebase configuration variables. Set these as environment variables (for example in Vercel or `.env`):
+
+```
+NEXT_PUBLIC_FIREBASE_API_KEY
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+NEXT_PUBLIC_FIREBASE_PROJECT_ID
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+NEXT_PUBLIC_FIREBASE_APP_ID
+# Optional: specify a Firestore database other than `(default)`
+NEXT_PUBLIC_FIREBASE_DATABASE_ID
+```
+
+### Firestore Security Rules
+
+When deploying the `mel-sessions` database, configure rules that allow the front end to read data while restricting writes to your service account:
+
+```firestore
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isServiceAccount() {
+      return request.auth.token.email.matches('.*@.*\\.gserviceaccount\\.com');
+    }
+
+    match /Students/{studentId}/{subDoc=**} {
+      allow read: if true;
+      allow write: if isServiceAccount();
+    }
+
+    match /Sessions/{sessionId}/{subDoc=**} {
+      allow read: if true;
+      allow write: if isServiceAccount();
+    }
+  }
+}
+```
+
+These rules mirror the environment used in development and should be adjusted if you introduce Firebase Auth or other access controls.
+
 Ensure these variables are available in your deployment environment so the
 application can retrieve additional secrets from Secret Manager.
 

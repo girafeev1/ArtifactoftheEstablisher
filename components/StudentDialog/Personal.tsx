@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
-import { db } from '../../lib/firebase'
+import { getDb } from '../../lib/firebase'
 import { Box, Typography, CircularProgress } from '@mui/material'
 
 interface Props {
@@ -30,6 +30,8 @@ export default function Personal({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
+    const db = getDb()
+    if (!db) { setLoading(false); return }
     getDoc(doc(db, 'Students', abbr))
       .then((snap) => {
         if (mounted && snap.exists()) {

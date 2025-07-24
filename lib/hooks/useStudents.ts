@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { collection, getDocs, query, orderBy, limit, getCountFromServer, where } from 'firebase/firestore'
-import { db } from '../firebase'
+import { getDb } from '../firebase'
 
 export function useStudents() {
   const [students, setStudents] = useState<any[]>([])
@@ -11,6 +11,8 @@ export function useStudents() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      const db = getDb()
+      if (!db) return
       const snap = await getDocs(collection(db, 'Students'))
       const today = new Date()
       const list = await Promise.all(

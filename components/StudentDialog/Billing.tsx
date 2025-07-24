@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore'
-import { db } from '../../lib/firebase'
+import { getDb } from '../../lib/firebase'
 import { Box, Typography, CircularProgress, List, ListItem, ListItemText } from '@mui/material'
 
 interface Props {
@@ -23,6 +23,8 @@ export default function Billing({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
+    const db = getDb()
+    if (!db) { setLoading(false); return }
 
     // 1) fetch root student doc
     getDoc(doc(db, 'Students', abbr))

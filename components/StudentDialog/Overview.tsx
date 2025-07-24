@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
-import { db } from '../../lib/firebase'
+import { getDb } from '../../lib/firebase'
 import { Box, Typography, CircularProgress } from '@mui/material'
 
 interface Props {
@@ -16,12 +16,17 @@ export default function Overview({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
-    getDoc(doc(db, 'students', abbr))
+    const db = getDb()
+    if (!db) { setLoading(false); return }
+    console.log('[Overview] fetching', abbr)
+    getDoc(doc(db, 'Students', abbr))
       .then(snap => {
         if (mounted && snap.exists()) {
+          console.log('[Overview] data', snap.data())
           setData(snap.data())
         }
       })
+      .catch(err => console.error('[Overview] error', err))
       .finally(() => mounted && setLoading(false))
     return () => { mounted = false }
   }, [abbr])
