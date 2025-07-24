@@ -1,7 +1,7 @@
 // pages/dashboard/businesses/coachingsessions.tsx
 
 import React, { useEffect, useState } from 'react'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
 import {
@@ -70,12 +70,8 @@ export default function CoachingSessions() {
       basics.forEach(b => {
         ;(async () => {
           const latest = async (col: string) => {
-            const sub = await getDocs(
-              collection(db, 'Students', b.abbr, col)
-            )
-            return sub.empty
-              ? undefined
-              : (sub.docs[0].data() as any).value
+            const sub = await getDocs(collection(db, 'Students', b.abbr, col))
+            return sub.empty ? undefined : (sub.docs[0].data() as any).value
           }
           const [sex, balRaw] = await Promise.all([
             latest('sex'),
@@ -83,16 +79,33 @@ export default function CoachingSessions() {
           ])
           const balanceDue = parseFloat(balRaw as any) || 0
 
-          // scan Sessions (simplified)
-          const sessSnap = await getDocs(collection(db, 'Sessions'))
-          let total = 0, upcoming = 0
+          const sessSnap = await getDocs(
+            query(
+              collection(db, 'Sessions'),
+              where('sessionName', '==', b.account)
+            )
+          )
+
+          let total = 0,
+            upcoming = 0
           const now = new Date()
-          sessSnap.docs
-            .filter(sd => (sd.data() as any).sessionName === b.account)
-            .forEach(sd => {
+          await Promise.all(
+            sessSnap.docs.map(async sd => {
               total++
-              // here you would compute dt from appointmentHistory…
+              const histSnap = await getDocs(
+                query(
+                  collection(db, 'Sessions', sd.id, 'AppointmentHistory'),
+                  orderBy('dateStamp', 'desc'),
+                  limit(1)
+                )
+              )
+              const hist = histSnap.docs[0]?.data() as any
+              const start =
+                hist?.newStartTimestamp?.toDate?.() ||
+                hist?.origStartTimestamp?.toDate?.()
+              if (start && start > now) upcoming++
             })
+          )
 
           if (!mounted) return
           setStudents(prev =>

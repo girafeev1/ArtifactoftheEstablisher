@@ -1,7 +1,7 @@
 // components/StudentDialog/Sessions.tsx
 
 import React, { useEffect, useState } from 'react'
-import { collection, getDocs, query, orderBy } from 'firebase/firestore'
+import { collection, getDocs, query, orderBy, where, limit, getDoc, doc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import {
   Box,
@@ -38,35 +38,58 @@ export default function Sessions({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
-    getDocs(
-      query(
-        collection(db, 'Students', abbr, 'sessions'),
-        orderBy('date', 'desc')
+    ;(async () => {
+      const stu = await getDoc(doc(db, 'Students', abbr))
+      const account = stu.exists() ? (stu.data() as any).account : abbr
+
+      const sessQ = query(
+        collection(db, 'Sessions'),
+        where('sessionName', '==', account)
       )
-    ).then(snap => {
-      if (!mounted) return
-      setRows(
-        snap.docs.map(d => {
-          const data = d.data() as any
-          const dt: Date = data.date?.toDate() ?? new Date()
+      const sessSnap = await getDocs(sessQ)
+
+      const rowsData = await Promise.all(
+        sessSnap.docs.map(async d => {
+          const histSnap = await getDocs(
+            query(
+              collection(db, 'Sessions', d.id, 'AppointmentHistory'),
+              orderBy('dateStamp', 'desc'),
+              limit(1)
+            )
+          )
+          const hist = histSnap.docs[0]?.data() as any
+          const start =
+            hist?.newStartTimestamp?.toDate?.() ||
+            hist?.origStartTimestamp?.toDate?.()
+          const end =
+            hist?.newEndTimestamp?.toDate?.() ||
+            hist?.origEndTimestamp?.toDate?.()
+          const duration =
+            start && end ? (end.getTime() - start.getTime()) / 3600000 : undefined
           return {
-            id:            d.id,
-            date:          dt,
-            time:          dt,
-            duration:      data.duration,
-            sessionType:   data.topic,
-            billingType:   data.billingType,
-            baseRate:      data.baseRate,
-            retainerStatus:data.retainerStatus,
-            rateCharged:   data.amount,
-            paymentStatus: data.paymentStatus,
+            id: d.id,
+            date: start,
+            time: start,
+            duration,
+            sessionType: hist?.sessionType,
+            billingType: hist?.billingType,
+            baseRate: hist?.baseRate,
+            retainerStatus: hist?.retainerStatus,
+            rateCharged: hist?.rateCharged,
+            paymentStatus: hist?.paymentStatus,
           }
         })
       )
-    }).catch(console.error)
+
+      if (!mounted) return
+      setRows(rowsData.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)))
+    })()
+      .catch(console.error)
       .finally(() => mounted && setLoading(false))
 
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [abbr])
 
   if (loading) {

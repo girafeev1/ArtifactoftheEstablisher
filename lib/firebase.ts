@@ -13,14 +13,15 @@ const firebaseConfig = {
 }
 
 if (process.env.NODE_ENV === 'development') {
-  console.log('🔥 Firebase config:', firebaseConfig)
+  console.log('🔥 Firebase config:', firebaseConfig, 'DB:', process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || '(default)')
 }
 
-const app = !getApps().length
-  ? initializeApp(firebaseConfig)
-  : getApp()
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp()
 
-export const db = getFirestore(app)
+const databaseId = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID
+export const db = databaseId
+  ? getFirestore(app, databaseId)
+  : getFirestore(app)
 // after you create/export `db`...
 if (typeof window !== 'undefined') {
   // @ts-ignore
