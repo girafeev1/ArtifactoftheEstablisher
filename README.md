@@ -61,6 +61,34 @@ NEXT_PUBLIC_FIREBASE_APP_ID
 NEXT_PUBLIC_FIREBASE_DATABASE_ID
 ```
 
+### Firestore Security Rules
+
+When deploying the `mel-sessions` database, configure rules that allow the front end to read data while restricting writes to your service account:
+
+```firestore
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isServiceAccount() {
+      return request.auth.token.email.matches('.*@.*\\.gserviceaccount\\.com');
+    }
+
+    match /Students/{studentId}/{subDoc=**} {
+      allow read: if true;
+      allow write: if isServiceAccount();
+    }
+
+    match /Sessions/{sessionId}/{subDoc=**} {
+      allow read: if true;
+      allow write: if isServiceAccount();
+    }
+  }
+}
+```
+
+These rules mirror the environment used in development and should be adjusted if you introduce Firebase Auth or other access controls.
+
 Ensure these variables are available in your deployment environment so the
 application can retrieve additional secrets from Secret Manager.
 
