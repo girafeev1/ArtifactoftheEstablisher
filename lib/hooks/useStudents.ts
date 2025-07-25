@@ -11,7 +11,7 @@ export function useStudents() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const db = getDb()
+      const db = await getDb()
       if (!db) return
       const snap = await getDocs(collection(db, 'Students'))
       const today = new Date()

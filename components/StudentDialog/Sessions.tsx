@@ -39,7 +39,7 @@ export default function Sessions({ abbr, serviceMode }: Props) {
   useEffect(() => {
     let mounted = true
     ;(async () => {
-      const db = getDb()
+      const db = await getDb()
       if (!db) return
       console.log('[Sessions] fetching sessions for', abbr)
       const stu = await getDoc(doc(db, 'Students', abbr))

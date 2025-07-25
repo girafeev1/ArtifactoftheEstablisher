@@ -16,18 +16,19 @@ export default function Overview({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
-    const db = getDb()
-    if (!db) { setLoading(false); return }
-    console.log('[Overview] fetching', abbr)
-    getDoc(doc(db, 'Students', abbr))
-      .then(snap => {
-        if (mounted && snap.exists()) {
-          console.log('[Overview] data', snap.data())
-          setData(snap.data())
-        }
-      })
-      .catch(err => console.error('[Overview] error', err))
-      .finally(() => mounted && setLoading(false))
+    getDb().then(db => {
+      if (!db) { setLoading(false); return }
+      console.log('[Overview] fetching', abbr)
+      getDoc(doc(db, 'Students', abbr))
+        .then(snap => {
+          if (mounted && snap.exists()) {
+            console.log('[Overview] data', snap.data())
+            setData(snap.data())
+          }
+        })
+        .catch(err => console.error('[Overview] error', err))
+        .finally(() => mounted && setLoading(false))
+    })
     return () => { mounted = false }
   }, [abbr])
 

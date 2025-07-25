@@ -73,7 +73,7 @@ export default function CoachingSessions() {
     })
 
     async function loadAll() {
-      const db = getDb()
+      const db = await getDb()
       if (!db) return
       console.log('[CoachingSessions] Fetching Students collection')
       const snap = await getDocs(collection(db, 'Students'))

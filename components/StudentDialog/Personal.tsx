@@ -30,12 +30,12 @@ export default function Personal({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
-    const db = getDb()
-    if (!db) { setLoading(false); return }
-    getDoc(doc(db, 'Students', abbr))
-      .then((snap) => {
-        if (mounted && snap.exists()) {
-          const d = snap.data() as any
+    getDb().then(db => {
+      if (!db) { setLoading(false); return }
+      getDoc(doc(db, 'Students', abbr))
+        .then((snap) => {
+          if (mounted && snap.exists()) {
+            const d = snap.data() as any
           setInfo({
             firstName:  d.firstName,
             lastName:   d.lastName,
@@ -50,8 +50,9 @@ export default function Personal({ abbr, serviceMode }: Props) {
           })
         }
       })
-      .catch(console.error)
-      .finally(() => mounted && setLoading(false))
+        .catch(console.error)
+        .finally(() => mounted && setLoading(false))
+    })
 
     return () => { mounted = false }
   }, [abbr])

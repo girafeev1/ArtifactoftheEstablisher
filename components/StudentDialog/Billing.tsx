@@ -23,8 +23,8 @@ export default function Billing({ abbr, serviceMode }: Props) {
 
   useEffect(() => {
     let mounted = true
-    const db = getDb()
-    if (!db) { setLoading(false); return }
+    getDb().then(db => {
+      if (!db) { setLoading(false); return }
 
     // 1) fetch root student doc
     getDoc(doc(db, 'Students', abbr))
@@ -45,6 +45,7 @@ export default function Billing({ abbr, serviceMode }: Props) {
       })
       .catch(() => { /* no payments */ })
       .finally(() => mounted && setLoading(false))
+    })
 
     return () => { mounted = false }
   }, [abbr])

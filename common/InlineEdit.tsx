@@ -33,7 +33,7 @@ export default function InlineEdit({
 
   const save = async (v: any) => {
     const [col, docId, field] = fieldPath.split('/')
-    const db = getDb()
+    const db = await getDb()
     if (!db) return
     try {
       await updateDoc(doc(db, col, docId), {
@@ -49,7 +49,7 @@ export default function InlineEdit({
   // — you wanted **all** history when in Service Mode —
   const showHistory = async () => {
     const [col, docId, field] = fieldPath.split('/')
-    const db = getDb()
+    const db = await getDb()
     if (!db) return
     // **removed** limit(10) so we fetch _all_ history
     const snap = await getDocs(
