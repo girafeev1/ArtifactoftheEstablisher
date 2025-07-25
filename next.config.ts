@@ -1,17 +1,7 @@
-// next.config.ts
-// Lint errors should fail the build on CI, but remain optional locally.
 module.exports = {
   eslint: {
-    // CI is generally set to "true" in continuous integration environments.
-    // When CI is present, do not ignore lint errors during builds so failures
-    // surface in the pipeline. Locally we continue to allow builds to succeed
-    // even if lint errors are present.
-    ignoreDuringBuilds: !process.env.CI,
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
+    ignoreDuringBuilds: true,
   },
-  // The source currently does not type-check cleanly. Allow builds to succeed
-  // locally by skipping TypeScript errors. CI will still report type issues.
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  output: 'export',
 };

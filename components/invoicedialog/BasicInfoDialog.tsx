@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Box, Typography, FormControl, Select, MenuItem, InputLabel } from '@mui/material';
-import type { InvoiceBankAccount } from '../projectdialog/ProjectOverview';
+import type { InvoiceBankAccount } from '../../projectdialog/ProjectOverview';
 
 interface BasicInfoDialogProps {
   fileId: string;

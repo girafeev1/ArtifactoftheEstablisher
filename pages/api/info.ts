@@ -7,13 +7,13 @@ import { initializeApis } from '../../lib/googleApi';
 import { findPMSReferenceLogFile } from '../../lib/pmsReference';
 import { sheets_v4 } from 'googleapis';
 
-// For an 11-column Project Overview: A..L
-const PROJECT_OVERVIEW_RANGE = 'Project Overview!A:L';
-// If your first data row is row 5, you might do "Project Overview!A5:L" for appending/updating.
-// But typically, for updates, we retrieve the entire A:L and find the row offset.
+// For a 10-column Project Overview: A..J
+const PROJECT_OVERVIEW_RANGE = 'Project Overview!A:J';
+// If your first data row is row 5, you might do "Project Overview!A5:J" for appending/updating.
+// But typically, for updates, we retrieve the entire A:J and find the row offset.
 
 const SHEET_NAME_PROJECT_OVERVIEW = 'Project Overview';
-const LAST_COLUMN_PROJECT = 'L';
+const LAST_COLUMN_PROJECT = 'J';
 
 const SHEET_NAME_CLIENTS = 'Address Book of Accounts';
 const LAST_COLUMN_CLIENTS = 'I'; // example from your clients page
@@ -134,15 +134,14 @@ async function handleProjectPost(
   spreadsheetId: string,
   res: NextApiResponse
 ) {
-  // e.g. "Project Overview!A:L"
+  // e.g. "Project Overview!A:J"
   // Make sure `data` is in the same order as your columns
-  // [ projectNumber, projectDate, agent, invoiceCompany, presenter, projectTitle, projectNature, amount, paid, paidOnDate, invoice ]
+  // [ projectNumber, projectDate, agent, invoiceCompany, projectTitle, projectNature, amount, paid, paidOnDate, invoice ]
   const rowValues = [
     data.projectNumber || '',
     data.projectDate || '',
     data.agent || '',
     data.invoiceCompany || '',
-    data.presenter || '',
     data.projectTitle || '',
     data.projectNature || '',
     data.amount || '',
@@ -152,7 +151,7 @@ async function handleProjectPost(
   ];
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `${SHEET_NAME_PROJECT_OVERVIEW}!A:${LAST_COLUMN_PROJECT}`, // "Project Overview!A:L"
+    range: `${SHEET_NAME_PROJECT_OVERVIEW}!A:${LAST_COLUMN_PROJECT}`, // "Project Overview!A:J"
     valueInputOption: 'RAW',
     requestBody: {
       values: [rowValues],
@@ -185,7 +184,6 @@ async function handleProjectPut(
     data.projectDate || '',
     data.agent || '',
     data.invoiceCompany || '',
-    data.presenter || '',
     data.projectTitle || '',
     data.projectNature || '',
     data.amount || '',

@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // (PUT handler unchanged)
     const { originalIdentifier, ...projectData } = req.body;
     try {
-      const range = 'Project Overview!A6:L';
+      const range = 'Project Overview!A6:K';
       console.log('[API PUT] Fetching range:', range);
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId: fileId,
@@ -40,7 +40,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         projectData.projectDate,
         projectData.agent,
         projectData.invoiceCompany,
-        projectData.presenter,
         projectData.projectTitle,
         projectData.projectNature,
         projectData.amount,
@@ -49,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         projectData.bankAccountIdentifier,
         projectData.invoice,
       ];
-      const updateRange = `Project Overview!A${rowIndex + 6}:L${rowIndex + 6}`;
+      const updateRange = `Project Overview!A${rowIndex + 6}:K${rowIndex + 6}`;
       console.log('[API PUT] Updating range:', updateRange, 'with values:', rowValues);
       await sheets.spreadsheets.values.update({
         spreadsheetId: fileId,
@@ -65,8 +64,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } else if (req.method === 'POST') {
     const projectData = req.body;
     try {
-      // 1. Fetch table data from A6:L
-      const range = 'Project Overview!A6:L';
+      // 1. Fetch table data from A6:K
+      const range = 'Project Overview!A6:K';
       console.log('[API POST] Fetching range:', range);
       const valueResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: fileId,
@@ -120,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   sheetId,
                   gridProperties: {
                     rowCount: totalRowNewIndex, // Set to exactly the new total row index (e.g. 12)
-                    columnCount: Math.max(sheet.properties.gridProperties?.columnCount || 12, 12),
+                    columnCount: Math.max(sheet.properties.gridProperties?.columnCount || 11, 11),
                   },
                 },
                 fields: 'gridProperties(rowCount,columnCount)',
@@ -143,7 +142,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   startRowIndex: insertRowIndex - 1, // New row inserted here (e.g. A11)
                   endRowIndex: insertRowIndex,
                   startColumnIndex: 0,
-                  endColumnIndex: 12,
+                  endColumnIndex: 11,
                 },
                 shiftDimension: 'ROWS',
               },
@@ -155,14 +154,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   startRowIndex: insertRowIndex - 2, // Copy formatting from the row above (e.g. A10)
                   endRowIndex: insertRowIndex - 1,
                   startColumnIndex: 0,
-                  endColumnIndex: 12,
+                  endColumnIndex: 11,
                 },
                 destination: {
                   sheetId,
                   startRowIndex: insertRowIndex - 1, // Paste into the new row (e.g. A11)
                   endRowIndex: insertRowIndex,
                   startColumnIndex: 0,
-                  endColumnIndex: 12,
+                  endColumnIndex: 11,
                 },
                 pasteType: 'PASTE_FORMAT',
               },
@@ -194,7 +193,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               startRowIndex: 5, // Header row is at A5; data from A6 downward.
               endRowIndex: newTableEndRow, // New table data ends here (exclusive, so covers up to row newTableEndRow-1)
               startColumnIndex: 0,
-              endColumnIndex: 12,
+              endColumnIndex: 11,
             },
             rowProperties: {
               firstBandColor: { red: 1, green: 1, blue: 1 }, // white
@@ -216,7 +215,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         projectData.projectDate,
         projectData.agent,
         projectData.invoiceCompany,
-        projectData.presenter,
         projectData.projectTitle,
         projectData.projectNature,
         projectData.amount,
@@ -225,7 +223,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         projectData.bankAccountIdentifier,
         projectData.invoice,
       ];
-      const updateDataRange = `Project Overview!A${insertRowIndex}:L${insertRowIndex}`;
+      const updateDataRange = `Project Overview!A${insertRowIndex}:K${insertRowIndex}`;
       console.log('[API POST] Updating range:', updateDataRange, 'with values:', rowValues);
       await sheets.spreadsheets.values.update({
         spreadsheetId: fileId,
@@ -235,8 +233,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       // 10. Update the "total" row's formula in column G (e.g. G12 becomes =SUM(G6:G11))
-      const totalFormula = `=SUM(H6:H${newTableEndRow})`;
-      const totalUpdateRange = `Project Overview!H${totalRowNewIndex}`;
+      const totalFormula = `=SUM(G6:G${newTableEndRow})`;
+      const totalUpdateRange = `Project Overview!G${totalRowNewIndex}`;
       console.log('[API POST] Updating total formula at:', totalUpdateRange, 'to:', totalFormula);
       await sheets.spreadsheets.values.update({
         spreadsheetId: fileId,

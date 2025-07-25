@@ -1,0 +1,203 @@
+// pages/dashboard/businesses/coaching-sessions.tsx
+
+import React, { useEffect, useState } from 'react'
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore'
+import SidebarLayout from '../../../components/SidebarLayout'
+import { db } from '../../../lib/firebase'
+import {
+  Typography,
+  Grid,
+  Card,
+  CardActionArea,
+  CardContent,
+  Button,
+  LinearProgress,
+  Box,
+} from '@mui/material'
+import OverviewTab from '../../../components/StudentDialog/OverviewTab'
+
+interface StudentMeta {
+  abbr: string
+  account: string
+}
+interface StudentDetails extends StudentMeta {
+  sex?: string
+  balanceDue?: number
+  total: number
+  upcoming: number
+}
+
+export default function CoachingSessions() {
+  const [students, setStudents] = useState<StudentDetails[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [serviceMode, setServiceMode] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+
+    async function loadAll() {
+      // 1) fetch only abbr+account
+      const snap = await getDocs(collection(db, 'Students'))
+      const basics: StudentMeta[] = snap.docs.map((d) => ({
+        abbr: d.id,
+        account: (d.data() as any).account,
+      }))
+
+      if (!mounted) return
+      setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
+      setLoading(false)
+
+      // 2) then in parallel load each student’s details
+      basics.forEach((b) => {
+        ;(async () => {
+          // a) latest sex & balanceDue
+          const latest = async (col: string) => {
+            const subsnap = await getDocs(
+              query(
+                collection(db, 'Students', b.abbr, col),
+                // single‐field orderBy + limit
+                query(collection(db, 'Students', b.abbr, col), undefined, undefined, undefined)
+              )
+            )
+            return subsnap.empty ? undefined : (subsnap.docs[0].data() as any).value
+          }
+          const [sex, balRaw] = await Promise.all([
+            latest('sex'),
+            latest('balanceDue'),
+          ])
+          const balanceDue = parseFloat(balRaw as any) || 0
+
+          // b) scan every session for this student
+          const sessSnap = await getDocs(
+            query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
+          )
+          let total = sessSnap.size
+          let upcoming = 0
+          const now = new Date()
+
+          // for each session, pull its appointmentHistory subcollection (no Firestore ordering!)
+          await Promise.all(
+            sessSnap.docs.map(async (sd) => {
+              const logsSnap = await getDocs(
+                collection(db, 'Sessions', sd.id, 'appointmentHistory')
+              )
+              const logs = logsSnap.docs.map((d) => d.data() as any)
+              let dt: Date
+              if (logs.length) {
+                // pick the log with the most recent (dateStamp, timeStamp)
+                logs.sort((a, b) => {
+                  const aMs =
+                    a.dateStamp.toDate().getTime() +
+                    (() => {
+                      const t = String(a.timeStamp || '000000').padStart(6, '0')
+                      return (
+                        parseInt(t.slice(0, 2), 10) * 3600_000 +
+                        parseInt(t.slice(2, 4), 10) * 60_000 +
+                        parseInt(t.slice(4, 6), 10) * 1000
+                      )
+                    })()
+                  const bMs =
+                    b.dateStamp.toDate().getTime() +
+                    (() => {
+                      const t = String(b.timeStamp || '000000').padStart(6, '0')
+                      return (
+                        parseInt(t.slice(0, 2), 10) * 3600_000 +
+                        parseInt(t.slice(2, 4), 10) * 60_000 +
+                        parseInt(t.slice(4, 6), 10) * 1000
+                      )
+                    })()
+                  return bMs - aMs
+                })
+                const newest = logs[0]
+                // use newDate if set, else origDate
+                dt = (newest.newDate?.toDate() || newest.origDate.toDate()) as Date
+              } else {
+                // fallback to top‐level sessionDate
+                const sdData = sd.data() as any
+                dt = sdData.sessionDate.toDate()
+              }
+              if (dt > now) upcoming++
+            })
+          )
+
+          if (!mounted) return
+          setStudents((prev) =>
+            prev.map((s) =>
+              s.abbr === b.abbr
+                ? { ...s, sex, balanceDue, total, upcoming }
+                : s
+            )
+          )
+        })().catch(console.error)
+      })
+    }
+
+    loadAll().catch(console.error)
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  return (
+    <SidebarLayout>
+      {loading && (
+        <Box sx={{ width: '100%' }}>
+          <LinearProgress />
+          <Typography align="center" sx={{ mt: 1 }}>
+            Loading student cards…
+          </Typography>
+        </Box>
+      )}
+
+      <Grid container spacing={2} sx={{ mt: 2 }}>
+        {students.map((s) => (
+          <Grid item key={s.abbr} xs={12} sm={6} md={4}>
+            <Card>
+              <CardActionArea onClick={() => setSelected(s.abbr)}>
+                <CardContent>
+                  <Typography variant="h6">{s.account}</Typography>
+                  <Typography>
+                    {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
+                  </Typography>
+                  <Typography>
+                    Total: {s.total}
+                    {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Button
+        variant="contained"
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          bgcolor: serviceMode ? 'red' : 'primary.main',
+          animation: serviceMode ? 'blink 1s infinite' : 'none',
+        }}
+        onClick={() => setServiceMode((m) => !m)}
+      >
+        Service Mode
+      </Button>
+
+      {selected && (
+        <OverviewTab
+          abbr={selected}
+          open
+          onClose={() => setSelected(null)}
+          serviceMode={serviceMode}
+        />
+      )}
+    </SidebarLayout>
+  )
+}

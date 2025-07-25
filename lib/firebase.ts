@@ -12,9 +12,7 @@ const firebaseConfig = {
   appId:                process.env.NEXT_PUBLIC_FIREBASE_APP_ID!
 }
 
-if (process.env.NODE_ENV === 'development') {
-  console.log('🔥 Firebase config:', firebaseConfig)
-}
+console.log('🔥 Firebase config:', firebaseConfig)
 
 const app = !getApps().length
   ? initializeApp(firebaseConfig)

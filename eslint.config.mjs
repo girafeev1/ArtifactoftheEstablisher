@@ -1,15 +1,14 @@
-import globals from 'globals';
-import pluginJs from '@eslint/js';
-import tsParser from '@typescript-eslint/parser';
+import globals from "globals";
+import pluginJs from "@eslint/js";
+import tseslint from "typescript-eslint";
+import pluginReact from "eslint-plugin-react";
 
-/** @type {import('eslint').Linter.FlatConfig[]} */
+
+/** @type {import('eslint').Linter.Config[]} */
 export default [
-  {
-    files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}'],
-    languageOptions: {
-      parser: tsParser,
-      globals: globals.browser,
-    },
-  },
+  {files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"]},
+  {languageOptions: { globals: globals.browser }},
   pluginJs.configs.recommended,
+  ...tseslint.configs.recommended,
+  pluginReact.configs.flat.recommended,
 ];
