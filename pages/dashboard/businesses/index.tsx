@@ -6,12 +6,13 @@ import SidebarLayout from '../../../components/SidebarLayout';
 import { initializeApis } from '../../../lib/googleApi';
 import { listProjectOverviewFiles } from '../../../lib/projectOverview';
 import { useRouter } from 'next/router';
-import { Box, Typography, List, ListItem, ListItemText, Button } from '@mui/material';
+import { Box, Typography, List, ListItemButton, ListItemText, Button } from '@mui/material';
+import { drive_v3 } from 'googleapis';
 
 interface BusinessFile {
   companyIdentifier: string;
   fullCompanyName: string;
-  file: { id: string; name: string };
+  file: drive_v3.Schema$File;
 }
 
 interface BusinessesPageProps {
@@ -43,13 +44,12 @@ export default function BusinessesPage({ projectsByCategory }: BusinessesPagePro
       </Typography>
       <List>
         {files.map((file) => (
-          <ListItem
+          <ListItemButton
             key={file.file.id}
-            button
             onClick={() => router.push(`/dashboard/businesses/${file.file.id}`)}
           >
             <ListItemText primary={file.fullCompanyName} secondary={file.file.name} />
-          </ListItem>
+          </ListItemButton>
         ))}
       </List>
     </SidebarLayout>
@@ -61,7 +61,6 @@ export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async
   if (!session?.accessToken) {
     return { redirect: { destination: '/api/auth/signin', permanent: false } };
   }
-  const { initializeApis } = await import('../../../lib/googleApi');
   const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
   // Get the grouped project files using your existing sorting utility
   const projectsByCategory = await listProjectOverviewFiles(drive, []);

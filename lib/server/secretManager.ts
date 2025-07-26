@@ -1,8 +1,7 @@
 // lib/server/secretManager.ts
 
-import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import { serviceAccountCredentials } from '../config';
-import { TextDecoder } from 'util';
+// Adapted to read secrets from environment variables on Vercel
+// rather than Google Secret Manager
 
 interface SecretFetchResult {
   secrets: Record<string, string>;
@@ -13,73 +12,31 @@ interface SecretFetchResult {
   };
 }
 
+/**
+ * In the Vercel environment, secrets are provided directly via environment
+ * variables. This helper simply reads them and returns a diagnostics object
+ * for parity with the previous implementation that pulled from Google Secret
+ * Manager.
+ */
 export async function loadSecrets(): Promise<SecretFetchResult> {
-  if (
-    !serviceAccountCredentials.project_id ||
-    !serviceAccountCredentials.client_email ||
-    !serviceAccountCredentials.private_key
-  ) {
-    throw new Error('Service account credentials are missing.');
-  }
-
-  const client = new SecretManagerServiceClient({
-    credentials: {
-      client_email: serviceAccountCredentials.client_email,
-      private_key: serviceAccountCredentials.private_key,
-    },
-    projectId: serviceAccountCredentials.project_id,
-  });
-
-  const secrets: Record<string, string> = {};
-  const diagnostics = {
-    success: true,
-    fetchedSecrets: [] as string[],
-    errors: [] as { secret: string; message: string }[],
+  const secrets = {
+    OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID || '',
+    OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET || '',
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || '',
+    PMS_REFERENCE_LOG_ID: process.env.PMS_REFERENCE_LOG_ID || '',
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL || '',
   };
 
-  const secretNames = [
-    { name: 'OAUTH_CLIENT_ID', key: 'OAUTH_CLIENT_ID' },
-    { name: 'OAUTH_CLIENT_SECRET', key: 'OAUTH_CLIENT_SECRET' },
-    { name: 'NEXTAUTH_SECRET', key: 'NEXTAUTH_SECRET' },
-    { name: 'PMS_REFERENCE_LOG_ID', key: 'PMS_REFERENCE_LOG_ID' },
-    { name: 'NEXTAUTH_URL', key: 'NEXTAUTH_URL' },
-  ];
-
-  for (const { name, key } of secretNames) {
-    try {
-      const [version] = await client.accessSecretVersion({
-        name: `projects/${serviceAccountCredentials.project_id}/secrets/${name}/versions/latest`,
-      });
-
-      const data = version.payload?.data;
-      let secretValue = '';
-
-      if (data) {
-        if (typeof data === 'string') {
-          secretValue = data;
-        } else {
-          const decoder = new TextDecoder('utf-8');
-          secretValue = decoder.decode(data);
-        }
-      }
-
-      secrets[key] = secretValue;
-      diagnostics.fetchedSecrets.push(name);
-
-      if (key === 'NEXTAUTH_URL') {
-        process.env.NEXTAUTH_URL = secretValue;
-      }
-    } catch (error: any) {
-      diagnostics.success = false;
-      diagnostics.errors.push({ secret: name, message: error.message });
-    }
+  // NEXTAUTH_URL must be available at runtime for NextAuth to construct links
+  if (secrets.NEXTAUTH_URL) {
+    process.env.NEXTAUTH_URL = secrets.NEXTAUTH_URL;
   }
 
-  if (!diagnostics.success) {
-    console.error('Diagnostics - Secret Fetching Failed:', diagnostics.errors);
-  } else {
-    console.log('Diagnostics - Successfully fetched secrets:', diagnostics.fetchedSecrets);
-  }
+  const diagnostics = {
+    success: true,
+    fetchedSecrets: Object.keys(secrets),
+    errors: [] as { secret: string; message: string }[],
+  };
 
   return { secrets, diagnostics };
 }

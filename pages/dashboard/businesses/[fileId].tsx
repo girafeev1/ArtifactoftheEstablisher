@@ -10,7 +10,7 @@ import { initializeApis } from '../../../lib/googleApi';
 import { fetchProjectRows, listProjectOverviewFiles, ProjectRow } from '../../../lib/projectOverview';
 import { Box, Typography, Card, CardContent, List, ListItem, ListItemText, IconButton, Button, FormControl, InputLabel, Select, MenuItem, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ProjectOverview from '../../../components/projectdialog/ProjectOverview';
+import ProjectOverview, { ClientEntry } from '../../../components/projectdialog/ProjectOverview';
 import { useSnackbar } from 'notistack';
 import { drive_v3 } from 'googleapis';
 
@@ -48,7 +48,7 @@ interface FileViewProps {
   error?: string;
   yearCode: string;
   fullCompanyName: string;
-  clients: { companyName: string }[];
+  clients: ClientEntry[];
   bankAccounts: BankAccount[];
   subsidiaryInfo?: SubsidiaryData | null;
   projectsByCategory: Record<string, Array<{
@@ -359,8 +359,7 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
 
     const fullCompanyName = referenceMapping[shortCode] || shortCode;
     const projects = await fetchProjectRows(sheets, fileId, 6);
-    const addressBook = await fetchAddressBook(sheets, pmsRefLogId);
-    const clients = addressBook.map((c) => ({ companyName: c.companyName }));
+    const clients = await fetchAddressBook(sheets, pmsRefLogId);
     const bankAccounts = await fetchBankAccounts(sheets, pmsRefLogId);
     const allSubsidiaries = await fetchSubsidiaryData(sheets, pmsRefLogId);
     const subsidiaryInfo = allSubsidiaries.find((r) => r.identifier === shortCode) || null;
@@ -381,7 +380,7 @@ export const getServerSideProps: GetServerSideProps<FileViewProps> = async (ctx)
     };
   } catch (err: any) {
     console.error('[getServerSideProps fileId] error:', err);
-    const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
+    const { drive, sheets } = initializeApis('user', { accessToken: session.accessToken as string });
     const projectsByCategory = await listProjectOverviewFiles(drive);
     const pmsRefLogId = await findPMSReferenceLogFile(drive);
     const referenceMapping = await fetchReferenceNames(sheets, pmsRefLogId);

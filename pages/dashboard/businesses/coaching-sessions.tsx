@@ -59,11 +59,7 @@ export default function CoachingSessions() {
           // a) latest sex & balanceDue
           const latest = async (col: string) => {
             const subsnap = await getDocs(
-              query(
-                collection(db, 'Students', b.abbr, col),
-                // single‐field orderBy + limit
-                query(collection(db, 'Students', b.abbr, col), undefined, undefined, undefined)
-              )
+              query(collection(db, 'Students', b.abbr, col))
             )
             return subsnap.empty ? undefined : (subsnap.docs[0].data() as any).value
           }
