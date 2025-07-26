@@ -61,13 +61,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const authOptions = await getAuthOptions();
     const session = await getServerSession(req, res, authOptions);
-    if (!session?.accessToken) {
+    const sessionWithToken = session as any;
+    if (!sessionWithToken?.accessToken) {
       console.log('[api/clients] No session');
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { drive, sheets } = initializeApis('user', {
-      accessToken: session.accessToken as string,
+      accessToken: sessionWithToken.accessToken as string,
     });
     const referenceLogId = await findPMSReferenceLogFile(drive);
 

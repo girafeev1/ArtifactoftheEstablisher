@@ -1,6 +1,12 @@
 // pages/api/invoices/InvoiceDetails.ts
 
-import { applyDimensions, createMergeRequests, applyCellFormatting, applyBorders, applyBackgroundColors } from '../../../lib/utils';
+import {
+  applyDimensions,
+  createMergeRequests,
+  applyCellFormatting,
+  applyBorders,
+  applyBackgroundColors,
+} from '../../../lib/googleSheetUtils';
 
 export const applyInvoiceDetailsFormatting = (sheetId: number) => {
   const requests = [

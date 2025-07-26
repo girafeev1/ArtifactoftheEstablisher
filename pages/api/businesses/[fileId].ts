@@ -8,7 +8,8 @@ import { initializeApis } from '../../../lib/googleApi';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const authOptions = await getAuthOptions();
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.accessToken) {
+  const sessionWithToken = session as any;
+  if (!sessionWithToken?.accessToken) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const { fileId } = req.query;
@@ -16,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (typeof fileId !== 'string' || !fileId) {
     return res.status(400).json({ error: 'Invalid fileId' });
   }
-  const { sheets } = initializeApis('user', { accessToken: session.accessToken as string });
+  const { sheets } = initializeApis('user', { accessToken: sessionWithToken.accessToken as string });
 
   if (req.method === 'PUT') {
     // (PUT handler unchanged)

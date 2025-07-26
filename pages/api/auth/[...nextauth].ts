@@ -100,7 +100,7 @@ async function getDynamicAuthOptions(): Promise<NextAuthOptions> {
 
         // If token not expired yet, reuse it
         if (
-          token.accessTokenExpires &&
+          typeof token.accessTokenExpires === 'number' &&
           Date.now() < token.accessTokenExpires
         ) {
           return token;
@@ -112,8 +112,9 @@ async function getDynamicAuthOptions(): Promise<NextAuthOptions> {
 
       async session({ session, token }) {
         if (token) {
-          session.accessToken = token.accessToken;
-          session.user = token.user;
+          const sessionWithToken = session as any;
+          sessionWithToken.accessToken = token.accessToken;
+          sessionWithToken.user = token.user;
         }
         return session;
       },

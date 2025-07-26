@@ -70,6 +70,9 @@ export async function fetchProjectRows(
     if (values[10] && values[10].hyperlink) {
       invoiceUrl = values[10].hyperlink;
     }
+    const paidText = cellText(7, values);
+    const paid: 'TRUE' | 'FALSE' = paidText === 'TRUE' ? 'TRUE' : 'FALSE';
+
     rows.push({
       projectNumber: cellText(0, values),
       projectDate: cellText(1, values),
@@ -78,7 +81,7 @@ export async function fetchProjectRows(
       projectTitle: cellText(4, values),
       projectNature: cellText(5, values),
       amount: numericAmount.toFixed(2),
-      paid: cellText(7, values) || 'FALSE',
+      paid,
       paidOnDate: cellText(8, values),
       bankAccountIdentifier: cellText(9, values),
       invoice,

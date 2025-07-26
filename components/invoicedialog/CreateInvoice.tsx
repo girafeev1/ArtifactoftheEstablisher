@@ -6,15 +6,7 @@ import BasicInfoDialog from './BasicInfoDialog';
 import BillToDialog from './BillToDialog';
 import InvoiceDetailsDialog from './InvoiceDetailsDialog';
 import InvoiceConfirmation from './InvoiceConfirmation';
-
-export interface LineItem {
-  title: string;
-  feeDescription: string;
-  notes: string;
-  unitPrice: string;
-  quantity: string;
-  total: string;
-}
+import type { LineItem } from './InvoiceDetailsDialog';
 
 export interface ClientDetails {
   companyName: string;
@@ -61,7 +53,7 @@ const CreateInvoice: React.FC<CreateInvoiceProps> = ({
   const [clientsData, setClientsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { title: '', feeDescription: '', notes: '', unitPrice: '', quantity: '', total: '' },
+    { id: Date.now(), title: '', feeDescription: '', notes: '', unitPrice: '', quantity: '', total: '' },
   ]);
   const [billToData, setBillToData] = useState<ClientDetails | null>(null);
 
