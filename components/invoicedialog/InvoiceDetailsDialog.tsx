@@ -6,6 +6,7 @@ import { Add, Remove } from '@mui/icons-material';
 import { ReactSortable } from 'react-sortablejs';
 
 export interface LineItem {
+  id: number;
   title: string;
   feeDescription: string;
   notes: string;
@@ -27,7 +28,11 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
   invoiceNumber,
   onFinish,
 }) => {
-  const handleLineItemChange = (index: number, field: keyof LineItem, value: string) => {
+  const handleLineItemChange = (
+    index: number,
+    field: keyof Omit<LineItem, 'id'>,
+    value: string
+  ) => {
     const updated = [...lineItems];
     updated[index][field] = value;
     if (field === 'unitPrice' || field === 'quantity') {
@@ -41,7 +46,7 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
   const handleAddLineItem = () => {
     setLineItems([
       ...lineItems,
-      { title: '', feeDescription: '', notes: '', unitPrice: '', quantity: '', total: '' },
+      { id: Date.now(), title: '', feeDescription: '', notes: '', unitPrice: '', quantity: '', total: '' },
     ]);
   };
 
@@ -59,11 +64,11 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
       <Typography variant="subtitle1" gutterBottom>
         Invoice Details
       </Typography>
-      <ReactSortable list={lineItems} setList={setLineItems} options={{ handle: '.drag-handle' }}>
+      <ReactSortable<LineItem> list={lineItems} setList={setLineItems} handle=".drag-handle">
         {lineItems.map((item, index) => (
           <Box
-            key={index}
-            data-id={index.toString()}
+            key={item.id}
+            data-id={item.id.toString()}
             sx={{
               border: '1px solid #ccc',
               borderRadius: 2,

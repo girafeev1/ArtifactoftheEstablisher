@@ -53,7 +53,7 @@ const CreateInvoice: React.FC<CreateInvoiceProps> = ({
   const [clientsData, setClientsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { title: '', feeDescription: '', notes: '', unitPrice: '', quantity: '', total: '' },
+    { id: Date.now(), title: '', feeDescription: '', notes: '', unitPrice: '', quantity: '', total: '' },
   ]);
   const [billToData, setBillToData] = useState<ClientDetails | null>(null);
 
