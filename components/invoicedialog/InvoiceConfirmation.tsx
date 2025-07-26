@@ -3,7 +3,7 @@
 import React from 'react';
 import { DialogContent, DialogActions, Button, Typography, Box } from '@mui/material';
 import { ClientDetails } from './BillToDialog';
-import { InvoiceBankAccount } from '../../projectdialog/ProjectOverview';
+import { InvoiceBankAccount } from '../projectdialog/ProjectOverview';
 import { LineItem } from './InvoiceDetailsDialog';
 
 interface InvoiceConfirmationProps {
