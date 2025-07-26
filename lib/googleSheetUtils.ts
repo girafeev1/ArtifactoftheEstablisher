@@ -149,19 +149,29 @@ export const applyBorders = (sheetId: number, borders: any[], offset = 0) => {
   return requests;
 };
 
-export const applyBackgroundColors = (sheetId: number, backgrounds: string[][], offset = 0) => {
+export interface BackgroundCell {
+  row: number;
+  col: number;
+  color: string;
+}
+
+export const applyBackgroundColors = (
+  sheetId: number,
+  backgrounds: string[][] | BackgroundCell[],
+  offset = 0
+) => {
   const requests: any[] = [];
-  backgrounds.forEach((row, rowIndex) => {
-    row.forEach((color, colIndex) => {
+  if (Array.isArray(backgrounds) && backgrounds.length > 0 && !Array.isArray(backgrounds[0])) {
+    (backgrounds as BackgroundCell[]).forEach(({ row, col, color }) => {
       if (color && color !== '#ffffff') {
         requests.push({
           repeatCell: {
             range: {
               sheetId,
-              startRowIndex: rowIndex + offset,
-              endRowIndex: rowIndex + offset + 1,
-              startColumnIndex: colIndex,
-              endColumnIndex: colIndex + 1
+              startRowIndex: row + offset,
+              endRowIndex: row + offset + 1,
+              startColumnIndex: col,
+              endColumnIndex: col + 1
             },
             cell: { userEnteredFormat: { backgroundColor: hexToRgb(color) } },
             fields: 'userEnteredFormat.backgroundColor'
@@ -169,6 +179,26 @@ export const applyBackgroundColors = (sheetId: number, backgrounds: string[][], 
         });
       }
     });
-  });
+  } else {
+    (backgrounds as string[][]).forEach((rowArr, rowIndex) => {
+      rowArr.forEach((color, colIndex) => {
+        if (color && color !== '#ffffff') {
+          requests.push({
+            repeatCell: {
+              range: {
+                sheetId,
+                startRowIndex: rowIndex + offset,
+                endRowIndex: rowIndex + offset + 1,
+                startColumnIndex: colIndex,
+                endColumnIndex: colIndex + 1
+              },
+              cell: { userEnteredFormat: { backgroundColor: hexToRgb(color) } },
+              fields: 'userEnteredFormat.backgroundColor'
+            }
+          });
+        }
+      });
+    });
+  }
   return requests;
 };
