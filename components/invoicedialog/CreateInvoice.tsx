@@ -6,15 +6,7 @@ import BasicInfoDialog from './BasicInfoDialog';
 import BillToDialog from './BillToDialog';
 import InvoiceDetailsDialog from './InvoiceDetailsDialog';
 import InvoiceConfirmation from './InvoiceConfirmation';
-
-export interface LineItem {
-  title: string;
-  feeDescription: string;
-  notes: string;
-  unitPrice: string;
-  quantity: string;
-  total: string;
-}
+import type { LineItem } from './InvoiceDetailsDialog';
 
 export interface ClientDetails {
   companyName: string;

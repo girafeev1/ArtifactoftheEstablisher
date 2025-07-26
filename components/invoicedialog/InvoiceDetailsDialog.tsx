@@ -5,7 +5,7 @@ import { Box, Typography, TextField, Button, IconButton, Divider } from '@mui/ma
 import { Add, Remove } from '@mui/icons-material';
 import { ReactSortable } from 'react-sortablejs';
 
-interface LineItem {
+export interface LineItem {
   title: string;
   feeDescription: string;
   notes: string;
