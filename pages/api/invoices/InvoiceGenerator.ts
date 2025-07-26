@@ -1,6 +1,6 @@
 // pages/api/invoices/InvoiceGenerator.ts
 
-import { applyDimensions } from '../../../lib/utils';
+import { applyDimensions } from '../../../lib/googleSheetUtils';
 import { applyBasicInfoFormatting } from './BasicInfo';
 import { applyBillToFormatting } from './BillTo';
 import { applyInvoiceDetailsFormatting } from './InvoiceDetails';

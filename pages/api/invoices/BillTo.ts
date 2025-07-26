@@ -1,6 +1,11 @@
 // pages/api/invoices/BillTo.ts
 
-import { applyDimensions, createMergeRequests, applyCellFormatting, applyBackgroundColors } from '../../../lib/utils';
+import {
+  applyDimensions,
+  createMergeRequests,
+  applyCellFormatting,
+  applyBackgroundColors,
+} from '../../../lib/googleSheetUtils';
 
 export const applyBillToFormatting = (sheetId: number, billToData: any) => {
   // Safely destructure billToData with defaults

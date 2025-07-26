@@ -7,14 +7,36 @@ export const hexToRgb = (hex: string) => {
   return { red: r, green: g, blue: b };
 };
 
-export const applyDimensions = (sheetId: number, dimension: 'ROWS' | 'COLUMNS', sizes: number[], offset = 0) =>
-  sizes.map((size, index) => ({
-    updateDimensionProperties: {
-      range: { sheetId, dimension, startIndex: index + offset, endIndex: index + offset + 1 },
-      properties: { pixelSize: size },
-      fields: 'pixelSize'
+export const applyDimensions = (
+  sheetId: number,
+  dimension: 'ROWS' | 'COLUMNS',
+  sizes: (number | { startIndex: number; endIndex: number; size: number })[],
+  offset = 0
+) =>
+  sizes.map((size, index) => {
+    if (typeof size === 'number') {
+      return {
+        updateDimensionProperties: {
+          range: {
+            sheetId,
+            dimension,
+            startIndex: index + offset,
+            endIndex: index + offset + 1,
+          },
+          properties: { pixelSize: size },
+          fields: 'pixelSize',
+        },
+      };
+    } else {
+      return {
+        updateDimensionProperties: {
+          range: { sheetId, dimension, startIndex: size.startIndex, endIndex: size.endIndex },
+          properties: { pixelSize: size.size },
+          fields: 'pixelSize',
+        },
+      };
     }
-  }));
+  });
 
 export const createMergeRequests = (sheetId: number, merges: any[]) =>
   merges.map(merge => ({
@@ -71,6 +93,34 @@ export const applyRichTextFormatting = (
     });
   });
   return requests;
+};
+
+export interface SimpleCell {
+  row: number;
+  col: number;
+  value: string | number;
+  runs?: { start: number; end?: number; format?: any }[];
+  alignment?: { horizontal?: string; vertical?: string };
+}
+
+export const applyCellFormatting = (
+  sheetId: number,
+  cells: SimpleCell[],
+  offset = 0
+) => {
+  const maxRow = Math.max(...cells.map((c) => c.row)) + 1;
+  const maxCol = Math.max(...cells.map((c) => c.col)) + 1;
+  const richText: (any | null)[][] = Array.from({ length: maxRow }, () => Array(maxCol).fill(null));
+  const hAlign: (string | null)[][] = Array.from({ length: maxRow }, () => Array(maxCol).fill(null));
+  const vAlign: (string | null)[][] = Array.from({ length: maxRow }, () => Array(maxCol).fill(null));
+
+  cells.forEach((cell) => {
+    richText[cell.row][cell.col] = { value: String(cell.value), runs: cell.runs || [] };
+    hAlign[cell.row][cell.col] = cell.alignment?.horizontal || 'LEFT';
+    vAlign[cell.row][cell.col] = cell.alignment?.vertical || 'MIDDLE';
+  });
+
+  return applyRichTextFormatting(sheetId, richText, offset, hAlign, vAlign);
 };
 
 export const applyBorders = (sheetId: number, borders: any[], offset = 0) => {

@@ -1,6 +1,12 @@
 // pages/api/invoices/BasicInfo.ts
 
-import { applyDimensions, createMergeRequests, applyCellFormatting, applyBorders, applyBackgroundColors } from '../../../lib/utils';
+import {
+  applyDimensions,
+  createMergeRequests,
+  applyCellFormatting,
+  applyBorders,
+  applyBackgroundColors,
+} from '../../../lib/googleSheetUtils';
 
 export const applyBasicInfoFormatting = (sheetId: number) => {
   const requests = [

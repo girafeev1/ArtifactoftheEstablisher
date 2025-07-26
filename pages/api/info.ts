@@ -23,7 +23,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 1) Must have session
     const authOptions = await getAuthOptions();
     const session = await getServerSession(req, res, authOptions);
-    if (!session?.accessToken) {
+    const sessionWithToken = session as any;
+    if (!sessionWithToken?.accessToken) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -36,7 +37,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`API Request: ${req.method} /api/info?type=${type}`);
 
     // 3) Initialize user-based Google APIs
-    const { drive, sheets } = initializeApis(session.accessToken as string);
+    const { drive, sheets } = initializeApis('user', {
+      accessToken: sessionWithToken.accessToken as string,
+    });
     const referenceLogId = await findPMSReferenceLogFile(drive);
 
     // 4) Route the request by type

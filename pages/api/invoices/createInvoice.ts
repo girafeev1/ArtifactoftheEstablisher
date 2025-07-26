@@ -10,7 +10,8 @@ import { applyDimensions, createMergeRequests, applyRichTextFormatting, applyBac
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const authOptions = await getAuthOptions();
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.accessToken) {
+  const sessionWithToken = session as any;
+  if (!sessionWithToken?.accessToken) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -25,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { sheets } = initializeApis('user', { accessToken: session.accessToken as string });
+    const { sheets } = initializeApis('user', { accessToken: sessionWithToken.accessToken as string });
 
     // Step 1: Add a new sheet
     const sheetTitle = invoiceNumber;
