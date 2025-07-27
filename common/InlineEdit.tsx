@@ -2,12 +2,13 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { TextField, MenuItem, Typography } from '@mui/material'
-import { doc, updateDoc, collection, getDocs, orderBy } from 'firebase/firestore'
+import { addDoc, collection, getDocs } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 export interface InlineEditProps {
   value: any
-  fieldPath: string       // e.g. "Students/KT/firstName"
+  fieldPath: string       // e.g. "Students/KT/sex"
+  fieldKey?: string       // field name stored in the subcollection document
   editable: boolean
   serviceMode?: boolean
   type: 'text' | 'number' | 'date' | 'select'
@@ -17,12 +18,13 @@ export interface InlineEditProps {
 export default function InlineEdit({
   value,
   fieldPath,
+  fieldKey = 'value',
   editable,
   serviceMode = false,
   type,
   options,
 }: InlineEditProps) {
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(value === undefined || value === '')
   const [draft, setDraft] = useState(value)
   const ref = useRef<HTMLInputElement>(null)
 
@@ -31,12 +33,19 @@ export default function InlineEdit({
     if (editing && ref.current) ref.current.focus()
   }, [editing])
 
+  useEffect(() => {
+    setDraft(value)
+    if (value === undefined || value === '') {
+      setEditing(true)
+    }
+  }, [value])
+
   const save = async (v: any) => {
-    const [col, docId, field] = fieldPath.split('/')
+    const [col, docId, collectionName] = fieldPath.split('/')
     try {
-      console.log(`💾 update ${col}/${docId} ${field}=${v}`)
-      await updateDoc(doc(db, col, docId), {
-        [field]: v,
+      console.log(`💾 add ${col}/${docId}/${collectionName} ${fieldKey}=${v}`)
+      await addDoc(collection(db, col, docId, collectionName), {
+        [fieldKey]: v,
         timestamp: new Date(),
       })
       setDraft(v)
@@ -47,17 +56,18 @@ export default function InlineEdit({
 
   // — you wanted **all** history when in Service Mode —
   const showHistory = async () => {
-    const [col, docId, field] = fieldPath.split('/')
-    // **removed** limit(10) so we fetch _all_ history
-    console.log(`📥 history ${col}/${docId}/${field}`)
-    const snap = await getDocs(
-      collection(db, col, docId, field)
-    )
+    const [col, docId, subcol] = fieldPath.split('/')
+    console.log(`📥 history ${col}/${docId}/${subcol}`)
+    const snap = await getDocs(collection(db, col, docId, subcol))
     console.log(`   ${snap.size} records`)
-    const lines = snap.docs.map(d => {
+    const lines = snap.docs.map((d) => {
       const dta = d.data() as any
       const ts = dta.timestamp?.toDate?.().toLocaleString() || 'no-time'
-      return `${String(dta.value)} @ ${ts}`
+      const [k, v] = Object.entries(dta).find(([k]) => k !== 'timestamp') || [
+        'value',
+        '',
+      ]
+      return `${String(v)} @ ${ts}`
     })
     alert(lines.join('\n') || 'No history')
   }

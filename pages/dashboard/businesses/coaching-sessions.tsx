@@ -35,7 +35,7 @@ interface StudentDetails extends StudentMeta {
 export default function CoachingSessions() {
   const [students, setStudents] = useState<StudentDetails[]>([])
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<StudentDetails | null>(null)
   const [serviceMode, setServiceMode] = useState(false)
 
   useEffect(() => {
@@ -56,18 +56,22 @@ export default function CoachingSessions() {
 
       // 2) then in parallel load each student’s details
       basics.forEach((b) => {
-        ;(async () => {
+        (async () => {
           // a) latest sex & balanceDue
           const latest = async (col: string) => {
             console.log(`📥 ${b.abbr}/${col}`)
-            const subsnap = await getDocs(
-              query(collection(db, 'Students', b.abbr, col))
+            const snap = await getDocs(
+              query(
+                collection(db, 'Students', b.abbr, col),
+                orderBy('timestamp', 'desc'),
+                limit(1)
+              )
             )
-            if (subsnap.empty) {
+            if (snap.empty) {
               console.warn(`⚠️ missing ${col} for ${b.abbr}`)
               return undefined
             }
-            const val = (subsnap.docs[0].data() as any).value
+            const val = (snap.docs[0].data() as any)[col]
             console.log(`✅ ${b.abbr} ${col}=${val}`)
             return val
           }
@@ -83,7 +87,7 @@ export default function CoachingSessions() {
             query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
           )
           console.log(`   found ${sessSnap.size} sessions`)
-          let total = sessSnap.size
+          const total = sessSnap.size
           let upcoming = 0
           const now = new Date()
 
@@ -95,41 +99,27 @@ export default function CoachingSessions() {
               )
               console.log(`      logs for ${sd.id}: ${logsSnap.size}`)
               const logs = logsSnap.docs.map((d) => d.data() as any)
-              let dt: Date
+              let dt: Date | undefined
               if (logs.length) {
-                // pick the log with the most recent (dateStamp, timeStamp)
-                logs.sort((a, b) => {
-                  const aMs =
-                    a.dateStamp.toDate().getTime() +
-                    (() => {
-                      const t = String(a.timeStamp || '000000').padStart(6, '0')
-                      return (
-                        parseInt(t.slice(0, 2), 10) * 3600_000 +
-                        parseInt(t.slice(2, 4), 10) * 60_000 +
-                        parseInt(t.slice(4, 6), 10) * 1000
-                      )
-                    })()
-                  const bMs =
-                    b.dateStamp.toDate().getTime() +
-                    (() => {
-                      const t = String(b.timeStamp || '000000').padStart(6, '0')
-                      return (
-                        parseInt(t.slice(0, 2), 10) * 3600_000 +
-                        parseInt(t.slice(2, 4), 10) * 60_000 +
-                        parseInt(t.slice(4, 6), 10) * 1000
-                      )
-                    })()
-                  return bMs - aMs
-                })
+                const toMs = (r: any) => {
+                  const date = r.dateStamp?.toDate?.()
+                  if (!date) return -Infinity
+                  const t = String(r.timeStamp || '000000').padStart(6, '0')
+                  return (
+                    date.getTime() +
+                    parseInt(t.slice(0, 2), 10) * 3600_000 +
+                    parseInt(t.slice(2, 4), 10) * 60_000 +
+                    parseInt(t.slice(4, 6), 10) * 1000
+                  )
+                }
+                logs.sort((a, b) => toMs(b) - toMs(a))
                 const newest = logs[0]
-                // use newDate if set, else origDate
-                dt = (newest.newDate?.toDate() || newest.origDate.toDate()) as Date
+                dt = newest.newDate?.toDate?.() || newest.origDate?.toDate?.()
               } else {
-                // fallback to top‐level sessionDate
                 const sdData = sd.data() as any
-                dt = sdData.sessionDate.toDate()
+                dt = sdData.sessionDate?.toDate?.()
               }
-              if (dt > now) upcoming++
+              if (dt && dt > now) upcoming++
             })
           )
 
@@ -166,7 +156,7 @@ export default function CoachingSessions() {
         {students.map((s) => (
           <Grid item key={s.abbr} xs={12} sm={6} md={4}>
             <Card>
-              <CardActionArea onClick={() => setSelected(s.abbr)}>
+              <CardActionArea onClick={() => setSelected(s)}>
                 <CardContent>
                   <Typography variant="h6">{s.account}</Typography>
                   <Typography>
@@ -199,7 +189,8 @@ export default function CoachingSessions() {
 
       {selected && (
         <OverviewTab
-          abbr={selected}
+          abbr={selected.abbr}
+          account={selected.account}
           open
           onClose={() => setSelected(null)}
           serviceMode={serviceMode}

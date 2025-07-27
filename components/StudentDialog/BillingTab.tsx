@@ -20,9 +20,11 @@ const LABELS: Record<string, string> = {
 }
 
 export default function BillingTab({
+  abbr,
   billing,
   serviceMode,
 }: {
+  abbr: string
   billing: any
   serviceMode: boolean
 }) {
@@ -30,24 +32,31 @@ export default function BillingTab({
     <Box>
       {Object.entries(billing)
         .filter(([k]) => k !== 'abbr')
-        .map(([k, v]) => (
-          <Box key={k} mb={2}>
-            <Typography variant="subtitle1">{LABELS[k]}</Typography>
-            {k === 'baseRate' ? (
-              <Typography>{
-                v != null ? formatCurrency(Number(v)) : '-'
-              }</Typography>
-            ) : (
-              <InlineEdit
-                value={v != null ? v : '-'}
-                fieldPath={`Students/${billing.abbr}/${k}`}
-                editable={!['balanceDue', 'voucherBalance'].includes(k)}
-                serviceMode={serviceMode}
-                type={k.includes('Date') ? 'date' : 'text'}
-              />
-            )}
-          </Box>
-        ))}
+        .map(([k, v]) => {
+          const path =
+            k === 'defaultBillingType'
+              ? `Students/${abbr}/billingType`
+              : `Students/${abbr}/${k}`
+          return (
+            <Box key={k} mb={2}>
+              <Typography variant="subtitle1">{LABELS[k]}</Typography>
+              {k === 'baseRate' ? (
+                <Typography>{
+                  v != null ? formatCurrency(Number(v)) : '-'
+                }</Typography>
+              ) : (
+                <InlineEdit
+                  value={v}
+                  fieldPath={path}
+                  fieldKey={k}
+                  editable={!['balanceDue', 'voucherBalance'].includes(k)}
+                  serviceMode={serviceMode}
+                  type={k.includes('Date') ? 'date' : 'text'}
+                />
+              )}
+            </Box>
+          )
+        })}
     </Box>
   )
 }

@@ -12,9 +12,11 @@ const LABELS: Record<string, string> = {
 }
 
 export default function PersonalTab({
+  abbr,
   personal,
   serviceMode,
 }: {
+  abbr: string
   personal: any
   serviceMode: boolean
 }) {
@@ -22,19 +24,26 @@ export default function PersonalTab({
     <Box>
       {Object.entries(personal)
         .filter(([k]) => k !== 'abbr')
-        .map(([k, v]) => (
-          <Box key={k} mb={2}>
-            <Typography variant="subtitle1">{LABELS[k]}</Typography>
-            <InlineEdit
-              value={v || '-'}
-              fieldPath={`Students/${personal.abbr}/${k}`}
-              editable // always editable
-              serviceMode={serviceMode}
-              type={k === 'sex' ? 'select' : k === 'birthDate' ? 'date' : 'text'}
-              options={k === 'sex' ? ['Male', 'Female', 'Other'] : undefined}
-            />
-          </Box>
-        ))}
+        .map(([k, v]) => {
+          const path =
+            k === 'firstName' || k === 'lastName'
+              ? `Students/${abbr}/legalName`
+              : `Students/${abbr}/${k}`
+          return (
+            <Box key={k} mb={2}>
+              <Typography variant="subtitle1">{LABELS[k]}</Typography>
+              <InlineEdit
+                value={v}
+                fieldPath={path}
+                fieldKey={k}
+                editable // always editable
+                serviceMode={serviceMode}
+                type={k === 'sex' ? 'select' : k === 'birthDate' ? 'date' : 'text'}
+                options={k === 'sex' ? ['Male', 'Female', 'Other'] : undefined}
+              />
+            </Box>
+          )
+        })}
     </Box>
   )
 }
