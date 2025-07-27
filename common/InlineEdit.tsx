@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { TextField, MenuItem, Typography } from '@mui/material'
-import { addDoc, collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 export interface InlineEditProps {
@@ -43,10 +43,31 @@ export default function InlineEdit({
   const save = async (v: any) => {
     const [col, docId, collectionName] = fieldPath.split('/')
     try {
-      console.log(`💾 add ${col}/${docId}/${collectionName} ${fieldKey}=${v}`)
-      await addDoc(collection(db, col, docId, collectionName), {
+      const snap = await getDocs(collection(db, col, docId, collectionName))
+      const idx = String(snap.size + 1).padStart(3, '0')
+      const today = new Date()
+      const yyyyMMdd = today.toISOString().slice(0, 10).replace(/-/g, '')
+      const fieldNumbers: Record<string, string> = {
+        firstName: 'A1',
+        lastName: 'A2',
+        sex: 'A3',
+        birthDate: 'A4',
+        billingCompany: 'B1',
+        defaultBillingType: 'B2',
+        baseRate: 'B3',
+        retainerStatus: 'B4',
+        lastPaymentDate: 'B5',
+        balanceDue: 'B6',
+        voucherBalance: 'B7',
+      }
+      const num = fieldNumbers[fieldKey ?? ''] || 'XX'
+      const docName = `${docId}-${num}-${idx}-${yyyyMMdd}`
+      console.log(
+        `💾 add ${col}/${docId}/${collectionName}/${docName} ${fieldKey}=${v}`,
+      )
+      await setDoc(doc(db, col, docId, collectionName, docName), {
         [fieldKey]: v,
-        timestamp: new Date(),
+        timestamp: today,
       })
       setDraft(v)
     } catch (e) {
