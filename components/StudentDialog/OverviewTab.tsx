@@ -29,6 +29,7 @@ import SessionsTab from './SessionsTab'
 
 export interface OverviewTabProps {
   abbr: string
+  account: string
   open: boolean
   onClose: () => void
   serviceMode: boolean
@@ -36,6 +37,7 @@ export interface OverviewTabProps {
 
 export default function OverviewTab({
   abbr,
+  account,
   open,
   onClose,
   serviceMode,
@@ -81,6 +83,14 @@ export default function OverviewTab({
       if (col === 'baseRate') {
         collectionName = 'BaseRateHistory'
         field = 'rate'
+      }
+      if (col === 'firstName' || col === 'lastName') {
+        collectionName = 'legalName'
+        field = col
+      }
+      if (col === 'defaultBillingType') {
+        collectionName = 'billingType'
+        field = 'billingType'
       }
       const snap = await getDocs(
         query(
@@ -207,13 +217,7 @@ export default function OverviewTab({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ textAlign: 'left' }}>
-        {personal.firstName || personal.lastName ? (
-          `${personal.firstName} ${personal.lastName}`
-        ) : (
-          <CircularProgress size={16} />
-        )}
-      </DialogTitle>
+      <DialogTitle sx={{ textAlign: 'left' }}>{account}</DialogTitle>
       <DialogContent sx={{ display: 'flex', height: '70vh' }}>
         {loading ? (
           <Box
@@ -260,8 +264,9 @@ export default function OverviewTab({
                     <Typography>Loading…</Typography>
                   ) : (
                     <InlineEdit
-                      value={personal.sex || '-'}
+                      value={personal.sex}
                       fieldPath={`Students/${abbr}/sex`}
+                      fieldKey="sex"
                       editable={serviceMode}
                       type="select"
                       options={['Male', 'Female', 'Other']}

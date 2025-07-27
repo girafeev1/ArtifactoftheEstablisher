@@ -35,7 +35,7 @@ interface StudentDetails extends StudentMeta {
 export default function CoachingSessions() {
   const [students, setStudents] = useState<StudentDetails[]>([])
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<StudentDetails | null>(null)
   const [serviceMode, setServiceMode] = useState(false)
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function CoachingSessions() {
 
       // 2) then in parallel load each student’s details
       basics.forEach((b) => {
-        ;(async () => {
+        (async () => {
           // a) latest sex & balanceDue
           const latest = async (col: string) => {
             console.log(`📥 ${b.abbr}/${col}`)
@@ -83,7 +83,7 @@ export default function CoachingSessions() {
             query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
           )
           console.log(`   found ${sessSnap.size} sessions`)
-          let total = sessSnap.size
+          const total = sessSnap.size
           let upcoming = 0
           const now = new Date()
 
@@ -166,7 +166,7 @@ export default function CoachingSessions() {
         {students.map((s) => (
           <Grid item key={s.abbr} xs={12} sm={6} md={4}>
             <Card>
-              <CardActionArea onClick={() => setSelected(s.abbr)}>
+              <CardActionArea onClick={() => setSelected(s)}>
                 <CardContent>
                   <Typography variant="h6">{s.account}</Typography>
                   <Typography>
@@ -199,7 +199,8 @@ export default function CoachingSessions() {
 
       {selected && (
         <OverviewTab
-          abbr={selected}
+          abbr={selected.abbr}
+          account={selected.account}
           open
           onClose={() => setSelected(null)}
           serviceMode={serviceMode}
