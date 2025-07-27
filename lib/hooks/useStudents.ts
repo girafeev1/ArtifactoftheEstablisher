@@ -11,7 +11,9 @@ export function useStudents() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      console.log('📥 useStudents: loading students')
       const snap = await getDocs(collection(db, 'Students'))
+      console.log(`   got ${snap.size} students`)
       const today = new Date()
       const list = await Promise.all(
         snap.docs.map(async d => {

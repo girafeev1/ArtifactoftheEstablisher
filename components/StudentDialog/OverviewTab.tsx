@@ -75,6 +75,7 @@ export default function OverviewTab({
     let mounted = true
 
     const loadLatest = async (col: string) => {
+      console.log(`📥 fetching ${abbr}/${col}`)
       const snap = await getDocs(
         query(
           collection(db, 'Students', abbr, col),
@@ -82,7 +83,13 @@ export default function OverviewTab({
           limit(1)
         )
       )
-      return snap.empty ? '' : (snap.docs[0].data() as any).value
+      if (snap.empty) {
+        console.warn(`⚠️ no ${col} for ${abbr}`)
+        return ''
+      }
+      const val = (snap.docs[0].data() as any).value
+      console.log(`✅ ${abbr} ${col}=${val}`)
+      return val
     }
 
     // load personal fields
@@ -117,9 +124,11 @@ export default function OverviewTab({
       const fullName = `${personal.firstName || ''} ${
         personal.lastName || ''
       }`.trim()
+      console.log(`📥 sessions for ${fullName}`)
       const snap = await getDocs(
         query(collection(db, 'Sessions'), where('sessionName', '==', fullName))
       )
+      console.log(`   found ${snap.size} sessions`)
       const dates = await Promise.all(
         snap.docs.map(async (sd) => {
           const h = await getDocs(
@@ -130,6 +139,7 @@ export default function OverviewTab({
               limit(1)
             )
           )
+          console.log(`   history entries for ${sd.id}: ${h.size}`)
           if (!h.empty) {
             const d = h.docs[0].data() as any
             return (d.newDate?.toDate() || d.origDate.toDate()) as Date

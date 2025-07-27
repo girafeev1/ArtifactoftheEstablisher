@@ -42,8 +42,9 @@ export default function CoachingSessions() {
     let mounted = true
 
     async function loadAll() {
-      // 1) fetch only abbr+account
+      console.log('📥 loading students list')
       const snap = await getDocs(collection(db, 'Students'))
+      console.log(`   found ${snap.size} students`)
       const basics: StudentMeta[] = snap.docs.map((d) => ({
         abbr: d.id,
         account: (d.data() as any).account,
@@ -58,10 +59,17 @@ export default function CoachingSessions() {
         ;(async () => {
           // a) latest sex & balanceDue
           const latest = async (col: string) => {
+            console.log(`📥 ${b.abbr}/${col}`)
             const subsnap = await getDocs(
               query(collection(db, 'Students', b.abbr, col))
             )
-            return subsnap.empty ? undefined : (subsnap.docs[0].data() as any).value
+            if (subsnap.empty) {
+              console.warn(`⚠️ missing ${col} for ${b.abbr}`)
+              return undefined
+            }
+            const val = (subsnap.docs[0].data() as any).value
+            console.log(`✅ ${b.abbr} ${col}=${val}`)
+            return val
           }
           const [sex, balRaw] = await Promise.all([
             latest('sex'),
@@ -70,9 +78,11 @@ export default function CoachingSessions() {
           const balanceDue = parseFloat(balRaw as any) || 0
 
           // b) scan every session for this student
+          console.log(`📥 sessions for ${b.account}`)
           const sessSnap = await getDocs(
             query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
           )
+          console.log(`   found ${sessSnap.size} sessions`)
           let total = sessSnap.size
           let upcoming = 0
           const now = new Date()
@@ -83,6 +93,7 @@ export default function CoachingSessions() {
               const logsSnap = await getDocs(
                 collection(db, 'Sessions', sd.id, 'appointmentHistory')
               )
+              console.log(`      logs for ${sd.id}: ${logsSnap.size}`)
               const logs = logsSnap.docs.map((d) => d.data() as any)
               let dt: Date
               if (logs.length) {

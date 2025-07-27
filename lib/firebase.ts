@@ -12,26 +12,12 @@ const firebaseConfig = {
   appId:                process.env.NEXT_PUBLIC_FIREBASE_APP_ID!
 }
 
-const envVars = [
-  'NEXT_PUBLIC_FIREBASE_API_KEY',
-  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-  'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
-  'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
-  'NEXT_PUBLIC_FIREBASE_APP_ID',
-  'NEXT_PUBLIC_FIRESTORE_DB_ID'
-]
-envVars.forEach(v => {
-  const val = process.env[v]
-  if (!val) {
-    console.warn(`❌ ${v} is undefined`)
-  } else {
-    console.log(`✅ ${v}=${val}`)
-  }
+console.log('🔥 Firebase config:', firebaseConfig)
+Object.entries(firebaseConfig).forEach(([k, v]) => {
+  console.log(`   ${k}: ${v}`)
 })
 
-console.log('🔥 Firebase config:', firebaseConfig)
-const databaseId = process.env.NEXT_PUBLIC_FIRESTORE_DB_ID || 'mel-sessions'
+const databaseId = 'mel-sessions'
 console.log('📚 Firestore database ID:', databaseId)
 
 const app = !getApps().length
