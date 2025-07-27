@@ -29,7 +29,7 @@ export default function BillingTab({
           <Box key={k} mb={2}>
             <Typography variant="subtitle1">{LABELS[k]}</Typography>
             {k === 'baseRate' ? (
-              <Typography>{v != null ? v : '-'}</Typography>
+              <Typography>{v != null ? String(v) : '-'}</Typography>
             ) : (
               <InlineEdit
                 value={v != null ? v : '-'}
