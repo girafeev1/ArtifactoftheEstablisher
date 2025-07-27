@@ -28,19 +28,17 @@ export default function BillingTab({
         .map(([k, v]) => (
           <Box key={k} mb={2}>
             <Typography variant="subtitle1">{LABELS[k]}</Typography>
-            <InlineEdit
-              value={v != null ? v : '-'}
-              fieldPath={`Students/${billing.abbr}/${k}`}
-              editable={!['balanceDue', 'voucherBalance'].includes(k)}
-              serviceMode={serviceMode}
-              type={
-                k.includes('Date')
-                  ? 'date'
-                  : k === 'baseRate'
-                  ? 'number'
-                  : 'text'
-              }
-            />
+            {k === 'baseRate' ? (
+              <Typography>{v != null ? v : '-'}</Typography>
+            ) : (
+              <InlineEdit
+                value={v != null ? v : '-'}
+                fieldPath={`Students/${billing.abbr}/${k}`}
+                editable={!['balanceDue', 'voucherBalance'].includes(k)}
+                serviceMode={serviceMode}
+                type={k.includes('Date') ? 'date' : 'text'}
+              />
+            )}
           </Box>
         ))}
     </Box>
