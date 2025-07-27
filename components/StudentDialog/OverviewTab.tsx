@@ -76,9 +76,15 @@ export default function OverviewTab({
 
     const loadLatest = async (col: string) => {
       console.log(`📥 fetching ${abbr}/${col}`)
+      let collectionName = col
+      let field = 'value'
+      if (col === 'baseRate') {
+        collectionName = 'BaseRateHistory'
+        field = 'rate'
+      }
       const snap = await getDocs(
         query(
-          collection(db, 'Students', abbr, col),
+          collection(db, 'Students', abbr, collectionName),
           orderBy('timestamp', 'desc'),
           limit(1)
         )
@@ -87,7 +93,7 @@ export default function OverviewTab({
         console.warn(`⚠️ no ${col} for ${abbr}`)
         return ''
       }
-      const val = (snap.docs[0].data() as any).value
+      const val = (snap.docs[0].data() as any)[field]
       console.log(`✅ ${abbr} ${col}=${val}`)
       return val
     }
