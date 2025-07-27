@@ -34,6 +34,7 @@ export default function InlineEdit({
   const save = async (v: any) => {
     const [col, docId, field] = fieldPath.split('/')
     try {
+      console.log(`💾 update ${col}/${docId} ${field}=${v}`)
       await updateDoc(doc(db, col, docId), {
         [field]: v,
         timestamp: new Date(),
@@ -48,9 +49,11 @@ export default function InlineEdit({
   const showHistory = async () => {
     const [col, docId, field] = fieldPath.split('/')
     // **removed** limit(10) so we fetch _all_ history
+    console.log(`📥 history ${col}/${docId}/${field}`)
     const snap = await getDocs(
       collection(db, col, docId, field)
     )
+    console.log(`   ${snap.size} records`)
     const lines = snap.docs.map(d => {
       const dta = d.data() as any
       const ts = dta.timestamp?.toDate?.().toLocaleString() || 'no-time'

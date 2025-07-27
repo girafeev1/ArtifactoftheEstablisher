@@ -13,12 +13,17 @@ const firebaseConfig = {
 }
 
 console.log('🔥 Firebase config:', firebaseConfig)
+Object.entries(firebaseConfig).forEach(([k, v]) => {
+  console.log(`   ${k}: ${v}`)
+})
+
+const databaseId = 'mel-sessions'
+console.log('📚 Firestore database ID:', databaseId)
 
 const app = !getApps().length
   ? initializeApp(firebaseConfig)
   : getApp()
-
-export const db = getFirestore(app)
+export const db = getFirestore(app, databaseId)
 // after you create/export `db`...
 if (typeof window !== 'undefined') {
   // @ts-ignore
