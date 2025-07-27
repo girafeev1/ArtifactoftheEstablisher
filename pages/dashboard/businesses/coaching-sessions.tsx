@@ -6,6 +6,8 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
+  limit,
 } from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
