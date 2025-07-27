@@ -1,6 +1,11 @@
 // components/StudentDialog/SessionsTab.tsx
 
 import React from 'react'
+
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(
+    n,
+  )
 import {
   Table,
   TableHead,
@@ -36,8 +41,8 @@ export default function SessionsTab({ sessions }: { sessions: any[] }) {
             <TableCell>{s.duration}</TableCell>
             <TableCell>{s.sessionType}</TableCell>
             <TableCell>{s.billingType}</TableCell>
-            <TableCell>${s.baseRate}</TableCell>
-            <TableCell>${s.rateCharged}</TableCell>
+            <TableCell>{formatCurrency(Number(s.baseRate))}</TableCell>
+            <TableCell>{formatCurrency(Number(s.rateCharged))}</TableCell>
             <TableCell>{s.paymentStatus}</TableCell>
           </TableRow>
         ))}

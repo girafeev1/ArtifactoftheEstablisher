@@ -2,6 +2,11 @@
 
 import React from 'react'
 import { Box, Typography } from '@mui/material'
+
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(
+    n,
+  )
 import InlineEdit from '../../common/InlineEdit'
 
 const LABELS: Record<string, string> = {
@@ -29,7 +34,9 @@ export default function BillingTab({
           <Box key={k} mb={2}>
             <Typography variant="subtitle1">{LABELS[k]}</Typography>
             {k === 'baseRate' ? (
-              <Typography>{v != null ? String(v) : '-'}</Typography>
+              <Typography>{
+                v != null ? formatCurrency(Number(v)) : '-'
+              }</Typography>
             ) : (
               <InlineEdit
                 value={v != null ? v : '-'}
