@@ -84,10 +84,6 @@ export default function OverviewTab({
         collectionName = 'BaseRateHistory'
         field = 'rate'
       }
-      if (col === 'firstName' || col === 'lastName') {
-        collectionName = 'legalName'
-        field = col
-      }
       if (col === 'defaultBillingType') {
         collectionName = 'billingType'
         field = 'billingType'

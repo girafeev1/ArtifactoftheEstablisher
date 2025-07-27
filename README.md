@@ -9,7 +9,8 @@ is edited a new document is added to the appropriate subcollection with a
 
 Required subcollections and fields:
 
-- `legalName` – documents contain `firstName`, `lastName` and `timestamp`.
+- `firstName` – documents contain `firstName` and `timestamp`.
+- `lastName` – documents contain `lastName` and `timestamp`.
 - `sex` – documents contain `sex` and `timestamp`.
 - `birthDate` – documents contain `birthDate` and `timestamp`.
 - `billingType` – documents contain `billingType` and `timestamp`.

@@ -25,10 +25,7 @@ export default function PersonalTab({
       {Object.entries(personal)
         .filter(([k]) => k !== 'abbr')
         .map(([k, v]) => {
-          const path =
-            k === 'firstName' || k === 'lastName'
-              ? `Students/${abbr}/legalName`
-              : `Students/${abbr}/${k}`
+          const path = `Students/${abbr}/${k}`
           return (
             <Box key={k} mb={2}>
               <Typography variant="subtitle1">{LABELS[k]}</Typography>
