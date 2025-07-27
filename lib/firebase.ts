@@ -26,6 +26,6 @@ const app = !getApps().length
 export const db = getFirestore(app, databaseId)
 // after you create/export `db`...
 if (typeof window !== 'undefined') {
-  // @ts-ignore
+  // @ts-expect-error attach for debugging
   window.db = db
 }
