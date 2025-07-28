@@ -2,6 +2,11 @@
 import { SessionProvider, useSession } from 'next-auth/react';
 import { SnackbarProvider } from 'notistack';
 import type { AppProps } from 'next/app';
+import { setupClientLogging } from '../lib/clientLogger';
+
+if (typeof window !== 'undefined') {
+  setupClientLogging();
+}
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
