@@ -239,7 +239,7 @@ export default function OverviewTab({
               {tab === 0 && (
                 <>
                   <Typography variant="subtitle1">
-                    Name{' '}
+                    Legal Name{' '}
                     {(personalLoading.firstName ||
                       personalLoading.lastName) && (
                       <CircularProgress size={14} />
