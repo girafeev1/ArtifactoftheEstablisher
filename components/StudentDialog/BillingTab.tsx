@@ -41,7 +41,7 @@ export default function BillingTab({
             <Box key={k} mb={2}>
               <Typography variant="subtitle2" fontWeight="bold">{LABELS[k]}</Typography>
               {k === 'baseRate' ? (
-                <Typography variant="body2">{
+                <Typography variant="body1">{
                   v != null ? formatCurrency(Number(v)) : '-'
                 }</Typography>
               ) : (
