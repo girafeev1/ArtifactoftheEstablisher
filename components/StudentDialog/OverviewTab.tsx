@@ -238,26 +238,26 @@ export default function OverviewTab({
             >
               {tab === 0 && (
                 <>
-                  <Typography variant="subtitle1">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Legal Name{' '}
                     {(personalLoading.firstName ||
                       personalLoading.lastName) && (
                       <CircularProgress size={14} />
                     )}
                   </Typography>
-                  <Typography>
+                  <Typography variant="body2">
                     {(personalLoading.firstName ||
                       personalLoading.lastName)
                       ? 'Loading…'
                       : `${personal.firstName} ${personal.lastName}`}
                   </Typography>
 
-                  <Typography variant="subtitle1">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Sex{' '}
                     {personalLoading.sex && <CircularProgress size={14} />}
                   </Typography>
                   {personalLoading.sex ? (
-                    <Typography>Loading…</Typography>
+                    <Typography variant="body2">Loading…</Typography>
                   ) : (
                     <InlineEdit
                       value={personal.sex}
@@ -269,24 +269,24 @@ export default function OverviewTab({
                     />
                   )}
 
-                  <Typography variant="subtitle1">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Joint Date{' '}
                     {overviewLoading && <CircularProgress size={14} />}
                   </Typography>
                   {overviewLoading ? (
-                    <Typography>Loading…</Typography>
+                    <Typography variant="body2">Loading…</Typography>
                   ) : (
-                    <Typography>{overview.joint}</Typography>
+                    <Typography variant="body2">{overview.joint}</Typography>
                   )}
 
-                  <Typography variant="subtitle1">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Total Sessions{' '}
                     {overviewLoading && <CircularProgress size={14} />}
                   </Typography>
                   {overviewLoading ? (
-                    <Typography>Loading…</Typography>
+                    <Typography variant="body2">Loading…</Typography>
                   ) : (
-                    <Typography>
+                    <Typography variant="body2">
                       {overview.total}
                       {overview.upcoming > 0
                         ? ` → ${overview.upcoming}`
@@ -294,28 +294,28 @@ export default function OverviewTab({
                     </Typography>
                   )}
 
-                  <Typography variant="subtitle1">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Balance Due{' '}
                     {billingLoading.balanceDue && <CircularProgress size={14} />}
                   </Typography>
                   {billingLoading.balanceDue ? (
-                    <Typography>Loading…</Typography>
+                    <Typography variant="body2">Loading…</Typography>
                   ) : (
-                    <Typography>
+                    <Typography variant="body2">
                       ${ (parseFloat(billing.balanceDue as any) || 0).toFixed(2) }
                     </Typography>
                   )}
 
-                  <Typography variant="subtitle1">
+                  <Typography variant="subtitle2" fontWeight="bold">
                     Session Voucher{' '}
                     {billingLoading.voucherBalance && (
                       <CircularProgress size={14} />
                     )}
                   </Typography>
                   {billingLoading.voucherBalance ? (
-                    <Typography>Loading…</Typography>
+                    <Typography variant="body2">Loading…</Typography>
                   ) : (
-                    <Typography>
+                    <Typography variant="body2">
                       {billing.voucherBalance ?? '0'}
                     </Typography>
                   )}

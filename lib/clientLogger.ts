@@ -17,8 +17,12 @@ export function setupClientLogging() {
             pathname: window.location.pathname,
             userAgent: navigator.userAgent,
           }),
-        }).catch(() => {});
-      } catch (_) {}
+        }).catch(() => {
+          /* ignore network errors */
+        });
+      } catch (_) {
+        /* ignore logging errors */
+      }
       original(...args);
     };
   });

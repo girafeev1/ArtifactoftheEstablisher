@@ -39,9 +39,9 @@ export default function BillingTab({
               : `Students/${abbr}/${k}`
           return (
             <Box key={k} mb={2}>
-              <Typography variant="subtitle1">{LABELS[k]}</Typography>
+              <Typography variant="subtitle2" fontWeight="bold">{LABELS[k]}</Typography>
               {k === 'baseRate' ? (
-                <Typography>{
+                <Typography variant="body2">{
                   v != null ? formatCurrency(Number(v)) : '-'
                 }</Typography>
               ) : (
