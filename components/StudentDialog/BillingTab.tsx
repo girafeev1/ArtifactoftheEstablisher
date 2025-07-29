@@ -19,7 +19,9 @@ const FIELD_KEYS = [
   'voucherBalance',
 ] as const
 
-const LABELS: Record<string, string> = {
+type FieldKey = (typeof FIELD_KEYS)[number]
+
+const LABELS: Record<FieldKey, string> = {
   baseRate: 'Base Rate',
   retainerStatus: 'Retainer Status',
   lastPaymentDate: 'Last Payment',
