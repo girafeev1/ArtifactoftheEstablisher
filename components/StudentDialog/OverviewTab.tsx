@@ -245,7 +245,7 @@ export default function OverviewTab({
                       <CircularProgress size={14} />
                     )}
                   </Typography>
-                  <Typography variant="body2">
+                  <Typography variant="h6">
                     {(personalLoading.firstName ||
                       personalLoading.lastName)
                       ? 'Loading…'
@@ -257,7 +257,7 @@ export default function OverviewTab({
                     {personalLoading.sex && <CircularProgress size={14} />}
                   </Typography>
                   {personalLoading.sex ? (
-                    <Typography variant="body2">Loading…</Typography>
+                    <Typography variant="h6">Loading…</Typography>
                   ) : (
                     <InlineEdit
                       value={personal.sex}
@@ -274,9 +274,9 @@ export default function OverviewTab({
                     {overviewLoading && <CircularProgress size={14} />}
                   </Typography>
                   {overviewLoading ? (
-                    <Typography variant="body2">Loading…</Typography>
+                    <Typography variant="h6">Loading…</Typography>
                   ) : (
-                    <Typography variant="body2">{overview.joint}</Typography>
+                    <Typography variant="h6">{overview.joint}</Typography>
                   )}
 
                   <Typography variant="subtitle2" fontWeight="bold">
@@ -284,9 +284,9 @@ export default function OverviewTab({
                     {overviewLoading && <CircularProgress size={14} />}
                   </Typography>
                   {overviewLoading ? (
-                    <Typography variant="body2">Loading…</Typography>
+                    <Typography variant="h6">Loading…</Typography>
                   ) : (
-                    <Typography variant="body2">
+                    <Typography variant="h6">
                       {overview.total}
                       {overview.upcoming > 0
                         ? ` → ${overview.upcoming}`
@@ -299,9 +299,9 @@ export default function OverviewTab({
                     {billingLoading.balanceDue && <CircularProgress size={14} />}
                   </Typography>
                   {billingLoading.balanceDue ? (
-                    <Typography variant="body2">Loading…</Typography>
+                    <Typography variant="h6">Loading…</Typography>
                   ) : (
-                    <Typography variant="body2">
+                    <Typography variant="h6">
                       ${ (parseFloat(billing.balanceDue as any) || 0).toFixed(2) }
                     </Typography>
                   )}
@@ -313,9 +313,9 @@ export default function OverviewTab({
                     )}
                   </Typography>
                   {billingLoading.voucherBalance ? (
-                    <Typography variant="body2">Loading…</Typography>
+                    <Typography variant="h6">Loading…</Typography>
                   ) : (
-                    <Typography variant="body2">
+                    <Typography variant="h6">
                       {billing.voucherBalance ?? '0'}
                     </Typography>
                   )}

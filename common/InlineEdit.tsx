@@ -102,7 +102,7 @@ export default function InlineEdit({
   if (!editable && serviceMode) {
     return (
       <Typography
-        variant="body2"
+        variant="h6"
         sx={{ cursor: 'pointer' }}
         onClick={showHistory}
       >
@@ -112,7 +112,7 @@ export default function InlineEdit({
   }
 
   if (!editable) {
-    return <Typography variant="body2">{display()}</Typography>
+    return <Typography variant="h6">{display()}</Typography>
   }
 
   return editing ? (
@@ -141,7 +141,7 @@ export default function InlineEdit({
     )
   ) : (
     <Typography
-      variant="body2"
+      variant="h6"
       sx={{ cursor: 'pointer' }}
       onClick={() => { if (!serviceMode) setEditing(true) }}
     >
