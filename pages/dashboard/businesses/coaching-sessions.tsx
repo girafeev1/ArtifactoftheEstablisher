@@ -165,7 +165,7 @@ export default function CoachingSessions() {
                     {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
                   </Typography>
                   <Typography>
-                    Total: {s.total}
+                    Total Sessions: {s.total}
                     {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
                   </Typography>
                 </CardContent>

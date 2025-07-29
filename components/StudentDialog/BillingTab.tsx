@@ -23,13 +23,19 @@ export default function BillingTab({
   abbr,
   billing,
   serviceMode,
+  totalSessions,
 }: {
   abbr: string
   billing: any
   serviceMode: boolean
+  totalSessions: number
 }) {
   return (
     <Box>
+      <Box mb={2}>
+        <Typography variant="subtitle2">Total Sessions</Typography>
+        <Typography variant="h6">{totalSessions}</Typography>
+      </Box>
       {Object.entries(billing)
         .filter(([k]) => k !== 'abbr')
         .map(([k, v]) => {

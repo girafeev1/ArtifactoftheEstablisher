@@ -329,7 +329,12 @@ export default function OverviewTab({
                 />
               )}
               {tab === 2 && (
-                <BillingTab abbr={abbr} billing={billing} serviceMode={serviceMode} />
+                <BillingTab
+                  abbr={abbr}
+                  billing={billing}
+                  serviceMode={serviceMode}
+                  totalSessions={overview.total}
+                />
               )}
               {tab === 3 && (
                 sessionsLoading ? (
