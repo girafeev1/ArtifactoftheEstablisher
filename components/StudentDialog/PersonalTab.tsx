@@ -28,7 +28,7 @@ export default function PersonalTab({
           const path = `Students/${abbr}/${k}`
           return (
             <Box key={k} mb={2}>
-              <Typography variant="subtitle1">{LABELS[k]}</Typography>
+              <Typography variant="subtitle2">{LABELS[k]}</Typography>
               <InlineEdit
                 value={v}
                 fieldPath={path}
