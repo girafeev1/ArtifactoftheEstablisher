@@ -238,7 +238,7 @@ export default function OverviewTab({
             >
               {tab === 0 && (
                 <>
-                  <Typography variant="subtitle2" fontWeight="bold">
+                  <Typography variant="subtitle2">
                     Legal Name{' '}
                     {(personalLoading.firstName ||
                       personalLoading.lastName) && (
@@ -252,7 +252,7 @@ export default function OverviewTab({
                       : `${personal.firstName} ${personal.lastName}`}
                   </Typography>
 
-                  <Typography variant="subtitle2" fontWeight="bold">
+                  <Typography variant="subtitle2">
                     Sex{' '}
                     {personalLoading.sex && <CircularProgress size={14} />}
                   </Typography>
@@ -269,7 +269,7 @@ export default function OverviewTab({
                     />
                   )}
 
-                  <Typography variant="subtitle2" fontWeight="bold">
+                  <Typography variant="subtitle2">
                     Joint Date{' '}
                     {overviewLoading && <CircularProgress size={14} />}
                   </Typography>
@@ -279,7 +279,7 @@ export default function OverviewTab({
                     <Typography variant="body1">{overview.joint}</Typography>
                   )}
 
-                  <Typography variant="subtitle2" fontWeight="bold">
+                  <Typography variant="subtitle2">
                     Total Sessions{' '}
                     {overviewLoading && <CircularProgress size={14} />}
                   </Typography>
@@ -294,7 +294,7 @@ export default function OverviewTab({
                     </Typography>
                   )}
 
-                  <Typography variant="subtitle2" fontWeight="bold">
+                  <Typography variant="subtitle2">
                     Balance Due{' '}
                     {billingLoading.balanceDue && <CircularProgress size={14} />}
                   </Typography>
@@ -306,7 +306,7 @@ export default function OverviewTab({
                     </Typography>
                   )}
 
-                  <Typography variant="subtitle2" fontWeight="bold">
+                  <Typography variant="subtitle2">
                     Session Voucher{' '}
                     {billingLoading.voucherBalance && (
                       <CircularProgress size={14} />
