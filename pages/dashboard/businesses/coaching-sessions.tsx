@@ -30,7 +30,7 @@ interface StudentMeta {
 interface StudentDetails extends StudentMeta {
   sex?: string
   balanceDue?: number
-  total: number
+  totalSessions: number
   upcoming: number
 }
 
@@ -53,7 +53,7 @@ export default function CoachingSessions() {
       }))
 
       if (!mounted) return
-      setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
+      setStudents(basics.map((b) => ({ ...b, totalSessions: 0, upcoming: 0 })))
       setLoading(false)
 
       // 2) then in parallel load each student’s details
@@ -129,7 +129,7 @@ export default function CoachingSessions() {
           setStudents((prev) =>
             prev.map((s) =>
               s.abbr === b.abbr
-                ? { ...s, sex, balanceDue, total, upcoming }
+                ? { ...s, sex, balanceDue, totalSessions: total, upcoming }
                 : s
             )
           )
@@ -165,7 +165,7 @@ export default function CoachingSessions() {
                     {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
                   </Typography>
                   <Typography>
-                    Total Sessions: {s.total}
+                    Total Sessions: {s.totalSessions}
                     {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
                   </Typography>
                 </CardContent>

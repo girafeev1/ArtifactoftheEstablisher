@@ -164,7 +164,7 @@ export default function OverviewTab({
       const sorted = dates.sort((a, b) => a.getTime() - b.getTime())
       const now = new Date()
       setOverview({
-        total: sorted.length,
+        totalSessions: sorted.length,
         upcoming: sorted.filter((d) => d > now).length,
         joint: sorted[0]?.toLocaleDateString() || '',
       })
@@ -287,7 +287,7 @@ export default function OverviewTab({
                     <Typography variant="h6">Loading…</Typography>
                   ) : (
                     <Typography variant="h6">
-                      {overview.total}
+                      {overview.totalSessions}
                       {overview.upcoming > 0
                         ? ` → ${overview.upcoming}`
                         : ''}
@@ -333,7 +333,7 @@ export default function OverviewTab({
                   abbr={abbr}
                   billing={billing}
                   serviceMode={serviceMode}
-                  totalSessions={overview.total}
+                  totalSessions={overview.totalSessions}
                 />
               )}
               {tab === 3 && (
