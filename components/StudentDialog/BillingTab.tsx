@@ -22,13 +22,13 @@ const FIELD_KEYS = [
 type FieldKey = (typeof FIELD_KEYS)[number]
 
 const LABELS: Record<FieldKey, string> = {
-  baseRate: 'Base Rate:',
-  retainerStatus: 'Retainer Status:',
-  lastPaymentDate: 'Last Payment:',
-  defaultBillingType: 'Default Billing Type:',
-  billingCompany: 'Billing Company Info:',
-  balanceDue: 'Balance Due:',
-  voucherBalance: 'Voucher Balance:',
+  baseRate: 'Base Rate',
+  retainerStatus: 'Retainer Status',
+  lastPaymentDate: 'Last Payment',
+  defaultBillingType: 'Default Billing Type',
+  billingCompany: 'Billing Company Info',
+  balanceDue: 'Balance Due',
+  voucherBalance: 'Voucher Balance',
 }
 
 export default function BillingTab({
