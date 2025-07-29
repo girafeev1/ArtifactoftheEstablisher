@@ -18,7 +18,9 @@ export function setupClientLogging() {
             userAgent: navigator.userAgent,
           }),
         }).catch(() => {});
-      } catch (_) {}
+      } catch (_) {
+        // ignore errors during client logging
+      }
       original(...args);
     };
   });

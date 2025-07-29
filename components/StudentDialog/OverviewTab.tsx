@@ -253,7 +253,7 @@ export default function OverviewTab({
                   </Typography>
 
                   <Typography variant="subtitle1">
-                    Sex{' '}
+                    Gender{' '}
                     {personalLoading.sex && <CircularProgress size={14} />}
                   </Typography>
                   {personalLoading.sex ? (

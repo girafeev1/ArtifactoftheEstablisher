@@ -7,7 +7,7 @@ import InlineEdit from '../../common/InlineEdit'
 const LABELS: Record<string, string> = {
   firstName: 'First Name',
   lastName: 'Last Name',
-  sex: 'Sex',
+  sex: 'Gender',
   birthDate: 'Birth Date',
 }
 
