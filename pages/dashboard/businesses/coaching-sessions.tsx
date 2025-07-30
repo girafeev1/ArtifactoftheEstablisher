@@ -37,6 +37,7 @@ interface StudentDetails extends StudentMeta {
 export default function CoachingSessions() {
   const [students, setStudents] = useState<StudentDetails[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingStatus, setLoadingStatus] = useState('')
   const [selected, setSelected] = useState<StudentDetails | null>(null)
   const [serviceMode, setServiceMode] = useState(false)
 
@@ -54,87 +55,84 @@ export default function CoachingSessions() {
 
       if (!mounted) return
       setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
-      setLoading(false)
 
-      // 2) then in parallel load each student’s details
-      basics.forEach((b) => {
-        (async () => {
-          // a) latest sex & balanceDue
-          const latest = async (col: string) => {
-            console.log(`📥 ${b.abbr}/${col}`)
-            const snap = await getDocs(
-              query(
-                collection(db, 'Students', b.abbr, col),
-                orderBy('timestamp', 'desc'),
-                limit(1)
-              )
+      for (let i = 0; i < basics.length; i++) {
+        const b = basics[i]
+        const totalCount = basics.length
+        const latest = async (col: string) => {
+          const snap = await getDocs(
+            query(
+              collection(db, 'Students', b.abbr, col),
+              orderBy('timestamp', 'desc'),
+              limit(1)
             )
-            if (snap.empty) {
-              console.warn(`⚠️ missing ${col} for ${b.abbr}`)
-              return undefined
-            }
-            const val = (snap.docs[0].data() as any)[col]
-            console.log(`✅ ${b.abbr} ${col}=${val}`)
-            return val
+          )
+          if (snap.empty) {
+            return undefined
           }
-          const [sex, balRaw] = await Promise.all([
-            latest('sex'),
-            latest('balanceDue'),
-          ])
-          const balanceDue = parseFloat(balRaw as any) || 0
+          return (snap.docs[0].data() as any)[col]
+        }
 
-          // b) scan every session for this student
-          console.log(`📥 sessions for ${b.account}`)
-          const sessSnap = await getDocs(
-            query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
-          )
-          console.log(`   found ${sessSnap.size} sessions`)
-          const total = sessSnap.size
-          let upcoming = 0
-          const now = new Date()
+        const [firstName, lastName] = await Promise.all([
+          latest('firstName'),
+          latest('lastName'),
+        ])
+        if (!mounted) return
+        setLoadingStatus(
+          `${firstName || b.account || b.abbr} ${lastName || ''} - (${i + 1} of ${totalCount})`
+        )
 
-          // for each session, pull its appointmentHistory subcollection (no Firestore ordering!)
-          await Promise.all(
-            sessSnap.docs.map(async (sd) => {
-              const logsSnap = await getDocs(
-                collection(db, 'Sessions', sd.id, 'appointmentHistory')
-              )
-              console.log(`      logs for ${sd.id}: ${logsSnap.size}`)
-              const logs = logsSnap.docs.map((d) => d.data() as any)
-              let dt: Date | undefined
-              if (logs.length) {
-                const toMs = (r: any) => {
-                  const date = r.dateStamp?.toDate?.()
-                  if (!date) return -Infinity
-                  const t = String(r.timeStamp || '000000').padStart(6, '0')
-                  return (
-                    date.getTime() +
-                    parseInt(t.slice(0, 2), 10) * 3600_000 +
-                    parseInt(t.slice(2, 4), 10) * 60_000 +
-                    parseInt(t.slice(4, 6), 10) * 1000
-                  )
-                }
-                logs.sort((a, b) => toMs(b) - toMs(a))
-                const newest = logs[0]
-                dt = newest.newDate?.toDate?.() || newest.origDate?.toDate?.()
-              } else {
-                const sdData = sd.data() as any
-                dt = sdData.sessionDate?.toDate?.()
-              }
-              if (dt && dt > now) upcoming++
-            })
-          )
+        const [sex, balRaw] = await Promise.all([
+          latest('sex'),
+          latest('balanceDue'),
+        ])
+        const balanceDue = parseFloat(balRaw as any) || 0
 
-          if (!mounted) return
-          setStudents((prev) =>
-            prev.map((s) =>
-              s.abbr === b.abbr
-                ? { ...s, sex, balanceDue, total, upcoming }
-                : s
+        const sessSnap = await getDocs(
+          query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
+        )
+        const total = sessSnap.size
+        let upcoming = 0
+        const now = new Date()
+        await Promise.all(
+          sessSnap.docs.map(async (sd) => {
+            const logsSnap = await getDocs(
+              collection(db, 'Sessions', sd.id, 'appointmentHistory')
             )
+            const logs = logsSnap.docs.map((d) => d.data() as any)
+            let dt: Date | undefined
+            if (logs.length) {
+              const toMs = (r: any) => {
+                const date = r.dateStamp?.toDate?.()
+                if (!date) return -Infinity
+                const t = String(r.timeStamp || '000000').padStart(6, '0')
+                return (
+                  date.getTime() +
+                  parseInt(t.slice(0, 2), 10) * 3600_000 +
+                  parseInt(t.slice(2, 4), 10) * 60_000 +
+                  parseInt(t.slice(4, 6), 10) * 1000
+                )
+              }
+              logs.sort((a, b) => toMs(b) - toMs(a))
+              const newest = logs[0]
+              dt = newest.newDate?.toDate?.() || newest.origDate?.toDate?.()
+            } else {
+              const sdData = sd.data() as any
+              dt = sdData.sessionDate?.toDate?.()
+            }
+            if (dt && dt > now) upcoming++
+          })
+        )
+
+        if (!mounted) return
+        setStudents((prev) =>
+          prev.map((s) =>
+            s.abbr === b.abbr ? { ...s, sex, balanceDue, total, upcoming } : s
           )
-        })().catch(console.error)
-      })
+        )
+      }
+
+      setLoading(false);
     }
 
     loadAll().catch(console.error)
@@ -147,6 +145,9 @@ export default function CoachingSessions() {
     <SidebarLayout>
       {loading && (
         <Box sx={{ width: '100%' }}>
+          <Typography align="center" sx={{ mb: 1 }}>
+            {loadingStatus}
+          </Typography>
           <LinearProgress />
           <Typography align="center" sx={{ mt: 1 }}>
             Loading student cards…

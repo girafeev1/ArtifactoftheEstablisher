@@ -45,18 +45,14 @@ export default function PersonalTab({
             </Box>
           )
         })}
-      {jointDate && (
-        <Box mb={2}>
-          <Typography variant="subtitle2">Joint Date</Typography>
-          <Typography variant="h6">{jointDate}</Typography>
-        </Box>
-      )}
-      {totalSessions != null && (
-        <Box mb={2}>
-          <Typography variant="subtitle2">Total Sessions</Typography>
-          <Typography variant="h6">{totalSessions}</Typography>
-        </Box>
-      )}
+      <Box mb={2}>
+        <Typography variant="subtitle2">Joint Date</Typography>
+        <Typography variant="h6">{jointDate ?? '–'}</Typography>
+      </Box>
+      <Box mb={2}>
+        <Typography variant="subtitle2">Total Sessions</Typography>
+        <Typography variant="h6">{totalSessions ?? '–'}</Typography>
+      </Box>
     </Box>
   )
 }

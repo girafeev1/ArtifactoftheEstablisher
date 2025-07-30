@@ -130,12 +130,8 @@ export default function OverviewTab({
 
     // overview counts + sessions
     ;(async () => {
-      // wait until names resolved
-      const fullName = `${personal.firstName || ''} ${
-        personal.lastName || ''
-      }`.trim()
       const snap = await getDocs(
-        query(collection(db, 'Sessions'), where('sessionName', '==', fullName))
+        query(collection(db, 'Sessions'), where('sessionName', '==', account))
       )
       const dates = await Promise.all(
         snap.docs.map(async (sd) => {
@@ -205,7 +201,7 @@ export default function OverviewTab({
     return () => {
       mounted = false
     }
-  }, [open, abbr, personal.firstName, personal.lastName])
+  }, [open, abbr, account])
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -272,7 +268,9 @@ export default function OverviewTab({
                   {overviewLoading ? (
                     <Typography variant="h6">Loading…</Typography>
                   ) : (
-                    <Typography variant="h6">{overview.joint}</Typography>
+                    <Typography variant="h6">
+                      {overview.joint || '–'}
+                    </Typography>
                   )}
 
                   <Typography variant="subtitle2">
@@ -283,10 +281,8 @@ export default function OverviewTab({
                     <Typography variant="h6">Loading…</Typography>
                   ) : (
                     <Typography variant="h6">
-                      {overview.total}
-                      {overview.upcoming > 0
-                        ? ` → ${overview.upcoming}`
-                        : ''}
+                      {overview.total ?? '–'}
+                      {overview.upcoming > 0 ? ` → ${overview.upcoming}` : ''}
                     </Typography>
                   )}
 
