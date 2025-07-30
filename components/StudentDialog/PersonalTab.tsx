@@ -7,17 +7,19 @@ import InlineEdit from '../../common/InlineEdit'
 const LABELS: Record<string, string> = {
   firstName: 'First Name',
   lastName: 'Last Name',
-  sex: 'Sex',
+  sex: 'Gender',
   birthDate: 'Birth Date',
 }
 
 export default function PersonalTab({
   abbr,
   personal,
+  jointDate,
   serviceMode,
 }: {
   abbr: string
   personal: any
+  jointDate?: string
   serviceMode: boolean
 }) {
   return (
@@ -41,6 +43,12 @@ export default function PersonalTab({
             </Box>
           )
         })}
+      {jointDate && (
+        <Box mb={2}>
+          <Typography variant="subtitle2">Joint Date</Typography>
+          <Typography variant="h6">{jointDate}</Typography>
+        </Box>
+      )}
     </Box>
   )
 }
