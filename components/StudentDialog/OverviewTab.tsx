@@ -167,6 +167,7 @@ export default function OverviewTab({
         total: sorted.length,
         upcoming: sorted.filter((d) => d > now).length,
         joint: sorted[0]?.toLocaleDateString() || '',
+        last: sorted[sorted.length - 1]?.toLocaleDateString() || '',
       })
       setOverviewLoading(false)
 
@@ -253,7 +254,7 @@ export default function OverviewTab({
                   </Typography>
 
                   <Typography variant="subtitle2">
-                    Sex{' '}
+                    Gender{' '}
                     {personalLoading.sex && <CircularProgress size={14} />}
                   </Typography>
                   {personalLoading.sex ? (
@@ -325,6 +326,8 @@ export default function OverviewTab({
                 <PersonalTab
                   abbr={abbr}
                   personal={personal}
+                  jointDate={overview.joint}
+                  totalSessions={overview.total}
                   serviceMode={serviceMode}
                 />
               )}
@@ -332,7 +335,11 @@ export default function OverviewTab({
                 sessionsLoading ? (
                   <CircularProgress />
                 ) : (
-                  <SessionsTab sessions={sessions} />
+                  <SessionsTab
+                    sessions={sessions}
+                    lastSession={overview.last}
+                    totalSessions={overview.total}
+                  />
                 )
               )}
               {tab === 3 && (

@@ -10,11 +10,11 @@ const formatCurrency = (n: number) =>
 import InlineEdit from '../../common/InlineEdit'
 
 const LABELS: Record<string, string> = {
-  billingCompany: 'Billing Company',
+  billingCompany: 'Billing Company Info',
   defaultBillingType: 'Default Billing Type',
   baseRate: 'Base Rate',
   retainerStatus: 'Retainer Status',
-  lastPaymentDate: 'Last Payment Date',
+  lastPaymentDate: 'Last Payment',
   balanceDue: 'Balance Due',
   voucherBalance: 'Voucher Balance',
 }
@@ -28,35 +28,43 @@ export default function BillingTab({
   billing: any
   serviceMode: boolean
 }) {
+  const renderField = (k: string) => {
+    const v = billing[k]
+    const path =
+      k === 'defaultBillingType'
+        ? `Students/${abbr}/billingType`
+        : `Students/${abbr}/${k}`
+    return (
+      <Box key={k} mb={2}>
+        <Typography variant="subtitle2">{LABELS[k]}</Typography>
+        {k === 'baseRate' ? (
+          <Typography variant="h6">
+            {v != null ? formatCurrency(Number(v)) : '-'}
+          </Typography>
+        ) : (
+          <InlineEdit
+            value={v}
+            fieldPath={path}
+            fieldKey={k}
+            editable={!['balanceDue', 'voucherBalance'].includes(k)}
+            serviceMode={serviceMode}
+            type={k.includes('Date') ? 'date' : 'text'}
+          />
+        )}
+      </Box>
+    )
+  }
+
   return (
     <Box>
-      {Object.entries(billing)
-        .filter(([k]) => k !== 'abbr')
-        .map(([k, v]) => {
-          const path =
-            k === 'defaultBillingType'
-              ? `Students/${abbr}/billingType`
-              : `Students/${abbr}/${k}`
-          return (
-            <Box key={k} mb={2}>
-              <Typography variant="subtitle2">{LABELS[k]}</Typography>
-              {k === 'baseRate' ? (
-                <Typography variant="h6">{
-                  v != null ? formatCurrency(Number(v)) : '-'
-                }</Typography>
-              ) : (
-                <InlineEdit
-                  value={v}
-                  fieldPath={path}
-                  fieldKey={k}
-                  editable={!['balanceDue', 'voucherBalance'].includes(k)}
-                  serviceMode={serviceMode}
-                  type={k.includes('Date') ? 'date' : 'text'}
-                />
-              )}
-            </Box>
-          )
-        })}
+      <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+        Billing Information
+      </Typography>
+      {['balanceDue', 'baseRate', 'retainerStatus', 'lastPaymentDate', 'voucherBalance'].map(renderField)}
+      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2 }}>
+        Payment Information
+      </Typography>
+      {['defaultBillingType', 'billingCompany'].map(renderField)}
     </Box>
   )
 }
