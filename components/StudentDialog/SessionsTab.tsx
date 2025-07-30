@@ -32,22 +32,22 @@ export default function SessionsTab({
       {(jointDate || lastSession || totalSessions != null) && (
         <Box mb={2}>
           {jointDate && (
-            <>
+            <Box mb={1}>
               <Typography variant="subtitle2">Joint Date:</Typography>
               <Typography variant="h6">{jointDate}</Typography>
-            </>
+            </Box>
           )}
           {lastSession && (
-            <>
+            <Box mb={1}>
               <Typography variant="subtitle2">Last Session:</Typography>
               <Typography variant="h6">{lastSession}</Typography>
-            </>
+            </Box>
           )}
           {totalSessions != null && (
-            <>
+            <Box mb={1}>
               <Typography variant="subtitle2">Total Sessions:</Typography>
               <Typography variant="h6">{totalSessions}</Typography>
-            </>
+            </Box>
           )}
         </Box>
       )}
