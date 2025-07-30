@@ -24,7 +24,7 @@ export default function InlineEdit({
   type,
   options,
 }: InlineEditProps) {
-  const [editing, setEditing] = useState(value === undefined || value === '')
+  const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const ref = useRef<HTMLInputElement>(null)
 
@@ -35,9 +35,6 @@ export default function InlineEdit({
 
   useEffect(() => {
     setDraft(value)
-    if (value === undefined || value === '') {
-      setEditing(true)
-    }
   }, [value])
 
   const save = async (v: any) => {
@@ -75,6 +72,8 @@ export default function InlineEdit({
     }
   }
 
+  const allowEdit = editable && (serviceMode || value === undefined || value === '')
+
   // — you wanted **all** history when in Service Mode —
   const showHistory = async () => {
     const [col, docId, subcol] = fieldPath.split('/')
@@ -99,7 +98,7 @@ export default function InlineEdit({
   }
 
   // when Service Mode is ON, disable edits and clicking shows full audit trail
-  if (!editable && serviceMode) {
+  if (!allowEdit && serviceMode) {
     return (
       <Typography
         variant="h6"
@@ -111,7 +110,7 @@ export default function InlineEdit({
     )
   }
 
-  if (!editable) {
+  if (!allowEdit) {
     return <Typography variant="h6">{display()}</Typography>
   }
 
@@ -122,7 +121,16 @@ export default function InlineEdit({
         inputRef={ref}
         value={draft}
         onChange={e => setDraft(e.target.value)}
-        onBlur={() => { save(draft); setEditing(false) }}
+        onBlur={() => {
+          if (draft !== value) {
+            if (window.confirm('Save changes?')) {
+              save(draft)
+            } else {
+              setDraft(value)
+            }
+          }
+          setEditing(false)
+        }}
         size="small"
       >
         {options?.map(o => (
@@ -135,7 +143,16 @@ export default function InlineEdit({
         inputRef={ref}
         value={draft}
         onChange={e => setDraft(e.target.value)}
-        onBlur={() => { save(draft); setEditing(false) }}
+        onBlur={() => {
+          if (draft !== value) {
+            if (window.confirm('Save changes?')) {
+              save(draft)
+            } else {
+              setDraft(value)
+            }
+          }
+          setEditing(false)
+        }}
         size="small"
       />
     )
@@ -143,7 +160,7 @@ export default function InlineEdit({
     <Typography
       variant="h6"
       sx={{ cursor: 'pointer' }}
-      onClick={() => { if (!serviceMode) setEditing(true) }}
+      onClick={() => { if (allowEdit) setEditing(true) }}
     >
       {display() || '[click to edit]'}
     </Typography>
