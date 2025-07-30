@@ -332,6 +332,7 @@ export default function OverviewTab({
                 ) : (
                   <SessionsTab
                     sessions={sessions}
+                    jointDate={overview.joint}
                     lastSession={overview.last}
                     totalSessions={overview.total}
                   />

@@ -18,17 +18,25 @@ import {
 
 export default function SessionsTab({
   sessions,
+  jointDate,
   lastSession,
   totalSessions,
 }: {
   sessions: any[]
+  jointDate?: string
   lastSession?: string
   totalSessions?: number
 }) {
   return (
     <>
-      {(lastSession || totalSessions != null) && (
+      {(jointDate || lastSession || totalSessions != null) && (
         <Box mb={2}>
+          {jointDate && (
+            <>
+              <Typography variant="subtitle2">Joint Date:</Typography>
+              <Typography variant="h6">{jointDate}</Typography>
+            </>
+          )}
           {lastSession && (
             <>
               <Typography variant="subtitle2">Last Session:</Typography>
