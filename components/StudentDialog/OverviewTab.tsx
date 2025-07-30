@@ -329,14 +329,14 @@ export default function OverviewTab({
                 />
               )}
               {tab === 2 && (
-                <BillingTab abbr={abbr} billing={billing} serviceMode={serviceMode} />
-              )}
-              {tab === 3 && (
                 sessionsLoading ? (
                   <CircularProgress />
                 ) : (
                   <SessionsTab sessions={sessions} />
                 )
+              )}
+              {tab === 3 && (
+                <BillingTab abbr={abbr} billing={billing} serviceMode={serviceMode} />
               )}
             </Box>
 
@@ -351,7 +351,7 @@ export default function OverviewTab({
                 alignItems: 'flex-end',
               }}
             >
-              {['Overview', 'Personal', 'Billing', 'Sessions'].map((l) => (
+              {['Overview', 'Personal', 'Sessions', 'Billing'].map((l) => (
                 <Tab key={l} label={l} sx={{ textAlign: 'right' }} />
               ))}
             </Tabs>

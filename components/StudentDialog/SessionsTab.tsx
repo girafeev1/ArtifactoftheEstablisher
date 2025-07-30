@@ -29,21 +29,23 @@ export default function SessionsTab({ sessions }: { sessions: any[] }) {
             'Rate Charged',
             'Payment Status',
           ].map((h) => (
-            <TableCell key={h}>{h}</TableCell>
+            <TableCell key={h} sx={{ typography: 'subtitle2', fontWeight: 'normal' }}>
+              {h}
+            </TableCell>
           ))}
         </TableRow>
       </TableHead>
       <TableBody>
         {sessions.map((s, i) => (
           <TableRow key={i}>
-            <TableCell>{s.date}</TableCell>
-            <TableCell>{s.time}</TableCell>
-            <TableCell>{s.duration}</TableCell>
-            <TableCell>{s.sessionType}</TableCell>
-            <TableCell>{s.billingType}</TableCell>
-            <TableCell>{formatCurrency(Number(s.baseRate))}</TableCell>
-            <TableCell>{formatCurrency(Number(s.rateCharged))}</TableCell>
-            <TableCell>{s.paymentStatus}</TableCell>
+            <TableCell sx={{ typography: 'h6' }}>{s.date}</TableCell>
+            <TableCell sx={{ typography: 'h6' }}>{s.time}</TableCell>
+            <TableCell sx={{ typography: 'h6' }}>{s.duration}</TableCell>
+            <TableCell sx={{ typography: 'h6' }}>{s.sessionType}</TableCell>
+            <TableCell sx={{ typography: 'h6' }}>{s.billingType}</TableCell>
+            <TableCell sx={{ typography: 'h6' }}>{formatCurrency(Number(s.baseRate))}</TableCell>
+            <TableCell sx={{ typography: 'h6' }}>{formatCurrency(Number(s.rateCharged))}</TableCell>
+            <TableCell sx={{ typography: 'h6' }}>{s.paymentStatus}</TableCell>
           </TableRow>
         ))}
       </TableBody>
