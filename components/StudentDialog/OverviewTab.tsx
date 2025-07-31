@@ -136,16 +136,24 @@ export default function OverviewTab({
       const dates = await Promise.all(
         snap.docs.map(async (sd) => {
           const h = await getDocs(
-            query(
-              collection(db, 'Sessions', sd.id, 'appointmentHistory'),
-              orderBy('dateStamp', 'desc'),
-              orderBy('timeStamp', 'desc'),
-              limit(1)
-            )
+            collection(db, 'Sessions', sd.id, 'appointmentHistory')
           )
           if (!h.empty) {
-            const d = h.docs[0].data() as any
-            return (d.newDate?.toDate() || d.origDate.toDate()) as Date
+            const logs = h.docs.map((d) => d.data() as any)
+            const toMs = (r: any) => {
+              const date = r.dateStamp?.toDate?.()
+              if (!date) return -Infinity
+              const t = String(r.timeStamp || '000000').padStart(6, '0')
+              return (
+                date.getTime() +
+                parseInt(t.slice(0, 2), 10) * 3600_000 +
+                parseInt(t.slice(2, 4), 10) * 60_000 +
+                parseInt(t.slice(4, 6), 10) * 1000
+              )
+            }
+            logs.sort((a, b) => toMs(b) - toMs(a))
+            const d = logs[0]
+            return (d.newDate?.toDate() || d.origDate?.toDate()) as Date
           }
           return (sd.data() as any).sessionDate.toDate() as Date
         })
@@ -167,16 +175,28 @@ export default function OverviewTab({
         snap.docs.map(async (sd) => {
           const d = sd.data() as any
           const h = await getDocs(
-            query(
-              collection(db, 'Sessions', sd.id, 'appointmentHistory'),
-              orderBy('dateStamp', 'desc'),
-              orderBy('timeStamp', 'desc'),
-              limit(1)
-            )
+            collection(db, 'Sessions', sd.id, 'appointmentHistory')
           )
-          const rec = !h.empty ? (h.docs[0].data() as any) : null
+          const rec = (() => {
+            if (h.empty) return null
+            const logs = h.docs.map((doc) => doc.data() as any)
+            const toMs = (r: any) => {
+              const date = r.dateStamp?.toDate?.()
+              if (!date) return -Infinity
+              const t = String(r.timeStamp || '000000').padStart(6, '0')
+              return (
+                date.getTime() +
+                parseInt(t.slice(0, 2), 10) * 3600_000 +
+                parseInt(t.slice(2, 4), 10) * 60_000 +
+                parseInt(t.slice(4, 6), 10) * 1000
+              )
+            }
+            logs.sort((a, b) => toMs(b) - toMs(a))
+            return logs[0]
+          })()
+
           const dt = rec
-            ? (rec.newDate?.toDate() || rec.origDate.toDate()) as Date
+            ? (rec.newDate?.toDate() || rec.origDate?.toDate())
             : d.sessionDate.toDate()
           const tm = rec ? rec.newTime || rec.origTime : d.sessionTime
           return {
