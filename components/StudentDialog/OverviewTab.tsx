@@ -77,7 +77,6 @@ export default function OverviewTab({
     let mounted = true
 
     const loadLatest = async (col: string) => {
-      console.log(`📥 fetching ${abbr}/${col}`)
       let collectionName = col
       let field = col
       if (col === 'baseRate') {
@@ -100,7 +99,6 @@ export default function OverviewTab({
         return ''
       }
       const val = (snap.docs[0].data() as any)[field]
-      console.log(`✅ ${abbr} ${col}=${val}`)
       return val
     }
 
@@ -132,15 +130,9 @@ export default function OverviewTab({
 
     // overview counts + sessions
     ;(async () => {
-      // wait until names resolved
-      const fullName = `${personal.firstName || ''} ${
-        personal.lastName || ''
-      }`.trim()
-      console.log(`📥 sessions for ${fullName}`)
       const snap = await getDocs(
-        query(collection(db, 'Sessions'), where('sessionName', '==', fullName))
+        query(collection(db, 'Sessions'), where('sessionName', '==', account))
       )
-      console.log(`   found ${snap.size} sessions`)
       const dates = await Promise.all(
         snap.docs.map(async (sd) => {
           const h = await getDocs(
@@ -151,7 +143,6 @@ export default function OverviewTab({
               limit(1)
             )
           )
-          console.log(`   history entries for ${sd.id}: ${h.size}`)
           if (!h.empty) {
             const d = h.docs[0].data() as any
             return (d.newDate?.toDate() || d.origDate.toDate()) as Date
@@ -167,6 +158,7 @@ export default function OverviewTab({
         total: sorted.length,
         upcoming: sorted.filter((d) => d > now).length,
         joint: sorted[0]?.toLocaleDateString() || '',
+        last: sorted[sorted.length - 1]?.toLocaleDateString() || '',
       })
       setOverviewLoading(false)
 
@@ -209,7 +201,7 @@ export default function OverviewTab({
     return () => {
       mounted = false
     }
-  }, [open, abbr, personal.firstName, personal.lastName])
+  }, [open, abbr, account])
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -253,7 +245,7 @@ export default function OverviewTab({
                   </Typography>
 
                   <Typography variant="subtitle2">
-                    Sex{' '}
+                    Gender{' '}
                     {personalLoading.sex && <CircularProgress size={14} />}
                   </Typography>
                   {personalLoading.sex ? (
@@ -276,7 +268,9 @@ export default function OverviewTab({
                   {overviewLoading ? (
                     <Typography variant="h6">Loading…</Typography>
                   ) : (
-                    <Typography variant="h6">{overview.joint}</Typography>
+                    <Typography variant="h6">
+                      {overview.joint || '–'}
+                    </Typography>
                   )}
 
                   <Typography variant="subtitle2">
@@ -287,10 +281,8 @@ export default function OverviewTab({
                     <Typography variant="h6">Loading…</Typography>
                   ) : (
                     <Typography variant="h6">
-                      {overview.total}
-                      {overview.upcoming > 0
-                        ? ` → ${overview.upcoming}`
-                        : ''}
+                      {overview.total ?? '–'}
+                      {overview.upcoming > 0 ? ` → ${overview.upcoming}` : ''}
                     </Typography>
                   )}
 
@@ -325,6 +317,8 @@ export default function OverviewTab({
                 <PersonalTab
                   abbr={abbr}
                   personal={personal}
+                  jointDate={overview.joint}
+                  totalSessions={overview.total}
                   serviceMode={serviceMode}
                 />
               )}
@@ -332,7 +326,12 @@ export default function OverviewTab({
                 sessionsLoading ? (
                   <CircularProgress />
                 ) : (
-                  <SessionsTab sessions={sessions} />
+                  <SessionsTab
+                    sessions={sessions}
+                    jointDate={overview.joint}
+                    lastSession={overview.last}
+                    totalSessions={overview.total}
+                  />
                 )
               )}
               {tab === 3 && (
