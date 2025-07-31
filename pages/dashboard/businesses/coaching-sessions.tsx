@@ -20,8 +20,11 @@ import {
   Button,
   LinearProgress,
   Box,
+  Menu,
+  MenuItem,
 } from '@mui/material'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
+import { scanAllSessionsForSummaryStats } from '../../../lib/sessionStats'
 
 interface StudentMeta {
   abbr: string
@@ -41,6 +44,16 @@ export default function CoachingSessions() {
   const [loadingStatus, setLoadingStatus] = useState('')
   const [selected, setSelected] = useState<StudentDetails | null>(null)
   const [serviceMode, setServiceMode] = useState(false)
+  const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
+
+  const openToolsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    setToolsAnchor(e.currentTarget)
+  }
+  const closeToolsMenu = () => setToolsAnchor(null)
+  const handleScanAll = async () => {
+    closeToolsMenu()
+    await scanAllSessionsForSummaryStats()
+  }
 
   useEffect(() => {
     let mounted = true
@@ -181,6 +194,30 @@ export default function CoachingSessions() {
           ))}
         </Grid>
       )}
+
+      <Button
+        variant="contained"
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          left: 16,
+          bgcolor: 'grey.700',
+        }}
+        onClick={openToolsMenu}
+      >
+        Tools
+      </Button>
+      <Menu
+        anchorEl={toolsAnchor}
+        open={Boolean(toolsAnchor)}
+        onClose={closeToolsMenu}
+        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <MenuItem onClick={handleScanAll}>
+          🧹 Scan All Sessions for Summary Stats
+        </MenuItem>
+      </Menu>
 
       <Button
         variant="contained"
