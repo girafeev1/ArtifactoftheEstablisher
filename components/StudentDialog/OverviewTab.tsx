@@ -22,6 +22,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { getStudentSessionStats } from '../../lib/sessionStats'
 import InlineEdit from '../../common/InlineEdit'
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
@@ -30,6 +31,7 @@ import SessionsTab from './SessionsTab'
 export interface OverviewTabProps {
   abbr: string
   account: string
+  calendarEventIds?: string[]
   open: boolean
   onClose: () => void
   serviceMode: boolean
@@ -38,6 +40,7 @@ export interface OverviewTabProps {
 export default function OverviewTab({
   abbr,
   account,
+  calendarEventIds,
   open,
   onClose,
   serviceMode,
@@ -175,12 +178,29 @@ export default function OverviewTab({
       const valid = dates.filter((d): d is Date => d instanceof Date)
       const sorted = valid.sort((a, b) => a.getTime() - b.getTime())
       const now = new Date()
-      setOverview({
-        total: sorted.length,
+      setOverview((o: any) => ({
+        ...o,
         upcoming: sorted.filter((d) => d > now).length,
-        joint: sorted[0]?.toLocaleDateString() || '',
-        last: sorted[sorted.length - 1]?.toLocaleDateString() || '',
-      })
+      }))
+      try {
+        const stats = await getStudentSessionStats(calendarEventIds ?? [])
+        if (!mounted) return
+        setOverview((o: any) => ({
+          ...o,
+          total: stats.totalSessions,
+          joint: stats.jointDate,
+          last: stats.lastSession,
+        }))
+      } catch (err) {
+        console.error(err)
+        if (!mounted) return
+        setOverview((o: any) => ({
+          ...o,
+          total: 0,
+          joint: 'Error',
+          last: 'Error',
+        }))
+      }
       setOverviewLoading(false)
 
       // sessions table
@@ -235,7 +255,7 @@ export default function OverviewTab({
     return () => {
       mounted = false
     }
-  }, [open, abbr, account])
+  }, [open, abbr, account, calendarEventIds])
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>

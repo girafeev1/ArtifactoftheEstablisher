@@ -26,6 +26,7 @@ import OverviewTab from '../../../components/StudentDialog/OverviewTab'
 interface StudentMeta {
   abbr: string
   account: string
+  calendarEventIds?: string[]
 }
 interface StudentDetails extends StudentMeta {
   sex?: string
@@ -51,6 +52,7 @@ export default function CoachingSessions() {
       const basics: StudentMeta[] = snap.docs.map((d) => ({
         abbr: d.id,
         account: (d.data() as any).account,
+        calendarEventIds: [],
       }))
 
       if (!mounted) return
@@ -198,6 +200,7 @@ export default function CoachingSessions() {
         <OverviewTab
           abbr={selected.abbr}
           account={selected.account}
+          calendarEventIds={selected.calendarEventIds || []}
           open
           onClose={() => setSelected(null)}
           serviceMode={serviceMode}
