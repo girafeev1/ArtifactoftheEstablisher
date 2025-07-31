@@ -32,11 +32,11 @@ export default function SessionsTab({
       <Box mb={2}>
         <Box mb={1}>
           <Typography variant="subtitle2">Joint Date:</Typography>
-          <Typography variant="h6">{jointDate ?? '–'}</Typography>
+          <Typography variant="h6">{jointDate || '–'}</Typography>
         </Box>
         <Box mb={1}>
           <Typography variant="subtitle2">Last Session:</Typography>
-          <Typography variant="h6">{lastSession ?? '–'}</Typography>
+          <Typography variant="h6">{lastSession || '–'}</Typography>
         </Box>
         <Box mb={1}>
           <Typography variant="subtitle2">Total Sessions:</Typography>

@@ -47,7 +47,7 @@ export default function PersonalTab({
         })}
       <Box mb={2}>
         <Typography variant="subtitle2">Joint Date</Typography>
-        <Typography variant="h6">{jointDate ?? '–'}</Typography>
+        <Typography variant="h6">{jointDate || '–'}</Typography>
       </Box>
       <Box mb={2}>
         <Typography variant="subtitle2">Total Sessions</Typography>
