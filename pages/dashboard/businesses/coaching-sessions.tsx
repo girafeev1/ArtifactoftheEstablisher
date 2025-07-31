@@ -25,7 +25,10 @@ import {
   Snackbar,
 } from '@mui/material'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
-import { scanSessionsAndUpdateStudents } from '../../../lib/sessionStats'
+import {
+  scanSessionsAndUpdateStudents,
+  clearSessionSummaries,
+} from '../../../lib/sessionStats'
 
 interface StudentMeta {
   abbr: string
@@ -59,6 +62,16 @@ export default function CoachingSessions() {
     } catch (err) {
       console.error(err)
       setScanMessage('Failed to update session summaries')
+    }
+  }
+  const handleClearAll = async () => {
+    closeToolsMenu()
+    try {
+      await clearSessionSummaries()
+      setScanMessage('Session summaries cleared')
+    } catch (err) {
+      console.error(err)
+      setScanMessage('Failed to clear session summaries')
     }
   }
 
@@ -179,7 +192,7 @@ export default function CoachingSessions() {
       )}
 
       {!loading && (
-        <Box sx={{ position: 'relative' }}>
+        <Box sx={{ position: 'relative', pb: 8 }}>
           <Grid container spacing={2} sx={{ mt: 2 }}>
             {students.map((s) => (
               <Grid item key={s.abbr} xs={12} sm={6} md={4}>
@@ -206,6 +219,7 @@ export default function CoachingSessions() {
               position: 'absolute',
               bottom: 16,
               left: 16,
+              zIndex: 2,
               bgcolor: 'background.paper',
               color: 'text.primary',
             }}
@@ -220,11 +234,14 @@ export default function CoachingSessions() {
             anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
             transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
           >
-            <MenuItem onClick={handleScanAll}>
-              🔄 Scan Sessions & Update Summaries
-            </MenuItem>
-          </Menu>
-        </Box>
+          <MenuItem onClick={handleScanAll}>
+            🔄 Scan Sessions & Update Summaries
+          </MenuItem>
+          <MenuItem onClick={handleClearAll}>
+            🗑️ Clear All Session Summaries
+          </MenuItem>
+        </Menu>
+      </Box>
       )}
 
       <Button

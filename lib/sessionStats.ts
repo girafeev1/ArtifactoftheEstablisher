@@ -5,6 +5,7 @@ import {
   where,
   updateDoc,
   serverTimestamp,
+  deleteField,
 } from 'firebase/firestore'
 import { db } from './firebase'
 
@@ -55,5 +56,23 @@ export async function scanSessionsAndUpdateStudents(): Promise<void> {
     )
   } catch (err) {
     console.error('scanSessionsAndUpdateStudents failed', err)
+  }
+}
+
+export async function clearSessionSummaries(): Promise<void> {
+  try {
+    const snap = await getDocs(collection(db, 'Students'))
+    await Promise.all(
+      snap.docs.map((d) =>
+        updateDoc(d.ref, {
+          jointDate: deleteField(),
+          lastSession: deleteField(),
+          totalSessions: deleteField(),
+          summaryLastUpdated: deleteField(),
+        }),
+      ),
+    )
+  } catch (err) {
+    console.error('clearSessionSummaries failed', err)
   }
 }
