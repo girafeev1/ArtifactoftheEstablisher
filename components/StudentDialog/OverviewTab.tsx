@@ -16,6 +16,8 @@ import {
 import {
   collection,
   getDocs,
+  getDoc,
+  doc,
   query,
   orderBy,
   limit,
@@ -130,9 +132,12 @@ export default function OverviewTab({
 
     // overview counts + sessions
     ;(async () => {
-      const snap = await getDocs(
-        query(collection(db, 'Sessions'), where('sessionName', '==', account))
-      )
+      const [sessSnap, studSnap] = await Promise.all([
+        getDocs(
+          query(collection(db, 'Sessions'), where('sessionName', '==', account)),
+        ),
+        getDoc(doc(db, 'Students', abbr)),
+      ])
 
       const parseDate = (v: any): Date | null => {
         if (!v) return null
@@ -144,13 +149,16 @@ export default function OverviewTab({
         }
       }
 
-      const dates = await Promise.all(
-        snap.docs.map(async (sd) => {
+      let upcoming = 0
+      const now = new Date()
+      await Promise.all(
+        sessSnap.docs.map(async (sd) => {
           const h = await getDocs(
-            collection(db, 'Sessions', sd.id, 'appointmentHistory')
+            collection(db, 'Sessions', sd.id, 'appointmentHistory'),
           )
-          if (!h.empty) {
-            const logs = h.docs.map((d) => d.data() as any)
+          const logs = h.docs.map((d) => d.data() as any)
+          let dt: Date | undefined
+          if (logs.length) {
             const toMs = (r: any) => {
               const date = parseDate(r.dateStamp)
               if (!date) return -Infinity
@@ -163,29 +171,28 @@ export default function OverviewTab({
               )
             }
             logs.sort((a, b) => toMs(b) - toMs(a))
-            const d = logs[0]
-            const dt = parseDate(d.newDate) || parseDate(d.origDate)
-            return dt
+            const newest = logs[0]
+            dt = parseDate(newest.newDate) || parseDate(newest.origDate)
+          } else {
+            const sdData = sd.data() as any
+            dt = parseDate(sdData.sessionDate)
           }
-          return parseDate((sd.data() as any).sessionDate)
-        })
+          if (dt && dt > now) upcoming++
+        }),
       )
-      if (!mounted) return
 
-      const valid = dates.filter((d): d is Date => d instanceof Date)
-      const sorted = valid.sort((a, b) => a.getTime() - b.getTime())
-      const now = new Date()
+      const studData = studSnap.exists() ? (studSnap.data() as any) : {}
       setOverview({
-        total: sorted.length,
-        upcoming: sorted.filter((d) => d > now).length,
-        joint: sorted[0]?.toLocaleDateString() || '',
-        last: sorted[sorted.length - 1]?.toLocaleDateString() || '',
+        total: studData.totalSessions ?? 0,
+        upcoming,
+        joint: studData.jointDate || '',
+        last: studData.lastSession || '',
       })
       setOverviewLoading(false)
 
       // sessions table
       const rows = await Promise.all(
-        snap.docs.map(async (sd) => {
+        sessSnap.docs.map(async (sd) => {
           const d = sd.data() as any
           const h = await getDocs(
             collection(db, 'Sessions', sd.id, 'appointmentHistory')

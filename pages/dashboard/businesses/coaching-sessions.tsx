@@ -20,8 +20,15 @@ import {
   Button,
   LinearProgress,
   Box,
+  Menu,
+  MenuItem,
+  Snackbar,
 } from '@mui/material'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
+import {
+  scanSessionsAndUpdateStudents,
+  clearSessionSummaries,
+} from '../../../lib/sessionStats'
 
 interface StudentMeta {
   abbr: string
@@ -40,6 +47,33 @@ export default function CoachingSessions() {
   const [loadingStatus, setLoadingStatus] = useState('')
   const [selected, setSelected] = useState<StudentDetails | null>(null)
   const [serviceMode, setServiceMode] = useState(false)
+  const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
+  const [scanMessage, setScanMessage] = useState('')
+
+  const openToolsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    setToolsAnchor(e.currentTarget)
+  }
+  const closeToolsMenu = () => setToolsAnchor(null)
+  const handleScanAll = async () => {
+    closeToolsMenu()
+    try {
+      await scanSessionsAndUpdateStudents()
+      setScanMessage('Session summaries updated')
+    } catch (err) {
+      console.error(err)
+      setScanMessage('Failed to update session summaries')
+    }
+  }
+  const handleClearAll = async () => {
+    closeToolsMenu()
+    try {
+      await clearSessionSummaries()
+      setScanMessage('Session summaries cleared')
+    } catch (err) {
+      console.error(err)
+      setScanMessage('Failed to clear session summaries')
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -158,26 +192,56 @@ export default function CoachingSessions() {
       )}
 
       {!loading && (
-        <Grid container spacing={2} sx={{ mt: 2 }}>
-          {students.map((s) => (
-            <Grid item key={s.abbr} xs={12} sm={6} md={4}>
-              <Card>
-                <CardActionArea onClick={() => setSelected(s)}>
-                  <CardContent>
-                    <Typography variant="h6">{s.account}</Typography>
-                    <Typography>
-                      {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
-                    </Typography>
-                    <Typography>
-                      Total: {s.total}
-                      {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
-                    </Typography>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        <Box sx={{ position: 'relative', pb: 8 }}>
+          <Grid container spacing={2} sx={{ mt: 2 }}>
+            {students.map((s) => (
+              <Grid item key={s.abbr} xs={12} sm={6} md={4}>
+                <Card>
+                  <CardActionArea onClick={() => setSelected(s)}>
+                    <CardContent>
+                      <Typography variant="h6">{s.account}</Typography>
+                      <Typography>
+                        {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
+                      </Typography>
+                      <Typography>
+                        Total: {s.total}
+                        {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
+                      </Typography>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+          <Button
+            variant="contained"
+            sx={{
+              position: 'absolute',
+              bottom: 16,
+              left: 16,
+              zIndex: 2,
+              bgcolor: 'background.paper',
+              color: 'text.primary',
+            }}
+            onClick={openToolsMenu}
+          >
+            Tools
+          </Button>
+          <Menu
+            anchorEl={toolsAnchor}
+            open={Boolean(toolsAnchor)}
+            onClose={closeToolsMenu}
+            anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          >
+          <MenuItem onClick={handleScanAll}>
+            🔄 Scan Sessions & Update Summaries
+          </MenuItem>
+          <MenuItem onClick={handleClearAll}>
+            🗑️ Clear All Session Summaries
+          </MenuItem>
+        </Menu>
+      </Box>
       )}
 
       <Button
@@ -203,6 +267,13 @@ export default function CoachingSessions() {
           serviceMode={serviceMode}
         />
       )}
+
+      <Snackbar
+        open={Boolean(scanMessage)}
+        onClose={() => setScanMessage('')}
+        message={scanMessage}
+        autoHideDuration={4000}
+      />
     </SidebarLayout>
   )
 }
