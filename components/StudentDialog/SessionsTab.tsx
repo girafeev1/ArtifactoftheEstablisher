@@ -153,8 +153,18 @@ export default function SessionsTab({
 
         const rows = sessionRows
           .map(({ id, data, hist }) => {
-            const start = hist?.newStartTimestamp || hist?.origStartTimestamp
-            const end = hist?.newEndTimestamp || hist?.origEndTimestamp
+            let start = hist?.origStartTimestamp
+            let end = hist?.origEndTimestamp
+            if (
+              hist?.newStartTimestamp != null &&
+              hist?.newEndTimestamp != null
+            ) {
+              start = hist.newStartTimestamp
+              end = hist.newEndTimestamp
+            } else {
+              if (hist?.newStartTimestamp != null) start = hist.newStartTimestamp
+              if (hist?.newEndTimestamp != null) end = hist.newEndTimestamp
+            }
             const startDate = parseDate(start)
             const endDate = parseDate(end)
             const date = startDate

@@ -4,7 +4,7 @@ import React from 'react'
 import { Box, Typography } from '@mui/material'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(
+  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(
     n,
   )
 import InlineEdit from '../../common/InlineEdit'
@@ -39,7 +39,9 @@ export default function BillingTab({
         <Typography variant="subtitle2">{LABELS[k]}</Typography>
         {k === 'baseRate' ? (
           <Typography variant="h6">
-            {v != null ? formatCurrency(Number(v)) : '-'}
+            {v != null && !isNaN(Number(v))
+              ? `${formatCurrency(Number(v))} / session`
+              : '-'}
           </Typography>
         ) : (
           <InlineEdit
