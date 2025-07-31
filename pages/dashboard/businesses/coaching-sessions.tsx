@@ -56,83 +56,85 @@ export default function CoachingSessions() {
       if (!mounted) return
       setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
 
-      for (let i = 0; i < basics.length; i++) {
-        const b = basics[i]
-        const totalCount = basics.length
-        const latest = async (col: string) => {
-          const snap = await getDocs(
-            query(
-              collection(db, 'Students', b.abbr, col),
-              orderBy('timestamp', 'desc'),
-              limit(1)
+      const totalCount = basics.length
+      await Promise.all(
+        basics.map(async (b, i) => {
+          const latest = async (col: string) => {
+            const snap = await getDocs(
+              query(
+                collection(db, 'Students', b.abbr, col),
+                orderBy('timestamp', 'desc'),
+                limit(1)
+              )
             )
-          )
-          if (snap.empty) {
-            return undefined
-          }
-          return (snap.docs[0].data() as any)[col]
-        }
-
-        const [firstName, lastName] = await Promise.all([
-          latest('firstName'),
-          latest('lastName'),
-        ])
-        if (!mounted) return
-        setLoadingStatus(
-          `${firstName || b.account || b.abbr} ${lastName || ''} - (${i + 1} of ${totalCount})`
-        )
-
-        const [sex, balRaw] = await Promise.all([
-          latest('sex'),
-          latest('balanceDue'),
-        ])
-        const balanceDue = parseFloat(balRaw as any) || 0
-
-        const sessSnap = await getDocs(
-          query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
-        )
-        const total = sessSnap.size
-        let upcoming = 0
-        const now = new Date()
-        await Promise.all(
-          sessSnap.docs.map(async (sd) => {
-            const logsSnap = await getDocs(
-              collection(db, 'Sessions', sd.id, 'appointmentHistory')
-            )
-            const logs = logsSnap.docs.map((d) => d.data() as any)
-            let dt: Date | undefined
-            if (logs.length) {
-              const toMs = (r: any) => {
-                const date = r.dateStamp?.toDate?.()
-                if (!date) return -Infinity
-                const t = String(r.timeStamp || '000000').padStart(6, '0')
-                return (
-                  date.getTime() +
-                  parseInt(t.slice(0, 2), 10) * 3600_000 +
-                  parseInt(t.slice(2, 4), 10) * 60_000 +
-                  parseInt(t.slice(4, 6), 10) * 1000
-                )
-              }
-              logs.sort((a, b) => toMs(b) - toMs(a))
-              const newest = logs[0]
-              dt = newest.newDate?.toDate?.() || newest.origDate?.toDate?.()
-            } else {
-              const sdData = sd.data() as any
-              dt = sdData.sessionDate?.toDate?.()
+            if (snap.empty) {
+              return undefined
             }
-            if (dt && dt > now) upcoming++
-          })
-        )
+            return (snap.docs[0].data() as any)[col]
+          }
 
-        if (!mounted) return
-        setStudents((prev) =>
-          prev.map((s) =>
-            s.abbr === b.abbr ? { ...s, sex, balanceDue, total, upcoming } : s
+          const [firstName, lastName] = await Promise.all([
+            latest('firstName'),
+            latest('lastName'),
+          ])
+          if (!mounted) return
+          setLoadingStatus(
+            `${firstName || b.account || b.abbr} ${lastName || ''} - (${i + 1} of ${totalCount})`
           )
-        )
-      }
 
-      setLoading(false);
+          const [sex, balRaw] = await Promise.all([
+            latest('sex'),
+            latest('balanceDue'),
+          ])
+          const balanceDue = parseFloat(balRaw as any) || 0
+
+          const sessSnap = await getDocs(
+            query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
+          )
+          const total = sessSnap.size
+          let upcoming = 0
+          const now = new Date()
+          await Promise.all(
+            sessSnap.docs.map(async (sd) => {
+              const logsSnap = await getDocs(
+                collection(db, 'Sessions', sd.id, 'appointmentHistory')
+              )
+              const logs = logsSnap.docs.map((d) => d.data() as any)
+              let dt: Date | undefined
+              if (logs.length) {
+                const toMs = (r: any) => {
+                  const date = r.dateStamp?.toDate?.()
+                  if (!date) return -Infinity
+                  const t = String(r.timeStamp || '000000').padStart(6, '0')
+                  return (
+                    date.getTime() +
+                    parseInt(t.slice(0, 2), 10) * 3600_000 +
+                    parseInt(t.slice(2, 4), 10) * 60_000 +
+                    parseInt(t.slice(4, 6), 10) * 1000
+                  )
+                }
+                logs.sort((a, b) => toMs(b) - toMs(a))
+                const newest = logs[0]
+                dt = newest.newDate?.toDate?.() || newest.origDate?.toDate?.()
+              } else {
+                const sdData = sd.data() as any
+                dt = sdData.sessionDate?.toDate?.()
+              }
+              if (dt && dt > now) upcoming++
+            })
+          )
+
+          if (!mounted) return
+          setStudents((prev) =>
+            prev.map((s) =>
+              s.abbr === b.abbr ? { ...s, sex, balanceDue, total, upcoming } : s
+            )
+          )
+        })
+      )
+
+      if (!mounted) return
+      setLoading(false)
     }
 
     loadAll().catch(console.error)
@@ -155,26 +157,28 @@ export default function CoachingSessions() {
         </Box>
       )}
 
-      <Grid container spacing={2} sx={{ mt: 2 }}>
-        {students.map((s) => (
-          <Grid item key={s.abbr} xs={12} sm={6} md={4}>
-            <Card>
-              <CardActionArea onClick={() => setSelected(s)}>
-                <CardContent>
-                  <Typography variant="h6">{s.account}</Typography>
-                  <Typography>
-                    {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
-                  </Typography>
-                  <Typography>
-                    Total: {s.total}
-                    {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
-                  </Typography>
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      {!loading && (
+        <Grid container spacing={2} sx={{ mt: 2 }}>
+          {students.map((s) => (
+            <Grid item key={s.abbr} xs={12} sm={6} md={4}>
+              <Card>
+                <CardActionArea onClick={() => setSelected(s)}>
+                  <CardContent>
+                    <Typography variant="h6">{s.account}</Typography>
+                    <Typography>
+                      {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
+                    </Typography>
+                    <Typography>
+                      Total: {s.total}
+                      {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
       <Button
         variant="contained"
