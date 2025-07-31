@@ -22,14 +22,14 @@ import {
   Box,
   Menu,
   MenuItem,
+  Snackbar,
 } from '@mui/material'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
-import { scanAllSessionsForSummaryStats } from '../../../lib/sessionStats'
+import { scanSessionsAndUpdateStudents } from '../../../lib/sessionStats'
 
 interface StudentMeta {
   abbr: string
   account: string
-  calendarEventIds?: string[]
 }
 interface StudentDetails extends StudentMeta {
   sex?: string
@@ -45,6 +45,7 @@ export default function CoachingSessions() {
   const [selected, setSelected] = useState<StudentDetails | null>(null)
   const [serviceMode, setServiceMode] = useState(false)
   const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
+  const [scanMessage, setScanMessage] = useState('')
 
   const openToolsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
     setToolsAnchor(e.currentTarget)
@@ -52,7 +53,13 @@ export default function CoachingSessions() {
   const closeToolsMenu = () => setToolsAnchor(null)
   const handleScanAll = async () => {
     closeToolsMenu()
-    await scanAllSessionsForSummaryStats()
+    try {
+      await scanSessionsAndUpdateStudents()
+      setScanMessage('Session summaries updated')
+    } catch (err) {
+      console.error(err)
+      setScanMessage('Failed to update session summaries')
+    }
   }
 
   useEffect(() => {
@@ -65,7 +72,6 @@ export default function CoachingSessions() {
       const basics: StudentMeta[] = snap.docs.map((d) => ({
         abbr: d.id,
         account: (d.data() as any).account,
-        calendarEventIds: [],
       }))
 
       if (!mounted) return
@@ -173,51 +179,53 @@ export default function CoachingSessions() {
       )}
 
       {!loading && (
-        <Grid container spacing={2} sx={{ mt: 2 }}>
-          {students.map((s) => (
-            <Grid item key={s.abbr} xs={12} sm={6} md={4}>
-              <Card>
-                <CardActionArea onClick={() => setSelected(s)}>
-                  <CardContent>
-                    <Typography variant="h6">{s.account}</Typography>
-                    <Typography>
-                      {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
-                    </Typography>
-                    <Typography>
-                      Total: {s.total}
-                      {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
-                    </Typography>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        <Box sx={{ position: 'relative' }}>
+          <Grid container spacing={2} sx={{ mt: 2 }}>
+            {students.map((s) => (
+              <Grid item key={s.abbr} xs={12} sm={6} md={4}>
+                <Card>
+                  <CardActionArea onClick={() => setSelected(s)}>
+                    <CardContent>
+                      <Typography variant="h6">{s.account}</Typography>
+                      <Typography>
+                        {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
+                      </Typography>
+                      <Typography>
+                        Total: {s.total}
+                        {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
+                      </Typography>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+          <Button
+            variant="contained"
+            sx={{
+              position: 'absolute',
+              bottom: 16,
+              left: 16,
+              bgcolor: 'background.paper',
+              color: 'text.primary',
+            }}
+            onClick={openToolsMenu}
+          >
+            Tools
+          </Button>
+          <Menu
+            anchorEl={toolsAnchor}
+            open={Boolean(toolsAnchor)}
+            onClose={closeToolsMenu}
+            anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          >
+            <MenuItem onClick={handleScanAll}>
+              🔄 Scan Sessions & Update Summaries
+            </MenuItem>
+          </Menu>
+        </Box>
       )}
-
-      <Button
-        variant="contained"
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          left: 16,
-          bgcolor: 'grey.700',
-        }}
-        onClick={openToolsMenu}
-      >
-        Tools
-      </Button>
-      <Menu
-        anchorEl={toolsAnchor}
-        open={Boolean(toolsAnchor)}
-        onClose={closeToolsMenu}
-        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <MenuItem onClick={handleScanAll}>
-          🧹 Scan All Sessions for Summary Stats
-        </MenuItem>
-      </Menu>
 
       <Button
         variant="contained"
@@ -237,12 +245,18 @@ export default function CoachingSessions() {
         <OverviewTab
           abbr={selected.abbr}
           account={selected.account}
-          calendarEventIds={selected.calendarEventIds || []}
           open
           onClose={() => setSelected(null)}
           serviceMode={serviceMode}
         />
       )}
+
+      <Snackbar
+        open={Boolean(scanMessage)}
+        onClose={() => setScanMessage('')}
+        message={scanMessage}
+        autoHideDuration={4000}
+      />
     </SidebarLayout>
   )
 }
