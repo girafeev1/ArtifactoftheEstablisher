@@ -37,6 +37,7 @@ interface StudentDetails extends StudentMeta {
 export default function CoachingSessions() {
   const [students, setStudents] = useState<StudentDetails[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingStatus, setLoadingStatus] = useState('')
   const [selected, setSelected] = useState<StudentDetails | null>(null)
   const [serviceMode, setServiceMode] = useState(false)
 
@@ -54,14 +55,11 @@ export default function CoachingSessions() {
 
       if (!mounted) return
       setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
-      setLoading(false)
 
-      // 2) then in parallel load each student’s details
-      basics.forEach((b) => {
-        (async () => {
-          // a) latest sex & balanceDue
+      const totalCount = basics.length
+      await Promise.all(
+        basics.map(async (b, i) => {
           const latest = async (col: string) => {
-            console.log(`📥 ${b.abbr}/${col}`)
             const snap = await getDocs(
               query(
                 collection(db, 'Students', b.abbr, col),
@@ -70,36 +68,37 @@ export default function CoachingSessions() {
               )
             )
             if (snap.empty) {
-              console.warn(`⚠️ missing ${col} for ${b.abbr}`)
               return undefined
             }
-            const val = (snap.docs[0].data() as any)[col]
-            console.log(`✅ ${b.abbr} ${col}=${val}`)
-            return val
+            return (snap.docs[0].data() as any)[col]
           }
+
+          const [firstName, lastName] = await Promise.all([
+            latest('firstName'),
+            latest('lastName'),
+          ])
+          if (!mounted) return
+          setLoadingStatus(
+            `${firstName || b.account || b.abbr} ${lastName || ''} - (${i + 1} of ${totalCount})`
+          )
+
           const [sex, balRaw] = await Promise.all([
             latest('sex'),
             latest('balanceDue'),
           ])
           const balanceDue = parseFloat(balRaw as any) || 0
 
-          // b) scan every session for this student
-          console.log(`📥 sessions for ${b.account}`)
           const sessSnap = await getDocs(
             query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
           )
-          console.log(`   found ${sessSnap.size} sessions`)
           const total = sessSnap.size
           let upcoming = 0
           const now = new Date()
-
-          // for each session, pull its appointmentHistory subcollection (no Firestore ordering!)
           await Promise.all(
             sessSnap.docs.map(async (sd) => {
               const logsSnap = await getDocs(
                 collection(db, 'Sessions', sd.id, 'appointmentHistory')
               )
-              console.log(`      logs for ${sd.id}: ${logsSnap.size}`)
               const logs = logsSnap.docs.map((d) => d.data() as any)
               let dt: Date | undefined
               if (logs.length) {
@@ -128,13 +127,14 @@ export default function CoachingSessions() {
           if (!mounted) return
           setStudents((prev) =>
             prev.map((s) =>
-              s.abbr === b.abbr
-                ? { ...s, sex, balanceDue, total, upcoming }
-                : s
+              s.abbr === b.abbr ? { ...s, sex, balanceDue, total, upcoming } : s
             )
           )
-        })().catch(console.error)
-      })
+        })
+      )
+
+      if (!mounted) return
+      setLoading(false)
     }
 
     loadAll().catch(console.error)
@@ -147,6 +147,9 @@ export default function CoachingSessions() {
     <SidebarLayout>
       {loading && (
         <Box sx={{ width: '100%' }}>
+          <Typography align="center" sx={{ mb: 1 }}>
+            {loadingStatus}
+          </Typography>
           <LinearProgress />
           <Typography align="center" sx={{ mt: 1 }}>
             Loading student cards…
@@ -154,26 +157,28 @@ export default function CoachingSessions() {
         </Box>
       )}
 
-      <Grid container spacing={2} sx={{ mt: 2 }}>
-        {students.map((s) => (
-          <Grid item key={s.abbr} xs={12} sm={6} md={4}>
-            <Card>
-              <CardActionArea onClick={() => setSelected(s)}>
-                <CardContent>
-                  <Typography variant="h6">{s.account}</Typography>
-                  <Typography>
-                    {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
-                  </Typography>
-                  <Typography>
-                    Total: {s.total}
-                    {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
-                  </Typography>
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      {!loading && (
+        <Grid container spacing={2} sx={{ mt: 2 }}>
+          {students.map((s) => (
+            <Grid item key={s.abbr} xs={12} sm={6} md={4}>
+              <Card>
+                <CardActionArea onClick={() => setSelected(s)}>
+                  <CardContent>
+                    <Typography variant="h6">{s.account}</Typography>
+                    <Typography>
+                      {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
+                    </Typography>
+                    <Typography>
+                      Total: {s.total}
+                      {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
       <Button
         variant="contained"

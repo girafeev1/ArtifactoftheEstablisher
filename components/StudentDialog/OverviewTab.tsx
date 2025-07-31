@@ -77,7 +77,6 @@ export default function OverviewTab({
     let mounted = true
 
     const loadLatest = async (col: string) => {
-      console.log(`📥 fetching ${abbr}/${col}`)
       let collectionName = col
       let field = col
       if (col === 'baseRate') {
@@ -100,7 +99,6 @@ export default function OverviewTab({
         return ''
       }
       const val = (snap.docs[0].data() as any)[field]
-      console.log(`✅ ${abbr} ${col}=${val}`)
       return val
     }
 
@@ -132,41 +130,56 @@ export default function OverviewTab({
 
     // overview counts + sessions
     ;(async () => {
-      // wait until names resolved
-      const fullName = `${personal.firstName || ''} ${
-        personal.lastName || ''
-      }`.trim()
-      console.log(`📥 sessions for ${fullName}`)
       const snap = await getDocs(
-        query(collection(db, 'Sessions'), where('sessionName', '==', fullName))
+        query(collection(db, 'Sessions'), where('sessionName', '==', account))
       )
-      console.log(`   found ${snap.size} sessions`)
+
+      const parseDate = (v: any): Date | null => {
+        if (!v) return null
+        try {
+          const d = v.toDate ? v.toDate() : new Date(v)
+          return isNaN(d.getTime()) ? null : d
+        } catch {
+          return null
+        }
+      }
+
       const dates = await Promise.all(
         snap.docs.map(async (sd) => {
           const h = await getDocs(
-            query(
-              collection(db, 'Sessions', sd.id, 'appointmentHistory'),
-              orderBy('dateStamp', 'desc'),
-              orderBy('timeStamp', 'desc'),
-              limit(1)
-            )
+            collection(db, 'Sessions', sd.id, 'appointmentHistory')
           )
-          console.log(`   history entries for ${sd.id}: ${h.size}`)
           if (!h.empty) {
-            const d = h.docs[0].data() as any
-            return (d.newDate?.toDate() || d.origDate.toDate()) as Date
+            const logs = h.docs.map((d) => d.data() as any)
+            const toMs = (r: any) => {
+              const date = parseDate(r.dateStamp)
+              if (!date) return -Infinity
+              const t = String(r.timeStamp || '000000').padStart(6, '0')
+              return (
+                date.getTime() +
+                parseInt(t.slice(0, 2), 10) * 3600_000 +
+                parseInt(t.slice(2, 4), 10) * 60_000 +
+                parseInt(t.slice(4, 6), 10) * 1000
+              )
+            }
+            logs.sort((a, b) => toMs(b) - toMs(a))
+            const d = logs[0]
+            const dt = parseDate(d.newDate) || parseDate(d.origDate)
+            return dt
           }
-          return (sd.data() as any).sessionDate.toDate() as Date
+          return parseDate((sd.data() as any).sessionDate)
         })
       )
       if (!mounted) return
 
-      const sorted = dates.sort((a, b) => a.getTime() - b.getTime())
+      const valid = dates.filter((d): d is Date => d instanceof Date)
+      const sorted = valid.sort((a, b) => a.getTime() - b.getTime())
       const now = new Date()
       setOverview({
         total: sorted.length,
         upcoming: sorted.filter((d) => d > now).length,
         joint: sorted[0]?.toLocaleDateString() || '',
+        last: sorted[sorted.length - 1]?.toLocaleDateString() || '',
       })
       setOverviewLoading(false)
 
@@ -175,21 +188,34 @@ export default function OverviewTab({
         snap.docs.map(async (sd) => {
           const d = sd.data() as any
           const h = await getDocs(
-            query(
-              collection(db, 'Sessions', sd.id, 'appointmentHistory'),
-              orderBy('dateStamp', 'desc'),
-              orderBy('timeStamp', 'desc'),
-              limit(1)
-            )
+            collection(db, 'Sessions', sd.id, 'appointmentHistory')
           )
-          const rec = !h.empty ? (h.docs[0].data() as any) : null
-          const dt = rec
-            ? (rec.newDate?.toDate() || rec.origDate.toDate()) as Date
-            : d.sessionDate.toDate()
+          const rec = (() => {
+            if (h.empty) return null
+            const logs = h.docs.map((doc) => doc.data() as any)
+            const toMs = (r: any) => {
+              const date = parseDate(r.dateStamp)
+              if (!date) return -Infinity
+              const t = String(r.timeStamp || '000000').padStart(6, '0')
+              return (
+                date.getTime() +
+                parseInt(t.slice(0, 2), 10) * 3600_000 +
+                parseInt(t.slice(2, 4), 10) * 60_000 +
+                parseInt(t.slice(4, 6), 10) * 1000
+              )
+            }
+            logs.sort((a, b) => toMs(b) - toMs(a))
+            return logs[0]
+          })()
+
+          const dt =
+            parseDate(rec?.newDate) ||
+            parseDate(rec?.origDate) ||
+            parseDate(d.sessionDate)
           const tm = rec ? rec.newTime || rec.origTime : d.sessionTime
           return {
-            date: dt.toLocaleDateString(),
-            time: tm,
+            date: dt ? dt.toLocaleDateString() : '–',
+            time: tm ?? '–',
             duration: d.duration,
             sessionType: d.sessionType,
             billingType: d.billingType,
@@ -209,7 +235,7 @@ export default function OverviewTab({
     return () => {
       mounted = false
     }
-  }, [open, abbr, personal.firstName, personal.lastName])
+  }, [open, abbr, account])
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -253,7 +279,7 @@ export default function OverviewTab({
                   </Typography>
 
                   <Typography variant="subtitle2">
-                    Sex{' '}
+                    Gender{' '}
                     {personalLoading.sex && <CircularProgress size={14} />}
                   </Typography>
                   {personalLoading.sex ? (
@@ -276,7 +302,9 @@ export default function OverviewTab({
                   {overviewLoading ? (
                     <Typography variant="h6">Loading…</Typography>
                   ) : (
-                    <Typography variant="h6">{overview.joint}</Typography>
+                    <Typography variant="h6">
+                      {overview.joint || '–'}
+                    </Typography>
                   )}
 
                   <Typography variant="subtitle2">
@@ -287,10 +315,8 @@ export default function OverviewTab({
                     <Typography variant="h6">Loading…</Typography>
                   ) : (
                     <Typography variant="h6">
-                      {overview.total}
-                      {overview.upcoming > 0
-                        ? ` → ${overview.upcoming}`
-                        : ''}
+                      {overview.total ?? '–'}
+                      {overview.upcoming > 0 ? ` → ${overview.upcoming}` : ''}
                     </Typography>
                   )}
 
@@ -325,6 +351,8 @@ export default function OverviewTab({
                 <PersonalTab
                   abbr={abbr}
                   personal={personal}
+                  jointDate={overview.joint}
+                  totalSessions={overview.total}
                   serviceMode={serviceMode}
                 />
               )}
@@ -332,7 +360,12 @@ export default function OverviewTab({
                 sessionsLoading ? (
                   <CircularProgress />
                 ) : (
-                  <SessionsTab sessions={sessions} />
+                  <SessionsTab
+                    sessions={sessions}
+                    jointDate={overview.joint}
+                    lastSession={overview.last}
+                    totalSessions={overview.total}
+                  />
                 )
               )}
               {tab === 3 && (
