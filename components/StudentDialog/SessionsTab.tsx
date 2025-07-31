@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(
+  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(
     n,
   )
 import {
@@ -65,7 +65,9 @@ function EditableRate({
         sx={{ cursor: 'pointer' }}
         onClick={() => setEditing(true)}
       >
-        {formatCurrency(Number(value) || 0)}
+        {value === '-' || value === undefined
+          ? '-'
+          : formatCurrency(Number(value) || 0)}
       </Typography>
     )
   }
@@ -179,13 +181,14 @@ export default function SessionsTab({
 
             return {
               id,
-              sessionType: data.sessionType ?? '-',
-              billingType: data.billingType ?? '-',
+              sessionType: data.sessionType ?? '404/Not Found',
+              billingType: data.billingType ?? '404/Not Found',
               date,
               time,
               duration,
               baseRate: base,
               rateCharged,
+              paymentStatus: 'Unpaid',
               startMs: startDate?.getTime() ?? 0,
             }
           })
