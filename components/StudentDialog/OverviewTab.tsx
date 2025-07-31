@@ -71,8 +71,6 @@ export default function OverviewTab({
   // overview + sessions
   const [overview, setOverview] = useState<any>({})
   const [overviewLoading, setOverviewLoading] = useState(true)
-  const [sessions, setSessions] = useState<any[]>([])
-  const [sessionsLoading, setSessionsLoading] = useState(true)
 
   useEffect(() => {
     if (!open) return
@@ -189,52 +187,6 @@ export default function OverviewTab({
         last: studData.lastSession || '',
       })
       setOverviewLoading(false)
-
-      // sessions table
-      const rows = await Promise.all(
-        sessSnap.docs.map(async (sd) => {
-          const d = sd.data() as any
-          const h = await getDocs(
-            collection(db, 'Sessions', sd.id, 'appointmentHistory')
-          )
-          const rec = (() => {
-            if (h.empty) return null
-            const logs = h.docs.map((doc) => doc.data() as any)
-            const toMs = (r: any) => {
-              const date = parseDate(r.dateStamp)
-              if (!date) return -Infinity
-              const t = String(r.timeStamp || '000000').padStart(6, '0')
-              return (
-                date.getTime() +
-                parseInt(t.slice(0, 2), 10) * 3600_000 +
-                parseInt(t.slice(2, 4), 10) * 60_000 +
-                parseInt(t.slice(4, 6), 10) * 1000
-              )
-            }
-            logs.sort((a, b) => toMs(b) - toMs(a))
-            return logs[0]
-          })()
-
-          const dt =
-            parseDate(rec?.newDate) ||
-            parseDate(rec?.origDate) ||
-            parseDate(d.sessionDate)
-          const tm = rec ? rec.newTime || rec.origTime : d.sessionTime
-          return {
-            date: dt ? dt.toLocaleDateString() : '–',
-            time: tm ?? '–',
-            duration: d.duration,
-            sessionType: d.sessionType,
-            billingType: d.billingType,
-            baseRate: d.baseRate,
-            rateCharged: d.rateCharged,
-            paymentStatus: d.paymentStatus,
-          }
-        })
-      )
-      if (!mounted) return
-      setSessions(rows)
-      setSessionsLoading(false)
 
       setLoading(false)
     })()
@@ -364,16 +316,13 @@ export default function OverviewTab({
                 />
               )}
               {tab === 2 && (
-                sessionsLoading ? (
-                  <CircularProgress />
-                ) : (
-                  <SessionsTab
-                    sessions={sessions}
-                    jointDate={overview.joint}
-                    lastSession={overview.last}
-                    totalSessions={overview.total}
-                  />
-                )
+                <SessionsTab
+                  abbr={abbr}
+                  account={account}
+                  jointDate={overview.joint}
+                  lastSession={overview.last}
+                  totalSessions={overview.total}
+                />
               )}
               {tab === 3 && (
                 <BillingTab abbr={abbr} billing={billing} serviceMode={serviceMode} />
