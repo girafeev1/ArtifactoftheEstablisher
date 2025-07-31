@@ -133,6 +133,17 @@ export default function OverviewTab({
       const snap = await getDocs(
         query(collection(db, 'Sessions'), where('sessionName', '==', account))
       )
+
+      const parseDate = (v: any): Date | null => {
+        if (!v) return null
+        try {
+          const d = v.toDate ? v.toDate() : new Date(v)
+          return isNaN(d.getTime()) ? null : d
+        } catch {
+          return null
+        }
+      }
+
       const dates = await Promise.all(
         snap.docs.map(async (sd) => {
           const h = await getDocs(
@@ -141,7 +152,7 @@ export default function OverviewTab({
           if (!h.empty) {
             const logs = h.docs.map((d) => d.data() as any)
             const toMs = (r: any) => {
-              const date = r.dateStamp?.toDate?.()
+              const date = parseDate(r.dateStamp)
               if (!date) return -Infinity
               const t = String(r.timeStamp || '000000').padStart(6, '0')
               return (
@@ -153,14 +164,16 @@ export default function OverviewTab({
             }
             logs.sort((a, b) => toMs(b) - toMs(a))
             const d = logs[0]
-            return (d.newDate?.toDate() || d.origDate?.toDate()) as Date
+            const dt = parseDate(d.newDate) || parseDate(d.origDate)
+            return dt
           }
-          return (sd.data() as any).sessionDate.toDate() as Date
+          return parseDate((sd.data() as any).sessionDate)
         })
       )
       if (!mounted) return
 
-      const sorted = dates.sort((a, b) => a.getTime() - b.getTime())
+      const valid = dates.filter((d): d is Date => d instanceof Date)
+      const sorted = valid.sort((a, b) => a.getTime() - b.getTime())
       const now = new Date()
       setOverview({
         total: sorted.length,
@@ -181,7 +194,7 @@ export default function OverviewTab({
             if (h.empty) return null
             const logs = h.docs.map((doc) => doc.data() as any)
             const toMs = (r: any) => {
-              const date = r.dateStamp?.toDate?.()
+              const date = parseDate(r.dateStamp)
               if (!date) return -Infinity
               const t = String(r.timeStamp || '000000').padStart(6, '0')
               return (
@@ -195,13 +208,14 @@ export default function OverviewTab({
             return logs[0]
           })()
 
-          const dt = rec
-            ? (rec.newDate?.toDate() || rec.origDate?.toDate())
-            : d.sessionDate.toDate()
+          const dt =
+            parseDate(rec?.newDate) ||
+            parseDate(rec?.origDate) ||
+            parseDate(d.sessionDate)
           const tm = rec ? rec.newTime || rec.origTime : d.sessionTime
           return {
-            date: dt.toLocaleDateString(),
-            time: tm,
+            date: dt ? dt.toLocaleDateString() : '–',
+            time: tm ?? '–',
             duration: d.duration,
             sessionType: d.sessionType,
             billingType: d.billingType,
