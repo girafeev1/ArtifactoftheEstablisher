@@ -112,13 +112,13 @@ export default function SessionsTab({
         )
 
         const histPromises = sessSnap.docs.map((sd) =>
-          getDocs(
-            query(
-              collection(db, 'Sessions', sd.id, 'appointmentHistory'),
-              orderBy('timestamp', 'desc'),
-              limit(1),
-            ),
-          ).then((h) => ({ id: sd.id, data: sd.data(), hist: h.docs[0]?.data() }))
+          getDocs(collection(db, 'Sessions', sd.id, 'appointmentHistory')).then(
+            (h) => ({
+              id: sd.id,
+              data: sd.data(),
+              history: h.docs.map((d) => ({ id: d.id, ...d.data() })),
+            }),
+          )
         )
 
         const [baseRateSnap, paymentSnap, sessionRows] = await Promise.all([
@@ -133,6 +133,7 @@ export default function SessionsTab({
             ts: (d.data() as any).timestamp?.toDate?.() ?? new Date(0),
           }))
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
+        console.log('Base rate history:', baseRates)
 
         const payments = paymentSnap.docs
           .map((d) => ({
@@ -140,6 +141,7 @@ export default function SessionsTab({
             ts: (d.data() as any).timestamp?.toDate?.() ?? new Date(0),
           }))
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
+        console.log('Payment history:', payments)
 
         const parseDate = (v: any): Date | null => {
           if (!v) return null
@@ -152,7 +154,34 @@ export default function SessionsTab({
         }
 
         const rows = sessionRows
-          .map(({ id, data, hist }) => {
+          .map(({ id, data, history }) => {
+            console.log(`Session ${id} (${account}) appointment history:`, history)
+            const sortedHist = history
+              .slice()
+              .sort((a: any, b: any) => {
+                const ta =
+                  parseDate(a.changeTimestamp) || parseDate(a.timestamp) || new Date(0)
+                const tb =
+                  parseDate(b.changeTimestamp) || parseDate(b.timestamp) || new Date(0)
+                return tb.getTime() - ta.getTime()
+              })
+            if (!sortedHist.length) {
+              console.warn(`Session ${id} has no appointment history`)
+              return {
+                id,
+                sessionType: data.sessionType ?? '404/Not Found',
+                billingType: data.billingType ?? '404/Not Found',
+                date: 'No history',
+                time: '-',
+                duration: '-',
+                baseRate: '-',
+                rateCharged: data.rateCharged ?? '-',
+                paymentStatus: 'Unpaid',
+                startMs: 0,
+              }
+            }
+            const hist = sortedHist[0]
+            console.log(`Session ${id}: using history entry`, hist)
             let start = hist?.origStartTimestamp
             let end = hist?.origEndTimestamp
             if (
@@ -167,6 +196,18 @@ export default function SessionsTab({
             }
             const startDate = parseDate(start)
             const endDate = parseDate(end)
+            console.log(
+              `Session ${id}: parsed start`,
+              start,
+              startDate,
+              typeof start,
+            )
+            console.log(
+              `Session ${id}: parsed end`,
+              end,
+              endDate,
+              typeof end,
+            )
             const date = startDate
               ? startDate.toISOString().slice(0, 10)
               : '-'
@@ -180,10 +221,14 @@ export default function SessionsTab({
             }
 
             const base = (() => {
-              if (!startDate || !baseRates.length) return '-'
+              if (!startDate || !baseRates.length) {
+                console.warn(`Session ${id}: no base rates or invalid startDate`)
+                return '-'
+              }
               const entry = baseRates
                 .filter((b) => b.ts.getTime() <= startDate.getTime())
                 .pop()
+              console.log(`Session ${id}: base rates`, baseRates, 'selected', entry)
               return entry ? entry.rate : '-'
             })()
 
@@ -221,7 +266,10 @@ export default function SessionsTab({
           } else {
             r.paymentStatus = 'Unpaid'
           }
+          console.log(`Session ${r.id}: paymentStatus`, r.paymentStatus, 'remaining credit', credit)
         })
+
+        console.log('Final session rows:', rows)
 
         if (!cancelled) setSessions(rows)
       } catch (e) {
