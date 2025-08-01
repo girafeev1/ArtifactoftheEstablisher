@@ -180,7 +180,7 @@ export default function SessionsTab({
                 startMs: 0,
               }
             }
-            const hist = sortedHist[0]
+            const hist: any = sortedHist[0]
             console.log(`Session ${id}: using history entry`, hist)
             let start = hist?.origStartTimestamp
             let end = hist?.origEndTimestamp
