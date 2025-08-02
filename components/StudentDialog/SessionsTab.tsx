@@ -17,7 +17,7 @@ import {
   CircularProgress,
 } from '@mui/material'
 
-import { collection, getDocs, query, where, orderBy, limit, doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 
 const toHKDate = (d: Date) => {
@@ -36,10 +36,12 @@ const toHKTime = (d: Date) => {
 }
 
 function EditableRate({
+  abbr,
   sessionId,
   value,
   onChange,
 }: {
+  abbr: string
   sessionId: string
   value: number | string
   onChange: (v: number) => void
@@ -63,6 +65,14 @@ function EditableRate({
         rateCharged: v,
         timestamp: serverTimestamp(),
       })
+      const histCol = collection(db, 'Students', abbr, 'RateChargedHistory')
+      const histSnap = await getDocs(histCol)
+      const histIdx = String(histSnap.size + 1).padStart(3, '0')
+      const histId = `${abbr}-RateCharged-${histIdx}-${yyyyMMdd}`
+      await setDoc(doc(histCol, histId), {
+        rateCharged: v,
+        timestamp: serverTimestamp(),
+      })
       onChange(v)
     } catch (err) {
       console.error('failed to save rate', err)
@@ -72,8 +82,7 @@ function EditableRate({
   if (!editing) {
     return (
       <Typography
-        variant="h6"
-        sx={{ cursor: 'pointer' }}
+        sx={{ cursor: 'pointer', typography: 'body2' }}
         onClick={() => setEditing(true)}
       >
         {value === '-' || value === undefined
@@ -93,74 +102,13 @@ function EditableRate({
         if (!isNaN(num) && num !== Number(value)) save(num)
         setEditing(false)
       }}
-      style={{ width: 80 }}
+      style={{ width: 80, fontSize: 'inherit' }}
     />
   )
 }
 
-function EditableStatus({
-  sessionId,
-  value,
-  onChange,
-}: {
-  sessionId: string
-  value: 'Paid' | 'Unpaid'
-  onChange: (v: 'Paid' | 'Unpaid') => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState<'Paid' | 'Unpaid'>(value)
-
-  useEffect(() => {
-    setDraft(value)
-  }, [value])
-
-  const save = async (v: 'Paid' | 'Unpaid') => {
-    try {
-      const colRef = collection(db, 'Sessions', sessionId, 'paymentStatus')
-      const snap = await getDocs(colRef)
-      const idx = String(snap.size + 1).padStart(3, '0')
-      const today = new Date()
-      const yyyyMMdd = today.toISOString().slice(0, 10).replace(/-/g, '')
-      const docId = `paid-${idx}-${yyyyMMdd}`
-      await setDoc(doc(colRef, docId), {
-        paid: v === 'Paid',
-        timestamp: serverTimestamp(),
-      })
-      onChange(v)
-    } catch (err) {
-      console.error('failed to save payment status', err)
-    }
-  }
-
-  if (!editing && value === 'Paid') {
-    return <Typography variant="h6">Paid</Typography>
-  }
-
-  if (!editing) {
-    return (
-      <Typography
-        variant="h6"
-        sx={{ cursor: 'pointer' }}
-        onClick={() => setEditing(true)}
-      >
-        {value}
-      </Typography>
-    )
-  }
-
-  return (
-    <select
-      value={draft}
-      onChange={(e) => setDraft(e.target.value as 'Paid' | 'Unpaid')}
-      onBlur={() => {
-        if (draft !== value) save(draft)
-        setEditing(false)
-      }}
-    >
-      <option value="Paid">{draft === 'Paid' ? '• Paid' : 'Paid'}</option>
-      <option value="Unpaid">{draft === 'Unpaid' ? '• Unpaid' : 'Unpaid'}</option>
-    </select>
-  )
+function PaymentStatusDisplay({ value }: { value: 'Paid' | 'Unpaid' }) {
+  return <Typography sx={{ typography: 'body2' }}>{value}</Typography>
 }
 
 export default function SessionsTab({
@@ -178,6 +126,19 @@ export default function SessionsTab({
 }) {
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [summary, setSummary] = useState({
+    jointDate: jointDate || '',
+    lastSession: lastSession || '',
+    totalSessions: totalSessions ?? 0,
+  })
+
+  useEffect(() => {
+    setSummary({
+      jointDate: jointDate || '',
+      lastSession: lastSession || '',
+      totalSessions: totalSessions ?? 0,
+    })
+  }, [jointDate, lastSession, totalSessions])
 
   useEffect(() => {
     let cancelled = false
@@ -188,17 +149,15 @@ export default function SessionsTab({
         )
 
         const rowPromises = sessSnap.docs.map(async (sd) => {
-          const [histSnap, rateSnap, statusSnap] = await Promise.all([
+          const [histSnap, rateSnap] = await Promise.all([
             getDocs(collection(db, 'Sessions', sd.id, 'appointmentHistory')),
             getDocs(collection(db, 'Sessions', sd.id, 'rateCharged')),
-            getDocs(collection(db, 'Sessions', sd.id, 'paymentStatus')),
           ])
           return {
             id: sd.id,
             data: sd.data(),
             history: histSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
             rateDocs: rateSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
-            statusDocs: statusSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
           }
         })
 
@@ -235,7 +194,7 @@ export default function SessionsTab({
         }
 
         const rows = sessionRows
-          .map(({ id, data, history, rateDocs, statusDocs }) => {
+          .map(({ id, data, history, rateDocs }) => {
             console.log(`Session ${id} (${account}) appointment history:`, history)
             const sortedHist = history
               .slice()
@@ -257,7 +216,6 @@ export default function SessionsTab({
                 duration: '-',
                 baseRate: '-',
                 rateCharged: data.rateCharged ?? '-',
-                paymentStatus: 'Unpaid',
                 startMs: 0,
               }
             }
@@ -320,15 +278,6 @@ export default function SessionsTab({
               })
             const latestRate = rateHist[0]?.rateCharged
             const rateCharged = latestRate != null ? Number(latestRate) : base
-
-            const manualStatusDoc = statusDocs
-              .slice()
-              .sort((a: any, b: any) => {
-                const ta = parseDate(a.timestamp) || new Date(0)
-                const tb = parseDate(b.timestamp) || new Date(0)
-                return tb.getTime() - ta.getTime()
-              })[0]
-
             return {
               id,
               sessionType: data.sessionType ?? '404/Not Found',
@@ -338,38 +287,54 @@ export default function SessionsTab({
               duration,
               baseRate: base,
               rateCharged,
-              paymentStatus: manualStatusDoc ? (manualStatusDoc.paid ? 'Paid' : 'Unpaid') : 'Unpaid',
+              paymentStatus: 'Unpaid' as 'Paid' | 'Unpaid',
               startMs: startDate?.getTime() ?? 0,
             }
           })
           .sort((a, b) => a.startMs - b.startMs)
 
-        let credit = 0
-        let payIdx = 0
+        let credit = payments.reduce((s, p) => s + p.amount, 0)
         rows.forEach((r) => {
-          if (r.paymentStatus !== 'Unpaid' && r.paymentStatus !== 'Paid') {
+          const cost = Number(r.rateCharged) || 0
+          if (credit >= cost && cost > 0) {
+            r.paymentStatus = 'Paid'
+            credit -= cost
+          } else {
             r.paymentStatus = 'Unpaid'
-          }
-          if (r.paymentStatus === 'Unpaid') {
-            while (
-              payIdx < payments.length &&
-              payments[payIdx].ts.getTime() <= r.startMs
-            ) {
-              credit += payments[payIdx].amount
-              payIdx++
-            }
-            const cost = Number(r.rateCharged) || 0
-            if (credit >= cost && cost > 0) {
-              r.paymentStatus = 'Paid'
-              credit -= cost
-            }
           }
           console.log(`Session ${r.id}: paymentStatus`, r.paymentStatus, 'remaining credit', credit)
         })
 
-        console.log('Final session rows:', rows)
+        const totalOwed = rows.reduce((sum, r) => sum + (Number(r.rateCharged) || 0), 0)
+        const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
+        const balanceDue = totalOwed - totalPaid
+        console.log('Balance due calculation:', { totalOwed, totalPaid, balanceDue })
 
-        if (!cancelled) setSessions(rows)
+        const validDates = rows.filter(r => r.startMs > 0).map(r => r.startMs).sort((a,b)=>a-b)
+        const today = new Date()
+        const lastPast = validDates.filter(ms => ms <= today.getTime()).pop()
+        const newSummary = {
+          jointDate: validDates.length ? toHKDate(new Date(validDates[0])) : '',
+          lastSession: lastPast ? toHKDate(new Date(lastPast)) : '',
+          totalSessions: validDates.length,
+        }
+        console.log('Computed summary:', newSummary)
+
+        const studRef = doc(db, 'Students', abbr)
+        const updates: any = {}
+        if (!jointDate && newSummary.jointDate) updates.jointDate = newSummary.jointDate
+        if (!lastSession && newSummary.lastSession) updates.lastSession = newSummary.lastSession
+        if ((totalSessions == null || totalSessions === 0) && newSummary.totalSessions)
+          updates.totalSessions = newSummary.totalSessions
+        if (Object.keys(updates).length)
+          await setDoc(studRef, updates, { merge: true })
+
+        if (!cancelled) {
+          setSummary(newSummary)
+          setSessions(rows)
+        }
+
+        console.log('Final session rows:', rows)
       } catch (e) {
         console.error('load sessions failed', e)
         if (!cancelled) setSessions([])
@@ -389,15 +354,15 @@ export default function SessionsTab({
       <Box mb={2}>
         <Box mb={1}>
           <Typography variant="subtitle2">Joint Date:</Typography>
-          <Typography variant="h6">{jointDate || '–'}</Typography>
+          <Typography variant="h6">{summary.jointDate || '–'}</Typography>
         </Box>
         <Box mb={1}>
           <Typography variant="subtitle2">Last Session:</Typography>
-          <Typography variant="h6">{lastSession || '–'}</Typography>
+          <Typography variant="h6">{summary.lastSession || '–'}</Typography>
         </Box>
         <Box mb={1}>
           <Typography variant="subtitle2">Total Sessions:</Typography>
-          <Typography variant="h6">{totalSessions ?? '–'}</Typography>
+          <Typography variant="h6">{summary.totalSessions ?? '–'}</Typography>
         </Box>
       </Box>
       <Table size="small">
@@ -432,6 +397,7 @@ export default function SessionsTab({
             </TableCell>
             <TableCell sx={{ typography: 'body2' }}>
               <EditableRate
+                abbr={abbr}
                 sessionId={s.id}
                 value={s.rateCharged}
                 onChange={(v) => {
@@ -442,15 +408,7 @@ export default function SessionsTab({
               />
             </TableCell>
             <TableCell sx={{ typography: 'body2' }}>
-              <EditableStatus
-                sessionId={s.id}
-                value={s.paymentStatus}
-                onChange={(v) => {
-                  setSessions((rows) =>
-                    rows.map((r, idx) => (idx === i ? { ...r, paymentStatus: v } : r)),
-                  )
-                }}
-              />
+              <PaymentStatusDisplay value={s.paymentStatus} />
             </TableCell>
           </TableRow>
         ))}
