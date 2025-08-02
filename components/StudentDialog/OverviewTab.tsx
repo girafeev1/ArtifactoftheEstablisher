@@ -21,9 +21,12 @@ import {
   query,
   orderBy,
   limit,
-  where,
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+
+// OverviewTab displays summary values supplied by child tabs (PersonalTab,
+// SessionsTab, BillingTab). These children own their respective data fetching
+// and push updates here via callbacks, keeping OverviewTab as a pure presenter.
 import InlineEdit from '../../common/InlineEdit'
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
@@ -69,10 +72,21 @@ export default function OverviewTab({
   })
 
   // overview + sessions
-  const [overview, setOverview] = useState<any>({})
+  const [overview, setOverview] = useState<any>({ joint: '', last: '', total: 0 })
   const [overviewLoading, setOverviewLoading] = useState(true)
-  const [sessions, setSessions] = useState<any[]>([])
-  const [sessionsLoading, setSessionsLoading] = useState(true)
+
+  const handleBalanceDue = (n: number) => {
+    setBilling((b: any) => ({ ...b, balanceDue: n }))
+    setBillingLoading((l) => ({ ...l, balanceDue: false }))
+  }
+
+  const handleSummary = (s: {
+    jointDate: string
+    lastSession: string
+    totalSessions: number
+  }) => {
+    setOverview({ joint: s.jointDate, last: s.lastSession, total: s.totalSessions })
+  }
 
   useEffect(() => {
     if (!open) return
@@ -120,7 +134,6 @@ export default function OverviewTab({
       'baseRate',
       'retainerStatus',
       'lastPaymentDate',
-      'balanceDue',
       'voucherBalance',
     ].forEach((f) => {
       loadLatest(f).then((v) => {
@@ -130,112 +143,17 @@ export default function OverviewTab({
       })
     })
 
-    // overview counts + sessions
+    // load overview summary from student profile
     ;(async () => {
-      const [sessSnap, studSnap] = await Promise.all([
-        getDocs(
-          query(collection(db, 'Sessions'), where('sessionName', '==', account)),
-        ),
-        getDoc(doc(db, 'Students', abbr)),
-      ])
-
-      const parseDate = (v: any): Date | null => {
-        if (!v) return null
-        try {
-          const d = v.toDate ? v.toDate() : new Date(v)
-          return isNaN(d.getTime()) ? null : d
-        } catch {
-          return null
-        }
-      }
-
-      let upcoming = 0
-      const now = new Date()
-      await Promise.all(
-        sessSnap.docs.map(async (sd) => {
-          const h = await getDocs(
-            collection(db, 'Sessions', sd.id, 'appointmentHistory'),
-          )
-          const logs = h.docs.map((d) => d.data() as any)
-          let dt: Date | undefined
-          if (logs.length) {
-            const toMs = (r: any) => {
-              const date = parseDate(r.dateStamp)
-              if (!date) return -Infinity
-              const t = String(r.timeStamp || '000000').padStart(6, '0')
-              return (
-                date.getTime() +
-                parseInt(t.slice(0, 2), 10) * 3600_000 +
-                parseInt(t.slice(2, 4), 10) * 60_000 +
-                parseInt(t.slice(4, 6), 10) * 1000
-              )
-            }
-            logs.sort((a, b) => toMs(b) - toMs(a))
-            const newest = logs[0]
-            dt = parseDate(newest.newDate) || parseDate(newest.origDate)
-          } else {
-            const sdData = sd.data() as any
-            dt = parseDate(sdData.sessionDate)
-          }
-          if (dt && dt > now) upcoming++
-        }),
-      )
-
+      const studSnap = await getDoc(doc(db, 'Students', abbr))
       const studData = studSnap.exists() ? (studSnap.data() as any) : {}
+      if (!mounted) return
       setOverview({
-        total: studData.totalSessions ?? 0,
-        upcoming,
         joint: studData.jointDate || '',
         last: studData.lastSession || '',
+        total: studData.totalSessions ?? 0,
       })
       setOverviewLoading(false)
-
-      // sessions table
-      const rows = await Promise.all(
-        sessSnap.docs.map(async (sd) => {
-          const d = sd.data() as any
-          const h = await getDocs(
-            collection(db, 'Sessions', sd.id, 'appointmentHistory')
-          )
-          const rec = (() => {
-            if (h.empty) return null
-            const logs = h.docs.map((doc) => doc.data() as any)
-            const toMs = (r: any) => {
-              const date = parseDate(r.dateStamp)
-              if (!date) return -Infinity
-              const t = String(r.timeStamp || '000000').padStart(6, '0')
-              return (
-                date.getTime() +
-                parseInt(t.slice(0, 2), 10) * 3600_000 +
-                parseInt(t.slice(2, 4), 10) * 60_000 +
-                parseInt(t.slice(4, 6), 10) * 1000
-              )
-            }
-            logs.sort((a, b) => toMs(b) - toMs(a))
-            return logs[0]
-          })()
-
-          const dt =
-            parseDate(rec?.newDate) ||
-            parseDate(rec?.origDate) ||
-            parseDate(d.sessionDate)
-          const tm = rec ? rec.newTime || rec.origTime : d.sessionTime
-          return {
-            date: dt ? dt.toLocaleDateString() : '–',
-            time: tm ?? '–',
-            duration: d.duration,
-            sessionType: d.sessionType,
-            billingType: d.billingType,
-            baseRate: d.baseRate,
-            rateCharged: d.rateCharged,
-            paymentStatus: d.paymentStatus,
-          }
-        })
-      )
-      if (!mounted) return
-      setSessions(rows)
-      setSessionsLoading(false)
-
       setLoading(false)
     })()
 
@@ -269,92 +187,80 @@ export default function OverviewTab({
                 textAlign: 'left',
               }}
             >
-              {tab === 0 && (
-                <>
-                  <Typography variant="subtitle2">
-                    Legal Name{' '}
-                    {(personalLoading.firstName ||
-                      personalLoading.lastName) && (
-                      <CircularProgress size={14} />
-                    )}
-                  </Typography>
+              <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
+                <Typography variant="subtitle2">
+                  Legal Name{' '}
+                  {(personalLoading.firstName || personalLoading.lastName) && (
+                    <CircularProgress size={14} />
+                  )}
+                </Typography>
+                <Typography variant="h6">
+                  {(personalLoading.firstName || personalLoading.lastName)
+                    ? 'Loading…'
+                    : `${personal.firstName} ${personal.lastName}`}
+                </Typography>
+
+                <Typography variant="subtitle2">
+                  Gender {personalLoading.sex && <CircularProgress size={14} />}
+                </Typography>
+                {personalLoading.sex ? (
+                  <Typography variant="h6">Loading…</Typography>
+                ) : (
+                  <InlineEdit
+                    value={personal.sex}
+                    fieldPath={`Students/${abbr}/sex`}
+                    fieldKey="sex"
+                    editable={serviceMode}
+                    type="select"
+                    options={['Male', 'Female', 'Other']}
+                  />
+                )}
+
+                <Typography variant="subtitle2">
+                  Joint Date {overviewLoading && <CircularProgress size={14} />}
+                </Typography>
+                {overviewLoading ? (
+                  <Typography variant="h6">Loading…</Typography>
+                ) : (
+                  <Typography variant="h6">{overview.joint || '–'}</Typography>
+                )}
+
+                <Typography variant="subtitle2">
+                  Total Sessions {overviewLoading && <CircularProgress size={14} />}
+                </Typography>
+                {overviewLoading ? (
+                  <Typography variant="h6">Loading…</Typography>
+                ) : (
+                  <Typography variant="h6">{overview.total ?? '–'}</Typography>
+                )}
+
+                <Typography variant="subtitle2">
+                  Balance Due {billingLoading.balanceDue && <CircularProgress size={14} />}
+                </Typography>
+                {billingLoading.balanceDue ? (
+                  <Typography variant="h6">Loading…</Typography>
+                ) : (
                   <Typography variant="h6">
-                    {(personalLoading.firstName ||
-                      personalLoading.lastName)
-                      ? 'Loading…'
-                      : `${personal.firstName} ${personal.lastName}`}
+                    {billing.balanceDue != null
+                      ? `$${(Number(billing.balanceDue) || 0).toFixed(2)}`
+                      : '-'}
                   </Typography>
+                )}
 
-                  <Typography variant="subtitle2">
-                    Gender{' '}
-                    {personalLoading.sex && <CircularProgress size={14} />}
+                <Typography variant="subtitle2">
+                  Session Voucher{' '}
+                  {billingLoading.voucherBalance && <CircularProgress size={14} />}
+                </Typography>
+                {billingLoading.voucherBalance ? (
+                  <Typography variant="h6">Loading…</Typography>
+                ) : (
+                  <Typography variant="h6">
+                    {billing.voucherBalance ?? '0'}
                   </Typography>
-                  {personalLoading.sex ? (
-                    <Typography variant="h6">Loading…</Typography>
-                  ) : (
-                    <InlineEdit
-                      value={personal.sex}
-                      fieldPath={`Students/${abbr}/sex`}
-                      fieldKey="sex"
-                      editable={serviceMode}
-                      type="select"
-                      options={['Male', 'Female', 'Other']}
-                    />
-                  )}
+                )}
+              </Box>
 
-                  <Typography variant="subtitle2">
-                    Joint Date{' '}
-                    {overviewLoading && <CircularProgress size={14} />}
-                  </Typography>
-                  {overviewLoading ? (
-                    <Typography variant="h6">Loading…</Typography>
-                  ) : (
-                    <Typography variant="h6">
-                      {overview.joint || '–'}
-                    </Typography>
-                  )}
-
-                  <Typography variant="subtitle2">
-                    Total Sessions{' '}
-                    {overviewLoading && <CircularProgress size={14} />}
-                  </Typography>
-                  {overviewLoading ? (
-                    <Typography variant="h6">Loading…</Typography>
-                  ) : (
-                    <Typography variant="h6">
-                      {overview.total ?? '–'}
-                      {overview.upcoming > 0 ? ` → ${overview.upcoming}` : ''}
-                    </Typography>
-                  )}
-
-                  <Typography variant="subtitle2">
-                    Balance Due{' '}
-                    {billingLoading.balanceDue && <CircularProgress size={14} />}
-                  </Typography>
-                  {billingLoading.balanceDue ? (
-                    <Typography variant="h6">Loading…</Typography>
-                  ) : (
-                    <Typography variant="h6">
-                      ${ (parseFloat(billing.balanceDue as any) || 0).toFixed(2) }
-                    </Typography>
-                  )}
-
-                  <Typography variant="subtitle2">
-                    Session Voucher{' '}
-                    {billingLoading.voucherBalance && (
-                      <CircularProgress size={14} />
-                    )}
-                  </Typography>
-                  {billingLoading.voucherBalance ? (
-                    <Typography variant="h6">Loading…</Typography>
-                  ) : (
-                    <Typography variant="h6">
-                      {billing.voucherBalance ?? '0'}
-                    </Typography>
-                  )}
-                </>
-              )}
-              {tab === 1 && (
+              <Box sx={{ display: tab === 1 ? 'block' : 'none' }}>
                 <PersonalTab
                   abbr={abbr}
                   personal={personal}
@@ -362,22 +268,28 @@ export default function OverviewTab({
                   totalSessions={overview.total}
                   serviceMode={serviceMode}
                 />
-              )}
-              {tab === 2 && (
-                sessionsLoading ? (
-                  <CircularProgress />
-                ) : (
-                  <SessionsTab
-                    sessions={sessions}
-                    jointDate={overview.joint}
-                    lastSession={overview.last}
-                    totalSessions={overview.total}
-                  />
-                )
-              )}
-              {tab === 3 && (
-                <BillingTab abbr={abbr} billing={billing} serviceMode={serviceMode} />
-              )}
+              </Box>
+
+              <Box sx={{ display: tab === 2 ? 'block' : 'none' }}>
+                <SessionsTab
+                  abbr={abbr}
+                  account={account}
+                  jointDate={overview.joint}
+                  lastSession={overview.last}
+                  totalSessions={overview.total}
+                  onSummary={handleSummary}
+                />
+              </Box>
+
+              <Box sx={{ display: tab === 3 ? 'block' : 'none' }}>
+                <BillingTab
+                  abbr={abbr}
+                  account={account}
+                  billing={billing}
+                  serviceMode={serviceMode}
+                  onBalanceDue={handleBalanceDue}
+                />
+              </Box>
             </Box>
 
             <Tabs
