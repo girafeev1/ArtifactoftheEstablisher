@@ -91,6 +91,13 @@ export default function OverviewTab({
     }
   }, [open])
 
+  const displayField = (v: any) => {
+    if (v === '__ERROR__') return 'Error'
+    if (v === undefined) return '404 Not Found'
+    if (v === '') return 'N/A'
+    return String(v)
+  }
+
   const loading =
     Object.values(personalLoading).some((v) => v) ||
     Object.values(billingLoading).some((v) => v) ||
@@ -131,14 +138,23 @@ export default function OverviewTab({
                 <Typography variant="h6">
                   {(personalLoading.firstName || personalLoading.lastName)
                     ? 'Loading…'
-                    : `${personal.firstName} ${personal.lastName}`}
+                    : (() => {
+                        const first = displayField(personal.firstName)
+                        const last = displayField(personal.lastName)
+                        const both = `${first} ${last}`.trim()
+                        return both === '404 Not Found 404 Not Found'
+                          ? '404 Not Found'
+                          : both
+                      })()}
                 </Typography>
 
                 <Typography variant="subtitle2">
                   Gender {personalLoading.sex && <CircularProgress size={14} />}
                 </Typography>
                 <Typography variant="h6">
-                  {personalLoading.sex ? 'Loading…' : personal.sex || '–'}
+                  {personalLoading.sex
+                    ? 'Loading…'
+                    : displayField(personal.sex)}
                 </Typography>
 
                 <Typography variant="subtitle2">
@@ -180,7 +196,7 @@ export default function OverviewTab({
                   <Typography variant="h6">Loading…</Typography>
                 ) : (
                   <Typography variant="h6">
-                    {billing.voucherBalance ?? '0'}
+                    {billing.voucherBalance ?? '-'}
                   </Typography>
                 )}
               </Box>

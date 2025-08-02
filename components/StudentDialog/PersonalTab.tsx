@@ -29,19 +29,19 @@ export default function PersonalTab({
   onPersonal?: (p: Partial<{ firstName: string; lastName: string; sex: string; birthDate: string }>) => void
 }) {
   const [fields, setFields] = useState<any>({
-    firstName: '',
-    lastName: '',
-    sex: '',
-    birthDate: '',
-    hkid: '',
-    contactNumber: { countryCode: '', phoneNumber: '' },
-    emailAddress: '',
+    firstName: undefined,
+    lastName: undefined,
+    sex: undefined,
+    birthDate: undefined,
+    hkid: undefined,
+    contactNumber: { countryCode: undefined, phoneNumber: undefined },
+    emailAddress: undefined,
     address: {
-      addressLine1: '',
-      addressLine2: '',
-      addressLine3: '',
-      district: '',
-      region: '',
+      addressLine1: undefined,
+      addressLine2: undefined,
+      addressLine3: undefined,
+      district: undefined,
+      region: undefined,
     },
   })
 
@@ -58,10 +58,15 @@ export default function PersonalTab({
 
   // helper to load latest doc from a subcollection
   const loadLatest = async (sub: string) => {
-    const snap = await getDocs(
-      query(collection(db, 'Students', abbr, sub), orderBy('timestamp', 'desc'), limit(1)),
-    )
-    return snap.empty ? null : snap.docs[0].data()
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'Students', abbr, sub), orderBy('timestamp', 'desc'), limit(1)),
+      )
+      return snap.empty ? null : snap.docs[0].data()
+    } catch (e) {
+      console.error(`load ${sub} failed`, e)
+      return { __error: true }
+    }
   }
 
   useEffect(() => {
@@ -70,51 +75,59 @@ export default function PersonalTab({
       const basicFields = ['firstName', 'lastName', 'sex', 'birthDate']
       await Promise.all(
         basicFields.map(async (f) => {
-          const data = await loadLatest(f)
+          const data: any = await loadLatest(f)
           if (cancelled) return
-          const val = data ? (data as any)[f] : ''
+          const val = data?.__error ? '__ERROR__' : data ? data[f] : undefined
           setFields((p: any) => ({ ...p, [f]: val }))
           setLoading((l: any) => ({ ...l, [f]: false }))
-          onPersonal?.({ [f]: val })
+          onPersonal?.({ [f]: val === '__ERROR__' ? undefined : val })
         }),
       )
 
-      const hkidData = await loadLatest('HKID')
+      const hkidData: any = await loadLatest('HKID')
       if (!cancelled) {
-        setFields((p: any) => ({ ...p, hkid: hkidData?.idNumber || '' }))
+        const val = hkidData?.__error ? '__ERROR__' : hkidData?.idNumber
+        setFields((p: any) => ({ ...p, hkid: val }))
         setLoading((l: any) => ({ ...l, hkid: false }))
       }
 
-      const phoneData = await loadLatest('contactNumber')
+      const phoneData: any = await loadLatest('contactNumber')
       if (!cancelled) {
-        setFields((p: any) => ({
-          ...p,
-          contactNumber: {
-            countryCode: phoneData?.countryCode || '',
-            phoneNumber: phoneData?.phoneNumber || '',
-          },
-        }))
+        const val = phoneData?.__error
+          ? { countryCode: '__ERROR__', phoneNumber: '__ERROR__' }
+          : {
+              countryCode: phoneData?.countryCode,
+              phoneNumber: phoneData?.phoneNumber,
+            }
+        setFields((p: any) => ({ ...p, contactNumber: val }))
         setLoading((l: any) => ({ ...l, contactNumber: false }))
       }
 
-      const emailData = await loadLatest('emailAddress')
+      const emailData: any = await loadLatest('emailAddress')
       if (!cancelled) {
-        setFields((p: any) => ({ ...p, emailAddress: emailData?.emailAddress || '' }))
+        const val = emailData?.__error ? '__ERROR__' : emailData?.emailAddress
+        setFields((p: any) => ({ ...p, emailAddress: val }))
         setLoading((l: any) => ({ ...l, emailAddress: false }))
       }
 
-      const addrData = await loadLatest('Address')
+      const addrData: any = await loadLatest('Address')
       if (!cancelled) {
-        setFields((p: any) => ({
-          ...p,
-          address: {
-            addressLine1: addrData?.addressLine1 || '',
-            addressLine2: addrData?.addressLine2 || '',
-            addressLine3: addrData?.addressLine3 || '',
-            district: addrData?.district || '',
-            region: addrData?.region || '',
-          },
-        }))
+        const val = addrData?.__error
+          ? {
+              addressLine1: '__ERROR__',
+              addressLine2: '__ERROR__',
+              addressLine3: '__ERROR__',
+              district: '__ERROR__',
+              region: '__ERROR__',
+            }
+          : {
+              addressLine1: addrData?.addressLine1,
+              addressLine2: addrData?.addressLine2,
+              addressLine3: addrData?.addressLine3,
+              district: addrData?.district,
+              region: addrData?.region,
+            }
+        setFields((p: any) => ({ ...p, address: val }))
         setLoading((l: any) => ({ ...l, address: false }))
       }
     })()
@@ -124,7 +137,7 @@ export default function PersonalTab({
   }, [abbr, onPersonal])
 
   const age = (() => {
-    if (!fields.birthDate) return ''
+    if (!fields.birthDate || fields.birthDate === '__ERROR__') return ''
     const bd = new Date(fields.birthDate)
     if (isNaN(bd.getTime())) return ''
     const diff = Date.now() - bd.getTime()
@@ -171,11 +184,57 @@ export default function PersonalTab({
   // handlers for editing start
   useEffect(() => {
     if (editingPhone)
-      setPhoneDraft({ ...fields.contactNumber })
-    if (editingEmail) setEmailDraft(fields.emailAddress || '')
-    if (editingAddr) setAddrDraft({ ...fields.address })
-    if (editingHKID) setHkidDraft(fields.hkid || '')
+      setPhoneDraft({
+        countryCode:
+          fields.contactNumber.countryCode &&
+          fields.contactNumber.countryCode !== '__ERROR__'
+            ? fields.contactNumber.countryCode
+            : '',
+        phoneNumber:
+          fields.contactNumber.phoneNumber &&
+          fields.contactNumber.phoneNumber !== '__ERROR__'
+            ? fields.contactNumber.phoneNumber
+            : '',
+      })
+    if (editingEmail)
+      setEmailDraft(
+        fields.emailAddress && fields.emailAddress !== '__ERROR__'
+          ? fields.emailAddress
+          : '',
+      )
+    if (editingAddr)
+      setAddrDraft({
+        addressLine1:
+          fields.address.addressLine1 && fields.address.addressLine1 !== '__ERROR__'
+            ? fields.address.addressLine1
+            : '',
+        addressLine2:
+          fields.address.addressLine2 && fields.address.addressLine2 !== '__ERROR__'
+            ? fields.address.addressLine2
+            : '',
+        addressLine3:
+          fields.address.addressLine3 && fields.address.addressLine3 !== '__ERROR__'
+            ? fields.address.addressLine3
+            : '',
+        district:
+          fields.address.district && fields.address.district !== '__ERROR__'
+            ? fields.address.district
+            : '',
+        region:
+          fields.address.region && fields.address.region !== '__ERROR__'
+            ? fields.address.region
+            : '',
+      })
+    if (editingHKID)
+      setHkidDraft(fields.hkid && fields.hkid !== '__ERROR__' ? fields.hkid : '')
   }, [editingPhone, editingEmail, editingAddr, editingHKID])
+
+  const displayField = (v: any) => {
+    if (v === '__ERROR__') return 'Error'
+    if (v === undefined) return '404 Not Found'
+    if (v === '') return 'N/A'
+    return String(v)
+  }
 
   return (
     <Box>
@@ -274,7 +333,7 @@ export default function PersonalTab({
             sx={{ cursor: 'pointer' }}
             onClick={() => setEditingHKID(true)}
           >
-            {fields.hkid || '[click to edit]'}
+            {displayField(fields.hkid)}
           </Typography>
         )}
       </Box>
@@ -329,9 +388,12 @@ export default function PersonalTab({
             sx={{ cursor: 'pointer' }}
             onClick={() => setEditingPhone(true)}
           >
-            {fields.contactNumber.countryCode || fields.contactNumber.phoneNumber
-              ? `+${fields.contactNumber.countryCode} ${fields.contactNumber.phoneNumber}`
-              : '[click to edit]'}
+            {fields.contactNumber.countryCode === undefined &&
+            fields.contactNumber.phoneNumber === undefined
+              ? '404 Not Found'
+              : `+${displayField(fields.contactNumber.countryCode)} ${displayField(
+                  fields.contactNumber.phoneNumber,
+                )}`}
           </Typography>
         )}
       </Box>
@@ -371,7 +433,7 @@ export default function PersonalTab({
             sx={{ cursor: 'pointer' }}
             onClick={() => setEditingEmail(true)}
           >
-            {fields.emailAddress || '[click to edit]'}
+            {displayField(fields.emailAddress)}
           </Typography>
         )}
       </Box>
@@ -439,16 +501,20 @@ export default function PersonalTab({
         ) : (
           <Box sx={{ cursor: 'pointer' }} onClick={() => setEditingAddr(true)}>
             <Typography variant="h6">
-              {[fields.address.addressLine1, fields.address.addressLine2, fields.address.addressLine3]
-                .filter(Boolean)
-                .join(', ') || '[click to edit]'}
+              {displayField(fields.address.addressLine1)}
             </Typography>
-            {fields.address.district && (
-              <Typography variant="h6">{fields.address.district}</Typography>
-            )}
-            {fields.address.region && (
-              <Typography variant="h6">{fields.address.region}</Typography>
-            )}
+            <Typography variant="h6">
+              {displayField(fields.address.addressLine2)}
+            </Typography>
+            <Typography variant="h6">
+              {displayField(fields.address.addressLine3)}
+            </Typography>
+            <Typography variant="h6">
+              {displayField(fields.address.district)}
+            </Typography>
+            <Typography variant="h6">
+              {displayField(fields.address.region)}
+            </Typography>
           </Box>
         )}
       </Box>

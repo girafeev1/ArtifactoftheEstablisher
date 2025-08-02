@@ -96,8 +96,15 @@ export default function InlineEdit({
   }
 
   const display = () => {
-    if (type === 'date' && draft) return new Date(draft).toLocaleDateString()
-    return String(draft ?? '')
+    if (draft === '__ERROR__') return 'Error'
+    if (draft === undefined) return '404 Not Found'
+    if (draft === '' || draft === null)
+      return type === 'number' || type === 'date' ? '-' : 'N/A'
+    if (type === 'date') {
+      const d = new Date(draft)
+      return isNaN(d.getTime()) ? '-' : d.toLocaleDateString()
+    }
+    return String(draft)
   }
 
   // when Service Mode is ON, disable edits and clicking shows full audit trail

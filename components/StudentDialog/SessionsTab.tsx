@@ -274,7 +274,11 @@ export default function SessionsTab({
         console.log('Final session rows:', rows)
       } catch (e) {
         console.error('load sessions failed', e)
-        if (!cancelled) setSessions([])
+        if (!cancelled) {
+          setSessions([])
+          setSummary({ jointDate: '', lastSession: '', totalSessions: 0 })
+          onSummary?.({ jointDate: '', lastSession: '', totalSessions: 0 })
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }

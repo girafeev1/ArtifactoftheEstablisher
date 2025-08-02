@@ -46,10 +46,15 @@ export default function BillingTab({
   })
 
   const loadLatest = async (sub: string, field: string) => {
-    const snap = await getDocs(
-      query(collection(db, 'Students', abbr, sub), orderBy('timestamp', 'desc'), limit(1)),
-    )
-    return snap.empty ? '' : (snap.docs[0].data() as any)[field]
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'Students', abbr, sub), orderBy('timestamp', 'desc'), limit(1)),
+      )
+      return snap.empty ? undefined : (snap.docs[0].data() as any)[field]
+    } catch (e) {
+      console.error(`load ${sub} failed`, e)
+      return '__ERROR__'
+    }
   }
 
   useEffect(() => {
@@ -64,14 +69,15 @@ export default function BillingTab({
         'voucherBalance',
       ]
       for (const f of simple) {
-        const val = await loadLatest(
+        const val: any = await loadLatest(
           f === 'defaultBillingType' ? 'billingType' : f,
           f === 'baseRate' ? 'rate' : f,
         )
         if (cancelled) return
         setFields((b: any) => ({ ...b, [f]: val }))
         setLoading((l: any) => ({ ...l, [f]: false }))
-        if (['voucherBalance'].includes(f)) onBilling?.({ [f]: Number(val) })
+        if (f === 'voucherBalance')
+          onBilling?.({ voucherBalance: typeof val === 'number' ? val : undefined })
       }
     })()
     return () => {
