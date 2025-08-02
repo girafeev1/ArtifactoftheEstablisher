@@ -117,12 +117,14 @@ export default function SessionsTab({
   jointDate,
   lastSession,
   totalSessions,
+  onSummary,
 }: {
   abbr: string
   account: string
   jointDate?: string
   lastSession?: string
   totalSessions?: number
+  onSummary?: (s: { jointDate: string; lastSession: string; totalSessions: number }) => void
 }) {
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -141,6 +143,7 @@ export default function SessionsTab({
   }, [jointDate, lastSession, totalSessions])
 
   useEffect(() => {
+    // SessionsTab owns session summary calculation; OverviewTab consumes the result
     let cancelled = false
     ;(async () => {
       try {
@@ -310,11 +313,6 @@ export default function SessionsTab({
           console.log(`Session ${r.id}: paymentStatus`, r.paymentStatus, 'remaining credit', credit)
         })
 
-        const totalOwed = rows.reduce((sum, r) => sum + (Number(r.rateCharged) || 0), 0)
-        const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
-        const balanceDue = totalOwed - totalPaid
-        console.log('Balance due calculation:', { totalOwed, totalPaid, balanceDue })
-
         const validDates = rows.filter(r => r.startMs > 0).map(r => r.startMs).sort((a,b)=>a-b)
         const today = new Date()
         const lastPast = validDates.filter(ms => ms <= today.getTime()).pop()
@@ -337,6 +335,7 @@ export default function SessionsTab({
         if (!cancelled) {
           setSummary(newSummary)
           setSessions(rows)
+          onSummary?.(newSummary)
         }
 
         console.log('Final session rows:', rows)
@@ -350,7 +349,7 @@ export default function SessionsTab({
     return () => {
       cancelled = true
     }
-  }, [abbr, account])
+  }, [abbr, account, onSummary])
   if (loading) {
     return <CircularProgress />
   }
