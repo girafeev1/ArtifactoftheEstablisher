@@ -29,6 +29,7 @@ import {
   scanSessionsAndUpdateStudents,
   clearSessionSummaries,
 } from '../../../lib/sessionStats'
+import BatchRenamePayments from '../../../tools/BatchRenamePayments'
 
 interface StudentMeta {
   abbr: string
@@ -49,6 +50,7 @@ export default function CoachingSessions() {
   const [serviceMode, setServiceMode] = useState(false)
   const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
   const [scanMessage, setScanMessage] = useState('')
+  const [renameOpen, setRenameOpen] = useState(false)
 
   const openToolsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
     setToolsAnchor(e.currentTarget)
@@ -240,6 +242,14 @@ export default function CoachingSessions() {
           <MenuItem onClick={handleClearAll}>
             🗑️ Clear All Session Summaries
           </MenuItem>
+          <MenuItem
+            onClick={() => {
+              closeToolsMenu()
+              setRenameOpen(true)
+            }}
+          >
+            🏷️ Batch Rename Payments
+          </MenuItem>
         </Menu>
       </Box>
       )}
@@ -273,6 +283,10 @@ export default function CoachingSessions() {
         onClose={() => setScanMessage('')}
         message={scanMessage}
         autoHideDuration={4000}
+      />
+      <BatchRenamePayments
+        open={renameOpen}
+        onClose={() => setRenameOpen(false)}
       />
     </SidebarLayout>
   )
