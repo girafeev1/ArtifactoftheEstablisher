@@ -13,6 +13,8 @@ import InlineEdit from '../../common/InlineEdit'
 import { collection, getDocs, query, orderBy, limit, doc, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 
+console.log('=== StudentDialog loaded version 1.1 ===')
+
 // PersonalTab owns all personal information for a student. It fetches the
 // latest values from Firestore and streams key fields upward to OverviewTab via
 // `onPersonal` so OverviewTab can present them without duplicating logic.
@@ -28,6 +30,7 @@ export default function PersonalTab({
   serviceMode: boolean
   onPersonal?: (p: Partial<{ firstName: string; lastName: string; sex: string; birthDate: string }>) => void
 }) {
+  console.log('Rendering PersonalTab for', abbr)
   const [fields, setFields] = useState<any>({
     firstName: undefined,
     lastName: undefined,
@@ -70,6 +73,7 @@ export default function PersonalTab({
   }
 
   useEffect(() => {
+    console.log('PersonalTab effect: load latest fields for', abbr)
     let cancelled = false
     ;(async () => {
       const basicFields = ['firstName', 'lastName', 'sex', 'birthDate']
@@ -256,6 +260,7 @@ export default function PersonalTab({
 
   // handlers for editing start
   useEffect(() => {
+    console.log('PersonalTab effect: populate edit drafts for', abbr)
     if (editingPhone)
       setPhoneDraft({
         countryCode:

@@ -27,6 +27,8 @@ import { db } from '../../lib/firebase'
 import SessionDetail from './SessionDetail'
 import FloatingWindow from './FloatingWindow'
 
+console.log('=== StudentDialog loaded version 1.1 ===')
+
 // SessionsTab is the single source of truth for session data. It fetches
 // appointment history, base rates and payments then streams summary values up
 // to OverviewTab via `onSummary`.
@@ -58,6 +60,7 @@ export default function SessionsTab({
   account: string
   onSummary?: (s: { jointDate: string; lastSession: string; totalSessions: number }) => void
 }) {
+  console.log('Rendering SessionsTab for', abbr)
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any | null>(null)
@@ -82,6 +85,7 @@ export default function SessionsTab({
   })
 
   useEffect(() => {
+    console.log('SessionsTab effect: load sessions for', abbr)
     // SessionsTab owns session summary calculation; OverviewTab consumes the result
     let cancelled = false
     ;(async () => {

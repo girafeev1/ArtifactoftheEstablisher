@@ -23,6 +23,8 @@ import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
 import SessionsTab from './SessionsTab'
 
+console.log('=== StudentDialog loaded version 1.1 ===')
+
 export interface OverviewTabProps {
   abbr: string
   account: string
@@ -38,6 +40,7 @@ export default function OverviewTab({
   onClose,
   serviceMode,
 }: OverviewTabProps) {
+  console.log('OverviewTab rendered for', abbr)
   const [tab, setTab] = useState(0)
 
   // personal summary streamed from PersonalTab
@@ -80,6 +83,7 @@ export default function OverviewTab({
 
   // reset loading states whenever dialog is opened
   useEffect(() => {
+    console.log('OverviewTab reset effect for', abbr)
     if (open) {
       setPersonal({})
       setBilling({})
@@ -90,6 +94,14 @@ export default function OverviewTab({
       setTab(0)
     }
   }, [open])
+
+  useEffect(() => {
+    console.log('OverviewTab loading states', {
+      personalLoading,
+      billingLoading,
+      overviewLoading,
+    })
+  })
 
   const displayField = (v: any) => {
     if (v === '__ERROR__') return 'Error'
@@ -103,8 +115,29 @@ export default function OverviewTab({
     Object.values(billingLoading).some((v) => v) ||
     overviewLoading
 
+  class StudentDialogErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+    state = { error: null as Error | null }
+    static getDerivedStateFromError(error: Error) {
+      return { error }
+    }
+    componentDidCatch(error: Error, info: React.ErrorInfo) {
+      console.error('StudentDialog render error', error, info)
+    }
+    render() {
+      if (this.state.error) {
+        return (
+          <Box p={2}>
+            <Typography color="error">Student dialog failed to load.</Typography>
+          </Box>
+        )
+      }
+      return this.props.children
+    }
+  }
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <StudentDialogErrorBoundary>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ textAlign: 'left' }}>{account}</DialogTitle>
       <DialogContent sx={{ display: 'flex', height: '70vh' }}>
         {loading ? (
@@ -248,6 +281,7 @@ export default function OverviewTab({
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
       </DialogActions>
-    </Dialog>
+      </Dialog>
+    </StudentDialogErrorBoundary>
   )
 }

@@ -6,6 +6,8 @@ import { collection, getDocs, query, where, orderBy, limit } from 'firebase/fire
 import { db } from '../../lib/firebase'
 import InlineEdit from '../../common/InlineEdit'
 
+console.log('=== StudentDialog loaded version 1.1 ===')
+
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
 
@@ -34,6 +36,7 @@ export default function BillingTab({
   serviceMode: boolean
   onBilling?: (b: Partial<{ balanceDue: number; voucherBalance: number }>) => void
 }) {
+  console.log('Rendering BillingTab for', abbr)
   const [fields, setFields] = useState<any>({})
   const [loading, setLoading] = useState<any>({
     billingCompany: true,
@@ -58,6 +61,7 @@ export default function BillingTab({
   }
 
   useEffect(() => {
+    console.log('BillingTab effect: load simple fields for', abbr)
     let cancelled = false
     ;(async () => {
       const simple = [
@@ -102,6 +106,7 @@ export default function BillingTab({
   }, [abbr, onBilling])
 
   useEffect(() => {
+    console.log('BillingTab effect: calculate balance due for', abbr)
     // Balance Due calculation
     let cancelled = false
     ;(async () => {
