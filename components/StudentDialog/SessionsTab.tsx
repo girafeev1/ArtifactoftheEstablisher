@@ -163,7 +163,12 @@ export default function SessionsTab({
 
         const [baseRateSnap, paymentSnap, sessionRows] = await Promise.all([
           getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
-          getDocs(query(collection(db, 'Students', abbr, 'Payments'), orderBy('timestamp'))),
+          getDocs(
+            query(
+              collection(db, 'Students', abbr, 'Payments'),
+              orderBy('paymentMade')
+            )
+          ),
           Promise.all(rowPromises),
         ])
 
@@ -178,7 +183,7 @@ export default function SessionsTab({
         const payments = paymentSnap.docs
           .map((d) => ({
             amount: Number((d.data() as any).amount) || 0,
-            ts: (d.data() as any).timestamp?.toDate?.() ?? new Date(0),
+            ts: (d.data() as any).paymentMade?.toDate?.() ?? new Date(0),
           }))
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
         console.log('Payment history:', payments)
