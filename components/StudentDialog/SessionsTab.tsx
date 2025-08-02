@@ -52,16 +52,10 @@ const toHKTime = (d: Date) => {
 export default function SessionsTab({
   abbr,
   account,
-  jointDate,
-  lastSession,
-  totalSessions,
   onSummary,
 }: {
   abbr: string
   account: string
-  jointDate?: string
-  lastSession?: string
-  totalSessions?: number
   onSummary?: (s: { jointDate: string; lastSession: string; totalSessions: number }) => void
 }) {
   const [sessions, setSessions] = useState<any[]>([])
@@ -82,18 +76,10 @@ export default function SessionsTab({
   const [visibleCols, setVisibleCols] = useState(allColumns.map((c) => c.key))
   const [period, setPeriod] = useState<'30' | '90' | 'all'>('all')
   const [summary, setSummary] = useState({
-    jointDate: jointDate || '',
-    lastSession: lastSession || '',
-    totalSessions: totalSessions ?? 0,
+    jointDate: '',
+    lastSession: '',
+    totalSessions: 0,
   })
-
-  useEffect(() => {
-    setSummary({
-      jointDate: jointDate || '',
-      lastSession: lastSession || '',
-      totalSessions: totalSessions ?? 0,
-    })
-  }, [jointDate, lastSession, totalSessions])
 
   useEffect(() => {
     // SessionsTab owns session summary calculation; OverviewTab consumes the result
@@ -277,13 +263,7 @@ export default function SessionsTab({
         console.log('Computed summary:', newSummary)
 
         const studRef = doc(db, 'Students', abbr)
-        const updates: any = {}
-        if (!jointDate && newSummary.jointDate) updates.jointDate = newSummary.jointDate
-        if (!lastSession && newSummary.lastSession) updates.lastSession = newSummary.lastSession
-        if ((totalSessions == null || totalSessions === 0) && newSummary.totalSessions)
-          updates.totalSessions = newSummary.totalSessions
-        if (Object.keys(updates).length)
-          await setDoc(studRef, updates, { merge: true })
+        await setDoc(studRef, newSummary, { merge: true })
 
         if (!cancelled) {
           setSummary(newSummary)

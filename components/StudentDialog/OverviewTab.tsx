@@ -13,21 +13,12 @@ import {
   Typography,
   Button,
 } from '@mui/material'
-import {
-  collection,
-  getDocs,
-  getDoc,
-  doc,
-  query,
-  orderBy,
-  limit,
-} from 'firebase/firestore'
-import { db } from '../../lib/firebase'
 
-// OverviewTab displays summary values supplied by child tabs (PersonalTab,
-// SessionsTab, BillingTab). These children own their respective data fetching
-// and push updates here via callbacks, keeping OverviewTab as a pure presenter.
-import InlineEdit from '../../common/InlineEdit'
+// OverviewTab acts purely as a presenter. PersonalTab, SessionsTab and
+// BillingTab each fetch and compute their own data then "stream" summary
+// values upward via callbacks. OverviewTab never queries Firestore directly,
+// keeping a single source of truth in the owning tab and avoiding duplicated
+// logic across the dialog.
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
 import SessionsTab from './SessionsTab'
@@ -47,120 +38,63 @@ export default function OverviewTab({
   onClose,
   serviceMode,
 }: OverviewTabProps) {
-  const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState(0)
 
-  // personal
+  // personal summary streamed from PersonalTab
   const [personal, setPersonal] = useState<any>({})
   const [personalLoading, setPersonalLoading] = useState({
     firstName: true,
     lastName: true,
     sex: true,
-    birthDate: true,
   })
 
-  // billing
+  // billing summary streamed from BillingTab
   const [billing, setBilling] = useState<any>({})
   const [billingLoading, setBillingLoading] = useState({
-    billingCompany: true,
-    defaultBillingType: true,
-    baseRate: true,
-    retainerStatus: true,
-    lastPaymentDate: true,
     balanceDue: true,
     voucherBalance: true,
   })
 
-  // overview + sessions
+  // overview summary streamed from SessionsTab
   const [overview, setOverview] = useState<any>({ joint: '', last: '', total: 0 })
   const [overviewLoading, setOverviewLoading] = useState(true)
 
-  const handleBalanceDue = (n: number) => {
-    setBilling((b: any) => ({ ...b, balanceDue: n }))
-    setBillingLoading((l) => ({ ...l, balanceDue: false }))
+  const handlePersonal = (data: Partial<{ firstName: string; lastName: string; sex: string }>) => {
+    setPersonal((p: any) => ({ ...p, ...data }))
+    Object.keys(data).forEach((k) =>
+      setPersonalLoading((l: any) => ({ ...l, [k]: false }))
+    )
   }
 
-  const handleSummary = (s: {
-    jointDate: string
-    lastSession: string
-    totalSessions: number
-  }) => {
+  const handleBilling = (data: Partial<{ balanceDue: number; voucherBalance: number }>) => {
+    setBilling((b: any) => ({ ...b, ...data }))
+    Object.keys(data).forEach((k) =>
+      setBillingLoading((l: any) => ({ ...l, [k]: false }))
+    )
+  }
+
+  const handleSummary = (s: { jointDate: string; lastSession: string; totalSessions: number }) => {
     setOverview({ joint: s.jointDate, last: s.lastSession, total: s.totalSessions })
+    setOverviewLoading(false)
   }
 
+  // reset loading states whenever dialog is opened
   useEffect(() => {
-    if (!open) return
-    let mounted = true
-
-    const loadLatest = async (col: string) => {
-      let collectionName = col
-      let field = col
-      if (col === 'baseRate') {
-        collectionName = 'BaseRateHistory'
-        field = 'rate'
-      }
-      if (col === 'defaultBillingType') {
-        collectionName = 'billingType'
-        field = 'billingType'
-      }
-      const snap = await getDocs(
-        query(
-          collection(db, 'Students', abbr, collectionName),
-          orderBy('timestamp', 'desc'),
-          limit(1)
-        )
-      )
-      if (snap.empty) {
-        console.warn(`⚠️ no ${col} for ${abbr}`)
-        return ''
-      }
-      const val = (snap.docs[0].data() as any)[field]
-      return val
+    if (open) {
+      setPersonal({})
+      setBilling({})
+      setOverview({ joint: '', last: '', total: 0 })
+      setPersonalLoading({ firstName: true, lastName: true, sex: true })
+      setBillingLoading({ balanceDue: true, voucherBalance: true })
+      setOverviewLoading(true)
+      setTab(0)
     }
+  }, [open])
 
-    // load personal fields
-    ;['firstName', 'lastName', 'sex', 'birthDate'].forEach((f) => {
-      loadLatest(f).then((v) => {
-        if (!mounted) return
-        setPersonal((p: any) => ({ ...p, [f]: v }))
-        setPersonalLoading((l) => ({ ...l, [f]: false }))
-      })
-    })
-
-    // load billing fields
-    ;[
-      'billingCompany',
-      'defaultBillingType',
-      'baseRate',
-      'retainerStatus',
-      'lastPaymentDate',
-      'voucherBalance',
-    ].forEach((f) => {
-      loadLatest(f).then((v) => {
-        if (!mounted) return
-        setBilling((b: any) => ({ ...b, [f]: v }))
-        setBillingLoading((l) => ({ ...l, [f]: false }))
-      })
-    })
-
-    // load overview summary from student profile
-    ;(async () => {
-      const studSnap = await getDoc(doc(db, 'Students', abbr))
-      const studData = studSnap.exists() ? (studSnap.data() as any) : {}
-      if (!mounted) return
-      setOverview({
-        joint: studData.jointDate || '',
-        last: studData.lastSession || '',
-        total: studData.totalSessions ?? 0,
-      })
-      setOverviewLoading(false)
-      setLoading(false)
-    })()
-
-    return () => {
-      mounted = false
-    }
-  }, [open, abbr, account])
+  const loading =
+    Object.values(personalLoading).some((v) => v) ||
+    Object.values(billingLoading).some((v) => v) ||
+    overviewLoading
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -203,18 +137,9 @@ export default function OverviewTab({
                 <Typography variant="subtitle2">
                   Gender {personalLoading.sex && <CircularProgress size={14} />}
                 </Typography>
-                {personalLoading.sex ? (
-                  <Typography variant="h6">Loading…</Typography>
-                ) : (
-                  <InlineEdit
-                    value={personal.sex}
-                    fieldPath={`Students/${abbr}/sex`}
-                    fieldKey="sex"
-                    editable={serviceMode}
-                    type="select"
-                    options={['Male', 'Female', 'Other']}
-                  />
-                )}
+                <Typography variant="h6">
+                  {personalLoading.sex ? 'Loading…' : personal.sex || '–'}
+                </Typography>
 
                 <Typography variant="subtitle2">
                   Joint Date {overviewLoading && <CircularProgress size={14} />}
@@ -263,10 +188,8 @@ export default function OverviewTab({
               <Box sx={{ display: tab === 1 ? 'block' : 'none' }}>
                 <PersonalTab
                   abbr={abbr}
-                  personal={personal}
-                  jointDate={overview.joint}
-                  totalSessions={overview.total}
                   serviceMode={serviceMode}
+                  onPersonal={handlePersonal}
                 />
               </Box>
 
@@ -274,9 +197,6 @@ export default function OverviewTab({
                 <SessionsTab
                   abbr={abbr}
                   account={account}
-                  jointDate={overview.joint}
-                  lastSession={overview.last}
-                  totalSessions={overview.total}
                   onSummary={handleSummary}
                 />
               </Box>
@@ -285,9 +205,8 @@ export default function OverviewTab({
                 <BillingTab
                   abbr={abbr}
                   account={account}
-                  billing={billing}
                   serviceMode={serviceMode}
-                  onBalanceDue={handleBalanceDue}
+                  onBilling={handleBilling}
                 />
               </Box>
             </Box>
