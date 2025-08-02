@@ -13,6 +13,7 @@ export interface InlineEditProps {
   serviceMode?: boolean
   type: 'text' | 'number' | 'date' | 'select'
   options?: string[]
+  onSaved?: (v: any) => void
 }
 
 export default function InlineEdit({
@@ -23,6 +24,7 @@ export default function InlineEdit({
   serviceMode = false,
   type,
   options,
+  onSaved,
 }: InlineEditProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -67,6 +69,7 @@ export default function InlineEdit({
         timestamp: today,
       })
       setDraft(v)
+      onSaved?.(v)
     } catch (e) {
       console.error('Save failed', e)
     }
