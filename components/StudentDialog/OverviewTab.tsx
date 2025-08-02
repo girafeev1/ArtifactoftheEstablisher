@@ -23,6 +23,10 @@ import {
   limit,
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+
+// OverviewTab displays summary values supplied by child tabs (PersonalTab,
+// SessionsTab, BillingTab). These children own their respective data fetching
+// and push updates here via callbacks, keeping OverviewTab as a pure presenter.
 import InlineEdit from '../../common/InlineEdit'
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
