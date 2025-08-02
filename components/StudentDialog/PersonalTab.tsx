@@ -75,60 +75,133 @@ export default function PersonalTab({
       const basicFields = ['firstName', 'lastName', 'sex', 'birthDate']
       await Promise.all(
         basicFields.map(async (f) => {
-          const data: any = await loadLatest(f)
-          if (cancelled) return
-          const val = data?.__error ? '__ERROR__' : data ? data[f] : undefined
-          setFields((p: any) => ({ ...p, [f]: val }))
-          setLoading((l: any) => ({ ...l, [f]: false }))
-          onPersonal?.({ [f]: val === '__ERROR__' ? undefined : val })
+          try {
+            const data: any = await loadLatest(f)
+            if (cancelled) return
+            const val = data?.__error ? '__ERROR__' : data ? data[f] : undefined
+            setFields((p: any) => ({ ...p, [f]: val }))
+            setLoading((l: any) => {
+              const next = { ...l, [f]: false }
+              console.log('Loading flags now:', next)
+              return next
+            })
+            onPersonal?.({ [f]: val === '__ERROR__' ? undefined : val })
+          } catch (e) {
+            console.error(`basic field ${f} load failed`, e)
+            setFields((p: any) => ({ ...p, [f]: '__ERROR__' }))
+            setLoading((l: any) => {
+              const next = { ...l, [f]: false }
+              console.log('Loading flags now:', next)
+              return next
+            })
+            onPersonal?.({ [f]: undefined })
+          }
         }),
       )
 
-      const hkidData: any = await loadLatest('HKID')
-      if (!cancelled) {
-        const val = hkidData?.__error ? '__ERROR__' : hkidData?.idNumber
-        setFields((p: any) => ({ ...p, hkid: val }))
-        setLoading((l: any) => ({ ...l, hkid: false }))
+      try {
+        const hkidData: any = await loadLatest('HKID')
+        if (!cancelled) {
+          const val = hkidData?.__error ? '__ERROR__' : hkidData?.idNumber
+          setFields((p: any) => ({ ...p, hkid: val }))
+        }
+      } catch (e) {
+        console.error('HKID load failed', e)
+        if (!cancelled) setFields((p: any) => ({ ...p, hkid: '__ERROR__' }))
+      } finally {
+        if (!cancelled)
+          setLoading((l: any) => {
+            const next = { ...l, hkid: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
       }
 
-      const phoneData: any = await loadLatest('contactNumber')
-      if (!cancelled) {
-        const val = phoneData?.__error
-          ? { countryCode: '__ERROR__', phoneNumber: '__ERROR__' }
-          : {
-              countryCode: phoneData?.countryCode,
-              phoneNumber: phoneData?.phoneNumber,
-            }
-        setFields((p: any) => ({ ...p, contactNumber: val }))
-        setLoading((l: any) => ({ ...l, contactNumber: false }))
+      try {
+        const phoneData: any = await loadLatest('contactNumber')
+        if (!cancelled) {
+          const val = phoneData?.__error
+            ? { countryCode: '__ERROR__', phoneNumber: '__ERROR__' }
+            : {
+                countryCode: phoneData?.countryCode,
+                phoneNumber: phoneData?.phoneNumber,
+              }
+          setFields((p: any) => ({ ...p, contactNumber: val }))
+        }
+      } catch (e) {
+        console.error('contact number load failed', e)
+        if (!cancelled)
+          setFields((p: any) => ({
+            ...p,
+            contactNumber: { countryCode: '__ERROR__', phoneNumber: '__ERROR__' },
+          }))
+      } finally {
+        if (!cancelled)
+          setLoading((l: any) => {
+            const next = { ...l, contactNumber: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
       }
 
-      const emailData: any = await loadLatest('emailAddress')
-      if (!cancelled) {
-        const val = emailData?.__error ? '__ERROR__' : emailData?.emailAddress
-        setFields((p: any) => ({ ...p, emailAddress: val }))
-        setLoading((l: any) => ({ ...l, emailAddress: false }))
+      try {
+        const emailData: any = await loadLatest('emailAddress')
+        if (!cancelled) {
+          const val = emailData?.__error ? '__ERROR__' : emailData?.emailAddress
+          setFields((p: any) => ({ ...p, emailAddress: val }))
+        }
+      } catch (e) {
+        console.error('email load failed', e)
+        if (!cancelled) setFields((p: any) => ({ ...p, emailAddress: '__ERROR__' }))
+      } finally {
+        if (!cancelled)
+          setLoading((l: any) => {
+            const next = { ...l, emailAddress: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
       }
 
-      const addrData: any = await loadLatest('Address')
-      if (!cancelled) {
-        const val = addrData?.__error
-          ? {
+      try {
+        const addrData: any = await loadLatest('Address')
+        if (!cancelled) {
+          const val = addrData?.__error
+            ? {
+                addressLine1: '__ERROR__',
+                addressLine2: '__ERROR__',
+                addressLine3: '__ERROR__',
+                district: '__ERROR__',
+                region: '__ERROR__',
+              }
+            : {
+                addressLine1: addrData?.addressLine1,
+                addressLine2: addrData?.addressLine2,
+                addressLine3: addrData?.addressLine3,
+                district: addrData?.district,
+                region: addrData?.region,
+              }
+          setFields((p: any) => ({ ...p, address: val }))
+        }
+      } catch (e) {
+        console.error('address load failed', e)
+        if (!cancelled)
+          setFields((p: any) => ({
+            ...p,
+            address: {
               addressLine1: '__ERROR__',
               addressLine2: '__ERROR__',
               addressLine3: '__ERROR__',
               district: '__ERROR__',
               region: '__ERROR__',
-            }
-          : {
-              addressLine1: addrData?.addressLine1,
-              addressLine2: addrData?.addressLine2,
-              addressLine3: addrData?.addressLine3,
-              district: addrData?.district,
-              region: addrData?.region,
-            }
-        setFields((p: any) => ({ ...p, address: val }))
-        setLoading((l: any) => ({ ...l, address: false }))
+            },
+          }))
+      } finally {
+        if (!cancelled)
+          setLoading((l: any) => {
+            const next = { ...l, address: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
       }
     })()
     return () => {

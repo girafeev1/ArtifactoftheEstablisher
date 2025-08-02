@@ -280,7 +280,11 @@ export default function SessionsTab({
           onSummary?.({ jointDate: '', lastSession: '', totalSessions: 0 })
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled)
+          setLoading(() => {
+            console.log('Loading flags now: false')
+            return false
+          })
       }
     })()
     return () => {

@@ -69,15 +69,31 @@ export default function BillingTab({
         'voucherBalance',
       ]
       for (const f of simple) {
-        const val: any = await loadLatest(
-          f === 'defaultBillingType' ? 'billingType' : f,
-          f === 'baseRate' ? 'rate' : f,
-        )
-        if (cancelled) return
-        setFields((b: any) => ({ ...b, [f]: val }))
-        setLoading((l: any) => ({ ...l, [f]: false }))
-        if (f === 'voucherBalance')
-          onBilling?.({ voucherBalance: typeof val === 'number' ? val : undefined })
+        try {
+          const val: any = await loadLatest(
+            f === 'defaultBillingType' ? 'billingType' : f,
+            f === 'baseRate' ? 'rate' : f,
+          )
+          if (cancelled) return
+          setFields((b: any) => ({ ...b, [f]: val }))
+          setLoading((l: any) => {
+            const next = { ...l, [f]: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
+          if (f === 'voucherBalance')
+            onBilling?.({ voucherBalance: typeof val === 'number' ? val : undefined })
+        } catch (e) {
+          console.error(`${f} load failed`, e)
+          if (cancelled) return
+          setFields((b: any) => ({ ...b, [f]: '__ERROR__' }))
+          setLoading((l: any) => {
+            const next = { ...l, [f]: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
+          if (f === 'voucherBalance') onBilling?.({ voucherBalance: undefined })
+        }
       }
     })()
     return () => {
@@ -173,14 +189,22 @@ export default function BillingTab({
         const balanceDue = totalOwed - totalPaid
         if (!cancelled) {
           setFields((b: any) => ({ ...b, balanceDue }))
-          setLoading((l: any) => ({ ...l, balanceDue: false }))
+          setLoading((l: any) => {
+            const next = { ...l, balanceDue: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
           onBilling?.({ balanceDue })
         }
       } catch (e) {
         console.error('balance due calculation failed', e)
         if (!cancelled) {
           setFields((b: any) => ({ ...b, balanceDue: 0 }))
-          setLoading((l: any) => ({ ...l, balanceDue: false }))
+          setLoading((l: any) => {
+            const next = { ...l, balanceDue: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
           onBilling?.({ balanceDue: 0 })
         }
       }
