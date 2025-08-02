@@ -25,10 +25,7 @@ import {
   Snackbar,
 } from '@mui/material'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
-import {
-  scanSessionsAndUpdateStudents,
-  clearSessionSummaries,
-} from '../../../lib/sessionStats'
+import { clearSessionSummaries } from '../../../lib/sessionStats'
 import BatchRenamePayments from '../../../tools/BatchRenamePayments'
 
 interface StudentMeta {
@@ -56,16 +53,6 @@ export default function CoachingSessions() {
     setToolsAnchor(e.currentTarget)
   }
   const closeToolsMenu = () => setToolsAnchor(null)
-  const handleScanAll = async () => {
-    closeToolsMenu()
-    try {
-      await scanSessionsAndUpdateStudents()
-      setScanMessage('Session summaries updated')
-    } catch (err) {
-      console.error(err)
-      setScanMessage('Failed to update session summaries')
-    }
-  }
   const handleClearAll = async () => {
     closeToolsMenu()
     try {
@@ -236,9 +223,6 @@ export default function CoachingSessions() {
             anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
             transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
           >
-          <MenuItem onClick={handleScanAll}>
-            🔄 Scan Sessions & Update Summaries
-          </MenuItem>
           <MenuItem onClick={handleClearAll}>
             🗑️ Clear All Session Summaries
           </MenuItem>
