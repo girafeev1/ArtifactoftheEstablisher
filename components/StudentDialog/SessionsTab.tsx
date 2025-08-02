@@ -55,10 +55,12 @@ export default function SessionsTab({
   abbr,
   account,
   onSummary,
+  style,
 }: {
   abbr: string
   account: string
   onSummary?: (s: { jointDate: string; lastSession: string; totalSessions: number }) => void
+  style?: React.CSSProperties
 }) {
   console.log('Rendering SessionsTab for', abbr)
   const [sessions, setSessions] = useState<any[]>([])
@@ -299,7 +301,7 @@ export default function SessionsTab({
     return <CircularProgress />
   }
   return (
-    <>
+    <Box sx={{ textAlign: 'left' }} style={style}>
       <Box mb={2}>
         <Box mb={1}>
           <Typography variant="subtitle2">Joint Date:</Typography>
@@ -428,6 +430,6 @@ export default function SessionsTab({
           <SessionDetail session={popped} onBack={() => setPopped(null)} detached />
         </FloatingWindow>
       )}
-    </>
+    </Box>
   )
 }

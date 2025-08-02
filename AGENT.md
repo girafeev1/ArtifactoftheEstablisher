@@ -7,3 +7,5 @@ Date fields must be validated before calling `.toLocaleDateString()` or similar 
 ## Debug Notes
 
 The student dialog spinner persisted because Vercel served an outdated bundle that lacked the latest loading-flag resets. Redeploying and hard-refreshing the browser resolved the issue. Version logs (`=== StudentDialog loaded version 1.1 ===`) remain temporarily to confirm deployments.
+
+Later we discovered the dialog could still hang when non-active tabs were not mounted. Conditional rendering prevented `PersonalTab`, `SessionsTab`, and `BillingTab` from firing their data-fetch effects, so the parent never cleared its loading flags. Always render all tabs and toggle visibility with CSS so their callbacks run and the spinner disappears.

@@ -30,11 +30,13 @@ export default function BillingTab({
   account,
   serviceMode,
   onBilling,
+  style,
 }: {
   abbr: string
   account: string
   serviceMode: boolean
   onBilling?: (b: Partial<{ balanceDue: number; voucherBalance: number }>) => void
+  style?: React.CSSProperties
 }) {
   console.log('Rendering BillingTab for', abbr)
   const [fields, setFields] = useState<any>({})
@@ -253,7 +255,7 @@ export default function BillingTab({
   }
 
   return (
-    <Box>
+    <Box style={style} sx={{ textAlign: 'left' }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
         Billing Information
       </Typography>

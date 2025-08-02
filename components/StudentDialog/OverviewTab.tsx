@@ -234,30 +234,27 @@ export default function OverviewTab({
                 )}
               </Box>
 
-              <Box sx={{ display: tab === 1 ? 'block' : 'none' }}>
-                <PersonalTab
-                  abbr={abbr}
-                  serviceMode={serviceMode}
-                  onPersonal={handlePersonal}
-                />
-              </Box>
+              <PersonalTab
+                abbr={abbr}
+                serviceMode={serviceMode}
+                onPersonal={handlePersonal}
+                style={{ display: tab === 1 ? 'block' : 'none' }}
+              />
 
-              <Box sx={{ display: tab === 2 ? 'block' : 'none' }}>
-                <SessionsTab
-                  abbr={abbr}
-                  account={account}
-                  onSummary={handleSummary}
-                />
-              </Box>
+              <SessionsTab
+                abbr={abbr}
+                account={account}
+                onSummary={handleSummary}
+                style={{ display: tab === 2 ? 'block' : 'none' }}
+              />
 
-              <Box sx={{ display: tab === 3 ? 'block' : 'none' }}>
-                <BillingTab
-                  abbr={abbr}
-                  account={account}
-                  serviceMode={serviceMode}
-                  onBilling={handleBilling}
-                />
-              </Box>
+              <BillingTab
+                abbr={abbr}
+                account={account}
+                serviceMode={serviceMode}
+                onBilling={handleBilling}
+                style={{ display: tab === 3 ? 'block' : 'none' }}
+              />
             </Box>
 
             <Tabs

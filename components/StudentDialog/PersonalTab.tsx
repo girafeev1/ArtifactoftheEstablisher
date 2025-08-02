@@ -25,10 +25,12 @@ export default function PersonalTab({
   abbr,
   serviceMode,
   onPersonal,
+  style,
 }: {
   abbr: string
   serviceMode: boolean
   onPersonal?: (p: Partial<{ firstName: string; lastName: string; sex: string; birthDate: string }>) => void
+  style?: React.CSSProperties
 }) {
   console.log('Rendering PersonalTab for', abbr)
   const [fields, setFields] = useState<any>({
@@ -315,7 +317,7 @@ export default function PersonalTab({
   }
 
   return (
-    <Box>
+    <Box style={style} sx={{ textAlign: 'left' }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
         Personal Information
       </Typography>
