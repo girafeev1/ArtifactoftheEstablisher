@@ -321,76 +321,95 @@ export default function PersonalTab({
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
         Personal Information
       </Typography>
-      {['firstName', 'lastName'].map((k) => (
-        <Box key={k} mb={2}>
-          <Typography variant="subtitle2">{k === 'firstName' ? 'First Name' : 'Second Name'}</Typography>
-          {loading[k] ? (
+      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="subtitle2">First Name</Typography>
+          {loading.firstName ? (
             <Typography variant="h6">Loading…</Typography>
           ) : (
             <InlineEdit
-              value={fields[k]}
-              fieldPath={`Students/${abbr}/${k}`}
-              fieldKey={k}
+              value={fields.firstName}
+              fieldPath={`Students/${abbr}/firstName`}
+              fieldKey="firstName"
               editable
               serviceMode={serviceMode}
               type="text"
               onSaved={(v) => {
-                setFields((p: any) => ({ ...p, [k]: v }))
-                onPersonal?.({ [k]: v })
+                setFields((p: any) => ({ ...p, firstName: v }))
+                onPersonal?.({ firstName: v })
               }}
             />
           )}
         </Box>
-      ))}
-      <Box mb={2}>
-        <Typography variant="subtitle2">Gender</Typography>
-        {loading.sex ? (
-          <Typography variant="h6">Loading…</Typography>
-        ) : (
-          <InlineEdit
-            value={fields.sex}
-            fieldPath={`Students/${abbr}/sex`}
-            fieldKey="sex"
-            editable
-            serviceMode={serviceMode}
-            type="select"
-            options={['Male', 'Female', 'Other']}
-            onSaved={(v) => {
-              setFields((p: any) => ({ ...p, sex: v }))
-              onPersonal?.({ sex: v })
-            }}
-          />
-        )}
-      </Box>
-      <Box mb={2}>
-        <Typography variant="subtitle2">Age</Typography>
-        <Typography variant="h6">{age || '–'}</Typography>
-      </Box>
-      <Box mb={2}>
-        <Typography variant="subtitle2">Birth Date</Typography>
-        {loading.birthDate ? (
-          <Typography variant="h6">Loading…</Typography>
-        ) : (
-          <InlineEdit
-            value={fields.birthDate}
-            fieldPath={`Students/${abbr}/birthDate`}
-            fieldKey="birthDate"
-            editable
-            serviceMode={serviceMode}
-            type="date"
-            onSaved={(v) => {
-              setFields((p: any) => ({ ...p, birthDate: v }))
-              onPersonal?.({ birthDate: v })
-            }}
-          />
-        )}
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="subtitle2">Last Name</Typography>
+          {loading.lastName ? (
+            <Typography variant="h6">Loading…</Typography>
+          ) : (
+            <InlineEdit
+              value={fields.lastName}
+              fieldPath={`Students/${abbr}/lastName`}
+              fieldKey="lastName"
+              editable
+              serviceMode={serviceMode}
+              type="text"
+              onSaved={(v) => {
+                setFields((p: any) => ({ ...p, lastName: v }))
+                onPersonal?.({ lastName: v })
+              }}
+            />
+          )}
+        </Box>
       </Box>
 
-      <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-        ID no.
-      </Typography>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="subtitle2">Gender</Typography>
+          {loading.sex ? (
+            <Typography variant="h6">Loading…</Typography>
+          ) : (
+            <InlineEdit
+              value={fields.sex}
+              fieldPath={`Students/${abbr}/sex`}
+              fieldKey="sex"
+              editable
+              serviceMode={serviceMode}
+              type="select"
+              options={['Male', 'Female', 'Other']}
+              onSaved={(v) => {
+                setFields((p: any) => ({ ...p, sex: v }))
+                onPersonal?.({ sex: v })
+              }}
+            />
+          )}
+        </Box>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="subtitle2">Age</Typography>
+          <Typography variant="h6">{age || '–'}</Typography>
+        </Box>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="subtitle2">Birth Date</Typography>
+          {loading.birthDate ? (
+            <Typography variant="h6">Loading…</Typography>
+          ) : (
+            <InlineEdit
+              value={fields.birthDate}
+              fieldPath={`Students/${abbr}/birthDate`}
+              fieldKey="birthDate"
+              editable
+              serviceMode={serviceMode}
+              type="date"
+              onSaved={(v) => {
+                setFields((p: any) => ({ ...p, birthDate: v }))
+                onPersonal?.({ birthDate: v })
+              }}
+            />
+          )}
+        </Box>
+      </Box>
+
       <Box mb={2}>
-        <Typography variant="subtitle2">HKID No.</Typography>
+        <Typography variant="subtitle2">ID No.</Typography>
         {loading.hkid ? (
           <Typography variant="h6">Loading…</Typography>
         ) : editingHKID ? (
