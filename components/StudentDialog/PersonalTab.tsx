@@ -311,8 +311,7 @@ export default function PersonalTab({
 
   const displayField = (v: any) => {
     if (v === '__ERROR__') return 'Error'
-    if (v === undefined) return '404 Not Found'
-    if (v === '') return 'N/A'
+    if (v === undefined || v === null || v === '') return 'N/A'
     return String(v)
   }
 
@@ -321,8 +320,8 @@ export default function PersonalTab({
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
         Personal Information
       </Typography>
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        <Box sx={{ flex: 1 }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ width: 260 }}>
           <Typography variant="subtitle2">First Name</Typography>
           {loading.firstName ? (
             <Typography variant="h6">Loading…</Typography>
@@ -341,7 +340,7 @@ export default function PersonalTab({
             />
           )}
         </Box>
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ width: 260 }}>
           <Typography variant="subtitle2">Last Name</Typography>
           {loading.lastName ? (
             <Typography variant="h6">Loading…</Typography>
@@ -362,8 +361,8 @@ export default function PersonalTab({
         </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        <Box sx={{ flex: 1 }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ width: 160 }}>
           <Typography variant="subtitle2">Gender</Typography>
           {loading.sex ? (
             <Typography variant="h6">Loading…</Typography>
@@ -383,11 +382,11 @@ export default function PersonalTab({
             />
           )}
         </Box>
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ width: 160 }}>
           <Typography variant="subtitle2">Age</Typography>
           <Typography variant="h6">{age || '–'}</Typography>
         </Box>
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ width: 200 }}>
           <Typography variant="subtitle2">Birth Date</Typography>
           {loading.birthDate ? (
             <Typography variant="h6">Loading…</Typography>
@@ -408,7 +407,7 @@ export default function PersonalTab({
         </Box>
       </Box>
 
-      <Box mb={2}>
+      <Box mb={2} sx={{ width: 260 }}>
         <Typography variant="subtitle2">ID No.</Typography>
         {loading.hkid ? (
           <Typography variant="h6">Loading…</Typography>
@@ -442,7 +441,7 @@ export default function PersonalTab({
       </Typography>
 
       {/* Contact Number */}
-      <Box mb={2}>
+      <Box mb={2} sx={{ width: 260 }}>
         <Typography variant="subtitle2">Contact Number</Typography>
         {loading.contactNumber ? (
           <Typography variant="h6">Loading…</Typography>
@@ -489,7 +488,7 @@ export default function PersonalTab({
           >
             {fields.contactNumber.countryCode === undefined &&
             fields.contactNumber.phoneNumber === undefined
-              ? '404 Not Found'
+              ? 'N/A'
               : `+${displayField(fields.contactNumber.countryCode)} ${displayField(
                   fields.contactNumber.phoneNumber,
                 )}`}
@@ -498,7 +497,7 @@ export default function PersonalTab({
       </Box>
 
       {/* Email Address */}
-      <Box mb={2}>
+      <Box mb={2} sx={{ width: 260 }}>
         <Typography variant="subtitle2">Email Address</Typography>
         {loading.emailAddress ? (
           <Typography variant="h6">Loading…</Typography>
@@ -538,7 +537,7 @@ export default function PersonalTab({
       </Box>
 
       {/* Contact Address */}
-      <Box mb={2}>
+      <Box mb={2} sx={{ width: 260 }}>
         <Typography variant="subtitle2">Contact Address</Typography>
         {loading.address ? (
           <Typography variant="h6">Loading…</Typography>

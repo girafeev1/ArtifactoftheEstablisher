@@ -56,6 +56,7 @@ export default function OverviewTab({
   console.log('OverviewTab rendered for', abbr)
   const [tab, setTab] = useState(0)
   const [title, setTitle] = useState(account)
+  const [actions, setActions] = useState<React.ReactNode | null>(null)
 
   // personal summary streamed from PersonalTab
   const [personal, setPersonal] = useState<any>({})
@@ -116,6 +117,7 @@ export default function OverviewTab({
       setOverviewLoading(true)
       setTab(0)
       setTitle(account)
+      setActions(null)
     }
   }, [open])
 
@@ -129,8 +131,7 @@ export default function OverviewTab({
 
   const displayField = (v: any) => {
     if (v === '__ERROR__') return 'Error'
-    if (v === undefined) return '404 Not Found'
-    if (v === '') return 'N/A'
+    if (v === undefined || v === null || v === '') return 'N/A'
     return String(v)
   }
 
@@ -142,7 +143,7 @@ export default function OverviewTab({
   if (!open) return null
   return (
     <StudentDialogErrorBoundary>
-      <FloatingWindow onClose={onClose} title={title}>
+      <FloatingWindow onClose={onClose} title={title} actions={actions}>
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', maxHeight: '100%', maxWidth: '100%', overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', flexGrow: 1, position: 'relative', alignItems: 'flex-start', maxHeight: '100%', maxWidth: '100%' }}>
             {loading && (
@@ -186,9 +187,7 @@ export default function OverviewTab({
                         const first = displayField(personal.firstName)
                         const last = displayField(personal.lastName)
                         const both = `${first} ${last}`.trim()
-                        return both === '404 Not Found 404 Not Found'
-                          ? '404 Not Found'
-                          : both
+                        return both === 'N/A N/A' ? 'N/A' : both
                       })()}
                 </Typography>
 
@@ -256,6 +255,7 @@ export default function OverviewTab({
                 onSummary={handleSummary}
                 onTitle={setTitle}
                 onClose={onClose}
+                onActions={setActions}
                 style={{ display: tab === 2 ? 'block' : 'none' }}
               />
 

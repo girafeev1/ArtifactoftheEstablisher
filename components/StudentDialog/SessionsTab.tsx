@@ -21,7 +21,9 @@ import {
   Select,
   MenuItem,
   Button,
+  IconButton,
 } from '@mui/material'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
 import { collection, getDocs, query, where, orderBy, doc, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
@@ -58,6 +60,7 @@ export default function SessionsTab({
   onSummary,
   onTitle,
   onClose,
+  onActions,
   style,
 }: {
   abbr: string
@@ -65,6 +68,7 @@ export default function SessionsTab({
   onSummary?: (s: { jointDate: string; lastSession: string; totalSessions: number }) => void
   onTitle?: (t: string) => void
   onClose?: () => void
+  onActions?: (a: React.ReactNode | null) => void
   style?: React.CSSProperties
 }) {
   console.log('Rendering SessionsTab for', abbr)
@@ -115,7 +119,7 @@ export default function SessionsTab({
             history: histSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
             rateDocs: rateSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
           }
-        })
+  })
 
         const [baseRateSnap, paymentSnap, sessionRows] = await Promise.all([
           getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
@@ -170,8 +174,8 @@ export default function SessionsTab({
               console.warn(`Session ${id} has no appointment history`)
               return {
                 id,
-                sessionType: data.sessionType ?? '404/Not Found',
-                billingType: data.billingType ?? '404/Not Found',
+                sessionType: data.sessionType ?? 'N/A',
+                billingType: data.billingType ?? 'N/A',
                 date: 'No history',
                 time: '-',
                 duration: '-',
@@ -241,8 +245,8 @@ export default function SessionsTab({
             const rateCharged = latestRate != null ? Number(latestRate) : base
             return {
               id,
-              sessionType: data.sessionType ?? '404/Not Found',
-              billingType: data.billingType ?? '404/Not Found',
+              sessionType: data.sessionType ?? 'N/A',
+              billingType: data.billingType ?? 'N/A',
               date,
               time,
               duration,
@@ -305,6 +309,10 @@ export default function SessionsTab({
       cancelled = true
     }
   }, [abbr, account, onSummary])
+
+  useEffect(() => {
+    if (!detail) onActions?.(null)
+  }, [detail])
   if (loading) {
     return <CircularProgress />
   }
@@ -370,7 +378,7 @@ export default function SessionsTab({
             </Box>
           )}
 
-          <Table size="small" sx={{ tableLayout: 'fixed' }}>
+          <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
             <TableHead>
               <TableRow>
                 {allColumns
@@ -378,7 +386,7 @@ export default function SessionsTab({
                   .map((c) => (
                     <TableCell
                       key={c.key}
-                      sx={{ typography: 'body2', fontWeight: 'normal', width: c.width }}
+                      sx={{ typography: 'body2', fontWeight: 'normal', width: c.width, minWidth: c.width }}
                     >
                       {c.label}
                     </TableCell>
@@ -399,32 +407,50 @@ export default function SessionsTab({
                     hover
                     onClick={() => {
                       setDetail(s)
-                      onTitle?.(`${account} - ${s.id} | ${s.date} ${s.time}`)
+                      const idx = sessions.findIndex((r) => r.id === s.id)
+                      const num = String(idx + 1).padStart(3, '0')
+                      onTitle?.(
+                        `${account} - Session #${num} | ${s.date} ${s.time}`,
+                      )
+                      onActions?.(
+                        <IconButton
+                          onClick={() => {
+                            setPopped({ ...s, number: num })
+                            setDetail(null)
+                            onTitle?.(account)
+                            onActions?.(null)
+                          }}
+                          aria-label="detach session"
+                          sx={{ mr: 1 }}
+                        >
+                          <OpenInNewIcon />
+                        </IconButton>,
+                      )
                     }}
                     sx={{ cursor: 'pointer' }}
                   >
                     {visibleCols.includes('date') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('date') }}>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('date'), minWidth: colWidth('date') }}>
                         {s.date}
                       </TableCell>
                     )}
                     {visibleCols.includes('time') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('time') }}>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('time'), minWidth: colWidth('time') }}>
                         {s.time}
                       </TableCell>
                     )}
                     {visibleCols.includes('duration') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('duration') }}>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('duration'), minWidth: colWidth('duration') }}>
                         {s.duration}
                       </TableCell>
                     )}
                     {visibleCols.includes('sessionType') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('sessionType') }}>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('sessionType'), minWidth: colWidth('sessionType') }}>
                         {s.sessionType}
                       </TableCell>
                     )}
                     {visibleCols.includes('billingType') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('billingType') }}>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('billingType'), minWidth: colWidth('billingType') }}>
                         {s.billingType}
                       </TableCell>
                     )}
@@ -471,21 +497,16 @@ export default function SessionsTab({
           onBack={() => {
             setDetail(null)
             onTitle?.(account)
+            onActions?.(null)
           }}
-          onDetach={() => {
-            setPopped(detail)
-            setDetail(null)
-            onTitle?.(account)
-          }}
-          onClose={onClose}
         />
       )}
       {popped && (
         <FloatingWindow
-          title={`${account} - ${popped.id} | ${popped.date} ${popped.time}`}
+          title={`${account} - Session #${popped.number} | ${popped.date} ${popped.time}`}
           onClose={() => setPopped(null)}
         >
-          <SessionDetail session={popped} onBack={() => setPopped(null)} detached />
+          <SessionDetail session={popped} onBack={() => setPopped(null)} />
         </FloatingWindow>
       )}
     </Box>

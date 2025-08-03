@@ -8,11 +8,12 @@ interface FloatingWindowProps {
   title?: string
   children: React.ReactNode
   onClose: () => void
+  actions?: React.ReactNode | null
 }
 
 // FloatingWindow renders detachable content using react-rnd. On small screens
 // (<600px) it falls back to a full-screen overlay without drag/resize.
-export default function FloatingWindow({ title, children, onClose }: FloatingWindowProps) {
+export default function FloatingWindow({ title, children, onClose, actions }: FloatingWindowProps) {
   const body =
     typeof document !== 'undefined' ? document.body : undefined
 
@@ -34,9 +35,12 @@ export default function FloatingWindow({ title, children, onClose }: FloatingWin
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1 }}>
             {title && <Typography variant="h6">{title}</Typography>}
-            <IconButton onClick={onClose} aria-label="close window">
-              <CloseIcon />
-            </IconButton>
+            <Box>
+              {actions}
+              <IconButton onClick={onClose} aria-label="close window">
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </Box>
           <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>{children}</Box>
         </Box>
@@ -72,9 +76,12 @@ export default function FloatingWindow({ title, children, onClose }: FloatingWin
             }}
           >
             {title && <Typography variant="h6">{title}</Typography>}
-            <IconButton onClick={onClose} aria-label="close window">
-              <CloseIcon />
-            </IconButton>
+            <Box>
+              {actions}
+              <IconButton onClick={onClose} aria-label="close window">
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </Box>
           <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>{children}</Box>
         </Box>

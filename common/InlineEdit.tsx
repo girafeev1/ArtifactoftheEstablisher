@@ -97,8 +97,7 @@ export default function InlineEdit({
 
   const display = () => {
     if (draft === '__ERROR__') return 'Error'
-    if (draft === undefined) return '404 Not Found'
-    if (draft === '' || draft === null)
+    if (draft === undefined || draft === null || draft === '')
       return type === 'number' || type === 'date' ? '-' : 'N/A'
     if (type === 'date') {
       const d = new Date(draft)
