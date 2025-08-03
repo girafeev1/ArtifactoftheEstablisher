@@ -1,5 +1,6 @@
 import React from 'react'
-import { Box, Typography, Button } from '@mui/material'
+import { Box, Typography, Button, IconButton } from '@mui/material'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
@@ -30,6 +31,15 @@ export default function SessionDetail({ session, onBack, onDetach, detached }: S
       <Typography variant="h6" gutterBottom>
         Session Detail
       </Typography>
+      {!detached && onDetach && (
+        <IconButton
+          onClick={onDetach}
+          aria-label="detach session"
+          sx={{ position: 'absolute', top: 8, right: 8 }}
+        >
+          <OpenInNewIcon />
+        </IconButton>
+      )}
       <Typography>Date: {formatDate(session.date)}</Typography>
       <Typography>Time: {session.time}</Typography>
       <Typography>Duration: {session.duration}</Typography>
@@ -50,16 +60,6 @@ export default function SessionDetail({ session, onBack, onDetach, detached }: S
           sx={{ position: 'absolute', bottom: 8, left: 8 }}
         >
           ← Back
-        </Button>
-      )}
-      {!detached && onDetach && (
-        <Button
-          variant="text"
-          onClick={onDetach}
-          aria-label="detach session"
-          sx={{ position: 'absolute', bottom: 8, right: 8 }}
-        >
-          Detach
         </Button>
       )}
     </Box>

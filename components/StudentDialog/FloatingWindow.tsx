@@ -22,8 +22,11 @@ export default function FloatingWindow({ title, children, onClose }: FloatingWin
           right: 0,
           bottom: 0,
           bgcolor: 'background.paper',
-          zIndex: 1300,
+          zIndex: 1500,
           p: 1,
+          maxHeight: '100%',
+          maxWidth: '100%',
+          overflow: 'auto',
         }}
       >
         <IconButton onClick={onClose} sx={{ float: 'right' }} aria-label="close window">
@@ -41,12 +44,26 @@ export default function FloatingWindow({ title, children, onClose }: FloatingWin
 
   return (
     <Rnd
-      default={{ x: 80, y: 80, width: 400, height: 300 }}
+      default={{ x: 80, y: 80, width: 900, height: 600 }}
       minWidth={300}
       minHeight={200}
       bounds="window"
+      style={{ zIndex: 1500 }}
     >
-      <Box sx={{ p: 1, bgcolor: 'background.paper', height: '100%', boxShadow: 3 }}>
+      <Box
+        sx={{
+          p: 1,
+          bgcolor: 'background.paper',
+          height: '100%',
+          width: '100%',
+          boxShadow: 3,
+          maxHeight: '100%',
+          maxWidth: '100%',
+          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <IconButton onClick={onClose} sx={{ float: 'right' }} aria-label="close window">
           <CloseIcon />
         </IconButton>

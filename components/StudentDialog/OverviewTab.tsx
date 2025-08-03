@@ -143,8 +143,8 @@ export default function OverviewTab({
   return (
     <StudentDialogErrorBoundary>
       <FloatingWindow onClose={onClose} title={title}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
-          <Box sx={{ display: 'flex', flexGrow: 1, position: 'relative' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', maxHeight: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+          <Box sx={{ display: 'flex', flexGrow: 1, position: 'relative', alignItems: 'flex-start', maxHeight: '100%', maxWidth: '100%' }}>
             {loading && (
               <Box
                 sx={{
@@ -165,9 +165,11 @@ export default function OverviewTab({
               sx={{
                 flexGrow: 1,
                 pr: 3,
-                overflowY: 'auto',
+                overflow: 'auto',
                 textAlign: 'left',
                 display: loading ? 'none' : 'block',
+                maxHeight: '100%',
+                maxWidth: '100%',
               }}
             >
               <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
@@ -281,9 +283,6 @@ export default function OverviewTab({
                 <Tab key={l} label={l} sx={{ textAlign: 'right' }} />
               ))}
             </Tabs>
-          </Box>
-          <Box sx={{ textAlign: 'right', mt: 1 }}>
-            <Button onClick={onClose}>Close</Button>
           </Box>
         </Box>
       </FloatingWindow>

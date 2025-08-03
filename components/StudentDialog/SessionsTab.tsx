@@ -306,7 +306,16 @@ export default function SessionsTab({
     return <CircularProgress />
   }
   return (
-    <Box sx={{ textAlign: 'left', height: '100%', position: 'relative' }} style={style}>
+    <Box
+      sx={{
+        textAlign: 'left',
+        position: 'relative',
+        maxWidth: '100%',
+        maxHeight: '100%',
+        overflow: 'auto',
+      }}
+      style={style}
+    >
       {!detail && (
         <>
           <Button

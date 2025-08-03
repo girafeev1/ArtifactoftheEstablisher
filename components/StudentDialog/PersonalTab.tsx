@@ -317,7 +317,7 @@ export default function PersonalTab({
   }
 
   return (
-    <Box style={style} sx={{ textAlign: 'left' }}>
+    <Box style={style} sx={{ textAlign: 'left', maxWidth: '100%', maxHeight: '100%', overflow: 'auto' }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
         Personal Information
       </Typography>

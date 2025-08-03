@@ -255,7 +255,7 @@ export default function BillingTab({
   }
 
   return (
-    <Box style={style} sx={{ textAlign: 'left' }}>
+    <Box style={style} sx={{ textAlign: 'left', maxWidth: '100%', maxHeight: '100%', overflow: 'auto' }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
         Billing Information
       </Typography>
