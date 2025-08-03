@@ -74,15 +74,16 @@ export default function SessionsTab({
   const [popped, setPopped] = useState<any | null>(null)
 
   const allColumns = [
-    { key: 'date', label: 'Date' },
-    { key: 'time', label: 'Time' },
-    { key: 'duration', label: 'Duration' },
-    { key: 'sessionType', label: 'Session Type' },
-    { key: 'billingType', label: 'Billing Type' },
-    { key: 'baseRate', label: 'Base Rate' },
-    { key: 'rateCharged', label: 'Rate Charged' },
-    { key: 'paymentStatus', label: 'Payment Status' },
+    { key: 'date', label: 'Date', width: 110 },
+    { key: 'time', label: 'Time', width: 100 },
+    { key: 'duration', label: 'Duration', width: 110 },
+    { key: 'sessionType', label: 'Session Type', width: 150 },
+    { key: 'billingType', label: 'Billing Type', width: 150 },
+    { key: 'baseRate', label: 'Base Rate', width: 140 },
+    { key: 'rateCharged', label: 'Rate Charged', width: 140 },
+    { key: 'paymentStatus', label: 'Payment Status', width: 150 },
   ]
+  const colWidth = (key: string) => allColumns.find((c) => c.key === key)?.width
   const defaultCols = ['date', 'time', 'sessionType', 'rateCharged', 'paymentStatus']
   const [visibleCols, setVisibleCols] = useState<string[]>(defaultCols)
   const [period, setPeriod] = useState<'30' | '90' | 'all'>('all')
@@ -369,13 +370,16 @@ export default function SessionsTab({
             </Box>
           )}
 
-          <Table size="small">
+          <Table size="small" sx={{ tableLayout: 'fixed' }}>
             <TableHead>
               <TableRow>
                 {allColumns
                   .filter((c) => visibleCols.includes(c.key))
                   .map((c) => (
-                    <TableCell key={c.key} sx={{ typography: 'body2', fontWeight: 'normal' }}>
+                    <TableCell
+                      key={c.key}
+                      sx={{ typography: 'body2', fontWeight: 'normal', width: c.width }}
+                    >
                       {c.label}
                     </TableCell>
                   ))}
@@ -400,32 +404,44 @@ export default function SessionsTab({
                     sx={{ cursor: 'pointer' }}
                   >
                     {visibleCols.includes('date') && (
-                      <TableCell sx={{ typography: 'body2' }}>{s.date}</TableCell>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('date') }}>
+                        {s.date}
+                      </TableCell>
                     )}
                     {visibleCols.includes('time') && (
-                      <TableCell sx={{ typography: 'body2' }}>{s.time}</TableCell>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('time') }}>
+                        {s.time}
+                      </TableCell>
                     )}
                     {visibleCols.includes('duration') && (
-                      <TableCell sx={{ typography: 'body2' }}>{s.duration}</TableCell>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('duration') }}>
+                        {s.duration}
+                      </TableCell>
                     )}
                     {visibleCols.includes('sessionType') && (
-                      <TableCell sx={{ typography: 'body2' }}>{s.sessionType}</TableCell>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('sessionType') }}>
+                        {s.sessionType}
+                      </TableCell>
                     )}
                     {visibleCols.includes('billingType') && (
-                      <TableCell sx={{ typography: 'body2' }}>{s.billingType}</TableCell>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('billingType') }}>
+                        {s.billingType}
+                      </TableCell>
                     )}
                     {visibleCols.includes('baseRate') && (
-                      <TableCell sx={{ typography: 'body2' }}>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('baseRate') }}>
                         {s.baseRate !== '-' ? formatCurrency(Number(s.baseRate)) : '-'}
                       </TableCell>
                     )}
                     {visibleCols.includes('rateCharged') && (
-                      <TableCell sx={{ typography: 'body2' }}>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('rateCharged') }}>
                         {s.rateCharged !== '-' ? formatCurrency(Number(s.rateCharged)) : '-'}
                       </TableCell>
                     )}
                     {visibleCols.includes('paymentStatus') && (
-                      <TableCell sx={{ typography: 'body2' }}>{s.paymentStatus}</TableCell>
+                      <TableCell sx={{ typography: 'body2', width: colWidth('paymentStatus') }}>
+                        {s.paymentStatus}
+                      </TableCell>
                     )}
                   </TableRow>
                 ))}

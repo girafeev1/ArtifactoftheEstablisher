@@ -29,54 +29,60 @@ interface SessionDetailProps {
 // read-only fields for now.
 export default function SessionDetail({ session, onBack, onDetach, onClose, detached }: SessionDetailProps) {
   return (
-    <Box sx={{ p: 2, width: '100%', height: '100%', position: 'relative' }}>
-      <Box sx={{ height: '100%', overflow: 'auto', pb: '56px' }}>
-        <Typography variant="h6" gutterBottom>
-          Session Detail
-        </Typography>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {!detached && (
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            p: 1,
+            borderBottom: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <Typography variant="h6">Session Detail</Typography>
+          <Box>
+            {onDetach && (
+              <IconButton onClick={onDetach} aria-label="detach session" sx={{ mr: 1 }}>
+                <OpenInNewIcon />
+              </IconButton>
+            )}
+            {onClose && (
+              <IconButton onClick={onClose} aria-label="close dialog">
+                <CloseIcon />
+              </IconButton>
+            )}
+          </Box>
+        </Box>
+      )}
+
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
         <Typography>Date: {formatDate(session.date)}</Typography>
         <Typography>Time: {session.time}</Typography>
         <Typography>Duration: {session.duration}</Typography>
         <Typography>
-          Base Rate{' '}
-          {session.baseRate !== '-' ? formatCurrency(Number(session.baseRate)) : '-'}
+          Base Rate {session.baseRate !== '-' ? formatCurrency(Number(session.baseRate)) : '-'}
         </Typography>
         <Typography>
-          Rate Charged{' '}
-          {session.rateCharged !== '-' ? formatCurrency(Number(session.rateCharged)) : '-'}
+          Rate Charged {session.rateCharged !== '-' ? formatCurrency(Number(session.rateCharged)) : '-'}
         </Typography>
         <Typography>Payment Status: {session.paymentStatus}</Typography>
       </Box>
+
       <Box
         sx={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
           borderTop: 1,
           borderColor: 'divider',
           p: 1,
+          display: 'flex',
+          justifyContent: 'flex-start',
           bgcolor: 'background.paper',
         }}
       >
         <Button variant="text" onClick={onBack} aria-label="back to sessions">
           ← Back
         </Button>
-        <Box>
-          {!detached && onDetach && (
-            <IconButton onClick={onDetach} aria-label="detach session" sx={{ mr: 1 }}>
-              <OpenInNewIcon />
-            </IconButton>
-          )}
-          {onClose && (
-            <IconButton onClick={onClose} aria-label="close dialog">
-              <CloseIcon />
-            </IconButton>
-          )}
-        </Box>
       </Box>
     </Box>
   )
