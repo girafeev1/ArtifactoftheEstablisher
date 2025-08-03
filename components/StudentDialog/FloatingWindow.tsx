@@ -69,7 +69,6 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
         >
           <Box
             className={HANDLE_CLASS}
-            onMouseDown={(e) => e.stopPropagation()}
             sx={{
               display: 'flex',
               justifyContent: 'space-between',

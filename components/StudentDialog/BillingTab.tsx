@@ -50,10 +50,14 @@ export default function BillingTab({
     voucherBalance: true,
   })
 
-  const loadLatest = async (sub: string, field: string) => {
+  const loadLatest = async (sub: string, field: string, orderField = 'timestamp') => {
     try {
       const snap = await getDocs(
-        query(collection(db, 'Students', abbr, sub), orderBy('timestamp', 'desc'), limit(1)),
+        query(
+          collection(db, 'Students', abbr, sub),
+          orderBy(orderField, 'desc'),
+          limit(1),
+        ),
       )
       return snap.empty ? undefined : (snap.docs[0].data() as any)[field]
     } catch (e) {
@@ -76,12 +80,18 @@ export default function BillingTab({
       ]
       for (const f of simple) {
         try {
-          let val: any = await loadLatest(
-            f === 'defaultBillingType' ? 'billingType' : f,
-            f === 'baseRate' ? 'rate' : f,
-          )
-          if (f === 'baseRate' && (val === undefined || val === '__ERROR__')) {
-            val = await loadLatest('baseRate', 'baseRate')
+          let val: any
+          if (f === 'baseRate') {
+            val = await loadLatest('BaseRateHistory', 'rate')
+            if (val === undefined || val === '__ERROR__') {
+              val = await loadLatest('BaseRate', 'baseRate')
+            }
+          } else if (f === 'lastPaymentDate') {
+            val = await loadLatest('Payments', 'paymentMade', 'paymentMade')
+          } else if (f === 'defaultBillingType') {
+            val = await loadLatest('billingType', f)
+          } else {
+            val = await loadLatest(f, f)
           }
           if (cancelled) return
           setFields((b: any) => ({ ...b, [f]: val }))
@@ -248,12 +258,16 @@ export default function BillingTab({
           <Typography variant="h6">
             {v != null && !isNaN(Number(v)) ? formatCurrency(Number(v)) : '-'}
           </Typography>
+        ) : k === 'lastPaymentDate' ? (
+          <Typography variant="h6">
+            {v ? (v.toDate ? v.toDate().toLocaleDateString() : new Date(v).toLocaleDateString()) : '-'}
+          </Typography>
         ) : (
           <InlineEdit
             value={v}
             fieldPath={path}
             fieldKey={k}
-            editable={!['balanceDue', 'voucherBalance'].includes(k)}
+            editable={!['balanceDue', 'voucherBalance', 'lastPaymentDate'].includes(k)}
             serviceMode={serviceMode}
             type={k.includes('Date') ? 'date' : 'text'}
             onSaved={(val) => {

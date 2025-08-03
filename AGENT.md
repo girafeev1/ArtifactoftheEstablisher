@@ -15,3 +15,5 @@ Another hang arose when the initial spinner replaced the entire tab layout. With
 Continuous reloads later surfaced when `OverviewTab` passed inline callbacks to the child tabs. Each render created new `onPersonal`, `onBilling`, and `onSummary` functions, triggering the children’s `useEffect` hooks repeatedly and re-fetching data in a loop. Memoizing these handlers with `useCallback` stabilised their references and stopped the dialog from constantly refreshing.
 
 The most recent reload loop traced to defining the error boundary inside `OverviewTab`. Because the boundary class was re-created on every render, React unmounted and remounted the entire dialog tree, resetting all loading flags and re-triggering data fetches. Moving the boundary to the module scope keeps its identity stable and prevents the dialog from restarting after each render.
+
+Floating windows later became immovable when a `onMouseDown` handler on the header stopped drag events from reaching `react-rnd`. Removing that handler restored independent window movement.
