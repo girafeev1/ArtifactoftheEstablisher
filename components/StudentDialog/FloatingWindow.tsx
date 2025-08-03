@@ -23,21 +23,17 @@ export default function FloatingWindow({ title, children, onClose }: FloatingWin
           bottom: 0,
           bgcolor: 'background.paper',
           zIndex: 1500,
-          p: 1,
-          maxHeight: '100%',
-          maxWidth: '100%',
-          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <IconButton onClick={onClose} sx={{ float: 'right' }} aria-label="close window">
-          <CloseIcon />
-        </IconButton>
-        {title && (
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            {title}
-          </Typography>
-        )}
-        {children}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1 }}>
+          {title && <Typography variant="h6">{title}</Typography>}
+          <IconButton onClick={onClose} aria-label="close window">
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>{children}</Box>
       </Box>
     )
   }
@@ -52,27 +48,30 @@ export default function FloatingWindow({ title, children, onClose }: FloatingWin
     >
       <Box
         sx={{
-          p: 1,
           bgcolor: 'background.paper',
           height: '100%',
           width: '100%',
           boxShadow: 3,
-          maxHeight: '100%',
-          maxWidth: '100%',
-          overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',
         }}
       >
-        <IconButton onClick={onClose} sx={{ float: 'right' }} aria-label="close window">
-          <CloseIcon />
-        </IconButton>
-        {title && (
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            {title}
-          </Typography>
-        )}
-        {children}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            p: 1,
+            borderBottom: 1,
+            borderColor: 'divider',
+          }}
+        >
+          {title && <Typography variant="h6">{title}</Typography>}
+          <IconButton onClick={onClose} aria-label="close window">
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>{children}</Box>
       </Box>
     </Rnd>
   )

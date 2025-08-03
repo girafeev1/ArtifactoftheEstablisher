@@ -255,6 +255,7 @@ export default function OverviewTab({
                 account={account}
                 onSummary={handleSummary}
                 onTitle={setTitle}
+                onClose={onClose}
                 style={{ display: tab === 2 ? 'block' : 'none' }}
               />
 

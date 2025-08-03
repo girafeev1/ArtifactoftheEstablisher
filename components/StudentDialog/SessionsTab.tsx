@@ -57,12 +57,14 @@ export default function SessionsTab({
   account,
   onSummary,
   onTitle,
+  onClose,
   style,
 }: {
   abbr: string
   account: string
   onSummary?: (s: { jointDate: string; lastSession: string; totalSessions: number }) => void
   onTitle?: (t: string) => void
+  onClose?: () => void
   style?: React.CSSProperties
 }) {
   console.log('Rendering SessionsTab for', abbr)
@@ -459,6 +461,7 @@ export default function SessionsTab({
             setDetail(null)
             onTitle?.(account)
           }}
+          onClose={onClose}
         />
       )}
       {popped && (
