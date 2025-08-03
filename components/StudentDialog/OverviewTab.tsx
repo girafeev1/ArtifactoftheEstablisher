@@ -25,6 +25,29 @@ import SessionsTab from './SessionsTab'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
+class StudentDialogErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('StudentDialog render error', error, info)
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <Box p={2}>
+          <Typography color="error">Student dialog failed to load.</Typography>
+        </Box>
+      )
+    }
+    return this.props.children
+  }
+}
+
 export interface OverviewTabProps {
   abbr: string
   account: string
@@ -123,26 +146,6 @@ export default function OverviewTab({
     Object.values(personalLoading).some((v) => v) ||
     Object.values(billingLoading).some((v) => v) ||
     overviewLoading
-
-  class StudentDialogErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
-    state = { error: null as Error | null }
-    static getDerivedStateFromError(error: Error) {
-      return { error }
-    }
-    componentDidCatch(error: Error, info: React.ErrorInfo) {
-      console.error('StudentDialog render error', error, info)
-    }
-    render() {
-      if (this.state.error) {
-        return (
-          <Box p={2}>
-            <Typography color="error">Student dialog failed to load.</Typography>
-          </Box>
-        )
-      }
-      return this.props.children
-    }
-  }
 
   return (
     <StudentDialogErrorBoundary>
