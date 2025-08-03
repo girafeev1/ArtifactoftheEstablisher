@@ -1,5 +1,17 @@
 # Agent Guidelines
 
-Any empty strings or missing data fields retrieved from Firestore should never cause the web app to become unresponsive. Instead these fields must be displayed as either **Error** (when retrieval fails) or **404/Not Found** if not yet set. When a numeric or date value is unavailable simply display a dash (`-`).
+Any empty strings or missing data fields retrieved from Firestore should never cause the web app to become unresponsive. Empty string values must render as **N/A**, missing values as **404/Not Found**, and retrieval failures as **Error**. When a numeric or date value is unavailable simply display a dash (`-`).
 
 Date fields must be validated before calling `.toLocaleDateString()` or similar methods. Invalid or empty values should be ignored, and the UI should show a placeholder rather than throwing errors or becoming stuck.
+
+## Debug Notes
+
+The student dialog spinner persisted because Vercel served an outdated bundle that lacked the latest loading-flag resets. Redeploying and hard-refreshing the browser resolved the issue. Version logs (`=== StudentDialog loaded version 1.1 ===`) remain temporarily to confirm deployments.
+
+Later we discovered the dialog could still hang when non-active tabs were not mounted. Conditional rendering prevented `PersonalTab`, `SessionsTab`, and `BillingTab` from firing their data-fetch effects, so the parent never cleared its loading flags. Always render all tabs and toggle visibility with CSS so their callbacks run and the spinner disappears.
+
+Another hang arose when the initial spinner replaced the entire tab layout. With the tabs unrendered, their effects never ran and the loading flags stayed `true`. The dialog now overlays the spinner while keeping all tabs mounted so those callbacks always clear the flags.
+
+Continuous reloads later surfaced when `OverviewTab` passed inline callbacks to the child tabs. Each render created new `onPersonal`, `onBilling`, and `onSummary` functions, triggering the children’s `useEffect` hooks repeatedly and re-fetching data in a loop. Memoizing these handlers with `useCallback` stabilised their references and stopped the dialog from constantly refreshing.
+
+The most recent reload loop traced to defining the error boundary inside `OverviewTab`. Because the boundary class was re-created on every render, React unmounted and remounted the entire dialog tree, resetting all loading flags and re-triggering data fetches. Moving the boundary to the module scope keeps its identity stable and prevents the dialog from restarting after each render.

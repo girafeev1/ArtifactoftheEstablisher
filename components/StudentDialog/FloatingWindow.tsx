@@ -1,6 +1,6 @@
 import React from 'react'
 import { Rnd } from 'react-rnd'
-import { Box, IconButton } from '@mui/material'
+import { Box, IconButton, Typography } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 
 interface FloatingWindowProps {
@@ -29,6 +29,11 @@ export default function FloatingWindow({ title, children, onClose }: FloatingWin
         <IconButton onClick={onClose} sx={{ float: 'right' }} aria-label="close window">
           <CloseIcon />
         </IconButton>
+        {title && (
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            {title}
+          </Typography>
+        )}
         {children}
       </Box>
     )
@@ -45,6 +50,11 @@ export default function FloatingWindow({ title, children, onClose }: FloatingWin
         <IconButton onClick={onClose} sx={{ float: 'right' }} aria-label="close window">
           <CloseIcon />
         </IconButton>
+        {title && (
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            {title}
+          </Typography>
+        )}
         {children}
       </Box>
     </Rnd>
