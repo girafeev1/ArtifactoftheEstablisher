@@ -28,7 +28,6 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { collection, getDocs, query, where, orderBy, doc, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import SessionDetail from './SessionDetail'
-import FloatingWindow from './FloatingWindow'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -59,23 +58,22 @@ export default function SessionsTab({
   account,
   onSummary,
   onTitle,
-  onClose,
   onActions,
   style,
+  onPopDetail,
 }: {
   abbr: string
   account: string
   onSummary?: (s: { jointDate: string; lastSession: string; totalSessions: number }) => void
   onTitle?: (t: string) => void
-  onClose?: () => void
   onActions?: (a: React.ReactNode | null) => void
   style?: React.CSSProperties
+  onPopDetail?: (s: any) => void
 }) {
   console.log('Rendering SessionsTab for', abbr)
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any | null>(null)
-  const [popped, setPopped] = useState<any | null>(null)
 
   const allColumns = [
     { key: 'date', label: 'Date', width: 110 },
@@ -121,8 +119,9 @@ export default function SessionsTab({
           }
   })
 
-        const [baseRateSnap, paymentSnap, sessionRows] = await Promise.all([
+        const [histSnap, altSnap, paymentSnap, sessionRows] = await Promise.all([
           getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
+          getDocs(collection(db, 'Students', abbr, 'BaseRate')),
           getDocs(
             query(
               collection(db, 'Students', abbr, 'Payments'),
@@ -132,11 +131,15 @@ export default function SessionsTab({
           Promise.all(rowPromises),
         ])
 
-        const baseRates = baseRateSnap.docs
-          .map((d) => ({
-            rate: (d.data() as any).rate,
-            ts: (d.data() as any).timestamp?.toDate?.() ?? new Date(0),
-          }))
+        const baseRateDocs = [...histSnap.docs, ...altSnap.docs]
+        const baseRates = baseRateDocs
+          .map((d) => {
+            const data = d.data() as any
+            return {
+              rate: data.rate ?? data.baseRate,
+              ts: data.timestamp?.toDate?.() ?? new Date(0),
+            }
+          })
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
         console.log('Base rate history:', baseRates)
 
@@ -414,8 +417,9 @@ export default function SessionsTab({
                       )
                       onActions?.(
                         <IconButton
-                          onClick={() => {
-                            setPopped({ ...s, number: num })
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onPopDetail?.({ ...s, number: num, account })
                             setDetail(null)
                             onTitle?.(account)
                             onActions?.(null)
@@ -500,14 +504,6 @@ export default function SessionsTab({
             onActions?.(null)
           }}
         />
-      )}
-      {popped && (
-        <FloatingWindow
-          title={`${account} - Session #${popped.number} | ${popped.date} ${popped.time}`}
-          onClose={() => setPopped(null)}
-        >
-          <SessionDetail session={popped} onBack={() => setPopped(null)} />
-        </FloatingWindow>
       )}
     </Box>
   )

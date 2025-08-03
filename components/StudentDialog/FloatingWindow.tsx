@@ -47,13 +47,15 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
       )
     }
 
+    const HANDLE_CLASS = 'floating-window-handle'
     return (
       <Rnd
-        default={{ x: 80, y: 80, width: 900, height: 600 }}
+        default={{ x: 120, y: 80, width: 900, height: 600 }}
         minWidth={300}
         minHeight={200}
         bounds="window"
         style={{ zIndex: 1500 }}
+        dragHandleClassName={HANDLE_CLASS}
       >
         <Box
           sx={{
@@ -66,6 +68,8 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
           }}
         >
           <Box
+            className={HANDLE_CLASS}
+            onMouseDown={(e) => e.stopPropagation()}
             sx={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -73,6 +77,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
               p: 1,
               borderBottom: 1,
               borderColor: 'divider',
+              cursor: 'move',
             }}
           >
             {title && <Typography variant="h6">{title}</Typography>}

@@ -76,10 +76,13 @@ export default function BillingTab({
       ]
       for (const f of simple) {
         try {
-          const val: any = await loadLatest(
+          let val: any = await loadLatest(
             f === 'defaultBillingType' ? 'billingType' : f,
             f === 'baseRate' ? 'rate' : f,
           )
+          if (f === 'baseRate' && (val === undefined || val === '__ERROR__')) {
+            val = await loadLatest('baseRate', 'baseRate')
+          }
           if (cancelled) return
           setFields((b: any) => ({ ...b, [f]: val }))
           setLoading((l: any) => {
@@ -128,18 +131,23 @@ export default function BillingTab({
           }
         })
 
-        const [baseRateSnap, paymentSnap, sessionRows] = await Promise.all([
-          getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
-          getDocs(query(collection(db, 'Students', abbr, 'Payments'), orderBy('paymentMade'))),
-          Promise.all(rowPromises),
-        ])
+          const [histSnap, altSnap, paymentSnap, sessionRows] = await Promise.all([
+            getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
+            getDocs(collection(db, 'Students', abbr, 'BaseRate')),
+            getDocs(query(collection(db, 'Students', abbr, 'Payments'), orderBy('paymentMade'))),
+            Promise.all(rowPromises),
+          ])
 
-        const baseRates = baseRateSnap.docs
-          .map((d) => ({
-            rate: (d.data() as any).rate,
-            ts: (d.data() as any).timestamp?.toDate?.() ?? new Date(0),
-          }))
-          .sort((a, b) => a.ts.getTime() - b.ts.getTime())
+          const baseRateDocs = [...histSnap.docs, ...altSnap.docs]
+          const baseRates = baseRateDocs
+            .map((d) => {
+              const data = d.data() as any
+              return {
+                rate: data.rate ?? data.baseRate,
+                ts: data.timestamp?.toDate?.() ?? new Date(0),
+              }
+            })
+            .sort((a, b) => a.ts.getTime() - b.ts.getTime())
 
         const parseDate = (v: any): Date | null => {
           if (!v) return null
@@ -235,6 +243,10 @@ export default function BillingTab({
         ) : k === 'baseRate' ? (
           <Typography variant="h6">
             {v != null && !isNaN(Number(v)) ? `${formatCurrency(Number(v))} / session` : '-'}
+          </Typography>
+        ) : ['balanceDue', 'voucherBalance'].includes(k) ? (
+          <Typography variant="h6">
+            {v != null && !isNaN(Number(v)) ? formatCurrency(Number(v)) : '-'}
           </Typography>
         ) : (
           <InlineEdit

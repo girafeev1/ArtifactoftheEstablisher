@@ -15,6 +15,9 @@ import SessionsTab from './SessionsTab'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+
 class StudentDialogErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { error: Error | null }
@@ -44,6 +47,7 @@ export interface OverviewTabProps {
   open: boolean
   onClose: () => void
   serviceMode: boolean
+  onPopDetail?: (s: any) => void
 }
 
 export default function OverviewTab({
@@ -52,6 +56,7 @@ export default function OverviewTab({
   open,
   onClose,
   serviceMode,
+  onPopDetail,
 }: OverviewTabProps) {
   console.log('OverviewTab rendered for', abbr)
   const [tab, setTab] = useState(0)
@@ -226,7 +231,7 @@ export default function OverviewTab({
                 ) : (
                   <Typography variant="h6">
                     {billing.balanceDue != null
-                      ? `$${(Number(billing.balanceDue) || 0).toFixed(2)}`
+                      ? formatCurrency(Number(billing.balanceDue) || 0)
                       : '-'}
                   </Typography>
                 )}
@@ -238,7 +243,11 @@ export default function OverviewTab({
                 {billingLoading.voucherBalance ? (
                   <Typography variant="h6">Loading…</Typography>
                 ) : (
-                  <Typography variant="h6">{billing.voucherBalance ?? '-'}</Typography>
+                  <Typography variant="h6">
+                    {billing.voucherBalance != null
+                      ? formatCurrency(Number(billing.voucherBalance) || 0)
+                      : '-'}
+                  </Typography>
                 )}
               </Box>
 
@@ -254,8 +263,8 @@ export default function OverviewTab({
                 account={account}
                 onSummary={handleSummary}
                 onTitle={setTitle}
-                onClose={onClose}
                 onActions={setActions}
+                onPopDetail={onPopDetail}
                 style={{ display: tab === 2 ? 'block' : 'none' }}
               />
 
