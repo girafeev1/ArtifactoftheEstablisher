@@ -139,141 +139,142 @@ export default function OverviewTab({
     <StudentDialogErrorBoundary>
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ textAlign: 'left' }}>{account}</DialogTitle>
-      <DialogContent sx={{ display: 'flex', height: '70vh' }}>
-        {loading ? (
+      <DialogContent sx={{ display: 'flex', height: '70vh', position: 'relative' }}>
+        {loading && (
           <Box
             sx={{
-              flexGrow: 1,
+              position: 'absolute',
+              inset: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              bgcolor: 'background.paper',
+              zIndex: 1,
             }}
           >
             <CircularProgress />
           </Box>
-        ) : (
-          <>
-            <Box
-              sx={{
-                flexGrow: 1,
-                pr: 3,
-                overflowY: 'auto',
-                textAlign: 'left',
-              }}
-            >
-              <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
-                <Typography variant="subtitle2">
-                  Legal Name{' '}
-                  {(personalLoading.firstName || personalLoading.lastName) && (
-                    <CircularProgress size={14} />
-                  )}
-                </Typography>
-                <Typography variant="h6">
-                  {(personalLoading.firstName || personalLoading.lastName)
-                    ? 'Loading…'
-                    : (() => {
-                        const first = displayField(personal.firstName)
-                        const last = displayField(personal.lastName)
-                        const both = `${first} ${last}`.trim()
-                        return both === '404 Not Found 404 Not Found'
-                          ? '404 Not Found'
-                          : both
-                      })()}
-                </Typography>
-
-                <Typography variant="subtitle2">
-                  Gender {personalLoading.sex && <CircularProgress size={14} />}
-                </Typography>
-                <Typography variant="h6">
-                  {personalLoading.sex
-                    ? 'Loading…'
-                    : displayField(personal.sex)}
-                </Typography>
-
-                <Typography variant="subtitle2">
-                  Joint Date {overviewLoading && <CircularProgress size={14} />}
-                </Typography>
-                {overviewLoading ? (
-                  <Typography variant="h6">Loading…</Typography>
-                ) : (
-                  <Typography variant="h6">{overview.joint || '–'}</Typography>
-                )}
-
-                <Typography variant="subtitle2">
-                  Total Sessions {overviewLoading && <CircularProgress size={14} />}
-                </Typography>
-                {overviewLoading ? (
-                  <Typography variant="h6">Loading…</Typography>
-                ) : (
-                  <Typography variant="h6">{overview.total ?? '–'}</Typography>
-                )}
-
-                <Typography variant="subtitle2">
-                  Balance Due {billingLoading.balanceDue && <CircularProgress size={14} />}
-                </Typography>
-                {billingLoading.balanceDue ? (
-                  <Typography variant="h6">Loading…</Typography>
-                ) : (
-                  <Typography variant="h6">
-                    {billing.balanceDue != null
-                      ? `$${(Number(billing.balanceDue) || 0).toFixed(2)}`
-                      : '-'}
-                  </Typography>
-                )}
-
-                <Typography variant="subtitle2">
-                  Session Voucher{' '}
-                  {billingLoading.voucherBalance && <CircularProgress size={14} />}
-                </Typography>
-                {billingLoading.voucherBalance ? (
-                  <Typography variant="h6">Loading…</Typography>
-                ) : (
-                  <Typography variant="h6">
-                    {billing.voucherBalance ?? '-'}
-                  </Typography>
-                )}
-              </Box>
-
-              <PersonalTab
-                abbr={abbr}
-                serviceMode={serviceMode}
-                onPersonal={handlePersonal}
-                style={{ display: tab === 1 ? 'block' : 'none' }}
-              />
-
-              <SessionsTab
-                abbr={abbr}
-                account={account}
-                onSummary={handleSummary}
-                style={{ display: tab === 2 ? 'block' : 'none' }}
-              />
-
-              <BillingTab
-                abbr={abbr}
-                account={account}
-                serviceMode={serviceMode}
-                onBilling={handleBilling}
-                style={{ display: tab === 3 ? 'block' : 'none' }}
-              />
-            </Box>
-
-            <Tabs
-              orientation="vertical"
-              value={tab}
-              onChange={(_, v) => setTab(v)}
-              sx={{
-                borderLeft: 1,
-                borderColor: 'divider',
-                minWidth: 140,
-                alignItems: 'flex-end',
-              }}
-            >
-              {['Overview', 'Personal', 'Sessions', 'Billing'].map((l) => (
-                <Tab key={l} label={l} sx={{ textAlign: 'right' }} />
-              ))}
-            </Tabs>
-          </>
         )}
+
+        <Box
+          sx={{
+            flexGrow: 1,
+            pr: 3,
+            overflowY: 'auto',
+            textAlign: 'left',
+            display: loading ? 'none' : 'block',
+          }}
+        >
+          <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
+            <Typography variant="subtitle2">
+              Legal Name{' '}
+              {(personalLoading.firstName || personalLoading.lastName) && (
+                <CircularProgress size={14} />
+              )}
+            </Typography>
+            <Typography variant="h6">
+              {(personalLoading.firstName || personalLoading.lastName)
+                ? 'Loading…'
+                : (() => {
+                    const first = displayField(personal.firstName)
+                    const last = displayField(personal.lastName)
+                    const both = `${first} ${last}`.trim()
+                    return both === '404 Not Found 404 Not Found'
+                      ? '404 Not Found'
+                      : both
+                  })()}
+            </Typography>
+
+            <Typography variant="subtitle2">
+              Gender {personalLoading.sex && <CircularProgress size={14} />}
+            </Typography>
+            <Typography variant="h6">
+              {personalLoading.sex
+                ? 'Loading…'
+                : displayField(personal.sex)}
+            </Typography>
+
+            <Typography variant="subtitle2">
+              Joint Date {overviewLoading && <CircularProgress size={14} />}
+            </Typography>
+            {overviewLoading ? (
+              <Typography variant="h6">Loading…</Typography>
+            ) : (
+              <Typography variant="h6">{overview.joint || '–'}</Typography>
+            )}
+
+            <Typography variant="subtitle2">
+              Total Sessions {overviewLoading && <CircularProgress size={14} />}
+            </Typography>
+            {overviewLoading ? (
+              <Typography variant="h6">Loading…</Typography>
+            ) : (
+              <Typography variant="h6">{overview.total ?? '–'}</Typography>
+            )}
+
+            <Typography variant="subtitle2">
+              Balance Due {billingLoading.balanceDue && <CircularProgress size={14} />}
+            </Typography>
+            {billingLoading.balanceDue ? (
+              <Typography variant="h6">Loading…</Typography>
+            ) : (
+              <Typography variant="h6">
+                {billing.balanceDue != null
+                  ? `$${(Number(billing.balanceDue) || 0).toFixed(2)}`
+                  : '-'}
+              </Typography>
+            )}
+
+            <Typography variant="subtitle2">
+              Session Voucher{' '}
+              {billingLoading.voucherBalance && <CircularProgress size={14} />}
+            </Typography>
+            {billingLoading.voucherBalance ? (
+              <Typography variant="h6">Loading…</Typography>
+            ) : (
+              <Typography variant="h6">{billing.voucherBalance ?? '-'}</Typography>
+            )}
+          </Box>
+
+          <PersonalTab
+            abbr={abbr}
+            serviceMode={serviceMode}
+            onPersonal={handlePersonal}
+            style={{ display: tab === 1 ? 'block' : 'none' }}
+          />
+
+          <SessionsTab
+            abbr={abbr}
+            account={account}
+            onSummary={handleSummary}
+            style={{ display: tab === 2 ? 'block' : 'none' }}
+          />
+
+          <BillingTab
+            abbr={abbr}
+            account={account}
+            serviceMode={serviceMode}
+            onBilling={handleBilling}
+            style={{ display: tab === 3 ? 'block' : 'none' }}
+          />
+        </Box>
+
+        <Tabs
+          orientation="vertical"
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          sx={{
+            borderLeft: 1,
+            borderColor: 'divider',
+            minWidth: 140,
+            alignItems: 'flex-end',
+            display: loading ? 'none' : 'flex',
+          }}
+        >
+          {['Overview', 'Personal', 'Sessions', 'Billing'].map((l) => (
+            <Tab key={l} label={l} sx={{ textAlign: 'right' }} />
+          ))}
+        </Tabs>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
