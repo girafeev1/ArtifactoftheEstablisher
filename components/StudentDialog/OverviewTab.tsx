@@ -1,6 +1,6 @@
 // components/StudentDialog/OverviewTab.tsx
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -62,24 +62,33 @@ export default function OverviewTab({
   const [overview, setOverview] = useState<any>({ joint: '', last: '', total: 0 })
   const [overviewLoading, setOverviewLoading] = useState(true)
 
-  const handlePersonal = (data: Partial<{ firstName: string; lastName: string; sex: string }>) => {
-    setPersonal((p: any) => ({ ...p, ...data }))
-    Object.keys(data).forEach((k) =>
-      setPersonalLoading((l: any) => ({ ...l, [k]: false }))
-    )
-  }
+  const handlePersonal = useCallback(
+    (data: Partial<{ firstName: string; lastName: string; sex: string }>) => {
+      setPersonal((p: any) => ({ ...p, ...data }))
+      Object.keys(data).forEach((k) =>
+        setPersonalLoading((l: any) => ({ ...l, [k]: false }))
+      )
+    },
+    [setPersonal, setPersonalLoading],
+  )
 
-  const handleBilling = (data: Partial<{ balanceDue: number; voucherBalance: number }>) => {
-    setBilling((b: any) => ({ ...b, ...data }))
-    Object.keys(data).forEach((k) =>
-      setBillingLoading((l: any) => ({ ...l, [k]: false }))
-    )
-  }
+  const handleBilling = useCallback(
+    (data: Partial<{ balanceDue: number; voucherBalance: number }>) => {
+      setBilling((b: any) => ({ ...b, ...data }))
+      Object.keys(data).forEach((k) =>
+        setBillingLoading((l: any) => ({ ...l, [k]: false }))
+      )
+    },
+    [setBilling, setBillingLoading],
+  )
 
-  const handleSummary = (s: { jointDate: string; lastSession: string; totalSessions: number }) => {
-    setOverview({ joint: s.jointDate, last: s.lastSession, total: s.totalSessions })
-    setOverviewLoading(false)
-  }
+  const handleSummary = useCallback(
+    (s: { jointDate: string; lastSession: string; totalSessions: number }) => {
+      setOverview({ joint: s.jointDate, last: s.lastSession, total: s.totalSessions })
+      setOverviewLoading(false)
+    },
+    [setOverview, setOverviewLoading],
+  )
 
   // reset loading states whenever dialog is opened
   useEffect(() => {

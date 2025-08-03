@@ -11,3 +11,5 @@ The student dialog spinner persisted because Vercel served an outdated bundle th
 Later we discovered the dialog could still hang when non-active tabs were not mounted. Conditional rendering prevented `PersonalTab`, `SessionsTab`, and `BillingTab` from firing their data-fetch effects, so the parent never cleared its loading flags. Always render all tabs and toggle visibility with CSS so their callbacks run and the spinner disappears.
 
 Another hang arose when the initial spinner replaced the entire tab layout. With the tabs unrendered, their effects never ran and the loading flags stayed `true`. The dialog now overlays the spinner while keeping all tabs mounted so those callbacks always clear the flags.
+
+Continuous reloads later surfaced when `OverviewTab` passed inline callbacks to the child tabs. Each render created new `onPersonal`, `onBilling`, and `onSummary` functions, triggering the children’s `useEffect` hooks repeatedly and re-fetching data in a loop. Memoizing these handlers with `useCallback` stabilised their references and stopped the dialog from constantly refreshing.
