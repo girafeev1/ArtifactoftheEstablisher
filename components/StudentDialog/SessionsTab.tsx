@@ -20,12 +20,16 @@ import {
   Checkbox,
   Select,
   MenuItem,
+  Button,
+  IconButton,
 } from '@mui/material'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
 import { collection, getDocs, query, where, orderBy, doc, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import SessionDetail from './SessionDetail'
-import FloatingWindow from './FloatingWindow'
+
+console.log('=== StudentDialog loaded version 1.1 ===')
 
 // SessionsTab is the single source of truth for session data. It fetches
 // appointment history, base rates and payments then streams summary values up
@@ -52,50 +56,48 @@ const toHKTime = (d: Date) => {
 export default function SessionsTab({
   abbr,
   account,
-  jointDate,
-  lastSession,
-  totalSessions,
   onSummary,
+  onTitle,
+  onActions,
+  style,
+  onPopDetail,
 }: {
   abbr: string
   account: string
-  jointDate?: string
-  lastSession?: string
-  totalSessions?: number
   onSummary?: (s: { jointDate: string; lastSession: string; totalSessions: number }) => void
+  onTitle?: (t: string) => void
+  onActions?: (a: React.ReactNode | null) => void
+  style?: React.CSSProperties
+  onPopDetail?: (s: any) => void
 }) {
+  console.log('Rendering SessionsTab for', abbr)
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any | null>(null)
-  const [popped, setPopped] = useState<any | null>(null)
 
   const allColumns = [
-    { key: 'date', label: 'Date' },
-    { key: 'time', label: 'Time' },
-    { key: 'duration', label: 'Duration' },
-    { key: 'sessionType', label: 'Session Type' },
-    { key: 'billingType', label: 'Billing Type' },
-    { key: 'baseRate', label: 'Base Rate' },
-    { key: 'rateCharged', label: 'Rate Charged' },
-    { key: 'paymentStatus', label: 'Payment Status' },
+    { key: 'date', label: 'Date', width: 110 },
+    { key: 'time', label: 'Time', width: 100 },
+    { key: 'duration', label: 'Duration', width: 110 },
+    { key: 'sessionType', label: 'Session Type', width: 150 },
+    { key: 'billingType', label: 'Billing Type', width: 150 },
+    { key: 'baseRate', label: 'Base Rate', width: 140 },
+    { key: 'rateCharged', label: 'Rate Charged', width: 140 },
+    { key: 'paymentStatus', label: 'Payment Status', width: 150 },
   ]
-  const [visibleCols, setVisibleCols] = useState(allColumns.map((c) => c.key))
+  const colWidth = (key: string) => allColumns.find((c) => c.key === key)?.width
+  const defaultCols = ['date', 'time', 'sessionType', 'rateCharged', 'paymentStatus']
+  const [visibleCols, setVisibleCols] = useState<string[]>(defaultCols)
   const [period, setPeriod] = useState<'30' | '90' | 'all'>('all')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [summary, setSummary] = useState({
-    jointDate: jointDate || '',
-    lastSession: lastSession || '',
-    totalSessions: totalSessions ?? 0,
+    jointDate: '',
+    lastSession: '',
+    totalSessions: 0,
   })
 
   useEffect(() => {
-    setSummary({
-      jointDate: jointDate || '',
-      lastSession: lastSession || '',
-      totalSessions: totalSessions ?? 0,
-    })
-  }, [jointDate, lastSession, totalSessions])
-
-  useEffect(() => {
+    console.log('SessionsTab effect: load sessions for', abbr)
     // SessionsTab owns session summary calculation; OverviewTab consumes the result
     let cancelled = false
     ;(async () => {
@@ -115,10 +117,11 @@ export default function SessionsTab({
             history: histSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
             rateDocs: rateSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
           }
-        })
+  })
 
-        const [baseRateSnap, paymentSnap, sessionRows] = await Promise.all([
+        const [histSnap, altSnap, paymentSnap, sessionRows] = await Promise.all([
           getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
+          getDocs(collection(db, 'Students', abbr, 'BaseRate')),
           getDocs(
             query(
               collection(db, 'Students', abbr, 'Payments'),
@@ -128,11 +131,15 @@ export default function SessionsTab({
           Promise.all(rowPromises),
         ])
 
-        const baseRates = baseRateSnap.docs
-          .map((d) => ({
-            rate: (d.data() as any).rate,
-            ts: (d.data() as any).timestamp?.toDate?.() ?? new Date(0),
-          }))
+        const baseRateDocs = [...histSnap.docs, ...altSnap.docs]
+        const baseRates = baseRateDocs
+          .map((d) => {
+            const data = d.data() as any
+            return {
+              rate: data.rate ?? data.baseRate,
+              ts: data.timestamp?.toDate?.() ?? new Date(0),
+            }
+          })
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
         console.log('Base rate history:', baseRates)
 
@@ -170,8 +177,8 @@ export default function SessionsTab({
               console.warn(`Session ${id} has no appointment history`)
               return {
                 id,
-                sessionType: data.sessionType ?? '404/Not Found',
-                billingType: data.billingType ?? '404/Not Found',
+                sessionType: data.sessionType ?? 'N/A',
+                billingType: data.billingType ?? 'N/A',
                 date: 'No history',
                 time: '-',
                 duration: '-',
@@ -241,8 +248,8 @@ export default function SessionsTab({
             const rateCharged = latestRate != null ? Number(latestRate) : base
             return {
               id,
-              sessionType: data.sessionType ?? '404/Not Found',
-              billingType: data.billingType ?? '404/Not Found',
+              sessionType: data.sessionType ?? 'N/A',
+              billingType: data.billingType ?? 'N/A',
               date,
               time,
               duration,
@@ -277,13 +284,7 @@ export default function SessionsTab({
         console.log('Computed summary:', newSummary)
 
         const studRef = doc(db, 'Students', abbr)
-        const updates: any = {}
-        if (!jointDate && newSummary.jointDate) updates.jointDate = newSummary.jointDate
-        if (!lastSession && newSummary.lastSession) updates.lastSession = newSummary.lastSession
-        if ((totalSessions == null || totalSessions === 0) && newSummary.totalSessions)
-          updates.totalSessions = newSummary.totalSessions
-        if (Object.keys(updates).length)
-          await setDoc(studRef, updates, { merge: true })
+        await setDoc(studRef, newSummary, { merge: true })
 
         if (!cancelled) {
           setSummary(newSummary)
@@ -294,148 +295,249 @@ export default function SessionsTab({
         console.log('Final session rows:', rows)
       } catch (e) {
         console.error('load sessions failed', e)
-        if (!cancelled) setSessions([])
+        if (!cancelled) {
+          setSessions([])
+          setSummary({ jointDate: '', lastSession: '', totalSessions: 0 })
+          onSummary?.({ jointDate: '', lastSession: '', totalSessions: 0 })
+        }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled)
+          setLoading(() => {
+            console.log('Loading flags now: false')
+            return false
+          })
       }
     })()
     return () => {
       cancelled = true
     }
   }, [abbr, account, onSummary])
+
+  useEffect(() => {
+    if (!detail) onActions?.(null)
+  }, [detail])
   if (loading) {
     return <CircularProgress />
   }
   return (
-    <>
-      <Box mb={2}>
-        <Box mb={1}>
-          <Typography variant="subtitle2">Joint Date:</Typography>
-          <Typography variant="h6">{summary.jointDate || '–'}</Typography>
-        </Box>
-        <Box mb={1}>
-          <Typography variant="subtitle2">Last Session:</Typography>
-          <Typography variant="h6">{summary.lastSession || '–'}</Typography>
-        </Box>
-        <Box mb={1}>
-          <Typography variant="subtitle2">Total Sessions:</Typography>
-          <Typography variant="h6">{summary.totalSessions ?? '–'}</Typography>
-        </Box>
-      </Box>
-      <Box mb={2}>
-        <Typography variant="subtitle2">Columns</Typography>
-        <FormGroup row>
-          {allColumns.map((c) => (
-            <FormControlLabel
-              key={c.key}
-              control={
-                <Checkbox
-                  checked={visibleCols.includes(c.key)}
-                  onChange={(e) => {
-                    const checked = e.target.checked
-                    setVisibleCols((cols) =>
-                      checked ? [...cols, c.key] : cols.filter((k) => k !== c.key),
-                    )
-                  }}
-                  size="small"
-                />
-              }
-              label={c.label}
-            />
-          ))}
-        </FormGroup>
-        <Typography variant="subtitle2" sx={{ mt: 1 }}>
-          Period
-        </Typography>
-        <Select
-          value={period}
-          size="small"
-          onChange={(e) => setPeriod(e.target.value as any)}
-        >
-          <MenuItem value="30">Last 30 days</MenuItem>
-          <MenuItem value="90">Last 90 days</MenuItem>
-          <MenuItem value="all">All</MenuItem>
-        </Select>
-      </Box>
-
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            {allColumns
-              .filter((c) => visibleCols.includes(c.key))
-              .map((c) => (
-                <TableCell key={c.key} sx={{ typography: 'body2', fontWeight: 'normal' }}>
-                  {c.label}
-                </TableCell>
-              ))}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {sessions
-            .filter((s) => {
-              if (period === 'all') return true
-              const days = Number(period)
-              const since = Date.now() - days * 24 * 60 * 60 * 1000
-              return s.startMs >= since
-            })
-            .map((s, i) => (
-              <TableRow
-                key={i}
-                hover
-                onClick={() => setDetail(s)}
-                sx={{ cursor: 'pointer' }}
+    <Box
+      sx={{
+        textAlign: 'left',
+        position: 'relative',
+        maxWidth: '100%',
+        maxHeight: '100%',
+        overflow: 'auto',
+      }}
+      style={style}
+    >
+      {!detail && (
+        <>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => setFiltersOpen((o) => !o)}
+            sx={{ mb: 1 }}
+            aria-label="toggle session filters"
+          >
+            Filters
+          </Button>
+          {filtersOpen && (
+            <Box mb={2}>
+              <Typography variant="subtitle2">Columns</Typography>
+              <FormGroup row>
+                {allColumns.map((c) => (
+                  <FormControlLabel
+                    key={c.key}
+                    control={
+                      <Checkbox
+                        checked={visibleCols.includes(c.key)}
+                        onChange={(e) => {
+                          const checked = e.target.checked
+                          setVisibleCols((cols) =>
+                            checked
+                              ? [...cols, c.key]
+                              : cols.filter((k) => k !== c.key),
+                          )
+                        }}
+                        size="small"
+                      />
+                    }
+                    label={c.label}
+                  />
+                ))}
+              </FormGroup>
+              <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                Period
+              </Typography>
+              <Select
+                value={period}
+                size="small"
+                onChange={(e) => setPeriod(e.target.value as any)}
               >
-                {visibleCols.includes('date') && (
-                  <TableCell sx={{ typography: 'body2' }}>{s.date}</TableCell>
-                )}
-                {visibleCols.includes('time') && (
-                  <TableCell sx={{ typography: 'body2' }}>{s.time}</TableCell>
-                )}
-                {visibleCols.includes('duration') && (
-                  <TableCell sx={{ typography: 'body2' }}>{s.duration}</TableCell>
-                )}
-                {visibleCols.includes('sessionType') && (
-                  <TableCell sx={{ typography: 'body2' }}>{s.sessionType}</TableCell>
-                )}
-                {visibleCols.includes('billingType') && (
-                  <TableCell sx={{ typography: 'body2' }}>{s.billingType}</TableCell>
-                )}
-                {visibleCols.includes('baseRate') && (
-                  <TableCell sx={{ typography: 'body2' }}>
-                    {s.baseRate !== '-' ? formatCurrency(Number(s.baseRate)) : '-'}
-                  </TableCell>
-                )}
-                {visibleCols.includes('rateCharged') && (
-                  <TableCell sx={{ typography: 'body2' }}>
-                    {s.rateCharged !== '-' ? formatCurrency(Number(s.rateCharged)) : '-'}
-                  </TableCell>
-                )}
-                {visibleCols.includes('paymentStatus') && (
-                  <TableCell sx={{ typography: 'body2' }}>{s.paymentStatus}</TableCell>
-                )}
+                <MenuItem value="30">Last 30 days</MenuItem>
+                <MenuItem value="90">Last 90 days</MenuItem>
+                <MenuItem value="all">All</MenuItem>
+              </Select>
+            </Box>
+          )}
+
+          <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
+            <TableHead>
+              <TableRow>
+                {allColumns
+                  .filter((c) => visibleCols.includes(c.key))
+                  .map((c) => (
+                    <TableCell
+                      key={c.key}
+                      sx={{ typography: 'body2', fontWeight: 'normal', width: c.width, minWidth: c.width }}
+                    >
+                      {c.label}
+                    </TableCell>
+                  ))}
               </TableRow>
-            ))}
-        </TableBody>
-      </Table>
+            </TableHead>
+            <TableBody>
+              {sessions
+                .filter((s) => {
+                  if (period === 'all') return true
+                  const days = Number(period)
+                  const since = Date.now() - days * 24 * 60 * 60 * 1000
+                  return s.startMs >= since
+                })
+                .map((s, i) => (
+                  <TableRow
+                    key={i}
+                    hover
+                    onClick={() => {
+                      setDetail(s)
+                      const idx = sessions.findIndex((r) => r.id === s.id)
+                      const num = String(idx + 1).padStart(3, '0')
+                      const titleDate = new Date(s.startMs).toLocaleDateString(
+                        undefined,
+                        { month: 'short', day: '2-digit', year: 'numeric' },
+                      )
+                      const title = `${account} - #${num} | ${titleDate} ${s.time}`
+                      onTitle?.(title)
+                      onActions?.(
+                        <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onPopDetail?.({ ...s, number: num, account })
+                            setDetail(null)
+                            onTitle?.(account)
+                            onActions?.(null)
+                          }}
+                          aria-label="detach session"
+                          sx={{ mr: 1 }}
+                        >
+                          <OpenInNewIcon />
+                        </IconButton>,
+                      )
+                    }}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    {visibleCols.includes('date') && (
+                      <TableCell sx={{ typography: 'body2', width: colWidth('date'), minWidth: colWidth('date') }}>
+                        {s.date}
+                      </TableCell>
+                    )}
+                    {visibleCols.includes('time') && (
+                      <TableCell sx={{ typography: 'body2', width: colWidth('time'), minWidth: colWidth('time') }}>
+                        {s.time}
+                      </TableCell>
+                    )}
+                    {visibleCols.includes('duration') && (
+                      <TableCell sx={{ typography: 'body2', width: colWidth('duration'), minWidth: colWidth('duration') }}>
+                        {s.duration}
+                      </TableCell>
+                    )}
+                    {visibleCols.includes('sessionType') && (
+                      <TableCell sx={{ typography: 'body2', width: colWidth('sessionType'), minWidth: colWidth('sessionType') }}>
+                        {s.sessionType}
+                      </TableCell>
+                    )}
+                    {visibleCols.includes('billingType') && (
+                      <TableCell sx={{ typography: 'body2', width: colWidth('billingType'), minWidth: colWidth('billingType') }}>
+                        {s.billingType}
+                      </TableCell>
+                    )}
+                    {visibleCols.includes('baseRate') && (
+                      <TableCell sx={{ typography: 'body2', width: colWidth('baseRate') }}>
+                        {s.baseRate !== '-' ? formatCurrency(Number(s.baseRate)) : '-'}
+                      </TableCell>
+                    )}
+                    {visibleCols.includes('rateCharged') && (
+                      <TableCell sx={{ typography: 'body2', width: colWidth('rateCharged') }}>
+                        {s.rateCharged !== '-' ? formatCurrency(Number(s.rateCharged)) : '-'}
+                      </TableCell>
+                    )}
+                    {visibleCols.includes('paymentStatus') && (
+                      <TableCell sx={{ typography: 'body2', width: colWidth('paymentStatus') }}>
+                        {s.paymentStatus}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+
+          <Box mt={2}>
+            <Box mb={1}>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Joint Date:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.jointDate || '–'}
+              </Typography>
+            </Box>
+            <Box mb={1}>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Last Session:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.lastSession || '–'}
+              </Typography>
+            </Box>
+            <Box mb={1}>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Total Sessions:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.totalSessions ?? '–'}
+              </Typography>
+            </Box>
+          </Box>
+        </>
+      )}
 
       {detail && (
         <SessionDetail
           session={detail}
-          onBack={() => setDetail(null)}
-          onDetach={() => {
-            setPopped(detail)
+          onBack={() => {
             setDetail(null)
+            onTitle?.(account)
+            onActions?.(null)
           }}
         />
       )}
-      {popped && (
-        <FloatingWindow
-          title="Session Detail"
-          onClose={() => setPopped(null)}
-        >
-          <SessionDetail session={popped} onBack={() => setPopped(null)} detached />
-        </FloatingWindow>
-      )}
-    </>
+    </Box>
   )
 }

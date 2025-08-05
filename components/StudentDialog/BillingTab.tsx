@@ -1,15 +1,15 @@
 // components/StudentDialog/BillingTab.tsx
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Box, Typography } from '@mui/material'
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import InlineEdit from '../../common/InlineEdit'
+
+console.log('=== StudentDialog loaded version 1.1 ===')
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(
-    n,
-  )
-import InlineEdit from '../../common/InlineEdit'
+  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
 
 const LABELS: Record<string, string> = {
   billingCompany: 'Billing Company Info',
@@ -21,21 +21,108 @@ const LABELS: Record<string, string> = {
   voucherBalance: 'Voucher Balance',
 }
 
+// BillingTab owns all billing-related fetching and calculations. It streams
+// summary values (Balance Due, Voucher Balance) up to OverviewTab via
+// `onBilling`.
+
 export default function BillingTab({
   abbr,
   account,
-  billing,
   serviceMode,
-  onBalanceDue,
+  onBilling,
+  style,
 }: {
   abbr: string
   account: string
-  billing: any
   serviceMode: boolean
-  onBalanceDue?: (n: number) => void
+  onBilling?: (b: Partial<{ balanceDue: number; voucherBalance: number }>) => void
+  style?: React.CSSProperties
 }) {
+  console.log('Rendering BillingTab for', abbr)
+  const [fields, setFields] = useState<any>({})
+  const [loading, setLoading] = useState<any>({
+    billingCompany: true,
+    defaultBillingType: true,
+    baseRate: true,
+    retainerStatus: true,
+    lastPaymentDate: true,
+    balanceDue: true,
+    voucherBalance: true,
+  })
+
+  const loadLatest = async (sub: string, field: string, orderField = 'timestamp') => {
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, 'Students', abbr, sub),
+          orderBy(orderField, 'desc'),
+          limit(1),
+        ),
+      )
+      return snap.empty ? undefined : (snap.docs[0].data() as any)[field]
+    } catch (e) {
+      console.error(`load ${sub} failed`, e)
+      return '__ERROR__'
+    }
+  }
+
   useEffect(() => {
-    // BillingTab owns Balance Due calculation; OverviewTab consumes the result
+    console.log('BillingTab effect: load simple fields for', abbr)
+    let cancelled = false
+    ;(async () => {
+      const simple = [
+        'billingCompany',
+        'defaultBillingType',
+        'baseRate',
+        'retainerStatus',
+        'lastPaymentDate',
+        'voucherBalance',
+      ]
+      for (const f of simple) {
+        try {
+          let val: any
+          if (f === 'baseRate') {
+            val = await loadLatest('BaseRateHistory', 'rate')
+            if (val === undefined || val === '__ERROR__') {
+              val = await loadLatest('BaseRate', 'baseRate')
+            }
+          } else if (f === 'lastPaymentDate') {
+            val = await loadLatest('Payments', 'paymentMade', 'paymentMade')
+          } else if (f === 'defaultBillingType') {
+            val = await loadLatest('billingType', f)
+          } else {
+            val = await loadLatest(f, f)
+          }
+          if (cancelled) return
+          setFields((b: any) => ({ ...b, [f]: val }))
+          setLoading((l: any) => {
+            const next = { ...l, [f]: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
+          if (f === 'voucherBalance')
+            onBilling?.({ voucherBalance: typeof val === 'number' ? val : undefined })
+        } catch (e) {
+          console.error(`${f} load failed`, e)
+          if (cancelled) return
+          setFields((b: any) => ({ ...b, [f]: '__ERROR__' }))
+          setLoading((l: any) => {
+            const next = { ...l, [f]: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
+          if (f === 'voucherBalance') onBilling?.({ voucherBalance: undefined })
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [abbr, onBilling])
+
+  useEffect(() => {
+    console.log('BillingTab effect: calculate balance due for', abbr)
+    // Balance Due calculation
     let cancelled = false
     ;(async () => {
       try {
@@ -54,23 +141,23 @@ export default function BillingTab({
           }
         })
 
-        const [baseRateSnap, paymentSnap, sessionRows] = await Promise.all([
-          getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
-          getDocs(
-            query(
-              collection(db, 'Students', abbr, 'Payments'),
-              orderBy('paymentMade'),
-            ),
-          ),
-          Promise.all(rowPromises),
-        ])
+          const [histSnap, altSnap, paymentSnap, sessionRows] = await Promise.all([
+            getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
+            getDocs(collection(db, 'Students', abbr, 'BaseRate')),
+            getDocs(query(collection(db, 'Students', abbr, 'Payments'), orderBy('paymentMade'))),
+            Promise.all(rowPromises),
+          ])
 
-        const baseRates = baseRateSnap.docs
-          .map((d) => ({
-            rate: (d.data() as any).rate,
-            ts: (d.data() as any).timestamp?.toDate?.() ?? new Date(0),
-          }))
-          .sort((a, b) => a.ts.getTime() - b.ts.getTime())
+          const baseRateDocs = [...histSnap.docs, ...altSnap.docs]
+          const baseRates = baseRateDocs
+            .map((d) => {
+              const data = d.data() as any
+              return {
+                rate: data.rate ?? data.baseRate,
+                ts: data.timestamp?.toDate?.() ?? new Date(0),
+              }
+            })
+            .sort((a, b) => a.ts.getTime() - b.ts.getTime())
 
         const parseDate = (v: any): Date | null => {
           if (!v) return null
@@ -87,10 +174,8 @@ export default function BillingTab({
           const hist = history
             .slice()
             .sort((a: any, b: any) => {
-              const ta =
-                parseDate(a.changeTimestamp) || parseDate(a.timestamp) || new Date(0)
-              const tb =
-                parseDate(b.changeTimestamp) || parseDate(b.timestamp) || new Date(0)
+              const ta = parseDate(a.changeTimestamp) || parseDate(a.timestamp) || new Date(0)
+              const tb = parseDate(b.changeTimestamp) || parseDate(b.timestamp) || new Date(0)
               return tb.getTime() - ta.getTime()
             })[0]
           if (!hist) {
@@ -106,9 +191,7 @@ export default function BillingTab({
           }
           const base = (() => {
             if (!baseRates.length) return '-'
-            const entry = baseRates
-              .filter((b) => b.ts.getTime() <= startDate.getTime())
-              .pop()
+            const entry = baseRates.filter((b) => b.ts.getTime() <= startDate.getTime()).pop()
             return entry ? entry.rate : '-'
           })()
           const rateHist = rateDocs
@@ -120,8 +203,7 @@ export default function BillingTab({
             })
           const latestRate = rateHist[0]?.rateCharged
           const rateCharged = latestRate != null ? Number(latestRate) : base
-          if (rateCharged != null && !isNaN(Number(rateCharged)))
-            totalOwed += Number(rateCharged)
+          if (rateCharged != null && !isNaN(Number(rateCharged))) totalOwed += Number(rateCharged)
         })
 
         const totalPaid = paymentSnap.docs.reduce((sum, d) => {
@@ -130,29 +212,77 @@ export default function BillingTab({
         }, 0)
 
         const balanceDue = totalOwed - totalPaid
-        if (!cancelled) onBalanceDue?.(balanceDue)
+        if (!cancelled) {
+          setFields((b: any) => ({ ...b, balanceDue }))
+          setLoading((l: any) => {
+            const next = { ...l, balanceDue: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
+          onBilling?.({ balanceDue })
+        }
       } catch (e) {
         console.error('balance due calculation failed', e)
-        if (!cancelled) onBalanceDue?.(0)
+        if (!cancelled) {
+          setFields((b: any) => ({ ...b, balanceDue: 0 }))
+          setLoading((l: any) => {
+            const next = { ...l, balanceDue: false }
+            console.log('Loading flags now:', next)
+            return next
+          })
+          onBilling?.({ balanceDue: 0 })
+        }
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [abbr, account, onBalanceDue])
+  }, [abbr, account, onBilling])
+
   const renderField = (k: string) => {
-    const v = billing[k]
+    const v = fields[k]
     const path =
       k === 'defaultBillingType'
         ? `Students/${abbr}/billingType`
         : `Students/${abbr}/${k}`
     return (
       <Box key={k} mb={2}>
-        <Typography variant="subtitle2">{LABELS[k]}</Typography>
-        {k === 'baseRate' ? (
-          <Typography variant="h6">
-            {v != null && !isNaN(Number(v))
-              ? `${formatCurrency(Number(v))} / session`
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          {LABELS[k]}:
+        </Typography>
+        {loading[k] ? (
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            Loading…
+          </Typography>
+        ) : k === 'baseRate' ? (
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            {v != null && !isNaN(Number(v)) ? `${formatCurrency(Number(v))} / session` : '-'}
+          </Typography>
+        ) : ['balanceDue', 'voucherBalance'].includes(k) ? (
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            {v != null && !isNaN(Number(v)) ? formatCurrency(Number(v)) : '-'}
+          </Typography>
+        ) : k === 'lastPaymentDate' ? (
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            {v
+              ? v.toDate
+                ? v.toDate().toLocaleDateString()
+                : new Date(v).toLocaleDateString()
               : '-'}
           </Typography>
         ) : (
@@ -160,9 +290,13 @@ export default function BillingTab({
             value={v}
             fieldPath={path}
             fieldKey={k}
-            editable={!['balanceDue', 'voucherBalance'].includes(k)}
+            editable={!['balanceDue', 'voucherBalance', 'lastPaymentDate'].includes(k)}
             serviceMode={serviceMode}
             type={k.includes('Date') ? 'date' : 'text'}
+            onSaved={(val) => {
+              setFields((b: any) => ({ ...b, [k]: val }))
+              if (k === 'voucherBalance') onBilling?.({ voucherBalance: Number(val) })
+            }}
           />
         )}
       </Box>
@@ -170,15 +304,18 @@ export default function BillingTab({
   }
 
   return (
-    <Box>
+    <Box style={style} sx={{ textAlign: 'left', maxWidth: '100%', maxHeight: '100%', overflow: 'auto' }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
         Billing Information
       </Typography>
-      {['balanceDue', 'baseRate', 'retainerStatus', 'lastPaymentDate', 'voucherBalance'].map(renderField)}
+      {['balanceDue', 'baseRate', 'retainerStatus', 'lastPaymentDate', 'voucherBalance'].map(
+        (k) => renderField(k),
+      )}
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2 }}>
         Payment Information
       </Typography>
-      {['defaultBillingType', 'billingCompany'].map(renderField)}
+      {['defaultBillingType', 'billingCompany'].map((k) => renderField(k))}
     </Box>
   )
 }
+

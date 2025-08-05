@@ -13,6 +13,7 @@ export interface InlineEditProps {
   serviceMode?: boolean
   type: 'text' | 'number' | 'date' | 'select'
   options?: string[]
+  onSaved?: (v: any) => void
 }
 
 export default function InlineEdit({
@@ -23,6 +24,7 @@ export default function InlineEdit({
   serviceMode = false,
   type,
   options,
+  onSaved,
 }: InlineEditProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -67,6 +69,7 @@ export default function InlineEdit({
         timestamp: today,
       })
       setDraft(v)
+      onSaved?.(v)
     } catch (e) {
       console.error('Save failed', e)
     }
@@ -93,8 +96,14 @@ export default function InlineEdit({
   }
 
   const display = () => {
-    if (type === 'date' && draft) return new Date(draft).toLocaleDateString()
-    return String(draft ?? '')
+    if (draft === '__ERROR__') return 'Error'
+    if (draft === undefined || draft === null || draft === '')
+      return type === 'number' || type === 'date' ? '-' : 'N/A'
+    if (type === 'date') {
+      const d = new Date(draft)
+      return isNaN(d.getTime()) ? '-' : d.toLocaleDateString()
+    }
+    return String(draft)
   }
 
   // when Service Mode is ON, disable edits and clicking shows full audit trail
@@ -102,7 +111,7 @@ export default function InlineEdit({
     return (
       <Typography
         variant="h6"
-        sx={{ cursor: 'pointer' }}
+        sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
         onClick={showHistory}
       >
         {display()}
@@ -111,7 +120,11 @@ export default function InlineEdit({
   }
 
   if (!allowEdit) {
-    return <Typography variant="h6">{display()}</Typography>
+    return (
+      <Typography variant="h6" sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+        {display()}
+      </Typography>
+    )
   }
 
   return editing ? (
@@ -159,8 +172,10 @@ export default function InlineEdit({
   ) : (
     <Typography
       variant="h6"
-      sx={{ cursor: 'pointer' }}
-      onClick={() => { if (allowEdit) setEditing(true) }}
+      sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
+      onClick={() => {
+        if (allowEdit) setEditing(true)
+      }}
     >
       {display() || '[click to edit]'}
     </Typography>
