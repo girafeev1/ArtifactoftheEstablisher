@@ -1,36 +1,45 @@
 // components/StudentDialog/OverviewTab.tsx
 
-import React, { useEffect, useState } from 'react'
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Tabs,
-  Tab,
-  Box,
-  CircularProgress,
-  Typography,
-  Button,
-} from '@mui/material'
-import {
-  collection,
-  getDocs,
-  getDoc,
-  doc,
-  query,
-  orderBy,
-  limit,
-} from 'firebase/firestore'
-import { db } from '../../lib/firebase'
+import React, { useEffect, useState, useCallback } from 'react'
+import { Tabs, Tab, Box, CircularProgress, Typography, Button } from '@mui/material'
+import FloatingWindow from './FloatingWindow'
 
-// OverviewTab displays summary values supplied by child tabs (PersonalTab,
-// SessionsTab, BillingTab). These children own their respective data fetching
-// and push updates here via callbacks, keeping OverviewTab as a pure presenter.
-import InlineEdit from '../../common/InlineEdit'
+// OverviewTab acts purely as a presenter. PersonalTab, SessionsTab and
+// BillingTab each fetch and compute their own data then "stream" summary
+// values upward via callbacks. This "stream-from-owner" architecture keeps a
+// single source of truth in the owning tab, avoids duplicated logic and ensures
+// OverviewTab never queries Firestore directly.
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
 import SessionsTab from './SessionsTab'
+
+console.log('=== StudentDialog loaded version 1.1 ===')
+
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+
+class StudentDialogErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('StudentDialog render error', error, info)
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <Box p={2}>
+          <Typography color="error">Student dialog failed to load.</Typography>
+        </Box>
+      )
+    }
+    return this.props.children
+  }
+}
 
 export interface OverviewTabProps {
   abbr: string
@@ -38,6 +47,7 @@ export interface OverviewTabProps {
   open: boolean
   onClose: () => void
   serviceMode: boolean
+  onPopDetail?: (s: any) => void
 }
 
 export default function OverviewTab({
@@ -46,250 +56,289 @@ export default function OverviewTab({
   open,
   onClose,
   serviceMode,
+  onPopDetail,
 }: OverviewTabProps) {
-  const [loading, setLoading] = useState(true)
+  console.log('OverviewTab rendered for', abbr)
   const [tab, setTab] = useState(0)
+  const [title, setTitle] = useState(account)
+  const [actions, setActions] = useState<React.ReactNode | null>(null)
 
-  // personal
+  // personal summary streamed from PersonalTab
   const [personal, setPersonal] = useState<any>({})
   const [personalLoading, setPersonalLoading] = useState({
     firstName: true,
     lastName: true,
     sex: true,
-    birthDate: true,
   })
 
-  // billing
+  // billing summary streamed from BillingTab
   const [billing, setBilling] = useState<any>({})
   const [billingLoading, setBillingLoading] = useState({
-    billingCompany: true,
-    defaultBillingType: true,
-    baseRate: true,
-    retainerStatus: true,
-    lastPaymentDate: true,
     balanceDue: true,
     voucherBalance: true,
   })
 
-  // overview + sessions
+  // overview summary streamed from SessionsTab
   const [overview, setOverview] = useState<any>({ joint: '', last: '', total: 0 })
   const [overviewLoading, setOverviewLoading] = useState(true)
 
-  const handleBalanceDue = (n: number) => {
-    setBilling((b: any) => ({ ...b, balanceDue: n }))
-    setBillingLoading((l) => ({ ...l, balanceDue: false }))
-  }
+  const handlePersonal = useCallback(
+    (data: Partial<{ firstName: string; lastName: string; sex: string }>) => {
+      setPersonal((p: any) => ({ ...p, ...data }))
+      Object.keys(data).forEach((k) =>
+        setPersonalLoading((l: any) => ({ ...l, [k]: false }))
+      )
+    },
+    [setPersonal, setPersonalLoading],
+  )
 
-  const handleSummary = (s: {
-    jointDate: string
-    lastSession: string
-    totalSessions: number
-  }) => {
-    setOverview({ joint: s.jointDate, last: s.lastSession, total: s.totalSessions })
-  }
+  const handleBilling = useCallback(
+    (data: Partial<{ balanceDue: number; voucherBalance: number }>) => {
+      setBilling((b: any) => ({ ...b, ...data }))
+      Object.keys(data).forEach((k) =>
+        setBillingLoading((l: any) => ({ ...l, [k]: false }))
+      )
+    },
+    [setBilling, setBillingLoading],
+  )
+
+  const handleSummary = useCallback(
+    (s: { jointDate: string; lastSession: string; totalSessions: number }) => {
+      setOverview({ joint: s.jointDate, last: s.lastSession, total: s.totalSessions })
+      setOverviewLoading(false)
+    },
+    [setOverview, setOverviewLoading],
+  )
+
+  // reset loading states whenever dialog is opened
+  useEffect(() => {
+    console.log('OverviewTab reset effect for', abbr)
+    if (open) {
+      setPersonal({})
+      setBilling({})
+      setOverview({ joint: '', last: '', total: 0 })
+      setPersonalLoading({ firstName: true, lastName: true, sex: true })
+      setBillingLoading({ balanceDue: true, voucherBalance: true })
+      setOverviewLoading(true)
+      setTab(0)
+      setTitle(account)
+      setActions(null)
+    }
+  }, [open])
 
   useEffect(() => {
-    if (!open) return
-    let mounted = true
-
-    const loadLatest = async (col: string) => {
-      let collectionName = col
-      let field = col
-      if (col === 'baseRate') {
-        collectionName = 'BaseRateHistory'
-        field = 'rate'
-      }
-      if (col === 'defaultBillingType') {
-        collectionName = 'billingType'
-        field = 'billingType'
-      }
-      const snap = await getDocs(
-        query(
-          collection(db, 'Students', abbr, collectionName),
-          orderBy('timestamp', 'desc'),
-          limit(1)
-        )
-      )
-      if (snap.empty) {
-        console.warn(`⚠️ no ${col} for ${abbr}`)
-        return ''
-      }
-      const val = (snap.docs[0].data() as any)[field]
-      return val
-    }
-
-    // load personal fields
-    ;['firstName', 'lastName', 'sex', 'birthDate'].forEach((f) => {
-      loadLatest(f).then((v) => {
-        if (!mounted) return
-        setPersonal((p: any) => ({ ...p, [f]: v }))
-        setPersonalLoading((l) => ({ ...l, [f]: false }))
-      })
+    console.log('OverviewTab loading states', {
+      personalLoading,
+      billingLoading,
+      overviewLoading,
     })
+  })
 
-    // load billing fields
-    ;[
-      'billingCompany',
-      'defaultBillingType',
-      'baseRate',
-      'retainerStatus',
-      'lastPaymentDate',
-      'voucherBalance',
-    ].forEach((f) => {
-      loadLatest(f).then((v) => {
-        if (!mounted) return
-        setBilling((b: any) => ({ ...b, [f]: v }))
-        setBillingLoading((l) => ({ ...l, [f]: false }))
-      })
-    })
+  const displayField = (v: any) => {
+    if (v === '__ERROR__') return 'Error'
+    if (v === undefined || v === null || v === '') return 'N/A'
+    return String(v)
+  }
 
-    // load overview summary from student profile
-    ;(async () => {
-      const studSnap = await getDoc(doc(db, 'Students', abbr))
-      const studData = studSnap.exists() ? (studSnap.data() as any) : {}
-      if (!mounted) return
-      setOverview({
-        joint: studData.jointDate || '',
-        last: studData.lastSession || '',
-        total: studData.totalSessions ?? 0,
-      })
-      setOverviewLoading(false)
-      setLoading(false)
-    })()
+  const loading =
+    Object.values(personalLoading).some((v) => v) ||
+    Object.values(billingLoading).some((v) => v) ||
+    overviewLoading
 
-    return () => {
-      mounted = false
-    }
-  }, [open, abbr, account])
-
+  if (!open) return null
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ textAlign: 'left' }}>{account}</DialogTitle>
-      <DialogContent sx={{ display: 'flex', height: '70vh' }}>
-        {loading ? (
-          <Box
-            sx={{
-              flexGrow: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <CircularProgress />
-          </Box>
-        ) : (
-          <>
+    <StudentDialogErrorBoundary>
+      <FloatingWindow onClose={onClose} title={title} actions={actions}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', maxHeight: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+          <Box sx={{ display: 'flex', flexGrow: 1, position: 'relative', alignItems: 'flex-start', maxHeight: '100%', maxWidth: '100%' }}>
+            {loading && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: 'background.paper',
+                  zIndex: 1,
+                }}
+              >
+                <CircularProgress />
+              </Box>
+            )}
+
             <Box
               sx={{
                 flexGrow: 1,
                 pr: 3,
-                overflowY: 'auto',
+                overflow: 'auto',
                 textAlign: 'left',
+                display: loading ? 'none' : 'block',
+                maxHeight: '100%',
+                maxWidth: '100%',
               }}
             >
               <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
-                <Typography variant="subtitle2">
-                  Legal Name{' '}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Legal Name:{' '}
                   {(personalLoading.firstName || personalLoading.lastName) && (
                     <CircularProgress size={14} />
                   )}
                 </Typography>
-                <Typography variant="h6">
+                <Typography
+                  variant="h6"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                >
                   {(personalLoading.firstName || personalLoading.lastName)
                     ? 'Loading…'
-                    : `${personal.firstName} ${personal.lastName}`}
+                    : (() => {
+                        const first = displayField(personal.firstName)
+                        const last = displayField(personal.lastName)
+                        const both = `${first} ${last}`.trim()
+                        return both === 'N/A N/A' ? 'N/A' : both
+                      })()}
                 </Typography>
 
-                <Typography variant="subtitle2">
-                  Gender {personalLoading.sex && <CircularProgress size={14} />}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Gender:{' '}
+                  {personalLoading.sex && <CircularProgress size={14} />}
                 </Typography>
-                {personalLoading.sex ? (
-                  <Typography variant="h6">Loading…</Typography>
-                ) : (
-                  <InlineEdit
-                    value={personal.sex}
-                    fieldPath={`Students/${abbr}/sex`}
-                    fieldKey="sex"
-                    editable={serviceMode}
-                    type="select"
-                    options={['Male', 'Female', 'Other']}
-                  />
-                )}
+                <Typography
+                  variant="h6"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                >
+                  {personalLoading.sex
+                    ? 'Loading…'
+                    : displayField(personal.sex)}
+                </Typography>
 
-                <Typography variant="subtitle2">
-                  Joint Date {overviewLoading && <CircularProgress size={14} />}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Joint Date:{' '}
+                  {overviewLoading && <CircularProgress size={14} />}
                 </Typography>
                 {overviewLoading ? (
-                  <Typography variant="h6">Loading…</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    Loading…
+                  </Typography>
                 ) : (
-                  <Typography variant="h6">{overview.joint || '–'}</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    {overview.joint || '–'}
+                  </Typography>
                 )}
 
-                <Typography variant="subtitle2">
-                  Total Sessions {overviewLoading && <CircularProgress size={14} />}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Total Sessions:{' '}
+                  {overviewLoading && <CircularProgress size={14} />}
                 </Typography>
                 {overviewLoading ? (
-                  <Typography variant="h6">Loading…</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    Loading…
+                  </Typography>
                 ) : (
-                  <Typography variant="h6">{overview.total ?? '–'}</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    {overview.total ?? '–'}
+                  </Typography>
                 )}
 
-                <Typography variant="subtitle2">
-                  Balance Due {billingLoading.balanceDue && <CircularProgress size={14} />}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Balance Due:{' '}
+                  {billingLoading.balanceDue && <CircularProgress size={14} />}
                 </Typography>
                 {billingLoading.balanceDue ? (
-                  <Typography variant="h6">Loading…</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    Loading…
+                  </Typography>
                 ) : (
-                  <Typography variant="h6">
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
                     {billing.balanceDue != null
-                      ? `$${(Number(billing.balanceDue) || 0).toFixed(2)}`
+                      ? formatCurrency(Number(billing.balanceDue) || 0)
                       : '-'}
                   </Typography>
                 )}
 
-                <Typography variant="subtitle2">
-                  Session Voucher{' '}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Session Voucher:{' '}
                   {billingLoading.voucherBalance && <CircularProgress size={14} />}
                 </Typography>
                 {billingLoading.voucherBalance ? (
-                  <Typography variant="h6">Loading…</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    Loading…
+                  </Typography>
                 ) : (
-                  <Typography variant="h6">
-                    {billing.voucherBalance ?? '0'}
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    {billing.voucherBalance != null
+                      ? formatCurrency(Number(billing.voucherBalance) || 0)
+                      : '-'}
                   </Typography>
                 )}
               </Box>
 
-              <Box sx={{ display: tab === 1 ? 'block' : 'none' }}>
-                <PersonalTab
-                  abbr={abbr}
-                  personal={personal}
-                  jointDate={overview.joint}
-                  totalSessions={overview.total}
-                  serviceMode={serviceMode}
-                />
-              </Box>
+              <PersonalTab
+                abbr={abbr}
+                serviceMode={serviceMode}
+                onPersonal={handlePersonal}
+                style={{ display: tab === 1 ? 'block' : 'none' }}
+              />
 
-              <Box sx={{ display: tab === 2 ? 'block' : 'none' }}>
-                <SessionsTab
-                  abbr={abbr}
-                  account={account}
-                  jointDate={overview.joint}
-                  lastSession={overview.last}
-                  totalSessions={overview.total}
-                  onSummary={handleSummary}
-                />
-              </Box>
+              <SessionsTab
+                abbr={abbr}
+                account={account}
+                onSummary={handleSummary}
+                onTitle={setTitle}
+                onActions={setActions}
+                onPopDetail={onPopDetail}
+                style={{ display: tab === 2 ? 'block' : 'none' }}
+              />
 
-              <Box sx={{ display: tab === 3 ? 'block' : 'none' }}>
-                <BillingTab
-                  abbr={abbr}
-                  account={account}
-                  billing={billing}
-                  serviceMode={serviceMode}
-                  onBalanceDue={handleBalanceDue}
-                />
-              </Box>
+              <BillingTab
+                abbr={abbr}
+                account={account}
+                serviceMode={serviceMode}
+                onBilling={handleBilling}
+                style={{ display: tab === 3 ? 'block' : 'none' }}
+              />
             </Box>
 
             <Tabs
@@ -301,18 +350,25 @@ export default function OverviewTab({
                 borderColor: 'divider',
                 minWidth: 140,
                 alignItems: 'flex-end',
+                display: loading ? 'none' : 'flex',
               }}
             >
               {['Overview', 'Personal', 'Sessions', 'Billing'].map((l) => (
-                <Tab key={l} label={l} sx={{ textAlign: 'right' }} />
+                <Tab
+                  key={l}
+                  label={l}
+                  sx={{
+                    textAlign: 'right',
+                    justifyContent: 'flex-end',
+                    alignItems: 'flex-end',
+                    width: '100%',
+                  }}
+                />
               ))}
             </Tabs>
-          </>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
+          </Box>
+        </Box>
+      </FloatingWindow>
+    </StudentDialogErrorBoundary>
   )
 }

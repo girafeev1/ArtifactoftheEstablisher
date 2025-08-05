@@ -53,4 +53,8 @@ Field numbers are:
 
 Each document stores only the edited value and a `timestamp` so the full history
 can be tracked.
+
+## Placeholder Display
+
+When values are not available from Firestore the UI must remain responsive and show placeholders instead of failing. Empty strings, `null`, or `undefined` values render as **N/A**, while retrieval errors display as **Error**. Numeric or date values that are unavailable should show a dash (`-`).
  

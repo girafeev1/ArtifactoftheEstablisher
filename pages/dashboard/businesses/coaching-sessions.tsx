@@ -25,6 +25,8 @@ import {
   Snackbar,
 } from '@mui/material'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
+import SessionDetail from '../../../components/StudentDialog/SessionDetail'
+import FloatingWindow from '../../../components/StudentDialog/FloatingWindow'
 import { clearSessionSummaries } from '../../../lib/sessionStats'
 import BatchRenamePayments from '../../../tools/BatchRenamePayments'
 
@@ -48,6 +50,7 @@ export default function CoachingSessions() {
   const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
   const [scanMessage, setScanMessage] = useState('')
   const [renameOpen, setRenameOpen] = useState(false)
+  const [detached, setDetached] = useState<any | null>(null)
 
   const openToolsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
     setToolsAnchor(e.currentTarget)
@@ -259,7 +262,23 @@ export default function CoachingSessions() {
           open
           onClose={() => setSelected(null)}
           serviceMode={serviceMode}
+          onPopDetail={(s) => setDetached(s)}
         />
+      )}
+
+      {detached && (
+        <FloatingWindow
+          title={`${detached.account} - #${detached.number} | ${new Date(
+            detached.startMs
+          ).toLocaleDateString(undefined, {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+          })} ${detached.time}`}
+          onClose={() => setDetached(null)}
+        >
+          <SessionDetail session={detached} onBack={() => setDetached(null)} />
+        </FloatingWindow>
       )}
 
       <Snackbar
