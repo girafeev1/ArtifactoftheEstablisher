@@ -98,6 +98,18 @@ export default function SessionDetail({ session, onBack }: SessionDetailProps) {
         >
           {session.paymentStatus}
         </Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Pay on:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {session.payOn || '-'}
+        </Typography>
       </Box>
 
       <Box

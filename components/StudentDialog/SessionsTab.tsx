@@ -83,10 +83,11 @@ export default function SessionsTab({
     { key: 'billingType', label: 'Billing Type', width: 150 },
     { key: 'baseRate', label: 'Base Rate', width: 140 },
     { key: 'rateCharged', label: 'Rate Charged', width: 140 },
+    { key: 'payOn', label: 'Pay on', width: 160 },
     { key: 'paymentStatus', label: 'Payment Status', width: 150 },
   ]
   const colWidth = (key: string) => allColumns.find((c) => c.key === key)?.width
-  const defaultCols = ['date', 'time', 'sessionType', 'rateCharged', 'paymentStatus']
+  const defaultCols = ['date', 'time', 'sessionType', 'rateCharged', 'payOn', 'paymentStatus']
   const [visibleCols, setVisibleCols] = useState<string[]>(defaultCols)
   const [period, setPeriod] = useState<'30' | '90' | 'all'>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -107,17 +108,19 @@ export default function SessionsTab({
         )
 
         const rowPromises = sessSnap.docs.map(async (sd) => {
-          const [histSnap, rateSnap] = await Promise.all([
+          const [histSnap, rateSnap, paySnap] = await Promise.all([
             getDocs(collection(db, 'Sessions', sd.id, 'appointmentHistory')),
             getDocs(collection(db, 'Sessions', sd.id, 'rateCharged')),
+            getDocs(collection(db, 'Sessions', sd.id, 'payment')),
           ])
           return {
             id: sd.id,
             data: sd.data(),
             history: histSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
             rateDocs: rateSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
+            payments: paySnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
           }
-  })
+        })
 
         const [histSnap, altSnap, paymentSnap, sessionRows] = await Promise.all([
           getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
@@ -162,7 +165,7 @@ export default function SessionsTab({
         }
 
         const rows = sessionRows
-          .map(({ id, data, history, rateDocs }) => {
+          .map(({ id, data, history, rateDocs, payments: sessPayments }) => {
             console.log(`Session ${id} (${account}) appointment history:`, history)
             const sortedHist = history
               .slice()
@@ -184,6 +187,7 @@ export default function SessionsTab({
                 duration: '-',
                 baseRate: '-',
                 rateCharged: data.rateCharged ?? '-',
+                payOn: '',
                 startMs: 0,
               }
             }
@@ -246,6 +250,13 @@ export default function SessionsTab({
               })
             const latestRate = rateHist[0]?.rateCharged
             const rateCharged = latestRate != null ? Number(latestRate) : base
+            const payDates = sessPayments
+              .map((p: any) => {
+                const d = p.paymentMade?.toDate?.() ?? new Date(p.paymentMade)
+                return isNaN(d.getTime()) ? null : d.toLocaleDateString()
+              })
+              .filter(Boolean)
+            const payOn = payDates.join(', ')
             return {
               id,
               sessionType: data.sessionType ?? 'N/A',
@@ -255,6 +266,7 @@ export default function SessionsTab({
               duration,
               baseRate: base,
               rateCharged,
+              payOn,
               paymentStatus: 'Unpaid' as 'Paid' | 'Unpaid',
               startMs: startDate?.getTime() ?? 0,
             }

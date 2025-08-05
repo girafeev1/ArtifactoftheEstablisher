@@ -1,10 +1,11 @@
 // components/StudentDialog/BillingTab.tsx
 
 import React, { useEffect, useState } from 'react'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography, Tabs, Tab } from '@mui/material'
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import InlineEdit from '../../common/InlineEdit'
+import PaymentHistory from './PaymentHistory'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -49,6 +50,7 @@ export default function BillingTab({
     balanceDue: true,
     voucherBalance: true,
   })
+  const [tab, setTab] = useState(0)
 
   const loadLatest = async (sub: string, field: string, orderField = 'timestamp') => {
     try {
@@ -304,17 +306,43 @@ export default function BillingTab({
   }
 
   return (
-    <Box style={style} sx={{ textAlign: 'left', maxWidth: '100%', maxHeight: '100%', overflow: 'auto' }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-        Billing Information
-      </Typography>
-      {['balanceDue', 'baseRate', 'retainerStatus', 'lastPaymentDate', 'voucherBalance'].map(
-        (k) => renderField(k),
-      )}
-      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2 }}>
-        Payment Information
-      </Typography>
-      {['defaultBillingType', 'billingCompany'].map((k) => renderField(k))}
+    <Box
+      style={style}
+      sx={{
+        textAlign: 'left',
+        maxWidth: '100%',
+        maxHeight: '100%',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <Tabs value={tab} onChange={(_, v) => setTab(v)}>
+        <Tab label="Summary" />
+        <Tab label="Payment History" />
+      </Tabs>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>
+        {tab === 0 ? (
+          <>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+              Billing Information
+            </Typography>
+            {[
+              'balanceDue',
+              'baseRate',
+              'retainerStatus',
+              'lastPaymentDate',
+              'voucherBalance',
+            ].map((k) => renderField(k))}
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2 }}>
+              Payment Information
+            </Typography>
+            {['defaultBillingType', 'billingCompany'].map((k) => renderField(k))}
+          </>
+        ) : (
+          <PaymentHistory abbr={abbr} account={account} />
+        )}
+      </Box>
     </Box>
   )
 }
