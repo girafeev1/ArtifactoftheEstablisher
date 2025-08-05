@@ -26,16 +26,78 @@ export default function SessionDetail({ session, onBack }: SessionDetailProps) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
-        <Typography>Date: {formatDate(session.date)}</Typography>
-        <Typography>Time: {session.time}</Typography>
-        <Typography>Duration: {session.duration}</Typography>
-        <Typography>
-          Base Rate {session.baseRate !== '-' ? formatCurrency(Number(session.baseRate)) : '-'}
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Date:
         </Typography>
-        <Typography>
-          Rate Charged {session.rateCharged !== '-' ? formatCurrency(Number(session.rateCharged)) : '-'}
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {formatDate(session.date)}
         </Typography>
-        <Typography>Payment Status: {session.paymentStatus}</Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Time:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {session.time}
+        </Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Duration:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {session.duration}
+        </Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Base Rate:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {session.baseRate !== '-' ? formatCurrency(Number(session.baseRate)) : '-'}
+        </Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Rate Charged:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {session.rateCharged !== '-' ? formatCurrency(Number(session.rateCharged)) : '-'}
+        </Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Payment Status:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {session.paymentStatus}
+        </Typography>
       </Box>
 
       <Box

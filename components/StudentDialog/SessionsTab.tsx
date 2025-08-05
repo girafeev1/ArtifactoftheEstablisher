@@ -412,9 +412,11 @@ export default function SessionsTab({
                       setDetail(s)
                       const idx = sessions.findIndex((r) => r.id === s.id)
                       const num = String(idx + 1).padStart(3, '0')
-                      onTitle?.(
-                        `${account} - Session #${num} | ${s.date} ${s.time}`,
+                      const titleDate = new Date(s.startMs).toLocaleDateString(
+                        undefined,
+                        { month: 'short', day: '2-digit', year: 'numeric' },
                       )
+                      onTitle?.(titleDate)
                       onActions?.(
                         <IconButton
                           onClick={(e) => {
@@ -480,16 +482,46 @@ export default function SessionsTab({
 
           <Box mt={2}>
             <Box mb={1}>
-              <Typography variant="subtitle2">Joint Date:</Typography>
-              <Typography variant="h6">{summary.jointDate || '–'}</Typography>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Joint Date:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.jointDate || '–'}
+              </Typography>
             </Box>
             <Box mb={1}>
-              <Typography variant="subtitle2">Last Session:</Typography>
-              <Typography variant="h6">{summary.lastSession || '–'}</Typography>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Last Session:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.lastSession || '–'}
+              </Typography>
             </Box>
             <Box mb={1}>
-              <Typography variant="subtitle2">Total Sessions:</Typography>
-              <Typography variant="h6">{summary.totalSessions ?? '–'}</Typography>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Total Sessions:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.totalSessions ?? '–'}
+              </Typography>
             </Box>
           </Box>
         </>

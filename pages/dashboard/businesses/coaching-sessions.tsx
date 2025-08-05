@@ -268,7 +268,11 @@ export default function CoachingSessions() {
 
       {detached && (
         <FloatingWindow
-          title={`${detached.account} - Session #${detached.number} | ${detached.date} ${detached.time}`}
+          title={new Date(detached.startMs).toLocaleDateString(undefined, {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+          })}
           onClose={() => setDetached(null)}
         >
           <SessionDetail session={detached} onBack={() => setDetached(null)} />

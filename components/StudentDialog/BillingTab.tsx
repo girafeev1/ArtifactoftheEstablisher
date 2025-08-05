@@ -247,20 +247,43 @@ export default function BillingTab({
         : `Students/${abbr}/${k}`
     return (
       <Box key={k} mb={2}>
-        <Typography variant="subtitle2">{LABELS[k]}</Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          {LABELS[k]}:
+        </Typography>
         {loading[k] ? (
-          <Typography variant="h6">Loading…</Typography>
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            Loading…
+          </Typography>
         ) : k === 'baseRate' ? (
-          <Typography variant="h6">
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
             {v != null && !isNaN(Number(v)) ? `${formatCurrency(Number(v))} / session` : '-'}
           </Typography>
         ) : ['balanceDue', 'voucherBalance'].includes(k) ? (
-          <Typography variant="h6">
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
             {v != null && !isNaN(Number(v)) ? formatCurrency(Number(v)) : '-'}
           </Typography>
         ) : k === 'lastPaymentDate' ? (
-          <Typography variant="h6">
-            {v ? (v.toDate ? v.toDate().toLocaleDateString() : new Date(v).toLocaleDateString()) : '-'}
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            {v
+              ? v.toDate
+                ? v.toDate().toLocaleDateString()
+                : new Date(v).toLocaleDateString()
+              : '-'}
           </Typography>
         ) : (
           <InlineEdit

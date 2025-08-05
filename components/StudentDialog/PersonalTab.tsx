@@ -320,11 +320,21 @@ export default function PersonalTab({
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
         Personal Information
       </Typography>
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <Box sx={{ width: 260 }}>
-          <Typography variant="subtitle2">First Name</Typography>
+          <Typography
+            variant="subtitle2"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+          >
+            First Name:
+          </Typography>
           {loading.firstName ? (
-            <Typography variant="h6">Loading…</Typography>
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
+              Loading…
+            </Typography>
           ) : (
             <InlineEdit
               value={fields.firstName}
@@ -341,9 +351,19 @@ export default function PersonalTab({
           )}
         </Box>
         <Box sx={{ width: 260 }}>
-          <Typography variant="subtitle2">Last Name</Typography>
+          <Typography
+            variant="subtitle2"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+          >
+            Last Name:
+          </Typography>
           {loading.lastName ? (
-            <Typography variant="h6">Loading…</Typography>
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
+              Loading…
+            </Typography>
           ) : (
             <InlineEdit
               value={fields.lastName}
@@ -361,11 +381,21 @@ export default function PersonalTab({
         </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <Box sx={{ width: 160 }}>
-          <Typography variant="subtitle2">Gender</Typography>
+          <Typography
+            variant="subtitle2"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+          >
+            Gender:
+          </Typography>
           {loading.sex ? (
-            <Typography variant="h6">Loading…</Typography>
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
+              Loading…
+            </Typography>
           ) : (
             <InlineEdit
               value={fields.sex}
@@ -383,13 +413,33 @@ export default function PersonalTab({
           )}
         </Box>
         <Box sx={{ width: 160 }}>
-          <Typography variant="subtitle2">Age</Typography>
-          <Typography variant="h6">{age || '–'}</Typography>
+          <Typography
+            variant="subtitle2"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+          >
+            Age:
+          </Typography>
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            {age || '–'}
+          </Typography>
         </Box>
         <Box sx={{ width: 200 }}>
-          <Typography variant="subtitle2">Birth Date</Typography>
+          <Typography
+            variant="subtitle2"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+          >
+            Birth Date:
+          </Typography>
           {loading.birthDate ? (
-            <Typography variant="h6">Loading…</Typography>
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
+              Loading…
+            </Typography>
           ) : (
             <InlineEdit
               value={fields.birthDate}
@@ -408,9 +458,19 @@ export default function PersonalTab({
       </Box>
 
       <Box mb={2} sx={{ width: 260 }}>
-        <Typography variant="subtitle2">ID No.</Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          ID No.:
+        </Typography>
         {loading.hkid ? (
-          <Typography variant="h6">Loading…</Typography>
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            Loading…
+          </Typography>
         ) : editingHKID ? (
           <TextField
             value={hkidDraft}
@@ -428,7 +488,7 @@ export default function PersonalTab({
         ) : (
           <Typography
             variant="h6"
-            sx={{ cursor: 'pointer' }}
+            sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
             onClick={() => setEditingHKID(true)}
           >
             {displayField(fields.hkid)}
@@ -442,9 +502,19 @@ export default function PersonalTab({
 
       {/* Contact Number */}
       <Box mb={2} sx={{ width: 260 }}>
-        <Typography variant="subtitle2">Contact Number</Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Contact Number:
+        </Typography>
         {loading.contactNumber ? (
-          <Typography variant="h6">Loading…</Typography>
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            Loading…
+          </Typography>
         ) : editingPhone ? (
           <Stack direction="row" spacing={1}>
             <TextField
@@ -483,7 +553,7 @@ export default function PersonalTab({
         ) : (
           <Typography
             variant="h6"
-            sx={{ cursor: 'pointer' }}
+            sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
             onClick={() => setEditingPhone(true)}
           >
             {fields.contactNumber.countryCode === undefined &&
@@ -498,9 +568,19 @@ export default function PersonalTab({
 
       {/* Email Address */}
       <Box mb={2} sx={{ width: 260 }}>
-        <Typography variant="subtitle2">Email Address</Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Email Address:
+        </Typography>
         {loading.emailAddress ? (
-          <Typography variant="h6">Loading…</Typography>
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            Loading…
+          </Typography>
         ) : editingEmail ? (
           <Stack direction="row" spacing={1}>
             <TextField
@@ -528,7 +608,7 @@ export default function PersonalTab({
         ) : (
           <Typography
             variant="h6"
-            sx={{ cursor: 'pointer' }}
+            sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
             onClick={() => setEditingEmail(true)}
           >
             {displayField(fields.emailAddress)}
@@ -538,9 +618,19 @@ export default function PersonalTab({
 
       {/* Contact Address */}
       <Box mb={2} sx={{ width: 260 }}>
-        <Typography variant="subtitle2">Contact Address</Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Contact Address:
+        </Typography>
         {loading.address ? (
-          <Typography variant="h6">Loading…</Typography>
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            Loading…
+          </Typography>
         ) : editingAddr ? (
           <Box>
             <TextField
@@ -598,19 +688,34 @@ export default function PersonalTab({
           </Box>
         ) : (
           <Box sx={{ cursor: 'pointer' }} onClick={() => setEditingAddr(true)}>
-            <Typography variant="h6">
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
               {displayField(fields.address.addressLine1)}
             </Typography>
-            <Typography variant="h6">
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
               {displayField(fields.address.addressLine2)}
             </Typography>
-            <Typography variant="h6">
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
               {displayField(fields.address.addressLine3)}
             </Typography>
-            <Typography variant="h6">
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
               {displayField(fields.address.district)}
             </Typography>
-            <Typography variant="h6">
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
               {displayField(fields.address.region)}
             </Typography>
           </Box>

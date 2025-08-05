@@ -34,7 +34,11 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
           }}
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1 }}>
-            {title && <Typography variant="h6">{title}</Typography>}
+            {title && (
+              <Typography variant="h6" sx={{ fontFamily: 'Cantata One' }}>
+                {title}
+              </Typography>
+            )}
             <Box>
               {actions}
               <IconButton onClick={onClose} aria-label="close window">
@@ -79,7 +83,11 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
               cursor: 'move',
             }}
           >
-            {title && <Typography variant="h6">{title}</Typography>}
+            {title && (
+              <Typography variant="h6" sx={{ fontFamily: 'Cantata One' }}>
+                {title}
+              </Typography>
+            )}
             <Box>
               {actions}
               <IconButton onClick={onClose} aria-label="close window">

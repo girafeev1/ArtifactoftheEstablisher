@@ -111,7 +111,7 @@ export default function InlineEdit({
     return (
       <Typography
         variant="h6"
-        sx={{ cursor: 'pointer' }}
+        sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
         onClick={showHistory}
       >
         {display()}
@@ -120,7 +120,11 @@ export default function InlineEdit({
   }
 
   if (!allowEdit) {
-    return <Typography variant="h6">{display()}</Typography>
+    return (
+      <Typography variant="h6" sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+        {display()}
+      </Typography>
+    )
   }
 
   return editing ? (
@@ -168,8 +172,10 @@ export default function InlineEdit({
   ) : (
     <Typography
       variant="h6"
-      sx={{ cursor: 'pointer' }}
-      onClick={() => { if (allowEdit) setEditing(true) }}
+      sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
+      onClick={() => {
+        if (allowEdit) setEditing(true)
+      }}
     >
       {display() || '[click to edit]'}
     </Typography>

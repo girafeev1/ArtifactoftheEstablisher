@@ -179,13 +179,19 @@ export default function OverviewTab({
               }}
             >
               <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
-                <Typography variant="subtitle2">
-                  Legal Name{' '}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Legal Name:{' '}
                   {(personalLoading.firstName || personalLoading.lastName) && (
                     <CircularProgress size={14} />
                   )}
                 </Typography>
-                <Typography variant="h6">
+                <Typography
+                  variant="h6"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                >
                   {(personalLoading.firstName || personalLoading.lastName)
                     ? 'Loading…'
                     : (() => {
@@ -196,54 +202,112 @@ export default function OverviewTab({
                       })()}
                 </Typography>
 
-                <Typography variant="subtitle2">
-                  Gender {personalLoading.sex && <CircularProgress size={14} />}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Gender:{' '}
+                  {personalLoading.sex && <CircularProgress size={14} />}
                 </Typography>
-                <Typography variant="h6">
+                <Typography
+                  variant="h6"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                >
                   {personalLoading.sex
                     ? 'Loading…'
                     : displayField(personal.sex)}
                 </Typography>
 
-                <Typography variant="subtitle2">
-                  Joint Date {overviewLoading && <CircularProgress size={14} />}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Joint Date:{' '}
+                  {overviewLoading && <CircularProgress size={14} />}
                 </Typography>
                 {overviewLoading ? (
-                  <Typography variant="h6">Loading…</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    Loading…
+                  </Typography>
                 ) : (
-                  <Typography variant="h6">{overview.joint || '–'}</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    {overview.joint || '–'}
+                  </Typography>
                 )}
 
-                <Typography variant="subtitle2">
-                  Total Sessions {overviewLoading && <CircularProgress size={14} />}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Total Sessions:{' '}
+                  {overviewLoading && <CircularProgress size={14} />}
                 </Typography>
                 {overviewLoading ? (
-                  <Typography variant="h6">Loading…</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    Loading…
+                  </Typography>
                 ) : (
-                  <Typography variant="h6">{overview.total ?? '–'}</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    {overview.total ?? '–'}
+                  </Typography>
                 )}
 
-                <Typography variant="subtitle2">
-                  Balance Due {billingLoading.balanceDue && <CircularProgress size={14} />}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Balance Due:{' '}
+                  {billingLoading.balanceDue && <CircularProgress size={14} />}
                 </Typography>
                 {billingLoading.balanceDue ? (
-                  <Typography variant="h6">Loading…</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    Loading…
+                  </Typography>
                 ) : (
-                  <Typography variant="h6">
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
                     {billing.balanceDue != null
                       ? formatCurrency(Number(billing.balanceDue) || 0)
                       : '-'}
                   </Typography>
                 )}
 
-                <Typography variant="subtitle2">
-                  Session Voucher{' '}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  Session Voucher:{' '}
                   {billingLoading.voucherBalance && <CircularProgress size={14} />}
                 </Typography>
                 {billingLoading.voucherBalance ? (
-                  <Typography variant="h6">Loading…</Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
+                    Loading…
+                  </Typography>
                 ) : (
-                  <Typography variant="h6">
+                  <Typography
+                    variant="h6"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
                     {billing.voucherBalance != null
                       ? formatCurrency(Number(billing.voucherBalance) || 0)
                       : '-'}
