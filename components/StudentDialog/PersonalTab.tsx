@@ -320,7 +320,14 @@ export default function PersonalTab({
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
         Personal Information
       </Typography>
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 260px)',
+          gap: 2,
+          mb: 2,
+        }}
+      >
         <Box sx={{ width: 260 }}>
           <Typography
             variant="subtitle2"
@@ -381,7 +388,14 @@ export default function PersonalTab({
         </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 160px)',
+          gap: 2,
+          mb: 2,
+        }}
+      >
         <Box sx={{ width: 160 }}>
           <Typography
             variant="subtitle2"

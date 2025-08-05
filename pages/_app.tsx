@@ -3,18 +3,24 @@ import { SessionProvider, useSession } from 'next-auth/react';
 import { SnackbarProvider } from 'notistack';
 import type { AppProps } from 'next/app';
 import { setupClientLogging } from '../lib/clientLogger';
+import { Newsreader, Cantata_One } from 'next/font/google';
 
 if (typeof window !== 'undefined') {
   setupClientLogging();
 }
 
+const newsreader = Newsreader({ subsets: ['latin'], weight: ['200', '500'] });
+const cantata = Cantata_One({ subsets: ['latin'] });
+
 function MyApp({ Component, pageProps }: AppProps) {
   return (
-    <SessionProvider session={pageProps.session}>
-      <SnackbarProvider maxSnack={3}>
-        <Component {...pageProps} />
-      </SnackbarProvider>
-    </SessionProvider>
+    <div className={`${newsreader.className} ${cantata.className}`}>
+      <SessionProvider session={pageProps.session}>
+        <SnackbarProvider maxSnack={3}>
+          <Component {...pageProps} />
+        </SnackbarProvider>
+      </SessionProvider>
+    </div>
   );
 }
 

@@ -416,7 +416,8 @@ export default function SessionsTab({
                         undefined,
                         { month: 'short', day: '2-digit', year: 'numeric' },
                       )
-                      onTitle?.(titleDate)
+                      const title = `${account} - #${num} | ${titleDate} ${s.time}`
+                      onTitle?.(title)
                       onActions?.(
                         <IconButton
                           onClick={(e) => {

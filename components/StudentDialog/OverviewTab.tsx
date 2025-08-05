@@ -354,7 +354,16 @@ export default function OverviewTab({
               }}
             >
               {['Overview', 'Personal', 'Sessions', 'Billing'].map((l) => (
-                <Tab key={l} label={l} sx={{ textAlign: 'right' }} />
+                <Tab
+                  key={l}
+                  label={l}
+                  sx={{
+                    textAlign: 'right',
+                    justifyContent: 'flex-end',
+                    alignItems: 'flex-end',
+                    width: '100%',
+                  }}
+                />
               ))}
             </Tabs>
           </Box>
