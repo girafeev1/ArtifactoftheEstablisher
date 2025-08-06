@@ -25,7 +25,7 @@ interface SessionDetailProps {
 export default function SessionDetail({ session, onBack }: SessionDetailProps) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3 }}>
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
