@@ -401,7 +401,13 @@ export default function SessionsTab({
                   .map((c) => (
                     <TableCell
                       key={c.key}
-                      sx={{ typography: 'body2', fontWeight: 'normal', width: c.width, minWidth: c.width }}
+                      sx={{
+                        typography: 'body2',
+                        fontFamily: 'Cantata One',
+                        fontWeight: 'bold',
+                        width: c.width,
+                        minWidth: c.width,
+                      }}
                     >
                       {c.label}
                     </TableCell>
@@ -449,42 +455,103 @@ export default function SessionsTab({
                     sx={{ cursor: 'pointer' }}
                   >
                     {visibleCols.includes('date') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('date'), minWidth: colWidth('date') }}>
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('date'),
+                          minWidth: colWidth('date'),
+                        }}
+                      >
                         {s.date}
                       </TableCell>
                     )}
                     {visibleCols.includes('time') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('time'), minWidth: colWidth('time') }}>
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('time'),
+                          minWidth: colWidth('time'),
+                        }}
+                      >
                         {s.time}
                       </TableCell>
                     )}
                     {visibleCols.includes('duration') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('duration'), minWidth: colWidth('duration') }}>
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('duration'),
+                          minWidth: colWidth('duration'),
+                        }}
+                      >
                         {s.duration}
                       </TableCell>
                     )}
                     {visibleCols.includes('sessionType') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('sessionType'), minWidth: colWidth('sessionType') }}>
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('sessionType'),
+                          minWidth: colWidth('sessionType'),
+                        }}
+                      >
                         {s.sessionType}
                       </TableCell>
                     )}
                     {visibleCols.includes('billingType') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('billingType'), minWidth: colWidth('billingType') }}>
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('billingType'),
+                          minWidth: colWidth('billingType'),
+                        }}
+                      >
                         {s.billingType}
                       </TableCell>
                     )}
                     {visibleCols.includes('baseRate') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('baseRate') }}>
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('baseRate'),
+                        }}
+                      >
                         {s.baseRate !== '-' ? formatCurrency(Number(s.baseRate)) : '-'}
                       </TableCell>
                     )}
                     {visibleCols.includes('rateCharged') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('rateCharged') }}>
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('rateCharged'),
+                        }}
+                      >
                         {s.rateCharged !== '-' ? formatCurrency(Number(s.rateCharged)) : '-'}
                       </TableCell>
                     )}
                     {visibleCols.includes('paymentStatus') && (
-                      <TableCell sx={{ typography: 'body2', width: colWidth('paymentStatus') }}>
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('paymentStatus'),
+                        }}
+                      >
                         {s.paymentStatus}
                       </TableCell>
                     )}
