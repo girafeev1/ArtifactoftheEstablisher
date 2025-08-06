@@ -2,9 +2,21 @@
 
 All field labels must appear on their own line followed by a colon, with the corresponding value rendered on the next line. Field titles use the Newsreader font in Extra Light weight, return strings use Newsreader in Medium weight, and window titles use Cantata One.
 
+All date displays in the web app should use MMM DD, YYYY format unless otherwise specified.
+
+Section headings—including page-dividing titles such as "Personal Information", "Contact Information", "Payment Information", and "Billing Information"—and table headings use the Cantata One font. Table row content uses the Newsreader font at weight 500.
+
 Any empty strings or missing data fields retrieved from Firestore should never cause the web app to become unresponsive. Empty string, `null`, or `undefined` values must render as **N/A**, and retrieval failures as **Error**. When a numeric or date value is unavailable simply display a dash (`-`).
 
 Date fields must be validated before calling `.toLocaleDateString()` or similar methods. Invalid or empty values should be ignored, and the UI should show a placeholder rather than throwing errors or becoming stuck.
+
+## Coaching Sessions Page Fonts
+
+The coaching sessions dashboard (`pages/dashboard/businesses/coaching-sessions.tsx`) and its dialog tabs follow these typography rules:
+
+- Floating window headers in the student dialog use **Cantata One**.
+- Field labels across `OverviewTab`, `SessionsTab`, `BillingTab`, `PersonalTab`, and `SessionDetail` render in **Newsreader** at weight 200.
+- Corresponding field values in those tabs render in **Newsreader** at weight 500.
 
 ## Debug Notes
 
