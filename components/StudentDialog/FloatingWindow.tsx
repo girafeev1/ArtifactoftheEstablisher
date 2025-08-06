@@ -38,7 +38,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              px: 6,
+              px: 5,
               py: 1,
             }}
           >
@@ -54,7 +54,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
               </IconButton>
             </Box>
           </Box>
-          <Box sx={{ flexGrow: 1, overflow: 'auto', p: 6 }}>{children}</Box>
+          <Box sx={{ flexGrow: 1, overflow: 'auto', p: 5 }}>{children}</Box>
         </Box>
       )
     }
@@ -85,7 +85,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              px: 6,
+              px: 5,
               py: 1,
               borderBottom: 1,
               borderColor: 'divider',
@@ -104,7 +104,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
               </IconButton>
             </Box>
           </Box>
-          <Box sx={{ flexGrow: 1, overflow: 'auto', p: 6 }}>{children}</Box>
+          <Box sx={{ flexGrow: 1, overflow: 'auto', p: 5 }}>{children}</Box>
         </Box>
       </Rnd>
     )
