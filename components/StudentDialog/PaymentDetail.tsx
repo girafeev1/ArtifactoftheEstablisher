@@ -19,7 +19,13 @@ const displayField = (v: any) => {
   try {
     if (v.toDate) {
       const d = v.toDate()
-      return isNaN(d.getTime()) ? 'N/A' : d.toLocaleString()
+      return isNaN(d.getTime())
+        ? 'N/A'
+        : d.toLocaleDateString(undefined, {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+          })
     }
   } catch {
     return 'N/A'
@@ -126,7 +132,7 @@ export default function PaymentDetail({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>
         {Object.entries(payment).map(([k, v]) => (
           <React.Fragment key={k}>
             <Typography

@@ -324,7 +324,10 @@ export default function BillingTab({
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>
         {tab === 0 ? (
           <>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+            <Typography
+              variant="subtitle1"
+              sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+            >
               Billing Information
             </Typography>
             {[
@@ -334,7 +337,14 @@ export default function BillingTab({
               'lastPaymentDate',
               'voucherBalance',
             ].map((k) => renderField(k))}
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2 }}>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                fontFamily: 'Cantata One',
+                textDecoration: 'underline',
+                mt: 2,
+              }}
+            >
               Payment Information
             </Typography>
             {['defaultBillingType', 'billingCompany'].map((k) => renderField(k))}

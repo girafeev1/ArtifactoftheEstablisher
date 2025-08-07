@@ -317,7 +317,10 @@ export default function PersonalTab({
 
   return (
     <Box style={style} sx={{ textAlign: 'left', maxWidth: '100%', maxHeight: '100%', overflow: 'auto' }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+      <Typography
+        variant="subtitle1"
+        sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+      >
         Personal Information
       </Typography>
       <Box
@@ -510,7 +513,10 @@ export default function PersonalTab({
         )}
       </Box>
 
-      <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+      <Typography
+        variant="subtitle1"
+        sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+      >
         Contact Information
       </Typography>
 

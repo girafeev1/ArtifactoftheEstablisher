@@ -19,7 +19,13 @@ const formatDate = (v: any) => {
   if (!v) return 'N/A'
   try {
     const d = v.toDate ? v.toDate() : new Date(v)
-    return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString()
+    return isNaN(d.getTime())
+      ? 'N/A'
+      : d.toLocaleDateString(undefined, {
+          month: 'short',
+          day: '2-digit',
+          year: 'numeric',
+        })
   } catch {
     return 'N/A'
   }
@@ -72,22 +78,26 @@ export default function PaymentHistory({
     )
 
   return (
-    <Box sx={{ p: 2, overflow: 'auto' }}>
+    <Box sx={{ p: 4, overflow: 'auto' }}>
       {loading ? (
         <CircularProgress />
       ) : (
         <Table size="small" sx={{ cursor: 'pointer' }}>
           <TableHead>
             <TableRow>
-              <TableCell>Amount</TableCell>
-              <TableCell>Date</TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Amount</TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Date</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {payments.map((p) => (
               <TableRow key={p.id} hover onClick={() => setDetail(p)}>
-                <TableCell>{formatCurrency(Number(p.amount) || 0)}</TableCell>
-                <TableCell>{formatDate(p.paymentMade)}</TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {formatCurrency(Number(p.amount) || 0)}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {formatDate(p.paymentMade)}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

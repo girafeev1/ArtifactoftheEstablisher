@@ -31,3 +31,6 @@ Continuous reloads later surfaced when `OverviewTab` passed inline callbacks to 
 The most recent reload loop traced to defining the error boundary inside `OverviewTab`. Because the boundary class was re-created on every render, React unmounted and remounted the entire dialog tree, resetting all loading flags and re-triggering data fetches. Moving the boundary to the module scope keeps its identity stable and prevents the dialog from restarting after each render.
 
 Floating windows later became immovable when a `onMouseDown` handler on the header stopped drag events from reaching `react-rnd`. Removing that handler restored independent window movement.
+
+* All date displays in the web app should use MMM DD, YYYY format unless otherwise specified.
+* Section and table headings use Cantata One font; table row content uses Newsreader font at weight 500.
