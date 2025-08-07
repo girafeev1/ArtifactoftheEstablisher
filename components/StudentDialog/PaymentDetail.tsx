@@ -17,40 +17,25 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { computeSessionStart, fmtDate, fmtTime } from '../../lib/sessions'
+import { formatMMMDDYYYY } from '../../lib/date'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
 
-const displayField = (v: any) => {
-  if (v === '__ERROR__') return 'Error'
-  if (v === undefined || v === null || v === '') return 'N/A'
-  try {
-    if (v.toDate) {
-      const d = v.toDate()
-      return isNaN(d.getTime())
-        ? 'N/A'
-        : d.toLocaleDateString(undefined, {
-            month: 'short',
-            day: '2-digit',
-            year: 'numeric',
-          })
-    }
-  } catch {
-    return 'N/A'
-  }
-  return String(v)
-}
 
 export default function PaymentDetail({
   abbr,
   account,
   payment,
   onBack,
+  onTitleChange,
 }: {
   abbr: string
   account: string
   payment: any
   onBack: () => void
+  onTitleChange?: (title: string) => void
 }) {
   const [available, setAvailable] = useState<any[]>([])
   const [assignedSessions, setAssignedSessions] = useState<any[]>([])
@@ -60,6 +45,14 @@ export default function PaymentDetail({
     payment.remainingAmount ?? Number(payment.amount) ?? 0,
   )
   const [ordinals, setOrdinals] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    const d = payment.paymentMade?.toDate
+      ? payment.paymentMade.toDate()
+      : new Date(payment.paymentMade)
+    const label = isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d)
+    onTitleChange?.(`${account} - Billing - Payment History | ${label}`)
+  }, [account, payment.paymentMade, onTitleChange])
 
   useEffect(() => {
     let cancelled = false
@@ -93,40 +86,14 @@ export default function PaymentDetail({
         const rows = await Promise.all(
           sessSnap.docs.map(async (sd) => {
             const data = sd.data() as any
-            const [histSnap, rateSnap, paySnap] = await Promise.all([
-              getDocs(collection(db, 'Sessions', sd.id, 'appointmentHistory')),
+            const [rateSnap, paySnap] = await Promise.all([
               getDocs(collection(db, 'Sessions', sd.id, 'rateCharged')),
               getDocs(collection(db, 'Sessions', sd.id, 'payment')),
             ])
 
-            const hist = histSnap.docs
-              .map((d) => d.data() as any)
-              .sort((a, b) => {
-                const ta = a.timestamp?.toDate?.() ?? new Date(0)
-                const tb = b.timestamp?.toDate?.() ?? new Date(0)
-                return tb.getTime() - ta.getTime()
-              })[0]
-
-            let start = data.origStartTimestamp
-            if (hist) {
-              if (hist.newStartTimestamp != null) start = hist.newStartTimestamp
-            }
-            const startDate = start?.toDate ? start.toDate() : new Date(start)
-            const date =
-              !startDate || isNaN(startDate.getTime())
-                ? '-'
-                : startDate.toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: '2-digit',
-                    year: 'numeric',
-                  })
-            const time =
-              !startDate || isNaN(startDate.getTime())
-                ? '-'
-                : startDate.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
+            const startDate = await computeSessionStart(sd.id, data)
+            const date = startDate ? fmtDate(startDate) : '-'
+            const time = startDate ? fmtTime(startDate) : '-'
 
             const base = (() => {
               if (!startDate || !baseRates.length) return 0
@@ -249,22 +216,37 @@ export default function PaymentDetail({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>
-        {Object.entries(payment).map(([k, v]) => (
-          <React.Fragment key={k}>
-            <Typography
-              variant="subtitle2"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-            >
-              {k}:
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
-              {displayField(v)}
-            </Typography>
-          </React.Fragment>
-        ))}
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Payment Amount:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {formatCurrency(Number(payment.amount) || 0)}
+        </Typography>
+
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Payment Made On:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {(() => {
+            const d = payment.paymentMade?.toDate
+              ? payment.paymentMade.toDate()
+              : new Date(payment.paymentMade)
+            return isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d)
+          })()}
+        </Typography>
+
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
@@ -277,11 +259,12 @@ export default function PaymentDetail({
         >
           {formatCurrency(remaining)}
         </Typography>
+
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
         >
-          Pay for:
+          For session:
         </Typography>
         {assignedSessions.map((s, i) => (
           <Typography
@@ -330,7 +313,14 @@ export default function PaymentDetail({
           bgcolor: 'background.paper',
         }}
       >
-        <Button variant="text" onClick={onBack} aria-label="back to payments">
+        <Button
+          variant="text"
+          onClick={() => {
+            onBack()
+            onTitleChange?.(`${account} - Billing - Payment History`)
+          }}
+          aria-label="back to payments"
+        >
           ← Back
         </Button>
       </Box>

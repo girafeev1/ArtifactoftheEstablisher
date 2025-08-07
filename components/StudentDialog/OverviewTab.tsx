@@ -112,7 +112,20 @@ export default function OverviewTab({
     [setOverview, setOverviewLoading],
   )
 
-  const handleTabChange = (_: any, v: string) => setTab(v)
+  const selectTab = (v: string) => {
+    setTab(v)
+    if (v === 'billing-retainers')
+      setTitle(`${account} - Billing - Retainers`)
+    else if (v === 'billing-history')
+      setTitle(`${account} - Billing - Payment History`)
+    else if (v === 'billing') setTitle(`${account} - Billing`)
+    else
+      setTitle(
+        `${account} - ${v.charAt(0).toUpperCase() + v.slice(1)}`,
+      )
+  }
+
+  const handleTabChange = (_: any, v: string) => selectTab(v)
 
   // reset loading states whenever dialog is opened
   useEffect(() => {
@@ -124,14 +137,13 @@ export default function OverviewTab({
       setPersonalLoading({ firstName: true, lastName: true, sex: true })
       setBillingLoading({ balanceDue: true, voucherBalance: true })
       setOverviewLoading(true)
-      setTitle(account)
       setActions(null)
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search)
         const q = params.get('tab')
-        setTab(q || 'overview')
+        selectTab(q || 'overview')
       } else {
-        setTab('overview')
+        selectTab('overview')
       }
     }
   }, [open, abbr, account])
@@ -361,10 +373,16 @@ export default function OverviewTab({
                 <RetainersTab
                   abbr={abbr}
                   balanceDue={Number(billing.balanceDue) || 0}
+                  account={account}
+                  onTitleChange={(t) => setTitle(t)}
                 />
               </Box>
               <Box sx={{ display: tab === 'billing-history' ? 'block' : 'none' }}>
-                <PaymentHistory abbr={abbr} account={account} />
+                <PaymentHistory
+                  abbr={abbr}
+                  account={account}
+                  onTitleChange={(t) => setTitle(t)}
+                />
               </Box>
             </Box>
 
@@ -404,36 +422,59 @@ export default function OverviewTab({
                   width: '100%',
                   bgcolor: tab.startsWith('billing') ? 'action.selected' : undefined,
                 }}
-                onClick={() => setTab('billing')}
+                onClick={() => selectTab('billing')}
               />
-              <Tab
-                value="billing-retainers"
-                label="Retainers"
+              <Box
                 sx={{
-                  pl: 4,
-                  fontSize: '0.85rem',
-                  color: 'text.secondary',
-                  textAlign: 'right',
-                  justifyContent: 'flex-end',
-                  width: '100%',
                   display: tab.startsWith('billing') ? 'flex' : 'none',
-                }}
-                onClick={() => setTab('billing-retainers')}
-              />
-              <Tab
-                value="billing-history"
-                label="Payment History"
-                sx={{
-                  pl: 4,
-                  fontSize: '0.85rem',
-                  color: 'text.secondary',
-                  textAlign: 'right',
-                  justifyContent: 'flex-end',
+                  flexDirection: 'column',
                   width: '100%',
-                  display: tab.startsWith('billing') ? 'flex' : 'none',
+                  pr: 0,
+                  pl: 0,
                 }}
-                onClick={() => setTab('billing-history')}
-              />
+              >
+                <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
+                  <Box
+                    sx={{
+                      width: '100%',
+                      maxWidth: 160,
+                      borderLeft: 2,
+                      borderColor: 'divider',
+                      ml: 'auto',
+                      pr: 0,
+                    }}
+                  >
+                    <Tab
+                      value="billing-retainers"
+                      label="Retainers"
+                      sx={{
+                        pl: 4,
+                        fontSize: '0.82rem',
+                        color: 'text.secondary',
+                        '&.Mui-selected': { color: 'text.primary', fontWeight: 600 },
+                        textAlign: 'right',
+                        justifyContent: 'flex-end',
+                        width: '100%',
+                      }}
+                      onClick={() => selectTab('billing-retainers')}
+                    />
+                    <Tab
+                      value="billing-history"
+                      label="Payment History"
+                      sx={{
+                        pl: 4,
+                        fontSize: '0.82rem',
+                        color: 'text.secondary',
+                        '&.Mui-selected': { color: 'text.primary', fontWeight: 600 },
+                        textAlign: 'right',
+                        justifyContent: 'flex-end',
+                        width: '100%',
+                      }}
+                      onClick={() => selectTab('billing-history')}
+                    />
+                  </Box>
+                </Box>
+              </Box>
             </Tabs>
           </Box>
         </Box>

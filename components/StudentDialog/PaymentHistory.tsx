@@ -54,9 +54,11 @@ const formatDate = (v: any) => {
 export default function PaymentHistory({
   abbr,
   account,
+  onTitleChange,
 }: {
   abbr: string
   account: string
+  onTitleChange?: (title: string) => void
 }) {
   const [payments, setPayments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -106,6 +108,10 @@ export default function PaymentHistory({
     }
   }, [abbr])
 
+  useEffect(() => {
+    onTitleChange?.(`${account} - Billing - Payment History`)
+  }, [account, abbr, onTitleChange])
+
   const sortedPayments = [...payments].sort((a, b) => {
     const av =
       sortField === 'amount'
@@ -125,6 +131,7 @@ export default function PaymentHistory({
         account={account}
         payment={detail}
         onBack={() => setDetail(null)}
+        onTitleChange={onTitleChange}
       />
     )
 
@@ -144,7 +151,7 @@ export default function PaymentHistory({
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-                  Session Date/Time
+                  For session
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
                   <TableSortLabel

@@ -40,9 +40,13 @@ interface RetRow extends RetainerDoc {
 export default function RetainersTab({
   abbr,
   balanceDue,
+  account,
+  onTitleChange,
 }: {
   abbr: string
   balanceDue: number
+  account: string
+  onTitleChange?: (title: string) => void
 }) {
   const [rows, setRows] = useState<RetRow[]>([])
   const [sortAsc, setSortAsc] = useState(false)
@@ -71,6 +75,10 @@ export default function RetainersTab({
     load()
   }, [abbr])
 
+  useEffect(() => {
+    onTitleChange?.(`${account} - Billing - Retainers`)
+  }, [account, abbr, onTitleChange])
+
   const sortedRows = [...rows].sort((a, b) => {
     const diff =
       a.retainerStarts.toDate().getTime() - b.retainerStarts.toDate().getTime()
@@ -78,6 +86,10 @@ export default function RetainersTab({
   })
 
   const today = new Date()
+  const nextFuture = [...rows]
+    .map((r) => ({ row: r, s: r.retainerStarts.toDate() }))
+    .filter((r) => r.s > today)
+    .sort((a, b) => a.s.getTime() - b.s.getTime())[0]?.row
 
   return (
     <Box sx={{ p: 1, textAlign: 'left', height: '100%' }}>
@@ -125,7 +137,7 @@ export default function RetainersTab({
               </TableSortLabel>
             </TableCell>
             <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-              Container Period
+              Coverage Period
             </TableCell>
             <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
               Rate
@@ -139,18 +151,20 @@ export default function RetainersTab({
           </TableRow>
         </TableHead>
         <TableBody>
-          {sortedRows.map((r, idx) => {
-            const next = sortedRows[idx + 1]
-            const status = getRetainerStatus(r, today, next)
+          {sortedRows.map((r) => {
+            const start = r.retainerStarts.toDate()
+            const end = r.retainerEnds.toDate()
+            let status
+            if (today < start) status = getRetainerStatus(r, today)
+            else if (today <= end) status = getRetainerStatus(r, today)
+            else status = getRetainerStatus(r, today, nextFuture)
             const colorMap: Record<RetainerStatusColor, string> = {
               green: 'success.main',
               red: 'error.main',
               lightBlue: 'info.light',
               lightGreen: 'success.light',
             }
-            const active =
-              today >= r.retainerStarts.toDate() && today <= r.retainerEnds.toDate()
-            const start = r.retainerStarts.toDate()
+            const active = today >= start && today <= end
             const labelDate = new Date(start)
             if (labelDate.getDate() >= 21)
               labelDate.setMonth(labelDate.getMonth() + 1)
