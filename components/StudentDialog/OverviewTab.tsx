@@ -12,6 +12,7 @@ import FloatingWindow from './FloatingWindow'
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
 import SessionsTab from './SessionsTab'
+import PaymentHistory from './PaymentHistory'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -339,6 +340,9 @@ export default function OverviewTab({
                 onBilling={handleBilling}
                 style={{ display: tab === 3 ? 'block' : 'none' }}
               />
+              <Box sx={{ display: tab === 4 ? 'block' : 'none' }}>
+                <PaymentHistory abbr={abbr} account={account} />
+              </Box>
             </Box>
 
             <Tabs
@@ -353,7 +357,7 @@ export default function OverviewTab({
                 display: loading ? 'none' : 'flex',
               }}
             >
-              {['Overview', 'Personal', 'Sessions', 'Billing'].map((l) => (
+              {['Overview', 'Personal', 'Sessions', 'Billing', 'Payment History'].map((l) => (
                 <Tab
                   key={l}
                   label={l}
