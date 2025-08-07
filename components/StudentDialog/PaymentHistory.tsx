@@ -8,6 +8,7 @@ import {
   TableBody,
   CircularProgress,
   Typography,
+  TableSortLabel,
 } from '@mui/material'
 import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
@@ -60,6 +61,8 @@ export default function PaymentHistory({
   const [payments, setPayments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any | null>(null)
+  const [sortField, setSortField] = useState<'amount' | 'paymentMade'>('paymentMade')
+  const [sortAsc, setSortAsc] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -103,6 +106,18 @@ export default function PaymentHistory({
     }
   }, [abbr])
 
+  const sortedPayments = [...payments].sort((a, b) => {
+    const av =
+      sortField === 'amount'
+        ? Number(a.amount) || 0
+        : a.paymentMade?.toDate?.()?.getTime?.() || 0
+    const bv =
+      sortField === 'amount'
+        ? Number(b.amount) || 0
+        : b.paymentMade?.toDate?.()?.getTime?.() || 0
+    return sortAsc ? av - bv : bv - av
+  })
+
   if (detail)
     return (
       <PaymentDetail
@@ -132,15 +147,39 @@ export default function PaymentHistory({
                   Session Date/Time
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-                  Amount Received
+                  <TableSortLabel
+                    active={sortField === 'amount'}
+                    direction={sortField === 'amount' && sortAsc ? 'asc' : 'desc'}
+                    onClick={() => {
+                      if (sortField === 'amount') setSortAsc((s) => !s)
+                      else {
+                        setSortField('amount')
+                        setSortAsc(true)
+                      }
+                    }}
+                  >
+                    Amount Received
+                  </TableSortLabel>
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-                  Payment Made On
+                  <TableSortLabel
+                    active={sortField === 'paymentMade'}
+                    direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
+                    onClick={() => {
+                      if (sortField === 'paymentMade') setSortAsc((s) => !s)
+                      else {
+                        setSortField('paymentMade')
+                        setSortAsc(false)
+                      }
+                    }}
+                  >
+                    Payment Made On
+                  </TableSortLabel>
                 </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {payments.map((p) => (
+              {sortedPayments.map((p) => (
                 <TableRow key={p.id} hover onClick={() => setDetail(p)}>
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                     {formatDateTime(p.sessionDate)}

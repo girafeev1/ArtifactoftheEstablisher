@@ -35,5 +35,5 @@ Floating windows later became immovable when a `onMouseDown` handler on the head
 * All date displays in the web app use MMM DD, YYYY format.
 * Section and table headings use Cantata One font; table row content uses Newsreader font at weight 500.
 * All modals must provide a Back/Close navigation consistent with the Session Detail modal.
-* Tab and sub-tab navigation lives in the dialog sidebar. Sub-tabs expand beneath their parent tab and must not appear in top bars or popovers.
+* Tab and sub-tab navigation lives in the dialog sidebar. The Billing parent tab shows the summary; its only child sub-tabs are Retainers and Payment History. Sub-tabs must not appear in top bars or popovers.
 * Retainer status colors: green for active, red for expiring/expired, lightBlue for upcoming, and lightGreen when an expired retainer has a future one scheduled.

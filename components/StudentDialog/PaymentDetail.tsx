@@ -59,6 +59,7 @@ export default function PaymentDetail({
   const [remaining, setRemaining] = useState<number>(
     payment.remainingAmount ?? Number(payment.amount) ?? 0,
   )
+  const [ordinals, setOrdinals] = useState<Record<string, number>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -163,11 +164,22 @@ export default function PaymentDetail({
               assigned,
               assignedToOther,
               inRetainer,
+              startDate,
             }
           }),
         )
 
         if (cancelled) return
+        const map: Record<string, number> = {}
+        ;[...rows]
+          .sort(
+            (a, b) =>
+              (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0),
+          )
+          .forEach((r, i) => {
+            map[r.id] = i + 1
+          })
+        setOrdinals(map)
         setAssignedSessions(rows.filter((r) => r.assigned && !r.inRetainer))
         setAvailable(
           rows.filter(
@@ -277,7 +289,7 @@ export default function PaymentDetail({
             variant="h6"
             sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           >
-            {`${i + 1} | ${s.date} | ${s.time}`}
+            {`${ordinals[s.id] ?? i + 1} | ${s.date} | ${s.time}`}
           </Typography>
         ))}
         {remaining > 0 && (
@@ -293,7 +305,7 @@ export default function PaymentDetail({
                       disabled={assigning || (s.rate || 0) > remaining}
                     />
                   }
-                  label={`${i + 1} | ${s.date} | ${s.time}`}
+                  label={`${ordinals[s.id] ?? i + 1} | ${s.date} | ${s.time}`}
                 />
               ))}
             </FormGroup>

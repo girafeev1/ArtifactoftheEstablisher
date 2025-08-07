@@ -14,9 +14,9 @@ import {
 } from '@mui/material'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
-import { RetainerDoc } from '../../lib/retainer'
+import { RetainerDoc, getRetainerStatus, RetainerStatusColor } from '../../lib/retainer'
 import RetainerModal from './RetainerModal'
-import CreateIcon from '@mui/icons-material/Create'
+import { WriteIcon } from './icons'
 
 const formatDate = (v: any) => {
   try {
@@ -45,7 +45,7 @@ export default function RetainersTab({
   balanceDue: number
 }) {
   const [rows, setRows] = useState<RetRow[]>([])
-  const [sortAsc, setSortAsc] = useState(true)
+  const [sortAsc, setSortAsc] = useState(false)
   const [modal, setModal] = useState<{
     open: boolean
     retainer?: RetRow
@@ -79,86 +79,6 @@ export default function RetainersTab({
 
   const today = new Date()
 
-  const getStatus = (r: RetRow, idx: number) => {
-    const start = r.retainerStarts.toDate()
-    const end = r.retainerEnds.toDate()
-    const next = rows[idx + 1]
-    if (today >= start && today <= end) {
-      const daysLeft = Math.ceil((end.getTime() - today.getTime()) / 86400000)
-      if (daysLeft <= 7) {
-        if (daysLeft >= 6)
-          return { text: 'Expiring in a week', color: 'error.main', tip: 'Retainer ends soon' }
-        if (daysLeft === 1)
-          return { text: 'Expiring tomorrow', color: 'error.main', tip: 'Retainer ends tomorrow' }
-        if (daysLeft === 0)
-          return { text: 'Expiring today', color: 'error.main', tip: 'Retainer ends today' }
-        return {
-          text: `Expiring in ${daysLeft} days`,
-          color: 'error.main',
-          tip: 'Retainer nearing end date',
-        }
-      }
-      return { text: 'Active', color: 'success.main', tip: 'Retainer is active' }
-    }
-    if (today < start) {
-      const days = Math.ceil((start.getTime() - today.getTime()) / 86400000)
-      if (days <= 7) {
-        if (days >= 6)
-          return {
-            text: 'Upcoming retainer starts in a week',
-            color: 'info.light',
-            tip: 'Next retainer begins soon',
-          }
-        if (days === 1)
-          return {
-            text: 'Upcoming retainer starts tomorrow',
-            color: 'info.light',
-            tip: 'Next retainer begins tomorrow',
-          }
-        return {
-          text: `Upcoming retainer starts in ${days} days`,
-          color: 'info.light',
-          tip: 'Next retainer begins soon',
-        }
-      }
-      return {
-        text: `Upcoming retainer starts on ${formatDate(start)}`,
-        color: 'info.light',
-        tip: 'Next retainer scheduled',
-      }
-    }
-    // expired
-    if (next) {
-      const nextStart = next.retainerStarts.toDate()
-      const days = Math.ceil((nextStart.getTime() - today.getTime()) / 86400000)
-      if (days <= 7) {
-        if (days >= 6)
-          return {
-            text: 'Upcoming retainer starts in a week',
-            color: 'success.light',
-            tip: 'Next retainer begins soon',
-          }
-        if (days === 1)
-          return {
-            text: 'Upcoming retainer starts tomorrow',
-            color: 'success.light',
-            tip: 'Next retainer begins tomorrow',
-          }
-        return {
-          text: `Upcoming retainer starts in ${days} days`,
-          color: 'success.light',
-          tip: 'Next retainer begins soon',
-        }
-      }
-      return {
-        text: `Upcoming retainer starts on ${formatDate(nextStart)}`,
-        color: 'success.light',
-        tip: 'Next retainer scheduled',
-      }
-    }
-    return { text: 'Expired', color: 'error.main', tip: 'Retainer ended with no upcoming retainer' }
-  }
-
   return (
     <Box sx={{ p: 1, textAlign: 'left', height: '100%' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -187,7 +107,7 @@ export default function RetainersTab({
                 })
               }
             >
-              <CreateIcon fontSize="small" />
+              <WriteIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
@@ -205,7 +125,7 @@ export default function RetainersTab({
               </TableSortLabel>
             </TableCell>
             <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-              Coverage Period
+              Container Period
             </TableCell>
             <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
               Rate
@@ -220,12 +140,28 @@ export default function RetainersTab({
         </TableHead>
         <TableBody>
           {sortedRows.map((r, idx) => {
-            const status = getStatus(r, idx)
-            const active = today >= r.retainerStarts.toDate() && today <= r.retainerEnds.toDate()
+            const next = sortedRows[idx + 1]
+            const status = getRetainerStatus(r, today, next)
+            const colorMap: Record<RetainerStatusColor, string> = {
+              green: 'success.main',
+              red: 'error.main',
+              lightBlue: 'info.light',
+              lightGreen: 'success.light',
+            }
+            const active =
+              today >= r.retainerStarts.toDate() && today <= r.retainerEnds.toDate()
+            const start = r.retainerStarts.toDate()
+            const labelDate = new Date(start)
+            if (labelDate.getDate() >= 21)
+              labelDate.setMonth(labelDate.getMonth() + 1)
+            const monthLabel = labelDate.toLocaleString('en-US', {
+              month: 'short',
+              year: 'numeric',
+            })
             return (
               <TableRow key={r.id} hover selected={active}>
                 <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {r.id}
+                  {monthLabel}
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                   {`${formatDate(r.retainerStarts)} – ${formatDate(r.retainerEnds)}`}
@@ -237,10 +173,14 @@ export default function RetainersTab({
                   }).format(r.retainerRate)}
                 </TableCell>
                 <TableCell
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 500, color: status.color }}
+                  sx={{
+                    fontFamily: 'Newsreader',
+                    fontWeight: 500,
+                    color: colorMap[status.color],
+                  }}
                 >
-                  <Tooltip title={status.tip}>
-                    <span>{status.text}</span>
+                  <Tooltip title={status.label}>
+                    <span>{status.label}</span>
                   </Tooltip>
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>

@@ -92,6 +92,7 @@ export default function RetainerModal({
         >
           {retainer ? 'Edit Retainer' : 'Add Retainer'}
         </Typography>
+        {/* TODO: replace TextField type="date" with MUI DatePicker + shouldDisableDate to gray out overlapping ranges. */}
         <TextField
           type="date"
           label="Start Date"

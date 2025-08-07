@@ -1,7 +1,7 @@
 // components/StudentDialog/OverviewTab.tsx
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { Tabs, Tab, Box, CircularProgress, Typography, Button } from '@mui/material'
+import { Tabs, Tab, Box, CircularProgress, Typography } from '@mui/material'
 import FloatingWindow from './FloatingWindow'
 
 // OverviewTab acts purely as a presenter. PersonalTab, SessionsTab and
@@ -112,13 +112,7 @@ export default function OverviewTab({
     [setOverview, setOverviewLoading],
   )
 
-  const handleTabChange = (_: any, v: string) => {
-    if (v === 'billing') {
-      setTab('billing-info')
-    } else {
-      setTab(v)
-    }
-  }
+  const handleTabChange = (_: any, v: string) => setTab(v)
 
   // reset loading states whenever dialog is opened
   useEffect(() => {
@@ -130,11 +124,25 @@ export default function OverviewTab({
       setPersonalLoading({ firstName: true, lastName: true, sex: true })
       setBillingLoading({ balanceDue: true, voucherBalance: true })
       setOverviewLoading(true)
-      setTab('overview')
       setTitle(account)
       setActions(null)
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search)
+        const q = params.get('tab')
+        setTab(q || 'overview')
+      } else {
+        setTab('overview')
+      }
     }
-  }, [open])
+  }, [open, abbr, account])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    params.set('tab', tab)
+    const url = `${window.location.pathname}?${params.toString()}`
+    window.history.replaceState(null, '', url)
+  }, [tab])
 
   useEffect(() => {
     console.log('OverviewTab loading states', {
@@ -347,7 +355,7 @@ export default function OverviewTab({
                 account={account}
                 serviceMode={serviceMode}
                 onBilling={handleBilling}
-                style={{ display: tab === 'billing-info' ? 'block' : 'none' }}
+                style={{ display: tab === 'billing' ? 'block' : 'none' }}
               />
               <Box sx={{ display: tab === 'billing-retainers' ? 'block' : 'none' }}>
                 <RetainersTab
@@ -396,26 +404,36 @@ export default function OverviewTab({
                   width: '100%',
                   bgcolor: tab.startsWith('billing') ? 'action.selected' : undefined,
                 }}
+                onClick={() => setTab('billing')}
               />
-              {tab.startsWith('billing') && (
-                <>
-                  <Tab
-                    value="billing-info"
-                    label="Billing Info"
-                    sx={{ pl: 2, textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
-                  />
-                  <Tab
-                    value="billing-retainers"
-                    label="Retainers"
-                    sx={{ pl: 2, textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
-                  />
-                  <Tab
-                    value="billing-history"
-                    label="Payment History"
-                    sx={{ pl: 2, textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
-                  />
-                </>
-              )}
+              <Tab
+                value="billing-retainers"
+                label="Retainers"
+                sx={{
+                  pl: 4,
+                  fontSize: '0.85rem',
+                  color: 'text.secondary',
+                  textAlign: 'right',
+                  justifyContent: 'flex-end',
+                  width: '100%',
+                  display: tab.startsWith('billing') ? 'flex' : 'none',
+                }}
+                onClick={() => setTab('billing-retainers')}
+              />
+              <Tab
+                value="billing-history"
+                label="Payment History"
+                sx={{
+                  pl: 4,
+                  fontSize: '0.85rem',
+                  color: 'text.secondary',
+                  textAlign: 'right',
+                  justifyContent: 'flex-end',
+                  width: '100%',
+                  display: tab.startsWith('billing') ? 'flex' : 'none',
+                }}
+                onClick={() => setTab('billing-history')}
+              />
             </Tabs>
           </Box>
         </Box>
