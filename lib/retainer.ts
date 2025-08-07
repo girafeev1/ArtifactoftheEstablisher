@@ -8,6 +8,9 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { db } from './firebase'
+import { endOfNextMonthAligned, daysUntil, formatMMMDDYYYY } from './date'
+
+export const calculateEndDate = endOfNextMonthAligned
 
 export interface RetainerDoc {
   retainerStarts: Timestamp
@@ -17,23 +20,10 @@ export interface RetainerDoc {
   editedBy?: string
 }
 
-/**
- * Calculate the end date for a retainer given a start date. The end date is the
- * same day in the following month. If the start date is the final day of the
- * month the end date will also be the final day of the next month.
- */
-export const calculateEndDate = (start: Date): Date => {
-  const year = start.getFullYear()
-  const month = start.getMonth()
-  const day = start.getDate()
-
-  const daysInCurrentMonth = new Date(year, month + 1, 0).getDate()
-  const daysInNextMonth = new Date(year, month + 2, 0).getDate()
-
-  const isLastDay = day === daysInCurrentMonth
-  const endDay = isLastDay ? daysInNextMonth : Math.min(day, daysInNextMonth)
-
-  return new Date(year, month + 1, endDay)
+export type RetainerStatusColor = 'green' | 'red' | 'lightBlue' | 'lightGreen'
+export interface RetainerStatus {
+  label: string
+  color: RetainerStatusColor
 }
 
 /**
@@ -49,7 +39,7 @@ export const addRetainer = async (
   const startDate = new Date(start)
   startDate.setHours(0, 0, 0, 0)
 
-  const endDate = calculateEndDate(startDate)
+  const endDate = endOfNextMonthAligned(startDate)
   endDate.setHours(23, 59, 59, 0)
 
   const retainersCol = collection(db, 'Students', abbr, 'Retainers')
@@ -76,6 +66,67 @@ export const addRetainer = async (
     timestamp: Timestamp.fromDate(today),
     editedBy,
   })
+}
+
+/**
+ * Compute the status label and color for a retainer, optionally considering the next retainer.
+ */
+export const getRetainerStatus = (
+  retainer: RetainerDoc,
+  today = new Date(),
+  next?: RetainerDoc,
+): RetainerStatus => {
+  const start = retainer.retainerStarts.toDate()
+  const end = retainer.retainerEnds.toDate()
+  const daysToStart = daysUntil(start)
+  const daysToEnd = daysUntil(end)
+
+  // Upcoming
+  if (daysToStart > 0) {
+    let label: string
+    if (daysToStart >= 6 && daysToStart <= 7)
+      label = 'Starting in a week'
+    else if (daysToStart >= 2)
+      label = `Starting in ${daysToStart} days`
+    else if (daysToStart === 1)
+      label = 'Starting tomorrow'
+    else label = 'Starting today'
+    if (daysToStart > 7)
+      label = `Upcoming retainer starts on ${formatMMMDDYYYY(start)}`
+    return { label, color: 'lightBlue' }
+  }
+
+  // Active
+  if (daysToEnd >= 0) {
+    if (daysToEnd >= 6 && daysToEnd <= 7)
+      return { label: 'Expiring in a week', color: 'red' }
+    if (daysToEnd >= 2)
+      return { label: `Expiring in ${daysToEnd} days`, color: 'red' }
+    if (daysToEnd === 1)
+      return { label: 'Expiring tomorrow', color: 'red' }
+    if (daysToEnd === 0)
+      return { label: 'Expiring today', color: 'red' }
+    return { label: 'Active', color: 'green' }
+  }
+
+  // Expired
+  if (next) {
+    const nextStart = next.retainerStarts.toDate()
+    const diff = daysUntil(nextStart)
+    let label: string
+    if (diff <= 7) {
+      if (diff >= 6) label = 'Upcoming retainer starts in a week'
+      else if (diff >= 2) label = `Upcoming retainer starts in ${diff} days`
+      else if (diff === 1)
+        label = 'Upcoming retainer starts tomorrow'
+      else label = 'Upcoming retainer starts today'
+    } else {
+      label = `Upcoming retainer starts on ${formatMMMDDYYYY(nextStart)}`
+    }
+    return { label, color: 'lightGreen' }
+  }
+
+  return { label: 'Expired', color: 'red' }
 }
 
 /**

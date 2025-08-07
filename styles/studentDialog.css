@@ -1,0 +1,13 @@
+.student-dialog-modal .MuiDialog-paper {
+  padding: 24px;
+}
+
+.student-heading {
+  font-family: 'Cantata One', serif;
+  text-decoration: underline;
+}
+
+.student-row {
+  font-family: 'Newsreader', serif;
+  font-weight: 500;
+}
