@@ -43,7 +43,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
             }}
           >
             {title && (
-              <Typography variant="h6" sx={{ fontFamily: 'Cantata One' }}>
+              <Typography variant="h6" sx={{ fontFamily: 'var(--font-nunito)' }}>
                 {title}
               </Typography>
             )}
@@ -93,7 +93,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
             }}
           >
             {title && (
-              <Typography variant="h6" sx={{ fontFamily: 'Cantata One' }}>
+              <Typography variant="h6" sx={{ fontFamily: 'var(--font-nunito)' }}>
                 {title}
               </Typography>
             )}

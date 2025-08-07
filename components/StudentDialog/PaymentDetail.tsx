@@ -186,6 +186,11 @@ export default function PaymentDetail({
               label={`${s.id} - ${
                 s.rate != null ? formatCurrency(Number(s.rate)) : '-'
               }`}
+              slotProps={{
+                typography: {
+                  sx: { fontFamily: 'Newsreader', fontWeight: 500 },
+                },
+              }}
             />
           ))}
         </FormGroup>
