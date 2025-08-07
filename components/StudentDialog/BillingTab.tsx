@@ -6,17 +6,29 @@ import { collection, getDocs, query, where, orderBy, limit } from 'firebase/fire
 import { db } from '../../lib/firebase'
 import InlineEdit from '../../common/InlineEdit'
 import PaymentHistory from './PaymentHistory'
+import { getLatestRetainer } from '../../lib/retainer'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
 
+const formatDate = (v: any) => {
+  const d = v?.toDate ? v.toDate() : new Date(v)
+  return isNaN(d.getTime())
+    ? '-'
+    : d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+      })
+}
+
 const LABELS: Record<string, string> = {
   billingCompany: 'Billing Company Info',
   defaultBillingType: 'Default Billing Type',
   baseRate: 'Base Rate',
-  retainerStatus: 'Retainer Status',
+  retainer: 'Retainer',
   lastPaymentDate: 'Last Payment',
   balanceDue: 'Balance Due',
   voucherBalance: 'Voucher Balance',
@@ -45,7 +57,7 @@ export default function BillingTab({
     billingCompany: true,
     defaultBillingType: true,
     baseRate: true,
-    retainerStatus: true,
+    retainer: true,
     lastPaymentDate: true,
     balanceDue: true,
     voucherBalance: true,
@@ -76,7 +88,6 @@ export default function BillingTab({
         'billingCompany',
         'defaultBillingType',
         'baseRate',
-        'retainerStatus',
         'lastPaymentDate',
         'voucherBalance',
       ]
@@ -115,6 +126,18 @@ export default function BillingTab({
           })
           if (f === 'voucherBalance') onBilling?.({ voucherBalance: undefined })
         }
+      }
+
+      try {
+        const r = await getLatestRetainer(abbr)
+        if (cancelled) return
+        setFields((b: any) => ({ ...b, retainer: r }))
+        setLoading((l: any) => ({ ...l, retainer: false }))
+      } catch (e) {
+        console.error('retainer load failed', e)
+        if (cancelled) return
+        setFields((b: any) => ({ ...b, retainer: '__ERROR__' }))
+        setLoading((l: any) => ({ ...l, retainer: false }))
       }
     })()
     return () => {
@@ -243,10 +266,6 @@ export default function BillingTab({
 
   const renderField = (k: string) => {
     const v = fields[k]
-    const path =
-      k === 'defaultBillingType'
-        ? `Students/${abbr}/billingType`
-        : `Students/${abbr}/${k}`
     return (
       <Box key={k} mb={2}>
         <Typography
@@ -281,16 +300,30 @@ export default function BillingTab({
             variant="h6"
             sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           >
-            {v
-              ? v.toDate
-                ? v.toDate().toLocaleDateString()
-                : new Date(v).toLocaleDateString()
-              : '-'}
+            {v === '__ERROR__' ? 'Error' : formatDate(v)}
+          </Typography>
+        ) : k === 'retainer' ? (
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            {v === '__ERROR__'
+              ? 'Error'
+              : v
+              ? `${formatDate(v.retainerStarts)} – ${formatDate(v.retainerEnds)} @ ${
+                  v.retainerRate != null && !isNaN(Number(v.retainerRate))
+                    ? formatCurrency(Number(v.retainerRate))
+                    : '-'
+                }`
+              : 'N/A'}
           </Typography>
         ) : (
           <InlineEdit
             value={v}
-            fieldPath={path}
+            fieldPath=
+              {k === 'defaultBillingType'
+                ? `Students/${abbr}/billingType`
+                : `Students/${abbr}/${k}`}
             fieldKey={k}
             editable={!['balanceDue', 'voucherBalance', 'lastPaymentDate'].includes(k)}
             serviceMode={serviceMode}
@@ -333,7 +366,7 @@ export default function BillingTab({
             {[
               'balanceDue',
               'baseRate',
-              'retainerStatus',
+              'retainer',
               'lastPaymentDate',
               'voucherBalance',
             ].map((k) => renderField(k))}
