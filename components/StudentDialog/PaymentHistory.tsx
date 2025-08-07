@@ -78,7 +78,7 @@ export default function PaymentHistory({
     )
 
   return (
-    <Box sx={{ p: 3, overflow: 'auto' }}>
+    <Box sx={{ p: 4, overflow: 'auto' }}>
       {loading ? (
         <CircularProgress />
       ) : (

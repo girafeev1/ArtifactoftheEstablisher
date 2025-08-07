@@ -132,7 +132,7 @@ export default function PaymentDetail({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3 }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>
         {Object.entries(payment).map(([k, v]) => (
           <React.Fragment key={k}>
             <Typography
