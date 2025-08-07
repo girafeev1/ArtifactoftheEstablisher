@@ -39,7 +39,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
               justifyContent: 'space-between',
               alignItems: 'center',
               px: 5,
-              py: 0,
+              py: 1,
             }}
           >
             {title && (
@@ -86,7 +86,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
               justifyContent: 'space-between',
               alignItems: 'center',
               px: 5,
-              py: 0,
+              py: 1,
               borderBottom: 1,
               borderColor: 'divider',
               cursor: 'move',
