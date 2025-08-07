@@ -11,6 +11,7 @@ import FloatingWindow from './FloatingWindow'
 // OverviewTab never queries Firestore directly.
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
+import RetainersTab from './RetainersTab'
 import SessionsTab from './SessionsTab'
 import PaymentHistory from './PaymentHistory'
 
@@ -60,7 +61,7 @@ export default function OverviewTab({
   onPopDetail,
 }: OverviewTabProps) {
   console.log('OverviewTab rendered for', abbr)
-  const [tab, setTab] = useState(0)
+  const [tab, setTab] = useState<string>('overview')
   const [title, setTitle] = useState(account)
   const [actions, setActions] = useState<React.ReactNode | null>(null)
 
@@ -111,6 +112,14 @@ export default function OverviewTab({
     [setOverview, setOverviewLoading],
   )
 
+  const handleTabChange = (_: any, v: string) => {
+    if (v === 'billing') {
+      setTab('billing-info')
+    } else {
+      setTab(v)
+    }
+  }
+
   // reset loading states whenever dialog is opened
   useEffect(() => {
     console.log('OverviewTab reset effect for', abbr)
@@ -121,7 +130,7 @@ export default function OverviewTab({
       setPersonalLoading({ firstName: true, lastName: true, sex: true })
       setBillingLoading({ balanceDue: true, voucherBalance: true })
       setOverviewLoading(true)
-      setTab(0)
+      setTab('overview')
       setTitle(account)
       setActions(null)
     }
@@ -179,7 +188,7 @@ export default function OverviewTab({
                 maxWidth: '100%',
               }}
             >
-              <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
+              <Box sx={{ display: tab === 'overview' ? 'block' : 'none' }}>
                 <Typography
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
@@ -320,7 +329,7 @@ export default function OverviewTab({
                 abbr={abbr}
                 serviceMode={serviceMode}
                 onPersonal={handlePersonal}
-                style={{ display: tab === 1 ? 'block' : 'none' }}
+                style={{ display: tab === 'personal' ? 'block' : 'none' }}
               />
 
               <SessionsTab
@@ -330,7 +339,7 @@ export default function OverviewTab({
                 onTitle={setTitle}
                 onActions={setActions}
                 onPopDetail={onPopDetail}
-                style={{ display: tab === 2 ? 'block' : 'none' }}
+                style={{ display: tab === 'sessions' ? 'block' : 'none' }}
               />
 
               <BillingTab
@@ -338,9 +347,15 @@ export default function OverviewTab({
                 account={account}
                 serviceMode={serviceMode}
                 onBilling={handleBilling}
-                style={{ display: tab === 3 ? 'block' : 'none' }}
+                style={{ display: tab === 'billing-info' ? 'block' : 'none' }}
               />
-              <Box sx={{ display: tab === 4 ? 'block' : 'none' }}>
+              <Box sx={{ display: tab === 'billing-retainers' ? 'block' : 'none' }}>
+                <RetainersTab
+                  abbr={abbr}
+                  balanceDue={Number(billing.balanceDue) || 0}
+                />
+              </Box>
+              <Box sx={{ display: tab === 'billing-history' ? 'block' : 'none' }}>
                 <PaymentHistory abbr={abbr} account={account} />
               </Box>
             </Box>
@@ -348,7 +363,7 @@ export default function OverviewTab({
             <Tabs
               orientation="vertical"
               value={tab}
-              onChange={(_, v) => setTab(v)}
+              onChange={handleTabChange}
               sx={{
                 borderLeft: 1,
                 borderColor: 'divider',
@@ -357,18 +372,46 @@ export default function OverviewTab({
                 display: loading ? 'none' : 'flex',
               }}
             >
-              {['Overview', 'Personal', 'Sessions', 'Billing', 'Payment History'].map((l) => (
-                <Tab
-                  key={l}
-                  label={l}
-                  sx={{
-                    textAlign: 'right',
-                    justifyContent: 'flex-end',
-                    alignItems: 'flex-end',
-                    width: '100%',
-                  }}
-                />
-              ))}
+              <Tab
+                value="overview"
+                label="Overview"
+                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+              />
+              <Tab
+                value="personal"
+                label="Personal"
+                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+              />
+              <Tab
+                value="sessions"
+                label="Sessions"
+                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+              />
+              <Tab
+                value="billing"
+                label="Billing"
+                selected={tab.startsWith('billing')}
+                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+              />
+              {tab.startsWith('billing') && (
+                <>
+                  <Tab
+                    value="billing-info"
+                    label="Billing Info"
+                    sx={{ pl: 2, textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+                  />
+                  <Tab
+                    value="billing-retainers"
+                    label="Retainers"
+                    sx={{ pl: 2, textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+                  />
+                  <Tab
+                    value="billing-history"
+                    label="Payment History"
+                    sx={{ pl: 2, textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+                  />
+                </>
+              )}
             </Tabs>
           </Box>
         </Box>

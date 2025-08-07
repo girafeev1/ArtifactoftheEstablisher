@@ -9,11 +9,14 @@ import {
   TableBody,
   Button,
   TableSortLabel,
+  IconButton,
+  Tooltip,
 } from '@mui/material'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { RetainerDoc } from '../../lib/retainer'
 import RetainerModal from './RetainerModal'
+import CreateIcon from '@mui/icons-material/Create'
 
 const formatDate = (v: any) => {
   try {
@@ -83,39 +86,77 @@ export default function RetainersTab({
     if (today >= start && today <= end) {
       const daysLeft = Math.ceil((end.getTime() - today.getTime()) / 86400000)
       if (daysLeft <= 7) {
-        if (daysLeft === 7) return { text: 'Expiring in a week', color: 'error.main' }
+        if (daysLeft >= 6)
+          return { text: 'Expiring in a week', color: 'error.main', tip: 'Retainer ends soon' }
         if (daysLeft === 1)
-          return { text: 'Expiring tomorrow', color: 'error.main' }
+          return { text: 'Expiring tomorrow', color: 'error.main', tip: 'Retainer ends tomorrow' }
         if (daysLeft === 0)
-          return { text: 'Expiring today', color: 'error.main' }
-        return { text: `Expiring in ${daysLeft} days`, color: 'error.main' }
+          return { text: 'Expiring today', color: 'error.main', tip: 'Retainer ends today' }
+        return {
+          text: `Expiring in ${daysLeft} days`,
+          color: 'error.main',
+          tip: 'Retainer nearing end date',
+        }
       }
-      return { text: 'Active', color: 'success.main' }
+      return { text: 'Active', color: 'success.main', tip: 'Retainer is active' }
     }
     if (today < start) {
       const days = Math.ceil((start.getTime() - today.getTime()) / 86400000)
-      if (days <= 7)
-        return { text: `Upcoming in ${days} days`, color: 'info.light' }
+      if (days <= 7) {
+        if (days >= 6)
+          return {
+            text: 'Upcoming retainer starts in a week',
+            color: 'info.light',
+            tip: 'Next retainer begins soon',
+          }
+        if (days === 1)
+          return {
+            text: 'Upcoming retainer starts tomorrow',
+            color: 'info.light',
+            tip: 'Next retainer begins tomorrow',
+          }
+        return {
+          text: `Upcoming retainer starts in ${days} days`,
+          color: 'info.light',
+          tip: 'Next retainer begins soon',
+        }
+      }
       return {
         text: `Upcoming retainer starts on ${formatDate(start)}`,
         color: 'info.light',
+        tip: 'Next retainer scheduled',
       }
     }
     // expired
     if (next) {
       const nextStart = next.retainerStarts.toDate()
       const days = Math.ceil((nextStart.getTime() - today.getTime()) / 86400000)
-      if (days <= 7)
+      if (days <= 7) {
+        if (days >= 6)
+          return {
+            text: 'Upcoming retainer starts in a week',
+            color: 'success.light',
+            tip: 'Next retainer begins soon',
+          }
+        if (days === 1)
+          return {
+            text: 'Upcoming retainer starts tomorrow',
+            color: 'success.light',
+            tip: 'Next retainer begins tomorrow',
+          }
         return {
           text: `Upcoming retainer starts in ${days} days`,
           color: 'success.light',
+          tip: 'Next retainer begins soon',
         }
+      }
       return {
         text: `Upcoming retainer starts on ${formatDate(nextStart)}`,
         color: 'success.light',
+        tip: 'Next retainer scheduled',
       }
     }
-    return { text: 'Expired', color: 'error.main' }
+    return { text: 'Expired', color: 'error.main', tip: 'Retainer ended with no upcoming retainer' }
   }
 
   return (
@@ -127,19 +168,29 @@ export default function RetainersTab({
         >
           Retainers
         </Typography>
-        <Button
-          variant="contained"
-          onClick={() =>
-            setModal({
-              open: true,
-              nextStart: rows[rows.length - 1]
-                ? rows[rows.length - 1].retainerEnds.toDate()
-                : undefined,
-            })
-          }
-        >
-          Add Next Retainer
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            onClick={() => setModal({ open: true })}
+          >
+            Add New Retainer
+          </Button>
+          <Tooltip title="Add Next Retainer">
+            <IconButton
+              color="primary"
+              onClick={() =>
+                setModal({
+                  open: true,
+                  nextStart: rows[rows.length - 1]
+                    ? rows[rows.length - 1].retainerEnds.toDate()
+                    : undefined,
+                })
+              }
+            >
+              <CreateIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
       <Table size="small">
         <TableHead>
@@ -187,9 +238,10 @@ export default function RetainersTab({
                 </TableCell>
                 <TableCell
                   sx={{ fontFamily: 'Newsreader', fontWeight: 500, color: status.color }}
-                  title={status.text}
                 >
-                  {status.text}
+                  <Tooltip title={status.tip}>
+                    <span>{status.text}</span>
+                  </Tooltip>
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                   <Button

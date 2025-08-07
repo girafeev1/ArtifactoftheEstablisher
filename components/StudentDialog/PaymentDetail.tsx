@@ -119,6 +119,13 @@ export default function PaymentDetail({
                     day: '2-digit',
                     year: 'numeric',
                   })
+            const time =
+              !startDate || isNaN(startDate.getTime())
+                ? '-'
+                : startDate.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
 
             const base = (() => {
               if (!startDate || !baseRates.length) return 0
@@ -150,8 +157,8 @@ export default function PaymentDetail({
 
             return {
               id: sd.id,
-              sessionType: data.sessionType ?? 'N/A',
               date,
+              time,
               rate,
               assigned,
               assignedToOther,
@@ -264,19 +271,19 @@ export default function PaymentDetail({
         >
           Pay for:
         </Typography>
-        {assignedSessions.map((s) => (
+        {assignedSessions.map((s, i) => (
           <Typography
             key={s.id}
             variant="h6"
             sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           >
-            {`${s.id} | ${s.date} (${s.sessionType})`}
+            {`${i + 1} | ${s.date} | ${s.time}`}
           </Typography>
         ))}
         {remaining > 0 && (
           <>
             <FormGroup>
-              {available.map((s) => (
+              {available.map((s, i) => (
                 <FormControlLabel
                   key={s.id}
                   control={
@@ -286,7 +293,7 @@ export default function PaymentDetail({
                       disabled={assigning || (s.rate || 0) > remaining}
                     />
                   }
-                  label={`${s.id} | ${s.date} (${s.sessionType})`}
+                  label={`${i + 1} | ${s.date} | ${s.time}`}
                 />
               ))}
             </FormGroup>

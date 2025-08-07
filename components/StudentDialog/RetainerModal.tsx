@@ -119,16 +119,24 @@ export default function RetainerModal({
           sx={{ mb: 1 }}
           InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
           inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          helperText={`Balance Due: ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(balanceDue)}`}
+          FormHelperTextProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
         />
-        <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500, mb: 2 }}>
-          Balance Due: {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(balanceDue)}
-        </Typography>
         {error && (
           <Typography color="error" sx={{ mb: 2 }}>
             {error}
           </Typography>
         )}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+        <Box
+          sx={{
+            borderTop: 1,
+            borderColor: 'divider',
+            mt: 2,
+            pt: 1,
+            display: 'flex',
+            justifyContent: 'space-between',
+          }}
+        >
           <Button onClick={() => onClose(false)} disabled={saving}>
             Close
           </Button>
