@@ -390,8 +390,12 @@ export default function OverviewTab({
               <Tab
                 value="billing"
                 label="Billing"
-                selected={tab.startsWith('billing')}
-                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+                sx={{
+                  textAlign: 'right',
+                  justifyContent: 'flex-end',
+                  width: '100%',
+                  bgcolor: tab.startsWith('billing') ? 'action.selected' : undefined,
+                }}
               />
               {tab.startsWith('billing') && (
                 <>
