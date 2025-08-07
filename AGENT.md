@@ -32,5 +32,6 @@ The most recent reload loop traced to defining the error boundary inside `Overvi
 
 Floating windows later became immovable when a `onMouseDown` handler on the header stopped drag events from reaching `react-rnd`. Removing that handler restored independent window movement.
 
-* All date displays in the web app should use MMM DD, YYYY format unless otherwise specified.
+* All date displays in the web app use MMM DD, YYYY format.
 * Section and table headings use Cantata One font; table row content uses Newsreader font at weight 500.
+* All modals must provide a Back/Close navigation consistent with the Session Detail modal.

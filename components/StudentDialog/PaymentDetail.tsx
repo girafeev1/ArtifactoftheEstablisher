@@ -64,10 +64,11 @@ export default function PaymentDetail({
     let cancelled = false
     ;(async () => {
       try {
-        const [histSnap, baseSnap, sessSnap] = await Promise.all([
+        const [histSnap, baseSnap, sessSnap, retSnap] = await Promise.all([
           getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
           getDocs(collection(db, 'Students', abbr, 'BaseRate')),
           getDocs(query(collection(db, 'Sessions'), where('sessionName', '==', account))),
+          getDocs(collection(db, 'Students', abbr, 'Retainers')),
         ])
 
         const baseRateDocs = [...histSnap.docs, ...baseSnap.docs]
@@ -80,6 +81,13 @@ export default function PaymentDetail({
             }
           })
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
+
+        const retainers = retSnap.docs.map((d) => {
+          const data = d.data() as any
+          const s = data.retainerStarts?.toDate?.() ?? new Date(0)
+          const e = data.retainerEnds?.toDate?.() ?? new Date(0)
+          return { start: s, end: e }
+        })
 
         const rows = await Promise.all(
           sessSnap.docs.map(async (sd) => {
@@ -136,6 +144,10 @@ export default function PaymentDetail({
             const assigned = paymentIds.includes(payment.id)
             const assignedToOther = paymentIds.length > 0 && !assigned
 
+            const inRetainer = retainers.some(
+              (r) => startDate && startDate >= r.start && startDate <= r.end,
+            )
+
             return {
               id: sd.id,
               sessionType: data.sessionType ?? 'N/A',
@@ -143,13 +155,18 @@ export default function PaymentDetail({
               rate,
               assigned,
               assignedToOther,
+              inRetainer,
             }
           }),
         )
 
         if (cancelled) return
-        setAssignedSessions(rows.filter((r) => r.assigned))
-        setAvailable(rows.filter((r) => !r.assigned && !r.assignedToOther))
+        setAssignedSessions(rows.filter((r) => r.assigned && !r.inRetainer))
+        setAvailable(
+          rows.filter(
+            (r) => !r.assigned && !r.assignedToOther && !r.inRetainer,
+          ),
+        )
       } catch (e) {
         console.error('load sessions failed', e)
         if (!cancelled) {

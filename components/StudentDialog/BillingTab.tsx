@@ -1,11 +1,12 @@
 // components/StudentDialog/BillingTab.tsx
 
 import React, { useEffect, useState } from 'react'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography, Tabs, Tab } from '@mui/material'
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import InlineEdit from '../../common/InlineEdit'
 import { getLatestRetainer } from '../../lib/retainer'
+import RetainersTab from './RetainersTab'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -61,6 +62,7 @@ export default function BillingTab({
     balanceDue: true,
     voucherBalance: true,
   })
+  const [sub, setSub] = useState(0)
 
   const loadLatest = async (sub: string, field: string, orderField = 'timestamp') => {
     try {
@@ -348,32 +350,47 @@ export default function BillingTab({
         flexDirection: 'column',
       }}
     >
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>
-        <Typography
-          variant="subtitle1"
-          sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-        >
-          Billing Information
-        </Typography>
-        {[
-          'balanceDue',
-          'baseRate',
-          'retainer',
-          'lastPaymentDate',
-          'voucherBalance',
-        ].map((k) => renderField(k))}
-        <Typography
-          variant="subtitle1"
-          sx={{
-            fontFamily: 'Cantata One',
-            textDecoration: 'underline',
-            mt: 2,
-          }}
-        >
-          Payment Information
-        </Typography>
-        {['defaultBillingType', 'billingCompany'].map((k) => renderField(k))}
-      </Box>
+      <Tabs
+        value={sub}
+        onChange={(_, v) => setSub(v)}
+        sx={{ borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab label="Billing Info" sx={{ fontFamily: 'Cantata One' }} />
+        <Tab label="Retainers" sx={{ fontFamily: 'Cantata One' }} />
+      </Tabs>
+      {sub === 0 ? (
+        <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+          >
+            Billing Information
+          </Typography>
+          {[
+            'balanceDue',
+            'baseRate',
+            'retainer',
+            'lastPaymentDate',
+            'voucherBalance',
+          ].map((k) => renderField(k))}
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontFamily: 'Cantata One',
+              textDecoration: 'underline',
+              mt: 2,
+            }}
+          >
+            Payment Information
+          </Typography>
+          {['defaultBillingType', 'billingCompany'].map((k) => renderField(k))}
+        </Box>
+      ) : (
+        <RetainersTab
+          abbr={abbr}
+          balanceDue={Number(fields.balanceDue) || 0}
+        />
+      )}
     </Box>
   )
 }
