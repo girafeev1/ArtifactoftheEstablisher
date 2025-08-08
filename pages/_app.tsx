@@ -4,6 +4,7 @@ import { SnackbarProvider } from 'notistack';
 import type { AppProps } from 'next/app';
 import { setupClientLogging } from '../lib/clientLogger';
 import { Newsreader, Cantata_One, Nunito } from 'next/font/google';
+import '../styles/studentDialog.css';
 
 if (typeof window !== 'undefined') {
   setupClientLogging();

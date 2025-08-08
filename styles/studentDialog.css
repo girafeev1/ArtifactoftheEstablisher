@@ -13,6 +13,7 @@
 }
 
 .floating-title {
-  font-family: 'Nunito', sans-serif;
+  font-family: var(--font-nunito), system-ui, -apple-system, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-weight: 700;
 }

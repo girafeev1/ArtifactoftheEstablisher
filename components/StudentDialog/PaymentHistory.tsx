@@ -113,14 +113,13 @@ export default function PaymentHistory({
   }, [account, abbr, onTitleChange])
 
   const sortedPayments = [...payments].sort((a, b) => {
-    const av =
-      sortField === 'amount'
-        ? Number(a.amount) || 0
-        : a.paymentMade?.toDate?.()?.getTime?.() || 0
-    const bv =
-      sortField === 'amount'
-        ? Number(b.amount) || 0
-        : b.paymentMade?.toDate?.()?.getTime?.() || 0
+    const ts = (v: any) => {
+      if (!v) return 0
+      const d = typeof v.toDate === 'function' ? v.toDate() : new Date(v)
+      return isNaN(d.getTime()) ? 0 : d.getTime()
+    }
+    const av = sortField === 'amount' ? Number(a.amount) || 0 : ts(a.paymentMade)
+    const bv = sortField === 'amount' ? Number(b.amount) || 0 : ts(b.paymentMade)
     return sortAsc ? av - bv : bv - av
   })
 
