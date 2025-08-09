@@ -1,8 +1,9 @@
 // components/StudentDialog/OverviewTab.tsx
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { Tabs, Tab, Box, CircularProgress, Typography, Button } from '@mui/material'
+import { Tabs, Tab, Box, CircularProgress, Typography } from '@mui/material'
 import FloatingWindow from './FloatingWindow'
+import { titleFor, MainTab, BillingSubTab } from './title'
 
 // OverviewTab acts purely as a presenter. PersonalTab, SessionsTab and
 // BillingTab each fetch and compute their own data then "stream" summary
@@ -11,7 +12,9 @@ import FloatingWindow from './FloatingWindow'
 // OverviewTab never queries Firestore directly.
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
+import RetainersTab from './RetainersTab'
 import SessionsTab from './SessionsTab'
+import PaymentHistory from './PaymentHistory'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -59,8 +62,10 @@ export default function OverviewTab({
   onPopDetail,
 }: OverviewTabProps) {
   console.log('OverviewTab rendered for', abbr)
-  const [tab, setTab] = useState(0)
-  const [title, setTitle] = useState(account)
+  const [tab, setTab] = useState<MainTab>('overview')
+  const [subTab, setSubTab] = useState<BillingSubTab>(null)
+  const [title, setTitle] = useState(titleFor('overview', null, account))
+  const [overrideTitle, setOverrideTitle] = useState<string | null>(null)
   const [actions, setActions] = useState<React.ReactNode | null>(null)
 
   // personal summary streamed from PersonalTab
@@ -110,6 +115,27 @@ export default function OverviewTab({
     [setOverview, setOverviewLoading],
   )
 
+  const selectTab = (v: string) => {
+    if (v.startsWith('billing')) {
+      setTab('billing')
+      const sub = v.split('-')[1] as BillingSubTab
+      setSubTab(sub || null)
+    } else {
+      setTab(v as MainTab)
+      setSubTab(null)
+    }
+  }
+
+  const handleTabChange = (_: any, v: string) => selectTab(v)
+
+  const closeAndReset = () => {
+    setTab('overview')
+    setSubTab(null)
+    setOverrideTitle(null)
+    setTitle(titleFor('overview', null, account))
+    onClose()
+  }
+
   // reset loading states whenever dialog is opened
   useEffect(() => {
     console.log('OverviewTab reset effect for', abbr)
@@ -120,11 +146,20 @@ export default function OverviewTab({
       setPersonalLoading({ firstName: true, lastName: true, sex: true })
       setBillingLoading({ balanceDue: true, voucherBalance: true })
       setOverviewLoading(true)
-      setTab(0)
-      setTitle(account)
       setActions(null)
+      setTab('overview')
+      setSubTab(null)
+      setOverrideTitle(null)
     }
-  }, [open])
+  }, [open, abbr, account])
+
+  useEffect(() => {
+    if (!overrideTitle) setTitle(titleFor(tab, subTab, account))
+  }, [tab, subTab, account, overrideTitle])
+
+  useEffect(() => {
+    if (overrideTitle) setTitle(overrideTitle)
+  }, [overrideTitle])
 
   useEffect(() => {
     console.log('OverviewTab loading states', {
@@ -145,10 +180,13 @@ export default function OverviewTab({
     Object.values(billingLoading).some((v) => v) ||
     overviewLoading
 
+  const selected =
+    tab === 'billing' && subTab ? `billing-${subTab}` : tab
+
   if (!open) return null
   return (
     <StudentDialogErrorBoundary>
-      <FloatingWindow onClose={onClose} title={title} actions={actions}>
+      <FloatingWindow onClose={closeAndReset} title={title} actions={actions}>
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', maxHeight: '100%', maxWidth: '100%', overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', flexGrow: 1, position: 'relative', alignItems: 'flex-start', maxHeight: '100%', maxWidth: '100%' }}>
             {loading && (
@@ -178,7 +216,7 @@ export default function OverviewTab({
                 maxWidth: '100%',
               }}
             >
-              <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
+              <Box sx={{ display: tab === 'overview' ? 'block' : 'none' }}>
                 <Typography
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
@@ -319,7 +357,7 @@ export default function OverviewTab({
                 abbr={abbr}
                 serviceMode={serviceMode}
                 onPersonal={handlePersonal}
-                style={{ display: tab === 1 ? 'block' : 'none' }}
+                style={{ display: tab === 'personal' ? 'block' : 'none' }}
               />
 
               <SessionsTab
@@ -329,7 +367,7 @@ export default function OverviewTab({
                 onTitle={setTitle}
                 onActions={setActions}
                 onPopDetail={onPopDetail}
-                style={{ display: tab === 2 ? 'block' : 'none' }}
+                style={{ display: tab === 'sessions' ? 'block' : 'none' }}
               />
 
               <BillingTab
@@ -337,14 +375,44 @@ export default function OverviewTab({
                 account={account}
                 serviceMode={serviceMode}
                 onBilling={handleBilling}
-                style={{ display: tab === 3 ? 'block' : 'none' }}
+                style={{
+                  display:
+                    tab === 'billing' && !subTab ? 'block' : 'none',
+                }}
               />
+              <Box
+                sx={{
+                  display:
+                    tab === 'billing' && subTab === 'retainers'
+                      ? 'block'
+                      : 'none',
+                }}
+              >
+                <RetainersTab
+                  abbr={abbr}
+                  balanceDue={Number(billing.balanceDue) || 0}
+                />
+              </Box>
+              <Box
+                sx={{
+                  display:
+                    tab === 'billing' && subTab === 'payment-history'
+                      ? 'block'
+                      : 'none',
+                }}
+              >
+                <PaymentHistory
+                  abbr={abbr}
+                  account={account}
+                  onTitleChange={setOverrideTitle}
+                />
+              </Box>
             </Box>
 
             <Tabs
               orientation="vertical"
-              value={tab}
-              onChange={(_, v) => setTab(v)}
+              value={selected}
+              onChange={handleTabChange}
               sx={{
                 borderLeft: 1,
                 borderColor: 'divider',
@@ -353,18 +421,58 @@ export default function OverviewTab({
                 display: loading ? 'none' : 'flex',
               }}
             >
-              {['Overview', 'Personal', 'Sessions', 'Billing'].map((l) => (
-                <Tab
-                  key={l}
-                  label={l}
-                  sx={{
-                    textAlign: 'right',
-                    justifyContent: 'flex-end',
-                    alignItems: 'flex-end',
-                    width: '100%',
-                  }}
-                />
-              ))}
+              <Tab
+                value="overview"
+                label="Overview"
+                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+              />
+              <Tab
+                value="personal"
+                label="Personal"
+                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+              />
+              <Tab
+                value="sessions"
+                label="Sessions"
+                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
+              />
+              <Tab
+                value="billing"
+                label="Billing"
+                onClick={() => selectTab('billing')}
+                sx={{
+                  textAlign: 'right',
+                  justifyContent: 'flex-end',
+                  width: '100%',
+                  bgcolor: tab === 'billing' ? 'action.selected' : undefined,
+                }}
+              />
+              <Tab
+                value="billing-retainers"
+                label="Retainers"
+                sx={{
+                  display: tab === 'billing' ? 'flex' : 'none',
+                  pl: 4,
+                  fontSize: '0.82rem',
+                  textAlign: 'right',
+                  justifyContent: 'flex-end',
+                  width: '100%',
+                }}
+                onClick={() => selectTab('billing-retainers')}
+              />
+              <Tab
+                value="billing-history"
+                label="Payment History"
+                sx={{
+                  display: tab === 'billing' ? 'flex' : 'none',
+                  pl: 4,
+                  fontSize: '0.82rem',
+                  textAlign: 'right',
+                  justifyContent: 'flex-end',
+                  width: '100%',
+                }}
+                onClick={() => selectTab('billing-history')}
+              />
             </Tabs>
           </Box>
         </Box>

@@ -54,7 +54,6 @@ export default function InlineEdit({
         billingCompany: 'B1',
         defaultBillingType: 'B2',
         baseRate: 'B3',
-        retainerStatus: 'B4',
         lastPaymentDate: 'B5',
         balanceDue: 'B6',
         voucherBalance: 'B7',

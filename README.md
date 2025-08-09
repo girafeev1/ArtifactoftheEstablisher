@@ -46,13 +46,26 @@ Field numbers are:
 | B1     | billingCompany |
 | B2     | defaultBillingType |
 | B3     | baseRate |
-| B4     | retainerStatus |
 | B5     | lastPaymentDate |
 | B6     | balanceDue |
 | B7     | voucherBalance |
 
 Each document stores only the edited value and a `timestamp` so the full history
 can be tracked.
+
+### Retainers
+
+Each student has a `Retainers` subcollection storing individual retainer
+documents with the following fields:
+
+- `retainerStarts` (Timestamp)
+- `retainerEnds` (Timestamp)
+- `retainerRate` (Number)
+- `timestamp` (Timestamp)
+- `editedBy` (String)
+
+Document IDs follow the same `<abbr>-RT-<index>-<YYYYMMDD>` scheme used by
+other history records.
 
 ## Placeholder Display
 
