@@ -177,6 +177,7 @@ export default function RetainersTab({
                   {new Intl.NumberFormat(undefined, {
                     style: 'currency',
                     currency: 'HKD',
+                    currencyDisplay: 'code',
                   }).format(r.retainerRate)}
                 </TableCell>
                 <TableCell

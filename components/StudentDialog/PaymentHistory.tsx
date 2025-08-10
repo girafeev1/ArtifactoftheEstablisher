@@ -18,7 +18,11 @@ import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 const formatDate = (v: any) => {
   if (!v) return 'N/A'

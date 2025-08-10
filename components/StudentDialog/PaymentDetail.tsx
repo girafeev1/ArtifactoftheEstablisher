@@ -23,7 +23,11 @@ import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 
 export default function PaymentDetail({
@@ -152,19 +156,20 @@ export default function PaymentDetail({
         )
 
         if (cancelled) return
+        const sortedRows = [...rows].sort(
+          (a, b) =>
+            (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0),
+        )
         const map: Record<string, number> = {}
-        ;[...rows]
-          .sort(
-            (a, b) =>
-              (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0),
-          )
-          .forEach((r, i) => {
-            map[r.id] = i + 1
-          })
+        sortedRows.forEach((r, i) => {
+          map[r.id] = i + 1
+        })
         setOrdinals(map)
-        setAssignedSessions(rows.filter((r) => r.assigned && !r.inRetainer))
+        setAssignedSessions(
+          sortedRows.filter((r) => r.assigned && !r.inRetainer),
+        )
         setAvailable(
-          rows.filter(
+          sortedRows.filter(
             (r) => !r.assigned && !r.assignedToOther && !r.inRetainer,
           ),
         )

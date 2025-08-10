@@ -19,7 +19,11 @@ import PaymentHistory from './PaymentHistory'
 console.log('=== StudentDialog loaded version 1.1 ===')
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 class StudentDialogErrorBoundary extends React.Component<
   { children: React.ReactNode },

@@ -5,12 +5,16 @@ import { Box, Typography } from '@mui/material'
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import InlineEdit from '../../common/InlineEdit'
-import { getLatestRetainer } from '../../lib/retainer'
+import { PATHS, logPath } from '../../lib/paths'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 const formatDate = (v: any) => {
   const d = v?.toDate ? v.toDate() : new Date(v)
@@ -127,9 +131,31 @@ export default function BillingTab({
       }
 
       try {
-        const r = await getLatestRetainer(abbr)
+        const p = PATHS.retainers(abbr)
+        logPath('retainers', p)
+        const snap = await getDocs(collection(db, p))
+        const today = new Date()
+        let label = 'In Active'
+        const active = snap.docs
+          .map((d) => d.data() as any)
+          .find((r) => {
+            const s = r.retainerStarts?.toDate?.() ?? new Date(r.retainerStarts)
+            const e = r.retainerEnds?.toDate?.() ?? new Date(r.retainerEnds)
+            return today >= s && today <= e
+          })
+        if (active) {
+          const labelDate = active.retainerStarts?.toDate?.()
+            ? active.retainerStarts.toDate()
+            : new Date(active.retainerStarts)
+          if (labelDate.getDate() >= 21)
+            labelDate.setMonth(labelDate.getMonth() + 1)
+          label = labelDate.toLocaleString('en-US', {
+            month: 'short',
+            year: 'numeric',
+          })
+        }
         if (cancelled) return
-        setFields((b: any) => ({ ...b, retainer: r }))
+        setFields((b: any) => ({ ...b, retainer: label }))
         setLoading((l: any) => ({ ...l, retainer: false }))
       } catch (e) {
         console.error('retainer load failed', e)
@@ -305,15 +331,7 @@ export default function BillingTab({
             variant="h6"
             sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           >
-            {v === '__ERROR__'
-              ? 'Error'
-              : v
-              ? `${formatDate(v.retainerStarts)} – ${formatDate(v.retainerEnds)} @ ${
-                  v.retainerRate != null && !isNaN(Number(v.retainerRate))
-                    ? formatCurrency(Number(v.retainerRate))
-                    : '-'
-                }`
-              : 'N/A'}
+            {v === '__ERROR__' ? 'Error' : v || 'In Active'}
           </Typography>
         ) : (
           <InlineEdit

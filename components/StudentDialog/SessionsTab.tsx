@@ -3,9 +3,11 @@
 import React, { useEffect, useState } from 'react'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(
-    n,
-  )
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 import {
   Box,
   Typography,

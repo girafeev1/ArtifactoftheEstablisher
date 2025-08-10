@@ -2,7 +2,11 @@ import React from 'react'
 import { Box, Typography, Button } from '@mui/material'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 const formatDate = (s: string) => {
   const d = new Date(s)

@@ -37,7 +37,11 @@ interface StudentDetails extends StudentMeta {
 }
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 export default function CoachingSessions() {
   const [students, setStudents] = useState<StudentDetails[]>([])
@@ -109,34 +113,131 @@ export default function CoachingSessions() {
             `${firstName || b.account || b.abbr} ${lastName || ''} - (${i + 1} of ${totalCount})`
           )
 
-          const [sex, balRaw] = await Promise.all([
+          const [
+            sex,
+            paymentsSnap,
+            sessSnap,
+            retSnap,
+            histSnap,
+            baseSnap,
+          ] = await Promise.all([
             latest('sex'),
-            latest('balanceDue'),
+            (async () => {
+              const p = PATHS.payments(b.abbr)
+              logPath('payments', p)
+              return getDocs(collection(db, p))
+            })(),
+            (async () => {
+              logPath('sessionsQuery', PATHS.sessions)
+              return getDocs(
+                query(
+                  collection(db, PATHS.sessions),
+                  where('sessionName', '==', b.account),
+                ),
+              )
+            })(),
+            (async () => {
+              const p = PATHS.retainers(b.abbr)
+              logPath('retainers', p)
+              return getDocs(collection(db, p))
+            })(),
+            (async () => {
+              const p = PATHS.baseRateHistory(b.abbr)
+              logPath('baseRateHistory', p)
+              return getDocs(collection(db, p))
+            })(),
+            (async () => {
+              const p = PATHS.baseRate(b.abbr)
+              logPath('baseRate', p)
+              return getDocs(collection(db, p))
+            })(),
           ])
-          const balanceDue = parseFloat(balRaw as any) || 0
 
-          logPath('sessionsQuery', PATHS.sessions)
-          const sessSnap = await getDocs(
-            query(collection(db, PATHS.sessions), where('sessionName', '==', b.account))
-          )
-          const total = sessSnap.size
-          let upcoming = 0
-          const now = new Date()
-          await Promise.all(
+          const baseRateDocs = [...histSnap.docs, ...baseSnap.docs]
+          const baseRates = baseRateDocs
+            .map((d) => {
+              const data = d.data() as any
+              return {
+                rate: data.rate ?? data.baseRate,
+                ts: data.timestamp?.toDate?.() ?? new Date(0),
+              }
+            })
+            .sort((a, b) => a.ts.getTime() - b.ts.getTime())
+
+          const retainers = retSnap.docs.map((d) => {
+            const data = d.data() as any
+            return {
+              start: data.retainerStarts?.toDate?.() ?? new Date(data.retainerStarts),
+              end: data.retainerEnds?.toDate?.() ?? new Date(data.retainerEnds),
+            }
+          })
+
+          const sessions = await Promise.all(
             sessSnap.docs.map(async (sd) => {
               const data = sd.data() as any
-              const start = await computeSessionStart(sd.id, data)
-              if (start && start > now) upcoming++
-            })
+              const startDate = await computeSessionStart(sd.id, data)
+              const ratePath = PATHS.sessionRate(sd.id)
+              const payPath = PATHS.sessionPayment(sd.id)
+              logPath('sessionRate', ratePath)
+              logPath('sessionPayment', payPath)
+              const [rateSnap, paySnap] = await Promise.all([
+                getDocs(collection(db, ratePath)),
+                getDocs(collection(db, payPath)),
+              ])
+
+              const base = (() => {
+                if (!startDate || !baseRates.length) return 0
+                const entry = baseRates
+                  .filter((b) => b.ts.getTime() <= startDate.getTime())
+                  .pop()
+                return entry ? Number(entry.rate) || 0 : 0
+              })()
+
+              const rateHist = rateSnap.docs
+                .map((d) => d.data() as any)
+                .sort((a, b) => {
+                  const ta = a.timestamp?.toDate?.() ?? new Date(0)
+                  const tb = b.timestamp?.toDate?.() ?? new Date(0)
+                  return tb.getTime() - ta.getTime()
+                })
+              const latestRate = rateHist[0]?.rateCharged
+              const rate = latestRate != null ? Number(latestRate) : base
+
+              const paymentIds = paySnap.docs.map(
+                (p) => (p.data() as any).paymentId as string,
+              )
+              const assigned = paymentIds.length > 0
+              const covered = retainers.some(
+                (r) => startDate && startDate >= r.start && startDate <= r.end,
+              )
+              return { startDate, rate, assigned, covered }
+            }),
           )
+
+          const total = sessSnap.size
+          const now = new Date()
+          let upcoming = 0
+          sessions.forEach((s) => {
+            if (s.startDate && s.startDate > now) upcoming++
+          })
+
+          const totalOwed = sessions.reduce(
+            (sum, s) => (!s.assigned && !s.covered ? sum + (s.rate || 0) : sum),
+            0,
+          )
+          const totalPaid = paymentsSnap.docs.reduce(
+            (sum, d) => sum + (Number((d.data() as any).amount) || 0),
+            0,
+          )
+          const balanceDue = totalOwed - totalPaid
 
           if (!mounted) return
           setStudents((prev) =>
             prev.map((s) =>
               s.abbr === b.abbr
                 ? { ...s, sex, balanceDue, total, upcoming }
-                : s
-            )
+                : s,
+            ),
           )
         })
       )
