@@ -268,31 +268,41 @@ export default function PaymentDetail({
         >
           For session:
         </Typography>
-        {assignedSessions.map((s, i) => (
-          <Typography
-            key={s.id}
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
-            {`${ordinals[s.id] ?? i + 1} | ${s.date} | ${s.time}`}
-          </Typography>
-        ))}
+        {assignedSessions.map((s, i) => {
+          const ord = ordinals[s.id] ?? i + 1
+          const date = s.date || '-'
+          const time = s.time || '-'
+          return (
+            <Typography
+              key={s.id}
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
+              {`#${ord} | ${date} | ${time}`}
+            </Typography>
+          )
+        })}
         {remaining > 0 && (
           <>
             <FormGroup>
-              {available.map((s, i) => (
-                <FormControlLabel
-                  key={s.id}
-                  control={
-                    <Checkbox
-                      checked={selected.includes(s.id)}
-                      onChange={() => toggle(s.id)}
-                      disabled={assigning || (s.rate || 0) > remaining}
-                    />
-                  }
-                  label={`${ordinals[s.id] ?? i + 1} | ${s.date} | ${s.time}`}
-                />
-              ))}
+              {available.map((s, i) => {
+                const ord = ordinals[s.id] ?? i + 1
+                const date = s.date || '-'
+                const time = s.time || '-'
+                return (
+                  <FormControlLabel
+                    key={s.id}
+                    control={
+                      <Checkbox
+                        checked={selected.includes(s.id)}
+                        onChange={() => toggle(s.id)}
+                        disabled={assigning || (s.rate || 0) > remaining}
+                      />
+                    }
+                    label={`#${ord} | ${date} | ${time}`}
+                  />
+                )
+              })}
             </FormGroup>
             <Button
               variant="contained"
