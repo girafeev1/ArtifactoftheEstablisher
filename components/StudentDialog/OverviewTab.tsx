@@ -1,6 +1,6 @@
 // components/StudentDialog/OverviewTab.tsx
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Tabs, Tab, Box, CircularProgress, Typography } from '@mui/material'
 import FloatingWindow from './FloatingWindow'
 import { titleFor, MainTab, BillingSubTab } from './title'
@@ -65,7 +65,15 @@ export default function OverviewTab({
   const [tab, setTab] = useState<MainTab>('overview')
   const [subTab, setSubTab] = useState<BillingSubTab>(null)
   const [title, setTitle] = useState(titleFor('overview', null, account))
-  const [overrideTitle, setOverrideTitle] = useState<string | null>(null)
+  const titleLocked = useRef(false)
+  const setChildTitle = useCallback(
+    (t: string | null) => {
+      titleLocked.current = t != null
+      if (t) setTitle(t)
+      else setTitle(titleFor(tab, subTab, account))
+    },
+    [tab, subTab, account],
+  )
   const [actions, setActions] = useState<React.ReactNode | null>(null)
 
   // personal summary streamed from PersonalTab
@@ -120,9 +128,13 @@ export default function OverviewTab({
       setTab('billing')
       const sub = v.split('-')[1] as BillingSubTab
       setSubTab(sub || null)
+      if (!titleLocked.current)
+        setTitle(titleFor('billing', sub || null, account))
     } else {
-      setTab(v as MainTab)
+      const mt = v as MainTab
+      setTab(mt)
       setSubTab(null)
+      if (!titleLocked.current) setTitle(titleFor(mt, null, account))
     }
   }
 
@@ -131,7 +143,7 @@ export default function OverviewTab({
   const closeAndReset = () => {
     setTab('overview')
     setSubTab(null)
-    setOverrideTitle(null)
+    titleLocked.current = false
     setTitle(titleFor('overview', null, account))
     onClose()
   }
@@ -149,17 +161,14 @@ export default function OverviewTab({
       setActions(null)
       setTab('overview')
       setSubTab(null)
-      setOverrideTitle(null)
+      titleLocked.current = false
+      setTitle(titleFor('overview', null, account))
     }
   }, [open, abbr, account])
 
   useEffect(() => {
-    if (!overrideTitle) setTitle(titleFor(tab, subTab, account))
-  }, [tab, subTab, account, overrideTitle])
-
-  useEffect(() => {
-    if (overrideTitle) setTitle(overrideTitle)
-  }, [overrideTitle])
+    if (!titleLocked.current) setTitle(titleFor(tab, subTab, account))
+  }, [tab, subTab, account])
 
   useEffect(() => {
     console.log('OverviewTab loading states', {
@@ -404,7 +413,7 @@ export default function OverviewTab({
                 <PaymentHistory
                   abbr={abbr}
                   account={account}
-                  onTitleChange={setOverrideTitle}
+                  onTitleChange={setChildTitle}
                 />
               </Box>
             </Box>

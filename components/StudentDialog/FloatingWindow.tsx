@@ -94,6 +94,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
               borderBottom: 1,
               borderColor: 'divider',
               cursor: 'move',
+              touchAction: 'none',
             }}
           >
             {title && (

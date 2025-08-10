@@ -13,6 +13,8 @@ import {
 import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import PaymentDetail from './PaymentDetail'
+import { computeSessionStart } from '../../lib/sessions'
+import { titleFor } from './title'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
@@ -67,6 +69,11 @@ export default function PaymentHistory({
   const [sortAsc, setSortAsc] = useState(false)
 
   useEffect(() => {
+    onTitleChange?.(titleFor('billing', 'payment-history', account))
+    return () => onTitleChange?.(null)
+  }, [account, onTitleChange])
+
+  useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
@@ -80,13 +87,13 @@ export default function PaymentHistory({
         const list = await Promise.all(
           snap.docs.map(async (d) => {
             const data = d.data() as any
-            let sessionDate: any = null
+            let sessionDate: Date | null = null
             const first = data.assignedSessions?.[0]
             if (first) {
               try {
                 const sess = await getDoc(doc(db, 'Sessions', first))
                 const sdata = sess.data() as any
-                sessionDate = sdata?.origStartTimestamp
+                sessionDate = await computeSessionStart(first, sdata)
               } catch (e) {
                 console.error('fetch session for payment failed', e)
               }
@@ -109,12 +116,12 @@ export default function PaymentHistory({
   }, [abbr])
 
 
+  const ts = (v: any) => {
+    if (!v) return 0
+    const d = typeof v.toDate === 'function' ? v.toDate() : new Date(v)
+    return isNaN(d.getTime()) ? 0 : d.getTime()
+  }
   const sortedPayments = [...payments].sort((a, b) => {
-    const ts = (v: any) => {
-      if (!v) return 0
-      const d = typeof v.toDate === 'function' ? v.toDate() : new Date(v)
-      return isNaN(d.getTime()) ? 0 : d.getTime()
-    }
     const av = sortField === 'amount' ? Number(a.amount) || 0 : ts(a.paymentMade)
     const bv = sortField === 'amount' ? Number(b.amount) || 0 : ts(b.paymentMade)
     return sortAsc ? av - bv : bv - av
@@ -183,9 +190,22 @@ export default function PaymentHistory({
             </TableHead>
             <TableBody>
               {sortedPayments.map((p) => (
-                <TableRow key={p.id} hover onClick={() => setDetail(p)}>
+                <TableRow
+                  key={p.id}
+                  hover
+                  onClick={() => setDetail(p)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setDetail(p)
+                    }
+                  }}
+                  sx={{ cursor: 'pointer', py: 1 }}
+                >
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                    {formatDateTime(p.sessionDate)}
+                    {p.sessionDate ? formatDateTime(p.sessionDate) : '-'}
                   </TableCell>
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                     {formatCurrency(Number(p.amount) || 0)}
@@ -195,6 +215,13 @@ export default function PaymentHistory({
                   </TableCell>
                 </TableRow>
               ))}
+              {sortedPayments.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    No payments recorded.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </>
