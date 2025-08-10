@@ -7,86 +7,166 @@ import {
   FormControlLabel,
   Checkbox,
 } from '@mui/material'
-import { collection, doc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore'
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { computeSessionStart, fmtDate, fmtTime } from '../../lib/sessions'
+import { formatMMMDDYYYY } from '../../lib/date'
+import { titleFor } from './title'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
 
-const displayField = (v: any) => {
-  if (v === '__ERROR__') return 'Error'
-  if (v === undefined || v === null || v === '') return 'N/A'
-  try {
-    if (v.toDate) {
-      const d = v.toDate()
-      return isNaN(d.getTime())
-        ? 'N/A'
-        : d.toLocaleDateString(undefined, {
-            month: 'short',
-            day: '2-digit',
-            year: 'numeric',
-          })
-    }
-  } catch {
-    return 'N/A'
-  }
-  return String(v)
-}
 
 export default function PaymentDetail({
   abbr,
   account,
   payment,
   onBack,
+  onTitleChange,
 }: {
   abbr: string
   account: string
   payment: any
   onBack: () => void
+  onTitleChange?: (title: string | null) => void
 }) {
-  const [sessions, setSessions] = useState<any[]>([])
+  const [available, setAvailable] = useState<any[]>([])
+  const [assignedSessions, setAssignedSessions] = useState<any[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [assigning, setAssigning] = useState(false)
   const [remaining, setRemaining] = useState<number>(
     payment.remainingAmount ?? Number(payment.amount) ?? 0,
   )
+  const [ordinals, setOrdinals] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    const d = payment.paymentMade?.toDate
+      ? payment.paymentMade.toDate()
+      : new Date(payment.paymentMade)
+    const label = isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d)
+    onTitleChange?.(titleFor('billing', 'payment-history', account, label))
+    return () => onTitleChange?.(null)
+  }, [account, payment.paymentMade, onTitleChange])
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const snap = await getDocs(
-          query(collection(db, 'Sessions'), where('sessionName', '==', account)),
-        )
-        const rows = await Promise.all(
-          snap.docs.map(async (sd) => {
-            const rateSnap = await getDocs(
-              collection(db, 'Sessions', sd.id, 'rateCharged'),
-            )
-            let rate: number | undefined
-            if (!rateSnap.empty) {
-              const sorted = rateSnap.docs
-                .map((d) => ({ ...(d.data() as any) }))
-                .sort((a, b) => {
-                  const ta = a.timestamp?.toDate?.() ?? new Date(0)
-                  const tb = b.timestamp?.toDate?.() ?? new Date(0)
-                  return tb.getTime() - ta.getTime()
-                })
-              rate = Number(sorted[0]?.rateCharged)
+        const [histSnap, baseSnap, sessSnap, retSnap] = await Promise.all([
+          getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
+          getDocs(collection(db, 'Students', abbr, 'BaseRate')),
+          getDocs(query(collection(db, 'Sessions'), where('sessionName', '==', account))),
+          getDocs(collection(db, 'Students', abbr, 'Retainers')),
+        ])
+
+        const baseRateDocs = [...histSnap.docs, ...baseSnap.docs]
+        const baseRates = baseRateDocs
+          .map((d) => {
+            const data = d.data() as any
+            return {
+              rate: data.rate ?? data.baseRate,
+              ts: data.timestamp?.toDate?.() ?? new Date(0),
             }
-            return { id: sd.id, rate }
+          })
+          .sort((a, b) => a.ts.getTime() - b.ts.getTime())
+
+        const retainers = retSnap.docs.map((d) => {
+          const data = d.data() as any
+          const s = data.retainerStarts?.toDate?.() ?? new Date(0)
+          const e = data.retainerEnds?.toDate?.() ?? new Date(0)
+          return { start: s, end: e }
+        })
+
+        const rows = await Promise.all(
+          sessSnap.docs.map(async (sd) => {
+            const data = sd.data() as any
+            const [rateSnap, paySnap] = await Promise.all([
+              getDocs(collection(db, 'Sessions', sd.id, 'rateCharged')),
+              getDocs(collection(db, 'Sessions', sd.id, 'payment')),
+            ])
+
+            const startDate = await computeSessionStart(sd.id, data)
+            const date = startDate ? fmtDate(startDate) : '-'
+            const time = startDate ? fmtTime(startDate) : '-'
+
+            const base = (() => {
+              if (!startDate || !baseRates.length) return 0
+              const entry = baseRates
+                .filter((b) => b.ts.getTime() <= startDate.getTime())
+                .pop()
+              return entry ? Number(entry.rate) || 0 : 0
+            })()
+
+            const rateHist = rateSnap.docs
+              .map((d) => d.data() as any)
+              .sort((a, b) => {
+                const ta = a.timestamp?.toDate?.() ?? new Date(0)
+                const tb = b.timestamp?.toDate?.() ?? new Date(0)
+                return tb.getTime() - ta.getTime()
+              })
+            const latestRate = rateHist[0]?.rateCharged
+            const rate = latestRate != null ? Number(latestRate) : base
+
+            const paymentIds = paySnap.docs.map(
+              (p) => (p.data() as any).paymentId as string,
+            )
+            const assigned = paymentIds.includes(payment.id)
+            const assignedToOther = paymentIds.length > 0 && !assigned
+
+            const inRetainer = retainers.some(
+              (r) => startDate && startDate >= r.start && startDate <= r.end,
+            )
+
+            return {
+              id: sd.id,
+              date,
+              time,
+              rate,
+              assigned,
+              assignedToOther,
+              inRetainer,
+              startDate,
+            }
           }),
         )
-        if (!cancelled) setSessions(rows)
+
+        if (cancelled) return
+        const map: Record<string, number> = {}
+        ;[...rows]
+          .sort(
+            (a, b) =>
+              (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0),
+          )
+          .forEach((r, i) => {
+            map[r.id] = i + 1
+          })
+        setOrdinals(map)
+        setAssignedSessions(rows.filter((r) => r.assigned && !r.inRetainer))
+        setAvailable(
+          rows.filter(
+            (r) => !r.assigned && !r.assignedToOther && !r.inRetainer,
+          ),
+        )
       } catch (e) {
         console.error('load sessions failed', e)
-        if (!cancelled) setSessions([])
+        if (!cancelled) {
+          setAssignedSessions([])
+          setAvailable([])
+        }
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [abbr, account])
+  }, [abbr, account, payment.id])
 
   const toggle = (id: string) => {
     setSelected((prev) =>
@@ -95,7 +175,7 @@ export default function PaymentDetail({
   }
 
   const totalSelected = selected.reduce((sum, id) => {
-    const rate = sessions.find((s) => s.id === id)?.rate || 0
+    const rate = available.find((s) => s.id === id)?.rate || 0
     return sum + rate
   }, 0)
 
@@ -103,13 +183,16 @@ export default function PaymentDetail({
     if (totalSelected > remaining) return
     setAssigning(true)
     try {
+      const newlyAssigned: any[] = []
       for (const id of selected) {
-        const rate = sessions.find((s) => s.id === id)?.rate || 0
+        const session = available.find((s) => s.id === id)
+        const rate = session?.rate || 0
         await setDoc(doc(db, 'Sessions', id, 'payment', payment.id), {
           amount: rate,
           paymentId: payment.id,
           paymentMade: payment.paymentMade,
         })
+        if (session) newlyAssigned.push(session)
       }
       const newAssigned = [
         ...(payment.assignedSessions || []),
@@ -122,6 +205,8 @@ export default function PaymentDetail({
       })
       payment.assignedSessions = newAssigned
       setRemaining(newRemaining)
+      setAssignedSessions((a) => [...a, ...newlyAssigned])
+      setAvailable((s) => s.filter((sess) => !selected.includes(sess.id)))
       setSelected([])
     } catch (e) {
       console.error('assign payment failed', e)
@@ -133,22 +218,37 @@ export default function PaymentDetail({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>
-        {Object.entries(payment).map(([k, v]) => (
-          <React.Fragment key={k}>
-            <Typography
-              variant="subtitle2"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-            >
-              {k}:
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
-              {displayField(v)}
-            </Typography>
-          </React.Fragment>
-        ))}
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Payment Amount:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {formatCurrency(Number(payment.amount) || 0)}
+        </Typography>
+
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Payment Made On:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {(() => {
+            const d = payment.paymentMade?.toDate
+              ? payment.paymentMade.toDate()
+              : new Date(payment.paymentMade)
+            return isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d)
+          })()}
+        </Typography>
+
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
@@ -161,42 +261,59 @@ export default function PaymentDetail({
         >
           {formatCurrency(remaining)}
         </Typography>
+
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
         >
-          Payment for:
+          For session:
         </Typography>
-        <FormGroup>
-          {sessions.map((s) => (
-            <FormControlLabel
+        {assignedSessions.map((s, i) => {
+          const ord = ordinals[s.id] ?? i + 1
+          const date = s.date || '-'
+          const time = s.time || '-'
+          return (
+            <Typography
               key={s.id}
-              control={
-                <Checkbox
-                  checked={selected.includes(s.id)}
-                  onChange={() => toggle(s.id)}
-                  disabled={
-                    assigning ||
-                    remaining <= 0 ||
-                    (payment.assignedSessions || []).includes(s.id) ||
-                    (s.rate || 0) > remaining
-                  }
-                />
-              }
-              label={`${s.id} - ${
-                s.rate != null ? formatCurrency(Number(s.rate)) : '-'
-              }`}
-            />
-          ))}
-        </FormGroup>
-        <Button
-          variant="contained"
-          sx={{ mt: 1 }}
-          onClick={handleAssign}
-          disabled={assigning || totalSelected === 0 || totalSelected > remaining}
-        >
-          Assign
-        </Button>
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
+              {`#${ord} | ${date} | ${time}`}
+            </Typography>
+          )
+        })}
+        {remaining > 0 && (
+          <>
+            <FormGroup>
+              {available.map((s, i) => {
+                const ord = ordinals[s.id] ?? i + 1
+                const date = s.date || '-'
+                const time = s.time || '-'
+                return (
+                  <FormControlLabel
+                    key={s.id}
+                    control={
+                      <Checkbox
+                        checked={selected.includes(s.id)}
+                        onChange={() => toggle(s.id)}
+                        disabled={assigning || (s.rate || 0) > remaining}
+                      />
+                    }
+                    label={`#${ord} | ${date} | ${time}`}
+                  />
+                )
+              })}
+            </FormGroup>
+            <Button
+              variant="contained"
+              sx={{ mt: 1 }}
+              onClick={handleAssign}
+              disabled={assigning || totalSelected === 0 || totalSelected > remaining}
+            >
+              Assign
+            </Button>
+          </>
+        )}
       </Box>
       <Box
         sx={{
@@ -208,7 +325,14 @@ export default function PaymentDetail({
           bgcolor: 'background.paper',
         }}
       >
-        <Button variant="text" onClick={onBack} aria-label="back to payments">
+        <Button
+          variant="text"
+          onClick={() => {
+            onBack()
+            onTitleChange?.(null)
+          }}
+          aria-label="back to payments"
+        >
           ← Back
         </Button>
       </Box>

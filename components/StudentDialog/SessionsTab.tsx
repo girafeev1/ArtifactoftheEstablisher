@@ -21,13 +21,13 @@ import {
   Select,
   MenuItem,
   Button,
-  IconButton,
+  TableSortLabel,
 } from '@mui/material'
-import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
-import { collection, getDocs, query, where, orderBy, doc, setDoc } from 'firebase/firestore'
+import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import SessionDetail from './SessionDetail'
+import { formatMMMDDYYYY } from '../../lib/date'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -58,7 +58,7 @@ export default function SessionsTab({
   account,
   onSummary,
   onTitle,
-  onActions,
+  onActions: _onActions,
   style,
   onPopDetail,
 }: {
@@ -83,11 +83,11 @@ export default function SessionsTab({
     { key: 'billingType', label: 'Billing Type', width: 150 },
     { key: 'baseRate', label: 'Base Rate', width: 140 },
     { key: 'rateCharged', label: 'Rate Charged', width: 140 },
-    { key: 'payOn', label: 'Pay on', width: 160 },
     { key: 'paymentStatus', label: 'Payment Status', width: 150 },
+    { key: 'payOn', label: 'Pay on', width: 160 },
   ]
   const colWidth = (key: string) => allColumns.find((c) => c.key === key)?.width
-  const defaultCols = ['date', 'time', 'sessionType', 'rateCharged', 'payOn', 'paymentStatus']
+  const defaultCols = ['date', 'time', 'sessionType', 'rateCharged', 'paymentStatus', 'payOn']
   const [visibleCols, setVisibleCols] = useState<string[]>(defaultCols)
   const [period, setPeriod] = useState<'30' | '90' | 'all'>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -96,6 +96,36 @@ export default function SessionsTab({
     lastSession: '',
     totalSessions: 0,
   })
+  const [serviceMode, setServiceMode] = useState(false)
+  const [sortBy, setSortBy] = useState<string>('date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const handleSort = (key: string) => {
+    if (sortBy === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(key)
+      setSortDir('asc')
+    }
+  }
+  const sortVal = (s: any, key: string) => {
+    switch (key) {
+      case 'date':
+      case 'time':
+        return s.startMs || 0
+      case 'duration':
+      case 'baseRate':
+      case 'rateCharged':
+        return Number(s[key]) || 0
+      case 'payOn':
+        return s.payOnMs || 0
+      case 'paymentStatus':
+      case 'sessionType':
+      case 'billingType':
+        return String(s[key] || '').toLowerCase()
+      default:
+        return 0
+    }
+  }
 
   useEffect(() => {
     console.log('SessionsTab effect: load sessions for', abbr)
@@ -122,15 +152,10 @@ export default function SessionsTab({
           }
         })
 
-        const [histSnap, altSnap, paymentSnap, sessionRows] = await Promise.all([
+        const [histSnap, altSnap, retSnap, sessionRows] = await Promise.all([
           getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
           getDocs(collection(db, 'Students', abbr, 'BaseRate')),
-          getDocs(
-            query(
-              collection(db, 'Students', abbr, 'Payments'),
-              orderBy('paymentMade')
-            )
-          ),
+          getDocs(collection(db, 'Students', abbr, 'Retainers')),
           Promise.all(rowPromises),
         ])
 
@@ -146,13 +171,13 @@ export default function SessionsTab({
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
         console.log('Base rate history:', baseRates)
 
-        const payments = paymentSnap.docs
-          .map((d) => ({
-            amount: Number((d.data() as any).amount) || 0,
-            ts: (d.data() as any).paymentMade?.toDate?.() ?? new Date(0),
-          }))
-          .sort((a, b) => a.ts.getTime() - b.ts.getTime())
-        console.log('Payment history:', payments)
+        const retainerRanges = retSnap.docs.map((d) => {
+          const data = d.data() as any
+          return {
+            start: data.retainerStarts?.toDate?.()?.getTime() ?? 0,
+            end: data.retainerEnds?.toDate?.()?.getTime() ?? 0,
+          }
+        })
 
         const parseDate = (v: any): Date | null => {
           if (!v) return null
@@ -187,7 +212,9 @@ export default function SessionsTab({
                 duration: '-',
                 baseRate: '-',
                 rateCharged: data.rateCharged ?? '-',
-                payOn: '',
+                paymentStatus: 'Unpaid',
+                payOn: '-',
+                payOnMs: 0,
                 startMs: 0,
               }
             }
@@ -250,13 +277,24 @@ export default function SessionsTab({
               })
             const latestRate = rateHist[0]?.rateCharged
             const rateCharged = latestRate != null ? Number(latestRate) : base
-            const payDates = sessPayments
-              .map((p: any) => {
-                const d = p.paymentMade?.toDate?.() ?? new Date(p.paymentMade)
-                return isNaN(d.getTime()) ? null : d.toLocaleDateString()
-              })
-              .filter(Boolean)
-            const payOn = payDates.join(', ')
+
+            const payDoc = sessPayments[0]
+            const payDate = payDoc
+              ? payDoc.paymentMade?.toDate?.() || new Date(payDoc.paymentMade)
+              : null
+            const payOn =
+              payDate && !isNaN(payDate.getTime())
+                ? formatMMMDDYYYY(payDate)
+                : '-'
+            const payOnMs = payDate && !isNaN(payDate.getTime()) ? payDate.getTime() : 0
+
+            const startMs = startDate?.getTime() ?? 0
+            const inRetainer = retainerRanges.some(
+              (r) => startMs >= r.start && startMs <= r.end,
+            )
+            const hasPayment = !!payDoc
+            const paymentStatus = hasPayment || inRetainer ? 'Paid' : 'Unpaid' // TODO: voucher covers
+
             return {
               id,
               sessionType: data.sessionType ?? 'N/A',
@@ -266,24 +304,13 @@ export default function SessionsTab({
               duration,
               baseRate: base,
               rateCharged,
+              paymentStatus,
               payOn,
-              paymentStatus: 'Unpaid' as 'Paid' | 'Unpaid',
-              startMs: startDate?.getTime() ?? 0,
+              payOnMs,
+              startMs,
             }
           })
           .sort((a, b) => a.startMs - b.startMs)
-
-        let credit = payments.reduce((s, p) => s + p.amount, 0)
-        rows.forEach((r) => {
-          const cost = Number(r.rateCharged) || 0
-          if (credit >= cost && cost > 0) {
-            r.paymentStatus = 'Paid'
-            credit -= cost
-          } else {
-            r.paymentStatus = 'Unpaid'
-          }
-          console.log(`Session ${r.id}: paymentStatus`, r.paymentStatus, 'remaining credit', credit)
-        })
 
         const validDates = rows.filter(r => r.startMs > 0).map(r => r.startMs).sort((a,b)=>a-b)
         const today = new Date()
@@ -325,9 +352,6 @@ export default function SessionsTab({
     }
   }, [abbr, account, onSummary])
 
-  useEffect(() => {
-    if (!detail) onActions?.(null)
-  }, [detail])
   if (loading) {
     return <CircularProgress />
   }
@@ -344,6 +368,27 @@ export default function SessionsTab({
     >
       {!detail && (
         <>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mb: 1,
+            }}
+          >
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={serviceMode}
+                  onChange={(e) => setServiceMode(e.target.checked)}
+                />
+              }
+              label="Service Mode"
+            />
+            <Button variant="outlined" size="small" aria-label="tools">
+              Tools
+            </Button>
+          </Box>
           <Button
             variant="outlined"
             size="small"
@@ -409,7 +454,13 @@ export default function SessionsTab({
                         minWidth: c.width,
                       }}
                     >
-                      {c.label}
+                      <TableSortLabel
+                        active={sortBy === c.key}
+                        direction={sortBy === c.key ? sortDir : 'asc'}
+                        onClick={() => handleSort(c.key)}
+                      >
+                        {c.label}
+                      </TableSortLabel>
                     </TableCell>
                   ))}
               </TableRow>
@@ -421,6 +472,13 @@ export default function SessionsTab({
                   const days = Number(period)
                   const since = Date.now() - days * 24 * 60 * 60 * 1000
                   return s.startMs >= since
+                })
+                .sort((a, b) => {
+                  const av = sortVal(a, sortBy)
+                  const bv = sortVal(b, sortBy)
+                  if (av < bv) return sortDir === 'asc' ? -1 : 1
+                  if (av > bv) return sortDir === 'asc' ? 1 : -1
+                  return 0
                 })
                 .map((s, i) => (
                   <TableRow
@@ -436,21 +494,6 @@ export default function SessionsTab({
                       )
                       const title = `${account} - #${num} | ${titleDate} ${s.time}`
                       onTitle?.(title)
-                      onActions?.(
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onPopDetail?.({ ...s, number: num, account })
-                            setDetail(null)
-                            onTitle?.(account)
-                            onActions?.(null)
-                          }}
-                          aria-label="detach session"
-                          sx={{ mr: 1 }}
-                        >
-                          <OpenInNewIcon />
-                        </IconButton>,
-                      )
                     }}
                     sx={{ cursor: 'pointer' }}
                   >
@@ -555,6 +598,18 @@ export default function SessionsTab({
                         {s.paymentStatus}
                       </TableCell>
                     )}
+                    {visibleCols.includes('payOn') && (
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('payOn'),
+                        }}
+                      >
+                        {s.payOn}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
             </TableBody>
@@ -613,7 +668,6 @@ export default function SessionsTab({
           onBack={() => {
             setDetail(null)
             onTitle?.(account)
-            onActions?.(null)
           }}
         />
       )}

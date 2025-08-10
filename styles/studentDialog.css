@@ -1,0 +1,19 @@
+.student-dialog-modal .MuiDialog-paper {
+  padding: 24px;
+}
+
+.student-heading {
+  font-family: 'Cantata One', serif;
+  text-decoration: underline;
+}
+
+.student-row {
+  font-family: 'Newsreader', serif;
+  font-weight: 500;
+}
+
+.floating-title {
+  font-family: var(--font-nunito), system-ui, -apple-system, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 700;
+}
