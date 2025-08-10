@@ -119,13 +119,15 @@ export default function PaymentHistory({
 
   if (detail)
     return (
-      <PaymentDetail
-        abbr={abbr}
-        account={account}
-        payment={detail}
-        onBack={() => setDetail(null)}
-        onTitleChange={onTitleChange}
-      />
+      <Box sx={{ height: '100%' }}>
+        <PaymentDetail
+          abbr={abbr}
+          account={account}
+          payment={detail}
+          onBack={() => setDetail(null)}
+          onTitleChange={onTitleChange}
+        />
+      </Box>
     )
 
   return (

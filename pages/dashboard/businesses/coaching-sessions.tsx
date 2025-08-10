@@ -346,21 +346,19 @@ export default function CoachingSessions() {
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
       />
-      {!loading && (
-        <Button
-          variant="contained"
-          sx={{
-            position: 'fixed',
-            bottom: 16,
-            left: 16,
-            bgcolor: 'background.paper',
-            color: 'text.primary',
-          }}
-          onClick={openToolsMenu}
-        >
-          Tools
-        </Button>
-      )}
+      <Button
+        variant="contained"
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          left: 16,
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+        }}
+        onClick={openToolsMenu}
+      >
+        Tools
+      </Button>
       <Button
         variant="contained"
         sx={{
