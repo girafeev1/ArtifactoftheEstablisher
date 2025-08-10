@@ -124,12 +124,11 @@ export default function OverviewTab({
   )
 
   const selectTab = (v: string) => {
-    if (v.startsWith('billing')) {
+    if (v.startsWith('billing-')) {
       setTab('billing')
-      const sub = v.split('-')[1] as BillingSubTab
+      const sub = v.replace(/^billing-/, '') as BillingSubTab
       setSubTab(sub || null)
-      if (!titleLocked.current)
-        setTitle(titleFor('billing', sub || null, account))
+      if (!titleLocked.current) setTitle(titleFor('billing', sub || null, account))
     } else {
       const mt = v as MainTab
       setTab(mt)
@@ -470,7 +469,7 @@ export default function OverviewTab({
                 onClick={() => selectTab('billing-retainers')}
               />
               <Tab
-                value="billing-history"
+                value="billing-payment-history"
                 label="Payment History"
                 sx={{
                   display: tab === 'billing' ? 'flex' : 'none',
@@ -480,7 +479,7 @@ export default function OverviewTab({
                   justifyContent: 'flex-end',
                   width: '100%',
                 }}
-                onClick={() => selectTab('billing-history')}
+                onClick={() => selectTab('billing-payment-history')}
               />
             </Tabs>
           </Box>
