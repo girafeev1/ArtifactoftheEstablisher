@@ -1,14 +1,7 @@
 // pages/dashboard/businesses/coaching-sessions.tsx
 
 import React, { useEffect, useState } from 'react'
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-} from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
 import {
@@ -23,8 +16,6 @@ import {
   Menu,
   MenuItem,
   Snackbar,
-  Switch,
-  FormControlLabel,
 } from '@mui/material'
 import { PATHS, logPath } from '../../../lib/paths'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
@@ -43,37 +34,10 @@ interface StudentDetails extends StudentMeta {
   balanceDue?: number
   total: number
   upcoming: number
-  dueOn?: string
 }
 
-type Retainer = { retainerStarts: any; retainerEnds: any }
-type Session = { id: string; startMs: number; payments?: { paymentMade: any }[] }
-
-const fmtMMMDDYYYY = (d: Date) =>
-  d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  })
-
-const isCoveredByRetainer = (ms: number, retainers: Retainer[]) => {
-  return retainers.some((r) => {
-    const s = r.retainerStarts?.toDate?.() ?? new Date(r.retainerStarts)
-    const e = r.retainerEnds?.toDate?.() ?? new Date(r.retainerEnds)
-    return ms >= s.getTime() && ms <= e.getTime()
-  })
-}
-
-const computeDueOn = (sessions: Session[], retainers: Retainer[]) => {
-  const next = [...sessions]
-    .sort((a, b) => a.startMs - b.startMs)
-    .find((s) => {
-      const hasPayment = (s.payments?.length ?? 0) > 0
-      const covered = isCoveredByRetainer(s.startMs, retainers)
-      return !hasPayment && !covered
-    })
-  return next ? fmtMMMDDYYYY(new Date(next.startMs)) : '-'
-}
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
 
 export default function CoachingSessions() {
   const [students, setStudents] = useState<StudentDetails[]>([])
@@ -115,7 +79,7 @@ export default function CoachingSessions() {
       }))
 
       if (!mounted) return
-      setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0, dueOn: '-' })))
+      setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
 
       const totalCount = basics.length
       await Promise.all(
@@ -158,30 +122,19 @@ export default function CoachingSessions() {
           const total = sessSnap.size
           let upcoming = 0
           const now = new Date()
-          const sessionList: Session[] = await Promise.all(
+          await Promise.all(
             sessSnap.docs.map(async (sd) => {
               const data = sd.data() as any
               const start = await computeSessionStart(sd.id, data)
-              const startMs = start?.getTime() ?? 0
               if (start && start > now) upcoming++
-              const payPath = PATHS.sessionPayment(sd.id)
-              logPath('sessionPayment', payPath)
-              const paySnap = await getDocs(collection(db, payPath))
-              const payments = paySnap.docs.map((p) => p.data() as any)
-              return { id: sd.id, startMs, payments }
             })
           )
-          const retPath = PATHS.retainers(b.abbr)
-          logPath('retainers', retPath)
-          const retSnap = await getDocs(collection(db, retPath))
-          const retainers = retSnap.docs.map((d) => d.data() as any)
-          const dueOn = computeDueOn(sessionList, retainers)
 
           if (!mounted) return
           setStudents((prev) =>
             prev.map((s) =>
               s.abbr === b.abbr
-                ? { ...s, sex, balanceDue, total, upcoming, dueOn }
+                ? { ...s, sex, balanceDue, total, upcoming }
                 : s
             )
           )
@@ -213,29 +166,7 @@ export default function CoachingSessions() {
       )}
 
       {!loading && (
-        <>
-          <Box
-            sx={{
-              mb: 2,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 2,
-            }}
-          >
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={serviceMode}
-                  onChange={(_, checked) => setServiceMode(checked)}
-                />
-              }
-              label="Service Mode"
-            />
-            <Button variant="outlined" onClick={openToolsMenu}>
-              Tools
-            </Button>
-          </Box>
+        <Box sx={{ position: 'relative', pb: 8 }}>
           <Grid container spacing={2} sx={{ mt: 2 }}>
             {students.map((s) => (
               <Grid item key={s.abbr} xs={12} sm={6} md={4}>
@@ -244,14 +175,11 @@ export default function CoachingSessions() {
                     <CardContent>
                       <Typography variant="h6">{s.account}</Typography>
                       <Typography>
-                        {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
+                        {s.sex ?? '–'} • Due: {formatCurrency(s.balanceDue ?? 0)}
                       </Typography>
                       <Typography>
                         Total: {s.total}
                         {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
-                      </Typography>
-                      <Typography variant="body2">
-                        Due on: {s.dueOn || '-'}
                       </Typography>
                     </CardContent>
                   </CardActionArea>
@@ -278,7 +206,7 @@ export default function CoachingSessions() {
               🏷️ Batch Rename Payments
             </MenuItem>
           </Menu>
-        </>
+        </Box>
       )}
 
       {selected && (
@@ -317,6 +245,34 @@ export default function CoachingSessions() {
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
       />
+      {!loading && (
+        <Button
+          variant="contained"
+          sx={{
+            position: 'fixed',
+            bottom: 16,
+            left: 16,
+            bgcolor: 'background.paper',
+            color: 'text.primary',
+          }}
+          onClick={openToolsMenu}
+        >
+          Tools
+        </Button>
+      )}
+      <Button
+        variant="contained"
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          bgcolor: serviceMode ? 'red' : 'primary.main',
+          animation: serviceMode ? 'blink 1s infinite' : 'none',
+        }}
+        onClick={() => setServiceMode((m) => !m)}
+      >
+        Service Mode
+      </Button>
     </SidebarLayout>
   )
 }

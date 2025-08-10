@@ -413,6 +413,7 @@ export default function OverviewTab({
                   abbr={abbr}
                   account={account}
                   onTitleChange={setChildTitle}
+                  active={tab === 'billing' && subTab === 'payment-history'}
                 />
               </Box>
             </Box>

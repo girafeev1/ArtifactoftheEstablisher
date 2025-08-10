@@ -13,30 +13,12 @@ import {
 import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import PaymentDetail from './PaymentDetail'
-import { computeSessionStart } from '../../lib/sessions'
+import { computeSessionStart, fmtDate, fmtTime } from '../../lib/sessions'
 import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
-
-const formatDateTime = (v: any) => {
-  if (!v) return 'N/A'
-  try {
-    const d = v.toDate ? v.toDate() : new Date(v)
-    return isNaN(d.getTime())
-      ? 'N/A'
-      : d.toLocaleString('en-US', {
-          month: 'short',
-          day: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-  } catch {
-    return 'N/A'
-  }
-}
 
 const formatDate = (v: any) => {
   if (!v) return 'N/A'
@@ -58,10 +40,12 @@ export default function PaymentHistory({
   abbr,
   account,
   onTitleChange,
+  active,
 }: {
   abbr: string
   account: string
   onTitleChange?: (title: string | null) => void
+  active: boolean
 }) {
   const [payments, setPayments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,9 +54,9 @@ export default function PaymentHistory({
   const [sortAsc, setSortAsc] = useState(false)
 
   useEffect(() => {
-    onTitleChange?.(titleFor('billing', 'payment-history', account))
-    return () => onTitleChange?.(null)
-  }, [account, onTitleChange])
+    if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
+    else onTitleChange?.(null)
+  }, [account, onTitleChange, active])
 
   useEffect(() => {
     let cancelled = false
@@ -207,7 +191,9 @@ export default function PaymentHistory({
                   sx={{ cursor: 'pointer', py: 1 }}
                 >
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                    {p.sessionDate ? formatDateTime(p.sessionDate) : '-'}
+                    {p.sessionDate
+                      ? `${fmtDate(p.sessionDate)} ${fmtTime(p.sessionDate)}`
+                      : '-'}
                   </TableCell>
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                     {formatCurrency(Number(p.amount) || 0)}

@@ -15,13 +15,19 @@ export const computeSessionStart = async (
   const hist = histSnap.docs
     .map((d) => d.data() as any)
     .sort((a, b) => {
-      const ta = a.timestamp?.toDate?.() ?? new Date(0)
-      const tb = b.timestamp?.toDate?.() ?? new Date(0)
+      const ta =
+        a.changeTimestamp?.toDate?.() ?? a.timestamp?.toDate?.() ?? new Date(0)
+      const tb =
+        b.changeTimestamp?.toDate?.() ?? b.timestamp?.toDate?.() ?? new Date(0)
       return tb.getTime() - ta.getTime()
     })[0]
 
-  let start: any = snapshotData?.origStartTimestamp
-  if (hist?.newStartTimestamp != null) start = hist.newStartTimestamp
+  let start: any =
+    hist?.newStartTimestamp ??
+    hist?.origStartTimestamp ??
+    snapshotData?.origStartTimestamp ??
+    snapshotData?.sessionDate ??
+    snapshotData?.startTimestamp
 
   const d = start?.toDate ? start.toDate() : new Date(start)
   return d && !isNaN(d.getTime()) ? d : null
