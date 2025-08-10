@@ -23,12 +23,16 @@ import {
   Menu,
   MenuItem,
   Snackbar,
+  Switch,
+  FormControlLabel,
 } from '@mui/material'
+import { PATHS, logPath } from '../../../lib/paths'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
 import SessionDetail from '../../../components/StudentDialog/SessionDetail'
 import FloatingWindow from '../../../components/StudentDialog/FloatingWindow'
 import { clearSessionSummaries } from '../../../lib/sessionStats'
 import BatchRenamePayments from '../../../tools/BatchRenamePayments'
+import { computeSessionStart } from '../../../lib/sessions'
 
 interface StudentMeta {
   abbr: string
@@ -39,6 +43,36 @@ interface StudentDetails extends StudentMeta {
   balanceDue?: number
   total: number
   upcoming: number
+  dueOn?: string
+}
+
+type Retainer = { retainerStarts: any; retainerEnds: any }
+type Session = { id: string; startMs: number; payments?: { paymentMade: any }[] }
+
+const fmtMMMDDYYYY = (d: Date) =>
+  d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  })
+
+const isCoveredByRetainer = (ms: number, retainers: Retainer[]) => {
+  return retainers.some((r) => {
+    const s = r.retainerStarts?.toDate?.() ?? new Date(r.retainerStarts)
+    const e = r.retainerEnds?.toDate?.() ?? new Date(r.retainerEnds)
+    return ms >= s.getTime() && ms <= e.getTime()
+  })
+}
+
+const computeDueOn = (sessions: Session[], retainers: Retainer[]) => {
+  const next = [...sessions]
+    .sort((a, b) => a.startMs - b.startMs)
+    .find((s) => {
+      const hasPayment = (s.payments?.length ?? 0) > 0
+      const covered = isCoveredByRetainer(s.startMs, retainers)
+      return !hasPayment && !covered
+    })
+  return next ? fmtMMMDDYYYY(new Date(next.startMs)) : '-'
 }
 
 export default function CoachingSessions() {
@@ -72,7 +106,8 @@ export default function CoachingSessions() {
 
     async function loadAll() {
       console.log('📥 loading students list')
-      const snap = await getDocs(collection(db, 'Students'))
+      logPath('students', PATHS.students)
+      const snap = await getDocs(collection(db, PATHS.students))
       console.log(`   found ${snap.size} students`)
       const basics: StudentMeta[] = snap.docs.map((d) => ({
         abbr: d.id,
@@ -80,15 +115,17 @@ export default function CoachingSessions() {
       }))
 
       if (!mounted) return
-      setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
+      setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0, dueOn: '-' })))
 
       const totalCount = basics.length
       await Promise.all(
         basics.map(async (b, i) => {
           const latest = async (col: string) => {
+            const path = `${PATHS.student(b.abbr)}/${col}`
+            logPath('studentSub', path)
             const snap = await getDocs(
               query(
-                collection(db, 'Students', b.abbr, col),
+                collection(db, path),
                 orderBy('timestamp', 'desc'),
                 limit(1)
               )
@@ -114,46 +151,38 @@ export default function CoachingSessions() {
           ])
           const balanceDue = parseFloat(balRaw as any) || 0
 
+          logPath('sessionsQuery', PATHS.sessions)
           const sessSnap = await getDocs(
-            query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
+            query(collection(db, PATHS.sessions), where('sessionName', '==', b.account))
           )
           const total = sessSnap.size
           let upcoming = 0
           const now = new Date()
-          await Promise.all(
+          const sessionList: Session[] = await Promise.all(
             sessSnap.docs.map(async (sd) => {
-              const logsSnap = await getDocs(
-                collection(db, 'Sessions', sd.id, 'appointmentHistory')
-              )
-              const logs = logsSnap.docs.map((d) => d.data() as any)
-              let dt: Date | undefined
-              if (logs.length) {
-                const toMs = (r: any) => {
-                  const date = r.dateStamp?.toDate?.()
-                  if (!date) return -Infinity
-                  const t = String(r.timeStamp || '000000').padStart(6, '0')
-                  return (
-                    date.getTime() +
-                    parseInt(t.slice(0, 2), 10) * 3600_000 +
-                    parseInt(t.slice(2, 4), 10) * 60_000 +
-                    parseInt(t.slice(4, 6), 10) * 1000
-                  )
-                }
-                logs.sort((a, b) => toMs(b) - toMs(a))
-                const newest = logs[0]
-                dt = newest.newDate?.toDate?.() || newest.origDate?.toDate?.()
-              } else {
-                const sdData = sd.data() as any
-                dt = sdData.sessionDate?.toDate?.()
-              }
-              if (dt && dt > now) upcoming++
+              const data = sd.data() as any
+              const start = await computeSessionStart(sd.id, data)
+              const startMs = start?.getTime() ?? 0
+              if (start && start > now) upcoming++
+              const payPath = PATHS.sessionPayment(sd.id)
+              logPath('sessionPayment', payPath)
+              const paySnap = await getDocs(collection(db, payPath))
+              const payments = paySnap.docs.map((p) => p.data() as any)
+              return { id: sd.id, startMs, payments }
             })
           )
+          const retPath = PATHS.retainers(b.abbr)
+          logPath('retainers', retPath)
+          const retSnap = await getDocs(collection(db, retPath))
+          const retainers = retSnap.docs.map((d) => d.data() as any)
+          const dueOn = computeDueOn(sessionList, retainers)
 
           if (!mounted) return
           setStudents((prev) =>
             prev.map((s) =>
-              s.abbr === b.abbr ? { ...s, sex, balanceDue, total, upcoming } : s
+              s.abbr === b.abbr
+                ? { ...s, sex, balanceDue, total, upcoming, dueOn }
+                : s
             )
           )
         })
@@ -184,7 +213,29 @@ export default function CoachingSessions() {
       )}
 
       {!loading && (
-        <Box sx={{ position: 'relative', pb: 8 }}>
+        <>
+          <Box
+            sx={{
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 2,
+            }}
+          >
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={serviceMode}
+                  onChange={(_, checked) => setServiceMode(checked)}
+                />
+              }
+              label="Service Mode"
+            />
+            <Button variant="outlined" onClick={openToolsMenu}>
+              Tools
+            </Button>
+          </Box>
           <Grid container spacing={2} sx={{ mt: 2 }}>
             {students.map((s) => (
               <Grid item key={s.abbr} xs={12} sm={6} md={4}>
@@ -199,26 +250,15 @@ export default function CoachingSessions() {
                         Total: {s.total}
                         {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
                       </Typography>
+                      <Typography variant="body2">
+                        Due on: {s.dueOn || '-'}
+                      </Typography>
                     </CardContent>
                   </CardActionArea>
                 </Card>
               </Grid>
             ))}
           </Grid>
-          <Button
-            variant="contained"
-            sx={{
-              position: 'absolute',
-              bottom: 16,
-              left: 16,
-              zIndex: 2,
-              bgcolor: 'background.paper',
-              color: 'text.primary',
-            }}
-            onClick={openToolsMenu}
-          >
-            Tools
-          </Button>
           <Menu
             anchorEl={toolsAnchor}
             open={Boolean(toolsAnchor)}
@@ -226,34 +266,20 @@ export default function CoachingSessions() {
             anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
             transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
           >
-          <MenuItem onClick={handleClearAll}>
-            🗑️ Clear All Session Summaries
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              closeToolsMenu()
-              setRenameOpen(true)
-            }}
-          >
-            🏷️ Batch Rename Payments
-          </MenuItem>
-        </Menu>
-      </Box>
+            <MenuItem onClick={handleClearAll}>
+              🗑️ Clear All Session Summaries
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                closeToolsMenu()
+                setRenameOpen(true)
+              }}
+            >
+              🏷️ Batch Rename Payments
+            </MenuItem>
+          </Menu>
+        </>
       )}
-
-      <Button
-        variant="contained"
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          right: 16,
-          bgcolor: serviceMode ? 'red' : 'primary.main',
-          animation: serviceMode ? 'blink 1s infinite' : 'none',
-        }}
-        onClick={() => setServiceMode((m) => !m)}
-      >
-        Service Mode
-      </Button>
 
       {selected && (
         <OverviewTab

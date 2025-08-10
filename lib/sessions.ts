@@ -1,13 +1,16 @@
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from './firebase'
+import { PATHS, logPath } from './paths'
 
 export const computeSessionStart = async (
   sessionId: string,
   snapshotData?: any,
 ): Promise<Date | null> => {
   // Load a minimal history to resolve reschedules
+  const histPath = PATHS.sessionHistory(sessionId)
+  logPath('sessionHistory', histPath)
   const [histSnap] = await Promise.all([
-    getDocs(collection(db, 'Sessions', sessionId, 'appointmentHistory')),
+    getDocs(collection(db, histPath)),
   ])
   const hist = histSnap.docs
     .map((d) => d.data() as any)

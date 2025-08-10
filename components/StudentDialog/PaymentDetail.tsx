@@ -20,6 +20,7 @@ import { db } from '../../lib/firebase'
 import { computeSessionStart, fmtDate, fmtTime } from '../../lib/sessions'
 import { formatMMMDDYYYY } from '../../lib/date'
 import { titleFor } from './title'
+import { PATHS, logPath } from '../../lib/paths'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
@@ -60,11 +61,19 @@ export default function PaymentDetail({
     let cancelled = false
     ;(async () => {
       try {
+        const baseRateHistPath = PATHS.baseRateHistory(abbr)
+        const baseRatePath = PATHS.baseRate(abbr)
+        const sessionsPath = PATHS.sessions
+        const retainersPath = PATHS.retainers(abbr)
+        logPath('baseRateHistory', baseRateHistPath)
+        logPath('baseRate', baseRatePath)
+        logPath('sessions', sessionsPath)
+        logPath('retainers', retainersPath)
         const [histSnap, baseSnap, sessSnap, retSnap] = await Promise.all([
-          getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
-          getDocs(collection(db, 'Students', abbr, 'BaseRate')),
-          getDocs(query(collection(db, 'Sessions'), where('sessionName', '==', account))),
-          getDocs(collection(db, 'Students', abbr, 'Retainers')),
+          getDocs(collection(db, baseRateHistPath)),
+          getDocs(collection(db, baseRatePath)),
+          getDocs(query(collection(db, sessionsPath), where('sessionName', '==', account))),
+          getDocs(collection(db, retainersPath)),
         ])
 
         const baseRateDocs = [...histSnap.docs, ...baseSnap.docs]
@@ -88,9 +97,13 @@ export default function PaymentDetail({
         const rows = await Promise.all(
           sessSnap.docs.map(async (sd) => {
             const data = sd.data() as any
+            const ratePath = PATHS.sessionRate(sd.id)
+            const payPath = PATHS.sessionPayment(sd.id)
+            logPath('sessionRate', ratePath)
+            logPath('sessionPayment', payPath)
             const [rateSnap, paySnap] = await Promise.all([
-              getDocs(collection(db, 'Sessions', sd.id, 'rateCharged')),
-              getDocs(collection(db, 'Sessions', sd.id, 'payment')),
+              getDocs(collection(db, ratePath)),
+              getDocs(collection(db, payPath)),
             ])
 
             const startDate = await computeSessionStart(sd.id, data)
@@ -187,7 +200,9 @@ export default function PaymentDetail({
       for (const id of selected) {
         const session = available.find((s) => s.id === id)
         const rate = session?.rate || 0
-        await setDoc(doc(db, 'Sessions', id, 'payment', payment.id), {
+        const sessionPayPath = PATHS.sessionPayment(id)
+        logPath('assignPayment', `${sessionPayPath}/${payment.id}`)
+        await setDoc(doc(db, sessionPayPath, payment.id), {
           amount: rate,
           paymentId: payment.id,
           paymentMade: payment.paymentMade,
@@ -199,7 +214,9 @@ export default function PaymentDetail({
         ...selected,
       ]
       const newRemaining = remaining - totalSelected
-      await updateDoc(doc(db, 'Students', abbr, 'Payments', payment.id), {
+      const payDocPath = PATHS.payments(abbr)
+      logPath('updatePayment', `${payDocPath}/${payment.id}`)
+      await updateDoc(doc(db, payDocPath, payment.id), {
         assignedSessions: newAssigned,
         remainingAmount: newRemaining,
       })

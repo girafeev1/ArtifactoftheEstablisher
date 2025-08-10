@@ -15,6 +15,7 @@ import { db } from '../../lib/firebase'
 import PaymentDetail from './PaymentDetail'
 import { computeSessionStart } from '../../lib/sessions'
 import { titleFor } from './title'
+import { PATHS, logPath } from '../../lib/paths'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
@@ -77,11 +78,10 @@ export default function PaymentHistory({
     let cancelled = false
     ;(async () => {
       try {
+        const paymentsPath = PATHS.payments(abbr)
+        logPath('payments', paymentsPath)
         const snap = await getDocs(
-          query(
-            collection(db, 'Students', abbr, 'Payments'),
-            orderBy('paymentMade', 'desc'),
-          ),
+          query(collection(db, paymentsPath), orderBy('paymentMade', 'desc')),
         )
         if (cancelled) return
         const list = await Promise.all(
@@ -91,7 +91,9 @@ export default function PaymentHistory({
             const first = data.assignedSessions?.[0]
             if (first) {
               try {
-                const sess = await getDoc(doc(db, 'Sessions', first))
+                const sessionPath = `${PATHS.sessions}/${first}`
+                logPath('session', sessionPath)
+                const sess = await getDoc(doc(db, PATHS.sessions, first))
                 const sdata = sess.data() as any
                 sessionDate = await computeSessionStart(first, sdata)
               } catch (e) {

@@ -96,7 +96,6 @@ export default function SessionsTab({
     lastSession: '',
     totalSessions: 0,
   })
-  const [serviceMode, setServiceMode] = useState(false)
   const [sortBy, setSortBy] = useState<string>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const handleSort = (key: string) => {
@@ -368,27 +367,6 @@ export default function SessionsTab({
     >
       {!detail && (
         <>
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              mb: 1,
-            }}
-          >
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={serviceMode}
-                  onChange={(e) => setServiceMode(e.target.checked)}
-                />
-              }
-              label="Service Mode"
-            />
-            <Button variant="outlined" size="small" aria-label="tools">
-              Tools
-            </Button>
-          </Box>
           <Button
             variant="outlined"
             size="small"
