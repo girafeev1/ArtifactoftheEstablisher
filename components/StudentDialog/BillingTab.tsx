@@ -105,6 +105,30 @@ export default function BillingTab({
             val = await loadLatest('Payments', 'paymentMade', 'paymentMade')
           } else if (f === 'defaultBillingType') {
             val = await loadLatest('billingType', f)
+          } else if (f === 'voucherBalance') {
+            const mealPath = PATHS.freeMeal(abbr)
+            logPath('freeMeal', mealPath)
+            const mealSnap = await getDocs(collection(db, mealPath))
+            const tokens = mealSnap.docs.reduce(
+              (sum, d) => sum + (Number((d.data() as any).Token) || 0),
+              0,
+            )
+            const sessionsPath = PATHS.sessions
+            logPath('sessions', sessionsPath)
+            const sessSnap = await getDocs(
+              query(collection(db, sessionsPath), where('sessionName', '==', account)),
+            )
+            let used = 0
+            for (const sd of sessSnap.docs) {
+              const voucherPath = PATHS.sessionVoucher(sd.id)
+              logPath('sessionVoucher', voucherPath)
+              const vSnap = await getDocs(collection(db, voucherPath))
+              const vUsed = vSnap.docs.some((v) =>
+                Object.values(v.data() || {}).some(Boolean),
+              )
+              if (vUsed) used += 1
+            }
+            val = tokens - used
           } else {
             val = await loadLatest(f, f)
           }
@@ -135,7 +159,7 @@ export default function BillingTab({
         logPath('retainers', p)
         const snap = await getDocs(collection(db, p))
         const today = new Date()
-        let label = 'In Active'
+        let label = 'Inactive'
         const active = snap.docs
           .map((d) => d.data() as any)
           .find((r) => {
@@ -167,7 +191,7 @@ export default function BillingTab({
     return () => {
       cancelled = true
     }
-  }, [abbr, onBilling])
+  }, [abbr, account, onBilling])
 
   useEffect(() => {
     console.log('BillingTab effect: calculate balance due for', abbr)
@@ -331,22 +355,34 @@ export default function BillingTab({
             variant="h6"
             sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           >
-            {v === '__ERROR__' ? 'Error' : v || 'In Active'}
+            {v === '__ERROR__' ? 'Error' : v || 'Inactive'}
           </Typography>
         ) : (
           <InlineEdit
             value={v}
-            fieldPath=
-              {k === 'defaultBillingType'
+            fieldPath={
+              k === 'defaultBillingType'
                 ? `Students/${abbr}/billingType`
-                : `Students/${abbr}/${k}`}
-            fieldKey={k}
-            editable={!['balanceDue', 'voucherBalance', 'lastPaymentDate'].includes(k)}
+                : k === 'voucherBalance'
+                ? `Students/${abbr}/freeMeal`
+                : `Students/${abbr}/${k}`
+            }
+            fieldKey={k === 'voucherBalance' ? 'Token' : k}
+            editable={!['balanceDue', 'lastPaymentDate'].includes(k)}
             serviceMode={serviceMode}
             type={k.includes('Date') ? 'date' : 'text'}
             onSaved={(val) => {
-              setFields((b: any) => ({ ...b, [k]: val }))
-              if (k === 'voucherBalance') onBilling?.({ voucherBalance: Number(val) })
+              if (k === 'voucherBalance') {
+                setFields((b: any) => ({
+                  ...b,
+                  voucherBalance: (Number(b.voucherBalance) || 0) + Number(val),
+                }))
+                onBilling?.({
+                  voucherBalance: (Number(fields.voucherBalance) || 0) + Number(val),
+                })
+              } else {
+                setFields((b: any) => ({ ...b, [k]: val }))
+              }
             }}
           />
         )}

@@ -84,7 +84,7 @@ export default function SessionsTab({
     { key: 'duration', label: 'Duration', width: 110 },
     { key: 'sessionType', label: 'Session Type', width: 150 },
     { key: 'billingType', label: 'Billing Type', width: 150 },
-    { key: 'sessionVoucher', label: 'Session Voucher', width: 170 },
+    { key: 'voucherBalance', label: 'Voucher Balance', width: 170 },
     { key: 'baseRate', label: 'Base Rate', width: 140 },
     { key: 'rateCharged', label: 'Rate Charged', width: 140 },
     { key: 'paymentStatus', label: 'Payment Status', width: 150 },
@@ -96,7 +96,7 @@ export default function SessionsTab({
     'time',
     'sessionType',
     'billingType',
-    'sessionVoucher',
+    'voucherBalance',
     'rateCharged',
     'paymentStatus',
     'payOn',
@@ -134,8 +134,8 @@ export default function SessionsTab({
       case 'paymentStatus':
       case 'sessionType':
       case 'billingType':
-      case 'sessionVoucher':
-        return String(s[key] || '').toLowerCase()
+      case 'voucherBalance':
+        return Number(s[key]) || 0
       default:
         return 0
     }
@@ -360,7 +360,7 @@ export default function SessionsTab({
               id,
               sessionType,
               billingType,
-              sessionVoucher: voucherUsed ? 'Yes' : '-',
+              voucherBalance: 0,
               date,
               time,
               duration,
@@ -376,12 +376,26 @@ export default function SessionsTab({
           })
           .sort((a, b) => a.startMs - b.startMs)
 
-        const tokensAdded = mealSnap.docs.reduce(
-          (sum, d) => sum + (Number((d.data() as any).Token) || 0),
-          0,
-        )
-        const vouchersUsed = rows.filter((r) => r.voucherUsed).length
-        const balance = tokensAdded - vouchersUsed
+        const voucherEntries = mealSnap.docs
+          .map((d) => {
+            const data = d.data() as any
+            return {
+              token: Number(data.Token) || 0,
+              ts: data.timestamp?.toDate?.()?.getTime() || 0,
+            }
+          })
+          .sort((a, b) => a.ts - b.ts)
+        let tokenIdx = 0
+        let running = 0
+        rows.forEach((r) => {
+          while (tokenIdx < voucherEntries.length && voucherEntries[tokenIdx].ts <= r.startMs) {
+            running += voucherEntries[tokenIdx].token
+            tokenIdx++
+          }
+          if (r.voucherUsed) running -= 1
+          r.voucherBalance = running
+        })
+        const balance = running
 
         const firstIdx = rows.findIndex(
           (r) => r.sessionType?.toLowerCase() !== 'cancelled',
@@ -632,17 +646,17 @@ export default function SessionsTab({
                         {s.billingType}
                       </TableCell>
                     )}
-                    {visibleCols.includes('sessionVoucher') && (
+                    {visibleCols.includes('voucherBalance') && (
                       <TableCell
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
                           fontWeight: 500,
-                          width: colWidth('sessionVoucher'),
-                          minWidth: colWidth('sessionVoucher'),
+                          width: colWidth('voucherBalance'),
+                          minWidth: colWidth('voucherBalance'),
                         }}
                       >
-                        {s.sessionVoucher}
+                        {s.voucherBalance ?? '-'}
                       </TableCell>
                     )}
                     {visibleCols.includes('baseRate') && (

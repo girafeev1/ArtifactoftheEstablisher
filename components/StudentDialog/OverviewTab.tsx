@@ -13,6 +13,7 @@ import { titleFor, MainTab, BillingSubTab } from './title'
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
 import RetainersTab from './RetainersTab'
+import VouchersTab from './VouchersTab'
 import SessionsTab from './SessionsTab'
 import PaymentHistory from './PaymentHistory'
 
@@ -343,7 +344,7 @@ export default function OverviewTab({
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                 >
-                  Session Voucher:{' '}
+                  Voucher Balance:{' '}
                   {billingLoading.voucherBalance && <CircularProgress size={14} />}
                 </Typography>
                 {billingLoading.voucherBalance ? (
@@ -420,6 +421,16 @@ export default function OverviewTab({
                   active={tab === 'billing' && subTab === 'payment-history'}
                 />
               </Box>
+              <Box
+                sx={{
+                  display:
+                    tab === 'billing' && subTab === 'session-vouchers'
+                      ? 'block'
+                      : 'none',
+                }}
+              >
+                <VouchersTab abbr={abbr} />
+              </Box>
             </Box>
 
             <Tabs
@@ -485,6 +496,19 @@ export default function OverviewTab({
                   width: '100%',
                 }}
                 onClick={() => selectTab('billing-payment-history')}
+              />
+              <Tab
+                value="billing-session-vouchers"
+                label="Session Vouchers"
+                sx={{
+                  display: tab === 'billing' ? 'flex' : 'none',
+                  pl: 4,
+                  fontSize: '0.82rem',
+                  textAlign: 'right',
+                  justifyContent: 'flex-end',
+                  width: '100%',
+                }}
+                onClick={() => selectTab('billing-session-vouchers')}
               />
             </Tabs>
           </Box>

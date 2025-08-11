@@ -91,11 +91,11 @@ export default function PaymentDetail({
           })
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
 
-        const retainers = retSnap.docs.map((d) => {
-          const data = d.data() as any
-          const s = data.retainerStarts?.toDate?.() ?? new Date(0)
-          const e = data.retainerEnds?.toDate?.() ?? new Date(0)
-          return { start: s, end: e }
+        const retainerDocs = retSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+        const retainers = retainerDocs.map((r) => {
+          const s = r.retainerStarts?.toDate?.() ?? new Date(0)
+          const e = r.retainerEnds?.toDate?.() ?? new Date(0)
+          return { start: s, end: e, id: r.id, rate: Number(r.retainerRate) || 0, paymentId: r.paymentId }
         })
 
         const rows = await Promise.all(
@@ -152,6 +152,7 @@ export default function PaymentDetail({
 
             return {
               id: sd.id,
+              type: 'session',
               date,
               time,
               rate,
@@ -164,32 +165,39 @@ export default function PaymentDetail({
             }
           }),
         )
+        const retainerRows = retainers.map((r) => {
+          const startDate = r.start
+          const date = fmtDate(startDate)
+          return {
+            id: `retainer:${r.id}`,
+            type: 'retainer',
+            date,
+            time: 'Retainer',
+            rate: r.rate,
+            assigned: r.paymentId === payment.id,
+            assignedToOther: r.paymentId && r.paymentId !== payment.id,
+            startDate,
+            inRetainer: false,
+            hasVoucher: false,
+            cancelled: false,
+            retainerId: r.id,
+          }
+        })
 
         if (cancelled) return
-        const sortedRows = [...rows].sort(
-          (a, b) =>
-            (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0),
+        const filteredSessions = rows.filter(
+          (r) => !r.inRetainer && !r.hasVoucher && !r.cancelled,
+        )
+        const allRows = [...filteredSessions, ...retainerRows].sort(
+          (a, b) => (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0),
         )
         const map: Record<string, number> = {}
-        sortedRows.forEach((r, i) => {
+        allRows.forEach((r, i) => {
           map[r.id] = i + 1
         })
         setOrdinals(map)
-        setAssignedSessions(
-          sortedRows.filter(
-            (r) => r.assigned && !r.inRetainer && !r.hasVoucher && !r.cancelled,
-          ),
-        )
-        setAvailable(
-          sortedRows.filter(
-            (r) =>
-              !r.assigned &&
-              !r.assignedToOther &&
-              !r.inRetainer &&
-              !r.hasVoucher &&
-              !r.cancelled,
-          ),
-        )
+        setAssignedSessions(allRows.filter((r) => r.assigned))
+        setAvailable(allRows.filter((r) => !r.assigned && !r.assignedToOther))
       } catch (e) {
         console.error('load sessions failed', e)
         if (!cancelled) {
@@ -219,30 +227,50 @@ export default function PaymentDetail({
     setAssigning(true)
     try {
       const newlyAssigned: any[] = []
+      const newAssignedRet: string[] = []
       for (const id of selected) {
-        const session = available.find((s) => s.id === id)
-        const rate = session?.rate || 0
-        const sessionPayPath = PATHS.sessionPayment(id)
-        logPath('assignPayment', `${sessionPayPath}/${payment.id}`)
-        await setDoc(doc(db, sessionPayPath, payment.id), {
-          amount: rate,
-          paymentId: payment.id,
-          paymentMade: payment.paymentMade,
-        })
-        if (session) newlyAssigned.push(session)
+        if (id.startsWith('retainer:')) {
+          const retId = id.replace('retainer:', '')
+          const ret = available.find((s) => s.id === id)
+          const rate = ret?.rate || 0
+          await updateDoc(doc(db, PATHS.retainers(abbr), retId), {
+            paymentId: payment.id,
+          })
+          if (ret) newlyAssigned.push(ret)
+          newAssignedRet.push(retId)
+        } else {
+          const session = available.find((s) => s.id === id)
+          const rate = session?.rate || 0
+          const sessionPayPath = PATHS.sessionPayment(id)
+          logPath('assignPayment', `${sessionPayPath}/${payment.id}`)
+          await setDoc(doc(db, sessionPayPath, payment.id), {
+            amount: rate,
+            paymentId: payment.id,
+            paymentMade: payment.paymentMade,
+          })
+          if (session) newlyAssigned.push(session)
+        }
       }
       const newAssigned = [
         ...(payment.assignedSessions || []),
-        ...selected,
+        ...selected.filter((id) => !id.startsWith('retainer:')),
       ]
       const newRemaining = remaining - totalSelected
       const payDocPath = PATHS.payments(abbr)
       logPath('updatePayment', `${payDocPath}/${payment.id}`)
       await updateDoc(doc(db, payDocPath, payment.id), {
         assignedSessions: newAssigned,
+        assignedRetainers: [
+          ...(payment.assignedRetainers || []),
+          ...newAssignedRet,
+        ],
         remainingAmount: newRemaining,
       })
       payment.assignedSessions = newAssigned
+      payment.assignedRetainers = [
+        ...(payment.assignedRetainers || []),
+        ...newAssignedRet,
+      ]
       setRemaining(newRemaining)
       setAssignedSessions((a) => [...a, ...newlyAssigned])
       setAvailable((s) => s.filter((sess) => !selected.includes(sess.id)))

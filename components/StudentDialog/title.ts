@@ -1,5 +1,5 @@
 export type MainTab = 'overview' | 'personal' | 'sessions' | 'billing'
-export type BillingSubTab = 'retainers' | 'payment-history' | null
+export type BillingSubTab = 'retainers' | 'payment-history' | 'session-vouchers' | null
 
 export const titleFor = (
   tab: MainTab,
@@ -18,6 +18,7 @@ export const titleFor = (
     const subMap: Record<Exclude<BillingSubTab, null>, string> = {
       retainers: 'Retainers',
       'payment-history': 'Payment History',
+      'session-vouchers': 'Session Vouchers',
     }
     title = `${account} - Billing - ${subMap[subTab]}`
   }

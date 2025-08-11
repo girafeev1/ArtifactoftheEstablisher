@@ -57,6 +57,7 @@ export default function InlineEdit({
         lastPaymentDate: 'B5',
         balanceDue: 'B6',
         voucherBalance: 'B7',
+        Token: 'FM',
       }
       const num = fieldNumbers[fieldKey ?? ''] || 'XX'
       const docName = `${docId}-${num}-${idx}-${yyyyMMdd}`
