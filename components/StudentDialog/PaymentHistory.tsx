@@ -9,22 +9,16 @@ import {
   CircularProgress,
   Typography,
   TableSortLabel,
-  Button,
+  IconButton,
+  Tooltip,
 } from '@mui/material'
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  orderBy,
-  query,
-  addDoc,
-} from 'firebase/firestore'
+import { collection, orderBy, query, onSnapshot } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import PaymentDetail from './PaymentDetail'
-import { computeSessionStart, fmtDate, fmtTime } from '../../lib/sessions'
 import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
+import { WriteIcon } from './icons'
+import PaymentModal from './PaymentModal'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -65,32 +59,7 @@ export default function PaymentHistory({
   const [detail, setDetail] = useState<any | null>(null)
   const [sortField, setSortField] = useState<'amount' | 'paymentMade'>('paymentMade')
   const [sortAsc, setSortAsc] = useState(false)
-
-  const addPayment = async () => {
-    const amountStr = window.prompt('Payment amount (HKD):', '')
-    if (!amountStr) return
-    const amount = Number(amountStr)
-    if (isNaN(amount)) return
-    const dateStr = window.prompt('Payment made on (YYYY-MM-DD):', '')
-    const date = dateStr ? new Date(dateStr) : new Date()
-    const paymentsPath = PATHS.payments(abbr)
-    logPath('addPayment', paymentsPath)
-    try {
-      const docRef = await addDoc(collection(db, paymentsPath), {
-        amount,
-        paymentMade: date,
-        remainingAmount: amount,
-        assignedSessions: [],
-        assignedRetainers: [],
-      })
-      setPayments((p) => [
-        ...p,
-        { id: docRef.id, amount, paymentMade: date, sessionDate: null },
-      ])
-    } catch (e) {
-      console.error('add payment failed', e)
-    }
-  }
+  const [modalOpen, setModalOpen] = useState(false)
 
   useEffect(() => {
     if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
@@ -98,46 +67,23 @@ export default function PaymentHistory({
   }, [account, onTitleChange, active])
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const paymentsPath = PATHS.payments(abbr)
-        logPath('payments', paymentsPath)
-        const snap = await getDocs(
-          query(collection(db, paymentsPath), orderBy('paymentMade', 'desc')),
-        )
-        if (cancelled) return
-        const list = await Promise.all(
-          snap.docs.map(async (d) => {
-            const data = d.data() as any
-            let sessionDate: Date | null = null
-            const first = data.assignedSessions?.[0]
-            if (first) {
-              try {
-                const sessionPath = `${PATHS.sessions}/${first}`
-                logPath('session', sessionPath)
-                const sess = await getDoc(doc(db, PATHS.sessions, first))
-                const sdata = sess.data() as any
-                sessionDate = await computeSessionStart(first, sdata)
-              } catch (e) {
-                console.error('fetch session for payment failed', e)
-              }
-            }
-            return { id: d.id, ...data, sessionDate }
-          }),
-        )
+    const paymentsPath = PATHS.payments(abbr)
+    logPath('payments', paymentsPath)
+    const q = query(collection(db, paymentsPath), orderBy('paymentMade', 'desc'))
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
         setPayments(list)
-      } catch (e) {
+        setLoading(false)
+      },
+      (e) => {
         console.error('load payments failed', e)
-        if (cancelled) return
         setPayments([])
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
+        setLoading(false)
+      },
+    )
+    return () => unsub()
   }, [abbr])
 
 
@@ -171,20 +117,36 @@ export default function PaymentHistory({
         <CircularProgress />
       ) : (
         <>
-          <Typography
-            variant="subtitle1"
-            sx={{ fontFamily: 'Cantata One', textDecoration: 'underline', mb: 1 }}
-          >
-            Payment History
-          </Typography>
-          <Button variant="outlined" sx={{ mb: 2 }} onClick={addPayment}>
-            Add Payment
-          </Button>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+            <Typography
+              variant="subtitle1"
+              sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+            >
+              Payment History
+            </Typography>
+            <Tooltip title="Add Payment">
+              <IconButton color="primary" onClick={() => setModalOpen(true)}>
+                <WriteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
           <Table size="small" sx={{ cursor: 'pointer' }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-                  For session
+                  <TableSortLabel
+                    active={sortField === 'paymentMade'}
+                    direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
+                    onClick={() => {
+                      if (sortField === 'paymentMade') setSortAsc((s) => !s)
+                      else {
+                        setSortField('paymentMade')
+                        setSortAsc(false)
+                      }
+                    }}
+                  >
+                    Payment Made On
+                  </TableSortLabel>
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
                   <TableSortLabel
@@ -199,21 +161,6 @@ export default function PaymentHistory({
                     }}
                   >
                     Amount Received
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-                  <TableSortLabel
-                    active={sortField === 'paymentMade'}
-                    direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
-                    onClick={() => {
-                      if (sortField === 'paymentMade') setSortAsc((s) => !s)
-                      else {
-                        setSortField('paymentMade')
-                        setSortAsc(false)
-                      }
-                    }}
-                  >
-                    Payment Made On
                   </TableSortLabel>
                 </TableCell>
               </TableRow>
@@ -235,27 +182,27 @@ export default function PaymentHistory({
                   sx={{ cursor: 'pointer', py: 1 }}
                 >
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                    {p.sessionDate
-                      ? `${fmtDate(p.sessionDate)} ${fmtTime(p.sessionDate)}`
-                      : '-'}
+                    {formatDate(p.paymentMade)}
                   </TableCell>
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                     {formatCurrency(Number(p.amount) || 0)}
-                  </TableCell>
-                  <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                    {formatDate(p.paymentMade)}
                   </TableCell>
                 </TableRow>
               ))}
               {sortedPayments.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  <TableCell colSpan={2} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                     No payments recorded.
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
+          <PaymentModal
+            abbr={abbr}
+            open={modalOpen}
+            onClose={() => setModalOpen(false)}
+          />
         </>
       )}
     </Box>
