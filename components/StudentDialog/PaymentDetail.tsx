@@ -105,9 +105,12 @@ export default function PaymentDetail({
             const payPath = PATHS.sessionPayment(sd.id)
             logPath('sessionRate', ratePath)
             logPath('sessionPayment', payPath)
-            const [rateSnap, paySnap] = await Promise.all([
+            const voucherPath = PATHS.sessionVoucher(sd.id)
+            logPath('sessionVoucher', voucherPath)
+            const [rateSnap, paySnap, voucherSnap] = await Promise.all([
               getDocs(collection(db, ratePath)),
               getDocs(collection(db, payPath)),
+              getDocs(collection(db, voucherPath)),
             ])
 
             const startDate = await computeSessionStart(sd.id, data)
@@ -141,6 +144,11 @@ export default function PaymentDetail({
             const inRetainer = retainers.some(
               (r) => startDate && startDate >= r.start && startDate <= r.end,
             )
+            const hasVoucher = voucherSnap.docs.some((v) =>
+              Object.values(v.data() || {}).some(Boolean),
+            )
+            const cancelled =
+              (data.sessionType || '').toLowerCase() === 'cancelled'
 
             return {
               id: sd.id,
@@ -151,6 +159,8 @@ export default function PaymentDetail({
               assignedToOther,
               inRetainer,
               startDate,
+              hasVoucher,
+              cancelled,
             }
           }),
         )
@@ -166,11 +176,18 @@ export default function PaymentDetail({
         })
         setOrdinals(map)
         setAssignedSessions(
-          sortedRows.filter((r) => r.assigned && !r.inRetainer),
+          sortedRows.filter(
+            (r) => r.assigned && !r.inRetainer && !r.hasVoucher && !r.cancelled,
+          ),
         )
         setAvailable(
           sortedRows.filter(
-            (r) => !r.assigned && !r.assignedToOther && !r.inRetainer,
+            (r) =>
+              !r.assigned &&
+              !r.assignedToOther &&
+              !r.inRetainer &&
+              !r.hasVoucher &&
+              !r.cancelled,
           ),
         )
       } catch (e) {

@@ -6,9 +6,11 @@ export const PATHS = {
   baseRate: (abbr: string) => `Students/${abbr}/BaseRate`,
   baseRateHistory: (abbr: string) => `Students/${abbr}/BaseRateHistory`,
   retainers: (abbr: string) => `Students/${abbr}/Retainers`,
+  freeMeal: (abbr: string) => `Students/${abbr}/freeMeal`,
   sessionPayment: (sessionId: string) => `Sessions/${sessionId}/payment`,
   sessionRate: (sessionId: string) => `Sessions/${sessionId}/rateCharged`,
   sessionHistory: (sessionId: string) => `Sessions/${sessionId}/appointmentHistory`,
+  sessionVoucher: (sessionId: string) => `Sessions/${sessionId}/sessionVoucher`,
 }
 export const logPath = (label: string, path: string) =>
   console.debug(`[paths] ${label}: ${path}`)
