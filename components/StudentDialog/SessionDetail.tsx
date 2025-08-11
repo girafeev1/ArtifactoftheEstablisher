@@ -1,7 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Box, Typography, Button } from '@mui/material'
 import InlineEdit from '../../common/InlineEdit'
 import { PATHS, logPath } from '../../lib/paths'
+import { collection, doc, getDocs, setDoc } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -28,6 +30,22 @@ interface SessionDetailProps {
 // SessionDetail shows information for a single session. Limited editing, such
 // as rate charged, occurs here rather than inline in the sessions table.
 export default function SessionDetail({ session, onBack }: SessionDetailProps) {
+  const [voucherUsed, setVoucherUsed] = useState(!!session.voucherUsed)
+
+  const markVoucher = async () => {
+    const path = PATHS.sessionVoucher(session.id)
+    logPath('sessionVoucher', path)
+    const colRef = collection(db, path)
+    const snap = await getDocs(colRef)
+    const idx = String(snap.size + 1).padStart(3, '0')
+    const today = new Date()
+    const yyyyMMdd = today.toISOString().slice(0, 10).replace(/-/g, '')
+    const docName = `free_${idx}_${yyyyMMdd}`
+    await setDoc(doc(colRef, docName), { 'free?': true })
+    setVoucherUsed(true)
+    session.voucherUsed = true
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>
@@ -91,7 +109,7 @@ export default function SessionDetail({ session, onBack }: SessionDetailProps) {
           }
           fieldPath={PATHS.sessionRate(session.id)}
           fieldKey="rateCharged"
-          editable
+          editable={!voucherUsed}
           type="number"
           displayFormatter={(v) =>
             v === '' ? '-' : formatCurrency(Number(v))
@@ -101,6 +119,28 @@ export default function SessionDetail({ session, onBack }: SessionDetailProps) {
             logPath('sessionRate', PATHS.sessionRate(session.id))
           }}
         />
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Session Voucher:
+        </Typography>
+        {voucherUsed ? (
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            Yes
+          </Typography>
+        ) : (
+          <Button
+            variant="outlined"
+            onClick={markVoucher}
+            disabled={session.rateSpecified}
+          >
+            Use Session Voucher
+          </Button>
+        )}
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
