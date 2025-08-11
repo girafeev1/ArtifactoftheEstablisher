@@ -9,8 +9,17 @@ import {
   CircularProgress,
   Typography,
   TableSortLabel,
+  Button,
 } from '@mui/material'
-import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore'
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  addDoc,
+} from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import PaymentDetail from './PaymentDetail'
 import { computeSessionStart, fmtDate, fmtTime } from '../../lib/sessions'
@@ -56,6 +65,32 @@ export default function PaymentHistory({
   const [detail, setDetail] = useState<any | null>(null)
   const [sortField, setSortField] = useState<'amount' | 'paymentMade'>('paymentMade')
   const [sortAsc, setSortAsc] = useState(false)
+
+  const addPayment = async () => {
+    const amountStr = window.prompt('Payment amount (HKD):', '')
+    if (!amountStr) return
+    const amount = Number(amountStr)
+    if (isNaN(amount)) return
+    const dateStr = window.prompt('Payment made on (YYYY-MM-DD):', '')
+    const date = dateStr ? new Date(dateStr) : new Date()
+    const paymentsPath = PATHS.payments(abbr)
+    logPath('addPayment', paymentsPath)
+    try {
+      const docRef = await addDoc(collection(db, paymentsPath), {
+        amount,
+        paymentMade: date,
+        remainingAmount: amount,
+        assignedSessions: [],
+        assignedRetainers: [],
+      })
+      setPayments((p) => [
+        ...p,
+        { id: docRef.id, amount, paymentMade: date, sessionDate: null },
+      ])
+    } catch (e) {
+      console.error('add payment failed', e)
+    }
+  }
 
   useEffect(() => {
     if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
@@ -142,6 +177,9 @@ export default function PaymentHistory({
           >
             Payment History
           </Typography>
+          <Button variant="outlined" sx={{ mb: 2 }} onClick={addPayment}>
+            Add Payment
+          </Button>
           <Table size="small" sx={{ cursor: 'pointer' }}>
             <TableHead>
               <TableRow>

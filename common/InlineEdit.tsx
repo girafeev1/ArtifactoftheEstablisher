@@ -14,6 +14,7 @@ export interface InlineEditProps {
   type: 'text' | 'number' | 'date' | 'select'
   options?: string[]
   onSaved?: (v: any) => void
+  displayFormatter?: (v: any) => string
 }
 
 export default function InlineEdit({
@@ -25,6 +26,7 @@ export default function InlineEdit({
   type,
   options,
   onSaved,
+  displayFormatter,
 }: InlineEditProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -58,6 +60,7 @@ export default function InlineEdit({
         balanceDue: 'B6',
         voucherBalance: 'B7',
         Token: 'FM',
+        rateCharged: 'RC',
       }
       const num = fieldNumbers[fieldKey ?? ''] || 'XX'
       const docName = `${docId}-${num}-${idx}-${yyyyMMdd}`
@@ -103,7 +106,8 @@ export default function InlineEdit({
       const d = new Date(draft)
       return isNaN(d.getTime()) ? '-' : d.toLocaleDateString()
     }
-    return String(draft)
+    const val = String(draft)
+    return displayFormatter ? displayFormatter(draft) : val
   }
 
   // when Service Mode is ON, disable edits and clicking shows full audit trail

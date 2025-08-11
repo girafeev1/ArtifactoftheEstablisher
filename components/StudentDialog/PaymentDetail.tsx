@@ -339,13 +339,14 @@ export default function PaymentDetail({
           const ord = ordinals[s.id] ?? i + 1
           const date = s.date || '-'
           const time = s.time || '-'
+          const rateStr = formatCurrency(Number(s.rate) || 0)
           return (
             <Typography
               key={s.id}
               variant="h6"
               sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
             >
-              {`#${ord} | ${date} | ${time}`}
+              {`#${ord} | ${date} | ${time} | ${rateStr}`}
             </Typography>
           )
         })}
@@ -356,6 +357,7 @@ export default function PaymentDetail({
                 const ord = ordinals[s.id] ?? i + 1
                 const date = s.date || '-'
                 const time = s.time || '-'
+                const rateStr = formatCurrency(Number(s.rate) || 0)
                 return (
                   <FormControlLabel
                     key={s.id}
@@ -366,7 +368,7 @@ export default function PaymentDetail({
                         disabled={assigning || (s.rate || 0) > remaining}
                       />
                     }
-                    label={`#${ord} | ${date} | ${time}`}
+                    label={`#${ord} | ${date} | ${time} | ${rateStr}`}
                   />
                 )
               })}

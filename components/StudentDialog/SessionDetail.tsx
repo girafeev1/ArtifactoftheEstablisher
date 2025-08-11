@@ -1,5 +1,7 @@
 import React from 'react'
 import { Box, Typography, Button } from '@mui/material'
+import InlineEdit from '../../common/InlineEdit'
+import { PATHS, logPath } from '../../lib/paths'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -23,9 +25,8 @@ interface SessionDetailProps {
   onBack: () => void
 }
 
-// SessionDetail shows information for a single session. Editing is intended to
-// happen here (rather than inline in the sessions table) but is limited to
-// read-only fields for now.
+// SessionDetail shows information for a single session. Limited editing, such
+// as rate charged, occurs here rather than inline in the sessions table.
 export default function SessionDetail({ session, onBack }: SessionDetailProps) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -84,12 +85,22 @@ export default function SessionDetail({ session, onBack }: SessionDetailProps) {
         >
           Rate Charged:
         </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
-          {session.rateCharged !== '-' ? formatCurrency(Number(session.rateCharged)) : '-'}
-        </Typography>
+        <InlineEdit
+          value={
+            session.rateCharged !== '-' ? Number(session.rateCharged) : ''
+          }
+          fieldPath={PATHS.sessionRate(session.id)}
+          fieldKey="rateCharged"
+          editable
+          type="number"
+          displayFormatter={(v) =>
+            v === '' ? '-' : formatCurrency(Number(v))
+          }
+          onSaved={(v) => {
+            session.rateCharged = v
+            logPath('sessionRate', PATHS.sessionRate(session.id))
+          }}
+        />
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
