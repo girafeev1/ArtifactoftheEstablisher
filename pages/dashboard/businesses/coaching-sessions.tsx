@@ -222,7 +222,7 @@ export default function CoachingSessions() {
           })
 
           const totalOwed = sessions.reduce(
-            (sum, s) => (!s.assigned && !s.covered ? sum + (s.rate || 0) : sum),
+            (sum, s) => sum + (s.rate || 0),
             0,
           )
           const totalPaid = paymentsSnap.docs.reduce(

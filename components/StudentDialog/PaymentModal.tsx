@@ -42,7 +42,16 @@ export default function PaymentModal({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="xs"
+      slotProps={{
+        backdrop: { sx: { zIndex: 1600 } },
+        paper: { sx: { zIndex: 1601 } },
+      }}
+    >
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Payment</DialogTitle>
       <DialogContent>
         <TextField

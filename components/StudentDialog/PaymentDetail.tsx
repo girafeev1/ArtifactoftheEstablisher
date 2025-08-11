@@ -3,9 +3,13 @@ import {
   Box,
   Typography,
   Button,
-  FormGroup,
-  FormControlLabel,
   Checkbox,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  TableSortLabel,
 } from '@mui/material'
 import {
   collection,
@@ -17,7 +21,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
-import { computeSessionStart, fmtDate, fmtTime } from '../../lib/sessions'
+import { fmtDate, fmtTime } from '../../lib/sessions'
 import { formatMMMDDYYYY } from '../../lib/date'
 import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
@@ -50,7 +54,29 @@ export default function PaymentDetail({
   const [remaining, setRemaining] = useState<number>(
     payment.remainingAmount ?? Number(payment.amount) ?? 0,
   )
-  const [ordinals, setOrdinals] = useState<Record<string, number>>({})
+  const [sortField, setSortField] = useState<'ordinal' | 'date' | 'time' | 'rate'>(
+    'ordinal',
+  )
+  const [sortAsc, setSortAsc] = useState(true)
+
+  const sortRows = (rows: any[]) => {
+    const val = (r: any) => {
+      switch (sortField) {
+        case 'ordinal':
+          return r.ordinal || 0
+        case 'date':
+        case 'time':
+          return r.startMs || 0
+        case 'rate':
+          return Number(r.rate) || 0
+        default:
+          return 0
+      }
+    }
+    return [...rows].sort((a, b) =>
+      sortAsc ? val(a) - val(b) : val(b) - val(a),
+    )
+  }
 
   useEffect(() => {
     const d = payment.paymentMade?.toDate
@@ -107,15 +133,50 @@ export default function PaymentDetail({
             logPath('sessionPayment', payPath)
             const voucherPath = PATHS.sessionVoucher(sd.id)
             logPath('sessionVoucher', voucherPath)
-            const [rateSnap, paySnap, voucherSnap] = await Promise.all([
+            const histPath = PATHS.sessionHistory(sd.id)
+            logPath('sessionHistory', histPath)
+            const [rateSnap, paySnap, voucherSnap, histSnap] = await Promise.all([
               getDocs(collection(db, ratePath)),
               getDocs(collection(db, payPath)),
               getDocs(collection(db, voucherPath)),
+              getDocs(collection(db, histPath)),
             ])
 
-            const startDate = await computeSessionStart(sd.id, data)
+            const parseDate = (v: any) => {
+              const d = v?.toDate ? v.toDate() : new Date(v)
+              return isNaN(d.getTime()) ? null : d
+            }
+            const hist = histSnap.docs
+              .map((d) => d.data() as any)
+              .sort((a, b) => {
+                const ta =
+                  a.changeTimestamp?.toDate?.() ??
+                  a.timestamp?.toDate?.() ??
+                  new Date(0)
+                const tb =
+                  b.changeTimestamp?.toDate?.() ??
+                  b.timestamp?.toDate?.() ??
+                  new Date(0)
+                return tb.getTime() - ta.getTime()
+              })[0]
+            let start =
+              hist?.newStartTimestamp ??
+              hist?.origStartTimestamp ??
+              data?.origStartTimestamp ??
+              data?.sessionDate ??
+              data?.startTimestamp
+            let end =
+              hist?.newEndTimestamp ??
+              hist?.origEndTimestamp ??
+              data?.origEndTimestamp ??
+              data?.endTimestamp
+            const startDate = parseDate(start)
+            const endDate = parseDate(end)
             const date = startDate ? fmtDate(startDate) : '-'
-            const time = startDate ? fmtTime(startDate) : '-'
+            const startStr = startDate ? fmtTime(startDate) : '-'
+            const endStr = endDate ? fmtTime(endDate) : ''
+            const time = startStr + (endStr ? `-${endStr}` : '')
+            const startMs = startDate?.getTime() ?? 0
 
             const base = (() => {
               if (!startDate || !baseRates.length) return 0
@@ -158,7 +219,7 @@ export default function PaymentDetail({
               const latest = entries[entries.length - 1]
               return !!latest && latest['free?'] === true
             })()
-            const cancelled =
+            const isCancelled =
               (data.sessionType || '').toLowerCase() === 'cancelled'
 
             return {
@@ -170,9 +231,9 @@ export default function PaymentDetail({
               assigned,
               assignedToOther,
               inRetainer,
-              startDate,
+              startMs,
               hasVoucher,
-              cancelled,
+              cancelled: isCancelled,
             }
           }),
         )
@@ -187,7 +248,7 @@ export default function PaymentDetail({
             rate: r.rate,
             assigned: r.paymentId === payment.id,
             assignedToOther: r.paymentId && r.paymentId !== payment.id,
-            startDate,
+            startMs: startDate.getTime(),
             inRetainer: false,
             hasVoucher: false,
             cancelled: false,
@@ -199,14 +260,12 @@ export default function PaymentDetail({
         const filteredSessions = rows.filter(
           (r) => !r.inRetainer && !r.hasVoucher && !r.cancelled,
         )
-        const allRows = [...filteredSessions, ...retainerRows].sort(
-          (a, b) => (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0),
+        const allRows: any[] = [...filteredSessions, ...retainerRows].sort(
+          (a, b) => a.startMs - b.startMs,
         )
-        const map: Record<string, number> = {}
         allRows.forEach((r, i) => {
-          map[r.id] = i + 1
+          r.ordinal = i + 1
         })
-        setOrdinals(map)
         setAssignedSessions(allRows.filter((r) => r.assigned))
         setAvailable(allRows.filter((r) => !r.assigned && !r.assignedToOther))
       } catch (e) {
@@ -346,53 +405,131 @@ export default function PaymentDetail({
         >
           For session:
         </Typography>
-        {assignedSessions.map((s, i) => {
-          const ord = ordinals[s.id] ?? i + 1
-          const date = s.date || '-'
-          const time = s.time || '-'
-          const rateStr = formatCurrency(Number(s.rate) || 0)
-          return (
-            <Typography
-              key={s.id}
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
-              {`#${ord} | ${date} | ${time} | ${rateStr}`}
-            </Typography>
-          )
-        })}
-        {remaining > 0 && (
-          <>
-            <FormGroup>
-              {available.map((s, i) => {
-                const ord = ordinals[s.id] ?? i + 1
-                const date = s.date || '-'
-                const time = s.time || '-'
-                const rateStr = formatCurrency(Number(s.rate) || 0)
-                return (
-                  <FormControlLabel
-                    key={s.id}
-                    control={
-                      <Checkbox
-                        checked={selected.includes(s.id)}
-                        onChange={() => toggle(s.id)}
-                        disabled={assigning || (s.rate || 0) > remaining}
-                      />
+        <Table size="small" sx={{ mt: 1 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableSortLabel
+                  active={sortField === 'ordinal'}
+                  direction={sortField === 'ordinal' && sortAsc ? 'asc' : 'desc'}
+                  onClick={() => {
+                    if (sortField === 'ordinal') setSortAsc((s) => !s)
+                    else {
+                      setSortField('ordinal')
+                      setSortAsc(true)
                     }
-                    label={`#${ord} | ${date} | ${time} | ${rateStr}`}
+                  }}
+                >
+                  Session #
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableSortLabel
+                  active={sortField === 'date'}
+                  direction={sortField === 'date' && sortAsc ? 'asc' : 'desc'}
+                  onClick={() => {
+                    if (sortField === 'date') setSortAsc((s) => !s)
+                    else {
+                      setSortField('date')
+                      setSortAsc(true)
+                    }
+                  }}
+                >
+                  Date
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableSortLabel
+                  active={sortField === 'time'}
+                  direction={sortField === 'time' && sortAsc ? 'asc' : 'desc'}
+                  onClick={() => {
+                    if (sortField === 'time') setSortAsc((s) => !s)
+                    else {
+                      setSortField('time')
+                      setSortAsc(true)
+                    }
+                  }}
+                >
+                  Time
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableSortLabel
+                  active={sortField === 'rate'}
+                  direction={sortField === 'rate' && sortAsc ? 'asc' : 'desc'}
+                  onClick={() => {
+                    if (sortField === 'rate') setSortAsc((s) => !s)
+                    else {
+                      setSortField('rate')
+                      setSortAsc(true)
+                    }
+                  }}
+                >
+                  Rate
+                </TableSortLabel>
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sortRows(assignedSessions).map((s) => (
+              <TableRow key={s.id}>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.ordinal}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.date || '-'}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.time || '-'}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {formatCurrency(Number(s.rate) || 0)}
+                </TableCell>
+              </TableRow>
+            ))}
+            {sortRows(available).map((s) => (
+              <TableRow key={s.id}>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  <Checkbox
+                    checked={selected.includes(s.id)}
+                    onChange={() => toggle(s.id)}
+                    disabled={assigning || (s.rate || 0) > remaining}
+                    sx={{ p: 0, mr: 1 }}
                   />
-                )
-              })}
-            </FormGroup>
-            <Button
-              variant="contained"
-              sx={{ mt: 1 }}
-              onClick={handleAssign}
-              disabled={assigning || totalSelected === 0 || totalSelected > remaining}
-            >
-              Assign
-            </Button>
-          </>
+                  {s.ordinal}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.date || '-'}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.time || '-'}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {formatCurrency(Number(s.rate) || 0)}
+                </TableCell>
+              </TableRow>
+            ))}
+            {assignedSessions.length === 0 && available.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                >
+                  No sessions available.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        {remaining > 0 && (
+          <Button
+            variant="contained"
+            sx={{ mt: 1 }}
+            onClick={handleAssign}
+            disabled={assigning || totalSelected === 0 || totalSelected > remaining}
+          >
+            Assign
+          </Button>
         )}
       </Box>
       <Box
