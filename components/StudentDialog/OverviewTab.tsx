@@ -360,7 +360,7 @@ export default function OverviewTab({
                     sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                   >
                     {billing.voucherBalance != null
-                      ? formatCurrency(Number(billing.voucherBalance) || 0)
+                      ? Number(billing.voucherBalance)
                       : '-'}
                   </Typography>
                 )}

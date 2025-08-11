@@ -34,6 +34,7 @@ const formatDate = (v: any) => {
 interface Row {
   id: string
   Token: number
+  effectiveDate?: any
   timestamp: any
   EditedBy?: string
 }
@@ -48,11 +49,19 @@ export default function VouchersTab({ abbr }: { abbr: string }) {
     const snap = await getDocs(collection(db, path))
     const list = snap.docs
       .map((d) => ({ id: d.id, ...(d.data() as any) }))
-      .sort(
-        (a, b) =>
-          (a.timestamp?.toDate?.()?.getTime() || 0) -
-          (b.timestamp?.toDate?.()?.getTime() || 0),
-      )
+      .sort((a, b) => {
+        const ta =
+          a.effectiveDate?.toDate?.()?.getTime() ||
+          new Date(a.effectiveDate).getTime() ||
+          a.timestamp?.toDate?.()?.getTime() ||
+          0
+        const tb =
+          b.effectiveDate?.toDate?.()?.getTime() ||
+          new Date(b.effectiveDate).getTime() ||
+          b.timestamp?.toDate?.()?.getTime() ||
+          0
+        return ta - tb
+      })
     setRows(list)
   }
 
@@ -76,16 +85,19 @@ export default function VouchersTab({ abbr }: { abbr: string }) {
         </Tooltip>
       </Box>
       <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-              Token
-            </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-              Timestamp
-            </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-              Edited By
+      <TableHead>
+        <TableRow>
+          <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            Token
+          </TableCell>
+          <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            Effective Date
+          </TableCell>
+          <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            Timestamp
+          </TableCell>
+          <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            Edited By
             </TableCell>
           </TableRow>
         </TableHead>
@@ -94,6 +106,9 @@ export default function VouchersTab({ abbr }: { abbr: string }) {
             <TableRow key={r.id}>
               <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                 {r.Token}
+              </TableCell>
+              <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                {formatDate(r.effectiveDate)}
               </TableCell>
               <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                 {formatDate(r.timestamp)}

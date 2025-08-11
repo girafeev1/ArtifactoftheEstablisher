@@ -379,22 +379,41 @@ export default function SessionsTab({
         const voucherEntries = mealSnap.docs
           .map((d) => {
             const data = d.data() as any
+            const eff =
+              data.effectiveDate?.toDate?.()?.getTime() ??
+              new Date(data.effectiveDate).getTime()
+            const ts = !isNaN(eff)
+              ? eff
+              : data.timestamp?.toDate?.()?.getTime() ||
+                new Date(data.timestamp).getTime() ||
+                0
             return {
               token: Number(data.Token) || 0,
-              ts: data.timestamp?.toDate?.()?.getTime() || 0,
+              ts,
             }
           })
           .sort((a, b) => a.ts - b.ts)
         let tokenIdx = 0
         let running = 0
         rows.forEach((r) => {
-          while (tokenIdx < voucherEntries.length && voucherEntries[tokenIdx].ts <= r.startMs) {
+          while (
+            tokenIdx < voucherEntries.length &&
+            voucherEntries[tokenIdx].ts <= r.startMs
+          ) {
             running += voucherEntries[tokenIdx].token
             tokenIdx++
           }
           if (r.voucherUsed) running -= 1
           r.voucherBalance = running
         })
+        const nowMs = Date.now()
+        while (
+          tokenIdx < voucherEntries.length &&
+          voucherEntries[tokenIdx].ts <= nowMs
+        ) {
+          running += voucherEntries[tokenIdx].token
+          tokenIdx++
+        }
         const balance = running
 
         const firstIdx = rows.findIndex(

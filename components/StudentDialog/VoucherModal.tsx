@@ -21,6 +21,7 @@ export default function VoucherModal({
   onClose: () => void
 }) {
   const [token, setToken] = useState('')
+  const [effectiveDate, setEffectiveDate] = useState('')
 
   const save = async () => {
     const path = PATHS.freeMeal(abbr)
@@ -31,15 +32,27 @@ export default function VoucherModal({
     const today = new Date()
     const yyyyMMdd = today.toISOString().slice(0, 10).replace(/-/g, '')
     const docName = `${abbr}-FM-${idx}-${yyyyMMdd}`
+    const eff = effectiveDate ? new Date(effectiveDate) : today
     await setDoc(doc(colRef, docName), {
       Token: Number(token) || 0,
       timestamp: today,
+      effectiveDate: eff,
       EditedBy: 'system',
     })
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="xs"
+      slotProps={{
+        root: { sx: { zIndex: 1600 } },
+        backdrop: { sx: { zIndex: 1600 } },
+        paper: { sx: { zIndex: 1601 } },
+      }}
+    >
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>
         Add Session Voucher
       </DialogTitle>
@@ -53,15 +66,26 @@ export default function VoucherModal({
           autoFocus
           sx={{ mt: 1 }}
         />
+        <TextField
+          label="Effective Date"
+          type="date"
+          value={effectiveDate}
+          onChange={(e) => setEffectiveDate(e.target.value)}
+          fullWidth
+          InputLabelProps={{ shrink: true }}
+          sx={{ mt: 2 }}
+        />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button
           onClick={async () => {
             await save()
+            setToken('')
+            setEffectiveDate('')
             onClose()
           }}
-          disabled={!token}
+          disabled={!token || !effectiveDate}
         >
           Save
         </Button>

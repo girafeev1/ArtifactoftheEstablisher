@@ -109,10 +109,19 @@ export default function BillingTab({
             const mealPath = PATHS.freeMeal(abbr)
             logPath('freeMeal', mealPath)
             const mealSnap = await getDocs(collection(db, mealPath))
-            const tokens = mealSnap.docs.reduce(
-              (sum, d) => sum + (Number((d.data() as any).Token) || 0),
-              0,
-            )
+            const nowMs = Date.now()
+            const tokens = mealSnap.docs.reduce((sum, d) => {
+              const data = d.data() as any
+              const eff =
+                data.effectiveDate?.toDate?.()?.getTime() ??
+                new Date(data.effectiveDate).getTime()
+              const ts = !isNaN(eff)
+                ? eff
+                : data.timestamp?.toDate?.()?.getTime() ||
+                  new Date(data.timestamp).getTime() ||
+                  0
+              return ts <= nowMs ? sum + (Number(data.Token) || 0) : sum
+            }, 0)
             const sessionsPath = PATHS.sessions
             logPath('sessions', sessionsPath)
             const sessSnap = await getDocs(
@@ -336,12 +345,19 @@ export default function BillingTab({
           >
             {v != null && !isNaN(Number(v)) ? `${formatCurrency(Number(v))} / session` : '-'}
           </Typography>
-        ) : ['balanceDue', 'voucherBalance'].includes(k) ? (
+        ) : k === 'balanceDue' ? (
           <Typography
             variant="h6"
             sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           >
             {v != null && !isNaN(Number(v)) ? formatCurrency(Number(v)) : '-'}
+          </Typography>
+        ) : k === 'voucherBalance' ? (
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            {v != null && !isNaN(Number(v)) ? Number(v) : '-'}
           </Typography>
         ) : k === 'lastPaymentDate' ? (
           <Typography
