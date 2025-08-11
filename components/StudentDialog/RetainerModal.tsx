@@ -120,7 +120,7 @@ export default function RetainerModal({
           sx={{ mb: 1 }}
           InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
           inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-          helperText={`Balance Due: ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(balanceDue)}`}
+          helperText={`Balance Due: ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD', currencyDisplay: 'code' }).format(balanceDue)}`}
           FormHelperTextProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
         />
         {error && (

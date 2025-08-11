@@ -9,33 +9,29 @@ import {
   CircularProgress,
   Typography,
   TableSortLabel,
+  Button,
 } from '@mui/material'
-import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore'
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  addDoc,
+} from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import PaymentDetail from './PaymentDetail'
-import { computeSessionStart } from '../../lib/sessions'
+import { computeSessionStart, fmtDate, fmtTime } from '../../lib/sessions'
 import { titleFor } from './title'
+import { PATHS, logPath } from '../../lib/paths'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
-
-const formatDateTime = (v: any) => {
-  if (!v) return 'N/A'
-  try {
-    const d = v.toDate ? v.toDate() : new Date(v)
-    return isNaN(d.getTime())
-      ? 'N/A'
-      : d.toLocaleString('en-US', {
-          month: 'short',
-          day: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-  } catch {
-    return 'N/A'
-  }
-}
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 const formatDate = (v: any) => {
   if (!v) return 'N/A'
@@ -57,10 +53,12 @@ export default function PaymentHistory({
   abbr,
   account,
   onTitleChange,
+  active,
 }: {
   abbr: string
   account: string
   onTitleChange?: (title: string | null) => void
+  active: boolean
 }) {
   const [payments, setPayments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -68,20 +66,45 @@ export default function PaymentHistory({
   const [sortField, setSortField] = useState<'amount' | 'paymentMade'>('paymentMade')
   const [sortAsc, setSortAsc] = useState(false)
 
+  const addPayment = async () => {
+    const amountStr = window.prompt('Payment amount (HKD):', '')
+    if (!amountStr) return
+    const amount = Number(amountStr)
+    if (isNaN(amount)) return
+    const dateStr = window.prompt('Payment made on (YYYY-MM-DD):', '')
+    const date = dateStr ? new Date(dateStr) : new Date()
+    const paymentsPath = PATHS.payments(abbr)
+    logPath('addPayment', paymentsPath)
+    try {
+      const docRef = await addDoc(collection(db, paymentsPath), {
+        amount,
+        paymentMade: date,
+        remainingAmount: amount,
+        assignedSessions: [],
+        assignedRetainers: [],
+      })
+      setPayments((p) => [
+        ...p,
+        { id: docRef.id, amount, paymentMade: date, sessionDate: null },
+      ])
+    } catch (e) {
+      console.error('add payment failed', e)
+    }
+  }
+
   useEffect(() => {
-    onTitleChange?.(titleFor('billing', 'payment-history', account))
-    return () => onTitleChange?.(null)
-  }, [account, onTitleChange])
+    if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
+    else onTitleChange?.(null)
+  }, [account, onTitleChange, active])
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
+        const paymentsPath = PATHS.payments(abbr)
+        logPath('payments', paymentsPath)
         const snap = await getDocs(
-          query(
-            collection(db, 'Students', abbr, 'Payments'),
-            orderBy('paymentMade', 'desc'),
-          ),
+          query(collection(db, paymentsPath), orderBy('paymentMade', 'desc')),
         )
         if (cancelled) return
         const list = await Promise.all(
@@ -91,7 +114,9 @@ export default function PaymentHistory({
             const first = data.assignedSessions?.[0]
             if (first) {
               try {
-                const sess = await getDoc(doc(db, 'Sessions', first))
+                const sessionPath = `${PATHS.sessions}/${first}`
+                logPath('session', sessionPath)
+                const sess = await getDoc(doc(db, PATHS.sessions, first))
                 const sdata = sess.data() as any
                 sessionDate = await computeSessionStart(first, sdata)
               } catch (e) {
@@ -129,13 +154,15 @@ export default function PaymentHistory({
 
   if (detail)
     return (
-      <PaymentDetail
-        abbr={abbr}
-        account={account}
-        payment={detail}
-        onBack={() => setDetail(null)}
-        onTitleChange={onTitleChange}
-      />
+      <Box sx={{ height: '100%' }}>
+        <PaymentDetail
+          abbr={abbr}
+          account={account}
+          payment={detail}
+          onBack={() => setDetail(null)}
+          onTitleChange={onTitleChange}
+        />
+      </Box>
     )
 
   return (
@@ -150,6 +177,9 @@ export default function PaymentHistory({
           >
             Payment History
           </Typography>
+          <Button variant="outlined" sx={{ mb: 2 }} onClick={addPayment}>
+            Add Payment
+          </Button>
           <Table size="small" sx={{ cursor: 'pointer' }}>
             <TableHead>
               <TableRow>
@@ -205,7 +235,9 @@ export default function PaymentHistory({
                   sx={{ cursor: 'pointer', py: 1 }}
                 >
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                    {p.sessionDate ? formatDateTime(p.sessionDate) : '-'}
+                    {p.sessionDate
+                      ? `${fmtDate(p.sessionDate)} ${fmtTime(p.sessionDate)}`
+                      : '-'}
                   </TableCell>
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                     {formatCurrency(Number(p.amount) || 0)}

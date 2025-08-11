@@ -1,14 +1,7 @@
 // pages/dashboard/businesses/coaching-sessions.tsx
 
 import React, { useEffect, useState } from 'react'
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-} from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
 import {
@@ -24,11 +17,13 @@ import {
   MenuItem,
   Snackbar,
 } from '@mui/material'
+import { PATHS, logPath } from '../../../lib/paths'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
 import SessionDetail from '../../../components/StudentDialog/SessionDetail'
 import FloatingWindow from '../../../components/StudentDialog/FloatingWindow'
 import { clearSessionSummaries } from '../../../lib/sessionStats'
 import BatchRenamePayments from '../../../tools/BatchRenamePayments'
+import { computeSessionStart } from '../../../lib/sessions'
 
 interface StudentMeta {
   abbr: string
@@ -40,6 +35,13 @@ interface StudentDetails extends StudentMeta {
   total: number
   upcoming: number
 }
+
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 export default function CoachingSessions() {
   const [students, setStudents] = useState<StudentDetails[]>([])
@@ -72,7 +74,8 @@ export default function CoachingSessions() {
 
     async function loadAll() {
       console.log('📥 loading students list')
-      const snap = await getDocs(collection(db, 'Students'))
+      logPath('students', PATHS.students)
+      const snap = await getDocs(collection(db, PATHS.students))
       console.log(`   found ${snap.size} students`)
       const basics: StudentMeta[] = snap.docs.map((d) => ({
         abbr: d.id,
@@ -86,9 +89,11 @@ export default function CoachingSessions() {
       await Promise.all(
         basics.map(async (b, i) => {
           const latest = async (col: string) => {
+            const path = `${PATHS.student(b.abbr)}/${col}`
+            logPath('studentSub', path)
             const snap = await getDocs(
               query(
-                collection(db, 'Students', b.abbr, col),
+                collection(db, path),
                 orderBy('timestamp', 'desc'),
                 limit(1)
               )
@@ -108,53 +113,131 @@ export default function CoachingSessions() {
             `${firstName || b.account || b.abbr} ${lastName || ''} - (${i + 1} of ${totalCount})`
           )
 
-          const [sex, balRaw] = await Promise.all([
+          const [
+            sex,
+            paymentsSnap,
+            sessSnap,
+            retSnap,
+            histSnap,
+            baseSnap,
+          ] = await Promise.all([
             latest('sex'),
-            latest('balanceDue'),
-          ])
-          const balanceDue = parseFloat(balRaw as any) || 0
-
-          const sessSnap = await getDocs(
-            query(collection(db, 'Sessions'), where('sessionName', '==', b.account))
-          )
-          const total = sessSnap.size
-          let upcoming = 0
-          const now = new Date()
-          await Promise.all(
-            sessSnap.docs.map(async (sd) => {
-              const logsSnap = await getDocs(
-                collection(db, 'Sessions', sd.id, 'appointmentHistory')
+            (async () => {
+              const p = PATHS.payments(b.abbr)
+              logPath('payments', p)
+              return getDocs(collection(db, p))
+            })(),
+            (async () => {
+              logPath('sessionsQuery', PATHS.sessions)
+              return getDocs(
+                query(
+                  collection(db, PATHS.sessions),
+                  where('sessionName', '==', b.account),
+                ),
               )
-              const logs = logsSnap.docs.map((d) => d.data() as any)
-              let dt: Date | undefined
-              if (logs.length) {
-                const toMs = (r: any) => {
-                  const date = r.dateStamp?.toDate?.()
-                  if (!date) return -Infinity
-                  const t = String(r.timeStamp || '000000').padStart(6, '0')
-                  return (
-                    date.getTime() +
-                    parseInt(t.slice(0, 2), 10) * 3600_000 +
-                    parseInt(t.slice(2, 4), 10) * 60_000 +
-                    parseInt(t.slice(4, 6), 10) * 1000
-                  )
-                }
-                logs.sort((a, b) => toMs(b) - toMs(a))
-                const newest = logs[0]
-                dt = newest.newDate?.toDate?.() || newest.origDate?.toDate?.()
-              } else {
-                const sdData = sd.data() as any
-                dt = sdData.sessionDate?.toDate?.()
+            })(),
+            (async () => {
+              const p = PATHS.retainers(b.abbr)
+              logPath('retainers', p)
+              return getDocs(collection(db, p))
+            })(),
+            (async () => {
+              const p = PATHS.baseRateHistory(b.abbr)
+              logPath('baseRateHistory', p)
+              return getDocs(collection(db, p))
+            })(),
+            (async () => {
+              const p = PATHS.baseRate(b.abbr)
+              logPath('baseRate', p)
+              return getDocs(collection(db, p))
+            })(),
+          ])
+
+          const baseRateDocs = [...histSnap.docs, ...baseSnap.docs]
+          const baseRates = baseRateDocs
+            .map((d) => {
+              const data = d.data() as any
+              return {
+                rate: data.rate ?? data.baseRate,
+                ts: data.timestamp?.toDate?.() ?? new Date(0),
               }
-              if (dt && dt > now) upcoming++
             })
+            .sort((a, b) => a.ts.getTime() - b.ts.getTime())
+
+          const retainers = retSnap.docs.map((d) => {
+            const data = d.data() as any
+            return {
+              start: data.retainerStarts?.toDate?.() ?? new Date(data.retainerStarts),
+              end: data.retainerEnds?.toDate?.() ?? new Date(data.retainerEnds),
+            }
+          })
+
+          const sessions = await Promise.all(
+            sessSnap.docs.map(async (sd) => {
+              const data = sd.data() as any
+              const startDate = await computeSessionStart(sd.id, data)
+              const ratePath = PATHS.sessionRate(sd.id)
+              const payPath = PATHS.sessionPayment(sd.id)
+              logPath('sessionRate', ratePath)
+              logPath('sessionPayment', payPath)
+              const [rateSnap, paySnap] = await Promise.all([
+                getDocs(collection(db, ratePath)),
+                getDocs(collection(db, payPath)),
+              ])
+
+              const base = (() => {
+                if (!startDate || !baseRates.length) return 0
+                const entry = baseRates
+                  .filter((b) => b.ts.getTime() <= startDate.getTime())
+                  .pop()
+                return entry ? Number(entry.rate) || 0 : 0
+              })()
+
+              const rateHist = rateSnap.docs
+                .map((d) => d.data() as any)
+                .sort((a, b) => {
+                  const ta = a.timestamp?.toDate?.() ?? new Date(0)
+                  const tb = b.timestamp?.toDate?.() ?? new Date(0)
+                  return tb.getTime() - ta.getTime()
+                })
+              const latestRate = rateHist[0]?.rateCharged
+              const rate = latestRate != null ? Number(latestRate) : base
+
+              const paymentIds = paySnap.docs.map(
+                (p) => (p.data() as any).paymentId as string,
+              )
+              const assigned = paymentIds.length > 0
+              const covered = retainers.some(
+                (r) => startDate && startDate >= r.start && startDate <= r.end,
+              )
+              return { startDate, rate, assigned, covered }
+            }),
           )
+
+          const total = sessSnap.size
+          const now = new Date()
+          let upcoming = 0
+          sessions.forEach((s) => {
+            if (s.startDate && s.startDate > now) upcoming++
+          })
+
+          const totalOwed = sessions.reduce(
+            (sum, s) => (!s.assigned && !s.covered ? sum + (s.rate || 0) : sum),
+            0,
+          )
+          const totalPaid = paymentsSnap.docs.reduce(
+            (sum, d) => sum + (Number((d.data() as any).amount) || 0),
+            0,
+          )
+          const balanceDue = totalOwed - totalPaid
 
           if (!mounted) return
           setStudents((prev) =>
             prev.map((s) =>
-              s.abbr === b.abbr ? { ...s, sex, balanceDue, total, upcoming } : s
-            )
+              s.abbr === b.abbr
+                ? { ...s, sex, balanceDue, total, upcoming }
+                : s,
+            ),
           )
         })
       )
@@ -193,7 +276,7 @@ export default function CoachingSessions() {
                     <CardContent>
                       <Typography variant="h6">{s.account}</Typography>
                       <Typography>
-                        {s.sex ?? '–'} • Due: ${(s.balanceDue ?? 0).toFixed(2)}
+                        {s.sex ?? '–'} • Due: {formatCurrency(s.balanceDue ?? 0)}
                       </Typography>
                       <Typography>
                         Total: {s.total}
@@ -205,20 +288,6 @@ export default function CoachingSessions() {
               </Grid>
             ))}
           </Grid>
-          <Button
-            variant="contained"
-            sx={{
-              position: 'absolute',
-              bottom: 16,
-              left: 16,
-              zIndex: 2,
-              bgcolor: 'background.paper',
-              color: 'text.primary',
-            }}
-            onClick={openToolsMenu}
-          >
-            Tools
-          </Button>
           <Menu
             anchorEl={toolsAnchor}
             open={Boolean(toolsAnchor)}
@@ -226,34 +295,20 @@ export default function CoachingSessions() {
             anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
             transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
           >
-          <MenuItem onClick={handleClearAll}>
-            🗑️ Clear All Session Summaries
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              closeToolsMenu()
-              setRenameOpen(true)
-            }}
-          >
-            🏷️ Batch Rename Payments
-          </MenuItem>
-        </Menu>
-      </Box>
+            <MenuItem onClick={handleClearAll}>
+              🗑️ Clear All Session Summaries
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                closeToolsMenu()
+                setRenameOpen(true)
+              }}
+            >
+              🏷️ Batch Rename Payments
+            </MenuItem>
+          </Menu>
+        </Box>
       )}
-
-      <Button
-        variant="contained"
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          right: 16,
-          bgcolor: serviceMode ? 'red' : 'primary.main',
-          animation: serviceMode ? 'blink 1s infinite' : 'none',
-        }}
-        onClick={() => setServiceMode((m) => !m)}
-      >
-        Service Mode
-      </Button>
 
       {selected && (
         <OverviewTab
@@ -291,6 +346,32 @@ export default function CoachingSessions() {
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
       />
+      <Button
+        variant="contained"
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          left: 16,
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+        }}
+        onClick={openToolsMenu}
+      >
+        Tools
+      </Button>
+      <Button
+        variant="contained"
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          bgcolor: serviceMode ? 'red' : 'primary.main',
+          animation: serviceMode ? 'blink 1s infinite' : 'none',
+        }}
+        onClick={() => setServiceMode((m) => !m)}
+      >
+        Service Mode
+      </Button>
     </SidebarLayout>
   )
 }
