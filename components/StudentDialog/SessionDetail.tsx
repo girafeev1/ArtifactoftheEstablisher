@@ -1,8 +1,17 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Box, Typography, Button } from '@mui/material'
+import { PATHS, logPath } from '../../lib/paths'
+import RateModal from './RateModal'
+import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore'
+import { getAuth } from 'firebase/auth'
+import { db } from '../../lib/firebase'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 const formatDate = (s: string) => {
   const d = new Date(s)
@@ -19,13 +28,55 @@ interface SessionDetailProps {
   onBack: () => void
 }
 
-// SessionDetail shows information for a single session. Editing is intended to
-// happen here (rather than inline in the sessions table) but is limited to
-// read-only fields for now.
+// SessionDetail shows information for a single session. Limited editing, such
+// as rate charged, occurs here rather than inline in the sessions table.
 export default function SessionDetail({ session, onBack }: SessionDetailProps) {
+  const [voucherUsed, setVoucherUsed] = useState(!!session.voucherUsed)
+  const [rateOpen, setRateOpen] = useState(false)
+
+  const createVoucherEntry = async (free: boolean) => {
+    const path = PATHS.sessionVoucher(session.id)
+    logPath('sessionVoucher', path)
+    const colRef = collection(db, path)
+    const snap = await getDocs(colRef)
+    const idx = String(snap.size + 1).padStart(3, '0')
+    const today = new Date()
+    const yyyyMMdd = today.toISOString().slice(0, 10).replace(/-/g, '')
+    const docName = `free_${idx}_${yyyyMMdd}`
+    const editedBy = getAuth().currentUser?.email || 'system'
+    await setDoc(doc(colRef, docName), {
+      'free?': free,
+      timestamp: Timestamp.now(),
+      editedBy,
+    })
+    setVoucherUsed(free)
+    session.voucherUsed = free
+  }
+
+  const markVoucher = async () => {
+    await createVoucherEntry(true)
+  }
+
+  const unmarkVoucher = async () => {
+    if (!window.confirm('Mark session as paid instead?')) return
+    await createVoucherEntry(false)
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          iCal ID:
+        </Typography>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        >
+          {session.id}
+        </Typography>
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
@@ -82,10 +133,45 @@ export default function SessionDetail({ session, onBack }: SessionDetailProps) {
         </Typography>
         <Typography
           variant="h6"
+          sx={{
+            fontFamily: 'Newsreader',
+            fontWeight: 500,
+            cursor: voucherUsed ? 'default' : 'pointer',
+          }}
+          onClick={() => {
+            if (!voucherUsed) setRateOpen(true)
+          }}
+        >
+          {session.rateCharged !== '-' ?
+            formatCurrency(Number(session.rateCharged)) :
+            '-'}
+        </Typography>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          Session Voucher:
+        </Typography>
+        <Typography
+          variant="h6"
           sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
         >
-          {session.rateCharged !== '-' ? formatCurrency(Number(session.rateCharged)) : '-'}
+          {voucherUsed ? 'Yes' : 'No'}
         </Typography>
+        {voucherUsed ? (
+          <Button variant="outlined" onClick={unmarkVoucher} sx={{ mt: 1 }}>
+            Remove Session Voucher
+          </Button>
+        ) : (
+          <Button
+            variant="outlined"
+            onClick={markVoucher}
+            disabled={session.rateSpecified}
+            sx={{ mt: 1 }}
+          >
+            Use Session Voucher
+          </Button>
+        )}
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
@@ -110,6 +196,18 @@ export default function SessionDetail({ session, onBack }: SessionDetailProps) {
         >
           {session.payOn || '-'}
         </Typography>
+        <RateModal
+          sessionId={session.id}
+          open={rateOpen}
+          onClose={() => setRateOpen(false)}
+          initialRate={
+            session.rateCharged !== '-' ? String(session.rateCharged) : ''
+          }
+          onSaved={(v) => {
+            session.rateCharged = v
+            session.rateSpecified = true
+          }}
+        />
       </Box>
 
       <Box
