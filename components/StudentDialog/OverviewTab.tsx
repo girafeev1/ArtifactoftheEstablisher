@@ -13,13 +13,18 @@ import { titleFor, MainTab, BillingSubTab } from './title'
 import PersonalTab from './PersonalTab'
 import BillingTab from './BillingTab'
 import RetainersTab from './RetainersTab'
+import VouchersTab from './VouchersTab'
 import SessionsTab from './SessionsTab'
 import PaymentHistory from './PaymentHistory'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 class StudentDialogErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -339,7 +344,7 @@ export default function OverviewTab({
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                 >
-                  Session Voucher:{' '}
+                  Voucher Balance:{' '}
                   {billingLoading.voucherBalance && <CircularProgress size={14} />}
                 </Typography>
                 {billingLoading.voucherBalance ? (
@@ -355,7 +360,7 @@ export default function OverviewTab({
                     sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                   >
                     {billing.voucherBalance != null
-                      ? formatCurrency(Number(billing.voucherBalance) || 0)
+                      ? Number(billing.voucherBalance)
                       : '-'}
                   </Typography>
                 )}
@@ -413,7 +418,18 @@ export default function OverviewTab({
                   abbr={abbr}
                   account={account}
                   onTitleChange={setChildTitle}
+                  active={tab === 'billing' && subTab === 'payment-history'}
                 />
+              </Box>
+              <Box
+                sx={{
+                  display:
+                    tab === 'billing' && subTab === 'session-vouchers'
+                      ? 'block'
+                      : 'none',
+                }}
+              >
+                <VouchersTab abbr={abbr} />
               </Box>
             </Box>
 
@@ -480,6 +496,19 @@ export default function OverviewTab({
                   width: '100%',
                 }}
                 onClick={() => selectTab('billing-payment-history')}
+              />
+              <Tab
+                value="billing-session-vouchers"
+                label="Session Vouchers"
+                sx={{
+                  display: tab === 'billing' ? 'flex' : 'none',
+                  pl: 4,
+                  fontSize: '0.82rem',
+                  textAlign: 'right',
+                  justifyContent: 'flex-end',
+                  width: '100%',
+                }}
+                onClick={() => selectTab('billing-session-vouchers')}
               />
             </Tabs>
           </Box>

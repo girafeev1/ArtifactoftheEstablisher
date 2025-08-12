@@ -94,13 +94,7 @@ export default function RetainersTab({
           Retainers
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            variant="contained"
-            onClick={() => setModal({ open: true })}
-          >
-            Add New Retainer
-          </Button>
-          <Tooltip title="Add Next Retainer">
+          <Tooltip title="Add Retainer">
             <IconButton
               color="primary"
               onClick={() =>
@@ -177,6 +171,7 @@ export default function RetainersTab({
                   {new Intl.NumberFormat(undefined, {
                     style: 'currency',
                     currency: 'HKD',
+                    currencyDisplay: 'code',
                   }).format(r.retainerRate)}
                 </TableCell>
                 <TableCell

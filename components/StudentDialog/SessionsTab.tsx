@@ -3,9 +3,11 @@
 import React, { useEffect, useState } from 'react'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(
-    n,
-  )
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 import {
   Box,
   Typography,
@@ -28,6 +30,7 @@ import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firesto
 import { db } from '../../lib/firebase'
 import SessionDetail from './SessionDetail'
 import { formatMMMDDYYYY } from '../../lib/date'
+import { PATHS, logPath } from '../../lib/paths'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -81,13 +84,23 @@ export default function SessionsTab({
     { key: 'duration', label: 'Duration', width: 110 },
     { key: 'sessionType', label: 'Session Type', width: 150 },
     { key: 'billingType', label: 'Billing Type', width: 150 },
+    { key: 'voucherBalance', label: 'Voucher Balance', width: 170 },
     { key: 'baseRate', label: 'Base Rate', width: 140 },
     { key: 'rateCharged', label: 'Rate Charged', width: 140 },
     { key: 'paymentStatus', label: 'Payment Status', width: 150 },
     { key: 'payOn', label: 'Pay on', width: 160 },
   ]
   const colWidth = (key: string) => allColumns.find((c) => c.key === key)?.width
-  const defaultCols = ['date', 'time', 'sessionType', 'rateCharged', 'paymentStatus', 'payOn']
+  const defaultCols = [
+    'date',
+    'time',
+    'sessionType',
+    'billingType',
+    'voucherBalance',
+    'rateCharged',
+    'paymentStatus',
+    'payOn',
+  ]
   const [visibleCols, setVisibleCols] = useState<string[]>(defaultCols)
   const [period, setPeriod] = useState<'30' | '90' | 'all'>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -96,7 +109,7 @@ export default function SessionsTab({
     lastSession: '',
     totalSessions: 0,
   })
-  const [serviceMode, setServiceMode] = useState(false)
+  const [voucherBalance, setVoucherBalance] = useState<number | null>(null)
   const [sortBy, setSortBy] = useState<string>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const handleSort = (key: string) => {
@@ -114,14 +127,16 @@ export default function SessionsTab({
         return s.startMs || 0
       case 'duration':
       case 'baseRate':
-      case 'rateCharged':
         return Number(s[key]) || 0
+      case 'rateCharged':
+        return Number(s.rateSort) || 0
       case 'payOn':
         return s.payOnMs || 0
       case 'paymentStatus':
       case 'sessionType':
       case 'billingType':
-        return String(s[key] || '').toLowerCase()
+      case 'voucherBalance':
+        return Number(s[key]) || 0
       default:
         return 0
     }
@@ -133,15 +148,26 @@ export default function SessionsTab({
     let cancelled = false
     ;(async () => {
       try {
+        const sessionsPath = PATHS.sessions
+        logPath('sessions', sessionsPath)
         const sessSnap = await getDocs(
-          query(collection(db, 'Sessions'), where('sessionName', '==', account)),
+          query(collection(db, sessionsPath), where('sessionName', '==', account)),
         )
 
         const rowPromises = sessSnap.docs.map(async (sd) => {
-          const [histSnap, rateSnap, paySnap] = await Promise.all([
-            getDocs(collection(db, 'Sessions', sd.id, 'appointmentHistory')),
-            getDocs(collection(db, 'Sessions', sd.id, 'rateCharged')),
-            getDocs(collection(db, 'Sessions', sd.id, 'payment')),
+          const histPath = PATHS.sessionHistory(sd.id)
+          const ratePath = PATHS.sessionRate(sd.id)
+          const payPath = PATHS.sessionPayment(sd.id)
+          const voucherPath = PATHS.sessionVoucher(sd.id)
+          logPath('sessionHistory', histPath)
+          logPath('sessionRate', ratePath)
+          logPath('sessionPayment', payPath)
+          logPath('sessionVoucher', voucherPath)
+          const [histSnap, rateSnap, paySnap, voucherSnap] = await Promise.all([
+            getDocs(collection(db, histPath)),
+            getDocs(collection(db, ratePath)),
+            getDocs(collection(db, payPath)),
+            getDocs(collection(db, voucherPath)),
           ])
           return {
             id: sd.id,
@@ -149,13 +175,33 @@ export default function SessionsTab({
             history: histSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
             rateDocs: rateSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
             payments: paySnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
+            vouchers: voucherSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })),
           }
         })
 
-        const [histSnap, altSnap, retSnap, sessionRows] = await Promise.all([
-          getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
-          getDocs(collection(db, 'Students', abbr, 'BaseRate')),
-          getDocs(collection(db, 'Students', abbr, 'Retainers')),
+        const baseRateHistPath = PATHS.baseRateHistory(abbr)
+        const baseRatePath = PATHS.baseRate(abbr)
+        const retainersPath = PATHS.retainers(abbr)
+        const freeMealPath = PATHS.freeMeal(abbr)
+        const paymentsPath = PATHS.payments(abbr)
+        logPath('baseRateHistory', baseRateHistPath)
+        logPath('baseRate', baseRatePath)
+        logPath('retainers', retainersPath)
+        logPath('freeMeal', freeMealPath)
+        logPath('payments', paymentsPath)
+        const [
+          histSnap,
+          altSnap,
+          retSnap,
+          mealSnap,
+          paySnap,
+          sessionRows,
+        ] = await Promise.all([
+          getDocs(collection(db, baseRateHistPath)),
+          getDocs(collection(db, baseRatePath)),
+          getDocs(collection(db, retainersPath)),
+          getDocs(collection(db, freeMealPath)),
+          getDocs(collection(db, paymentsPath)),
           Promise.all(rowPromises),
         ])
 
@@ -171,13 +217,8 @@ export default function SessionsTab({
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
         console.log('Base rate history:', baseRates)
 
-        const retainerRanges = retSnap.docs.map((d) => {
-          const data = d.data() as any
-          return {
-            start: data.retainerStarts?.toDate?.()?.getTime() ?? 0,
-            end: data.retainerEnds?.toDate?.()?.getTime() ?? 0,
-          }
-        })
+        const payDocs = paySnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+        const paymentMap = new Map(payDocs.map((p) => [p.id, p]))
 
         const parseDate = (v: any): Date | null => {
           if (!v) return null
@@ -189,8 +230,33 @@ export default function SessionsTab({
           }
         }
 
+        const retainers = retSnap.docs.map((d) => {
+          const data = d.data() as any
+          const start =
+            data.retainerStarts?.toDate?.()?.getTime() ??
+            new Date(data.retainerStarts).getTime() ??
+            0
+          const end =
+            data.retainerEnds?.toDate?.()?.getTime() ??
+            new Date(data.retainerEnds).getTime() ??
+            0
+          const labelDate = new Date(start)
+          if (!isNaN(labelDate.getTime()) && labelDate.getDate() >= 21)
+            labelDate.setMonth(labelDate.getMonth() + 1)
+          const name = isNaN(labelDate.getTime())
+            ? '-'
+            : labelDate.toLocaleString('en-US', {
+                month: 'short',
+                year: 'numeric',
+              })
+          const rate = Number(data.retainerRate) || 0
+          const pay = data.paymentId ? paymentMap.get(data.paymentId) : undefined
+          const paymentDate = parseDate(pay?.paymentMade) || null
+          return { start, end, name, rate, paymentDate }
+        })
+
         const rows = sessionRows
-          .map(({ id, data, history, rateDocs, payments: sessPayments }) => {
+          .map(({ id, data, history, rateDocs, payments: sessPayments, vouchers }) => {
             console.log(`Session ${id} (${account}) appointment history:`, history)
             const sortedHist = history
               .slice()
@@ -276,43 +342,153 @@ export default function SessionsTab({
                 return tb.getTime() - ta.getTime()
               })
             const latestRate = rateHist[0]?.rateCharged
-            const rateCharged = latestRate != null ? Number(latestRate) : base
+            let rateCharged = latestRate != null ? Number(latestRate) : base
+            const rateSpecified = latestRate != null
+            if (
+              !rateSpecified &&
+              data.sessionType?.toLowerCase() === 'virtual' &&
+              typeof rateCharged === 'number'
+            ) {
+              rateCharged = rateCharged / 2
+            }
+            let rateSort = typeof rateCharged === 'number' ? rateCharged : Number(rateCharged) || 0
 
             const payDoc = sessPayments[0]
             const payDate = payDoc
               ? payDoc.paymentMade?.toDate?.() || new Date(payDoc.paymentMade)
               : null
-            const payOn =
+            let payOn =
               payDate && !isNaN(payDate.getTime())
                 ? formatMMMDDYYYY(payDate)
                 : '-'
-            const payOnMs = payDate && !isNaN(payDate.getTime()) ? payDate.getTime() : 0
+            let payOnMs = payDate && !isNaN(payDate.getTime()) ? payDate.getTime() : 0
 
             const startMs = startDate?.getTime() ?? 0
-            const inRetainer = retainerRanges.some(
+            const retainer = retainers.find(
               (r) => startMs >= r.start && startMs <= r.end,
             )
             const hasPayment = !!payDoc
-            const paymentStatus = hasPayment || inRetainer ? 'Paid' : 'Unpaid' // TODO: voucher covers
+            const voucherUsed = (() => {
+              if (!vouchers.length) return false
+              const sorted = vouchers
+                .map((v) => {
+                  const ts =
+                    (v.timestamp?.toDate?.()?.getTime() ??
+                      new Date(v.timestamp).getTime()) ||
+                    0
+                  return { ...v, ts }
+                })
+                .sort((a, b) => a.ts - b.ts)
+              const latest = sorted[sorted.length - 1]
+              return !!latest && latest['free?'] === true
+            })()
+            const sessionType = data.sessionType ?? 'N/A'
+
+            let billingType = 'Per Session'
+            let paymentStatus = hasPayment ? 'Paid' : 'Unpaid'
+
+            if (sessionType?.toLowerCase() === 'cancelled') {
+              rateCharged = 0
+              billingType = 'N/A'
+              paymentStatus = 'N/A'
+              payOn = 'N/A'
+              payOnMs = 0
+            } else if (voucherUsed) {
+              rateCharged = 0
+              billingType = 'Session Voucher'
+              paymentStatus = 'N/A'
+              payOn = 'N/A'
+              payOnMs = 0
+            } else if (retainer) {
+              billingType = 'Retainer'
+              const pd = retainer.paymentDate
+              paymentStatus = pd ? 'Paid' : 'Unpaid'
+              payOn = pd ? formatMMMDDYYYY(pd) : '-'
+              payOnMs = pd ? pd.getTime() : 0
+              rateCharged = `${retainer.name} | ${formatCurrency(retainer.rate)}`
+              rateSort = retainer.rate
+            }
 
             return {
               id,
-              sessionType: data.sessionType ?? 'N/A',
-              billingType: data.billingType ?? 'N/A',
+              sessionType,
+              billingType,
+              voucherBalance: 0,
               date,
               time,
               duration,
               baseRate: base,
               rateCharged,
+              rateSort,
               paymentStatus,
               payOn,
               payOnMs,
               startMs,
+              rateSpecified,
+              voucherUsed,
             }
           })
           .sort((a, b) => a.startMs - b.startMs)
 
-        const validDates = rows.filter(r => r.startMs > 0).map(r => r.startMs).sort((a,b)=>a-b)
+        const voucherEntries = mealSnap.docs
+          .map((d) => {
+            const data = d.data() as any
+            const eff =
+              data.effectiveDate?.toDate?.()?.getTime() ??
+              new Date(data.effectiveDate).getTime()
+            const ts = !isNaN(eff)
+              ? eff
+              : data.timestamp?.toDate?.()?.getTime() ||
+                new Date(data.timestamp).getTime() ||
+                0
+            return {
+              token: Number(data.Token) || 0,
+              ts,
+            }
+          })
+          .sort((a, b) => a.ts - b.ts)
+        let tokenIdx = 0
+        let running = 0
+        rows.forEach((r) => {
+          while (
+            tokenIdx < voucherEntries.length &&
+            voucherEntries[tokenIdx].ts <= r.startMs
+          ) {
+            running += voucherEntries[tokenIdx].token
+            tokenIdx++
+          }
+          if (r.voucherUsed) running -= 1
+          r.voucherBalance = running
+        })
+        const nowMs = Date.now()
+        while (
+          tokenIdx < voucherEntries.length &&
+          voucherEntries[tokenIdx].ts <= nowMs
+        ) {
+          running += voucherEntries[tokenIdx].token
+          tokenIdx++
+        }
+        const balance = running
+
+        const firstIdx = rows.findIndex(
+          (r) => r.sessionType?.toLowerCase() !== 'cancelled',
+        )
+        if (firstIdx >= 0) {
+          const fs = rows[firstIdx]
+          if (!fs.voucherUsed && fs.billingType !== 'Retainer') {
+            fs.billingType = 'Trial Session'
+            if (!fs.rateSpecified) fs.rateCharged = 500
+          }
+        }
+
+        rows.forEach((r) => {
+          delete r.rateSpecified
+        })
+
+        const validDates = rows
+          .filter((r) => r.startMs > 0)
+          .map((r) => r.startMs)
+          .sort((a, b) => a - b)
         const today = new Date()
         const lastPast = validDates.filter(ms => ms <= today.getTime()).pop()
         const newSummary = {
@@ -322,12 +498,13 @@ export default function SessionsTab({
         }
         console.log('Computed summary:', newSummary)
 
-        const studRef = doc(db, 'Students', abbr)
+        const studRef = doc(db, PATHS.student(abbr))
         await setDoc(studRef, newSummary, { merge: true })
 
         if (!cancelled) {
           setSummary(newSummary)
           setSessions(rows)
+          setVoucherBalance(balance)
           onSummary?.(newSummary)
         }
 
@@ -368,27 +545,6 @@ export default function SessionsTab({
     >
       {!detail && (
         <>
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              mb: 1,
-            }}
-          >
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={serviceMode}
-                  onChange={(e) => setServiceMode(e.target.checked)}
-                />
-              }
-              label="Service Mode"
-            />
-            <Button variant="outlined" size="small" aria-label="tools">
-              Tools
-            </Button>
-          </Box>
           <Button
             variant="outlined"
             size="small"
@@ -562,6 +718,19 @@ export default function SessionsTab({
                         {s.billingType}
                       </TableCell>
                     )}
+                    {visibleCols.includes('voucherBalance') && (
+                      <TableCell
+                        sx={{
+                          typography: 'body2',
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: colWidth('voucherBalance'),
+                          minWidth: colWidth('voucherBalance'),
+                        }}
+                      >
+                        {s.voucherBalance ?? '-'}
+                      </TableCell>
+                    )}
                     {visibleCols.includes('baseRate') && (
                       <TableCell
                         sx={{
@@ -583,7 +752,11 @@ export default function SessionsTab({
                           width: colWidth('rateCharged'),
                         }}
                       >
-                        {s.rateCharged !== '-' ? formatCurrency(Number(s.rateCharged)) : '-'}
+                        {typeof s.rateCharged === 'string'
+                          ? s.rateCharged
+                          : s.rateCharged !== '-'
+                          ? formatCurrency(Number(s.rateCharged))
+                          : '-'}
                       </TableCell>
                     )}
                     {visibleCols.includes('paymentStatus') && (
@@ -656,6 +829,20 @@ export default function SessionsTab({
                 sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
               >
                 {summary.totalSessions ?? '–'}
+              </Typography>
+            </Box>
+            <Box mb={1}>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Voucher Balance:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {voucherBalance ?? '–'}
               </Typography>
             </Box>
           </Box>
