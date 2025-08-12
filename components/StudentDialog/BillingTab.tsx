@@ -5,12 +5,16 @@ import { Box, Typography } from '@mui/material'
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import InlineEdit from '../../common/InlineEdit'
-import { getLatestRetainer } from '../../lib/retainer'
+import { PATHS, logPath } from '../../lib/paths'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 const formatDate = (v: any) => {
   const d = v?.toDate ? v.toDate() : new Date(v)
@@ -101,6 +105,39 @@ export default function BillingTab({
             val = await loadLatest('Payments', 'paymentMade', 'paymentMade')
           } else if (f === 'defaultBillingType') {
             val = await loadLatest('billingType', f)
+          } else if (f === 'voucherBalance') {
+            const mealPath = PATHS.freeMeal(abbr)
+            logPath('freeMeal', mealPath)
+            const mealSnap = await getDocs(collection(db, mealPath))
+            const nowMs = Date.now()
+            const tokens = mealSnap.docs.reduce((sum, d) => {
+              const data = d.data() as any
+              const eff =
+                data.effectiveDate?.toDate?.()?.getTime() ??
+                new Date(data.effectiveDate).getTime()
+              const ts = !isNaN(eff)
+                ? eff
+                : data.timestamp?.toDate?.()?.getTime() ||
+                  new Date(data.timestamp).getTime() ||
+                  0
+              return ts <= nowMs ? sum + (Number(data.Token) || 0) : sum
+            }, 0)
+            const sessionsPath = PATHS.sessions
+            logPath('sessions', sessionsPath)
+            const sessSnap = await getDocs(
+              query(collection(db, sessionsPath), where('sessionName', '==', account)),
+            )
+            let used = 0
+            for (const sd of sessSnap.docs) {
+              const voucherPath = PATHS.sessionVoucher(sd.id)
+              logPath('sessionVoucher', voucherPath)
+              const vSnap = await getDocs(collection(db, voucherPath))
+              const vUsed = vSnap.docs.some((v) =>
+                Object.values(v.data() || {}).some(Boolean),
+              )
+              if (vUsed) used += 1
+            }
+            val = tokens - used
           } else {
             val = await loadLatest(f, f)
           }
@@ -127,9 +164,31 @@ export default function BillingTab({
       }
 
       try {
-        const r = await getLatestRetainer(abbr)
+        const p = PATHS.retainers(abbr)
+        logPath('retainers', p)
+        const snap = await getDocs(collection(db, p))
+        const today = new Date()
+        let label = 'Inactive'
+        const active = snap.docs
+          .map((d) => d.data() as any)
+          .find((r) => {
+            const s = r.retainerStarts?.toDate?.() ?? new Date(r.retainerStarts)
+            const e = r.retainerEnds?.toDate?.() ?? new Date(r.retainerEnds)
+            return today >= s && today <= e
+          })
+        if (active) {
+          const labelDate = active.retainerStarts?.toDate?.()
+            ? active.retainerStarts.toDate()
+            : new Date(active.retainerStarts)
+          if (labelDate.getDate() >= 21)
+            labelDate.setMonth(labelDate.getMonth() + 1)
+          label = labelDate.toLocaleString('en-US', {
+            month: 'short',
+            year: 'numeric',
+          })
+        }
         if (cancelled) return
-        setFields((b: any) => ({ ...b, retainer: r }))
+        setFields((b: any) => ({ ...b, retainer: label }))
         setLoading((l: any) => ({ ...l, retainer: false }))
       } catch (e) {
         console.error('retainer load failed', e)
@@ -141,7 +200,7 @@ export default function BillingTab({
     return () => {
       cancelled = true
     }
-  }, [abbr, onBilling])
+  }, [abbr, account, onBilling])
 
   useEffect(() => {
     console.log('BillingTab effect: calculate balance due for', abbr)
@@ -286,12 +345,19 @@ export default function BillingTab({
           >
             {v != null && !isNaN(Number(v)) ? `${formatCurrency(Number(v))} / session` : '-'}
           </Typography>
-        ) : ['balanceDue', 'voucherBalance'].includes(k) ? (
+        ) : k === 'balanceDue' ? (
           <Typography
             variant="h6"
             sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           >
             {v != null && !isNaN(Number(v)) ? formatCurrency(Number(v)) : '-'}
+          </Typography>
+        ) : k === 'voucherBalance' ? (
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          >
+            {v != null && !isNaN(Number(v)) ? Number(v) : '-'}
           </Typography>
         ) : k === 'lastPaymentDate' ? (
           <Typography
@@ -305,30 +371,34 @@ export default function BillingTab({
             variant="h6"
             sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           >
-            {v === '__ERROR__'
-              ? 'Error'
-              : v
-              ? `${formatDate(v.retainerStarts)} – ${formatDate(v.retainerEnds)} @ ${
-                  v.retainerRate != null && !isNaN(Number(v.retainerRate))
-                    ? formatCurrency(Number(v.retainerRate))
-                    : '-'
-                }`
-              : 'N/A'}
+            {v === '__ERROR__' ? 'Error' : v || 'Inactive'}
           </Typography>
         ) : (
           <InlineEdit
             value={v}
-            fieldPath=
-              {k === 'defaultBillingType'
+            fieldPath={
+              k === 'defaultBillingType'
                 ? `Students/${abbr}/billingType`
-                : `Students/${abbr}/${k}`}
-            fieldKey={k}
-            editable={!['balanceDue', 'voucherBalance', 'lastPaymentDate'].includes(k)}
+                : k === 'voucherBalance'
+                ? `Students/${abbr}/freeMeal`
+                : `Students/${abbr}/${k}`
+            }
+            fieldKey={k === 'voucherBalance' ? 'Token' : k}
+            editable={!['balanceDue', 'lastPaymentDate'].includes(k)}
             serviceMode={serviceMode}
             type={k.includes('Date') ? 'date' : 'text'}
             onSaved={(val) => {
-              setFields((b: any) => ({ ...b, [k]: val }))
-              if (k === 'voucherBalance') onBilling?.({ voucherBalance: Number(val) })
+              if (k === 'voucherBalance') {
+                setFields((b: any) => ({
+                  ...b,
+                  voucherBalance: (Number(b.voucherBalance) || 0) + Number(val),
+                }))
+                onBilling?.({
+                  voucherBalance: (Number(fields.voucherBalance) || 0) + Number(val),
+                })
+              } else {
+                setFields((b: any) => ({ ...b, [k]: val }))
+              }
             }}
           />
         )}

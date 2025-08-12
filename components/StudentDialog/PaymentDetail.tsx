@@ -3,9 +3,13 @@ import {
   Box,
   Typography,
   Button,
-  FormGroup,
-  FormControlLabel,
   Checkbox,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  TableSortLabel,
 } from '@mui/material'
 import {
   collection,
@@ -17,12 +21,17 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
-import { computeSessionStart, fmtDate, fmtTime } from '../../lib/sessions'
+import { fmtDate, fmtTime } from '../../lib/sessions'
 import { formatMMMDDYYYY } from '../../lib/date'
 import { titleFor } from './title'
+import { PATHS, logPath } from '../../lib/paths'
 
 const formatCurrency = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD' }).format(n)
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
 
 
 export default function PaymentDetail({
@@ -45,7 +54,29 @@ export default function PaymentDetail({
   const [remaining, setRemaining] = useState<number>(
     payment.remainingAmount ?? Number(payment.amount) ?? 0,
   )
-  const [ordinals, setOrdinals] = useState<Record<string, number>>({})
+  const [sortField, setSortField] = useState<'ordinal' | 'date' | 'time' | 'rate'>(
+    'ordinal',
+  )
+  const [sortAsc, setSortAsc] = useState(true)
+
+  const sortRows = (rows: any[]) => {
+    const val = (r: any) => {
+      switch (sortField) {
+        case 'ordinal':
+          return r.ordinal || 0
+        case 'date':
+        case 'time':
+          return r.startMs || 0
+        case 'rate':
+          return Number(r.rate) || 0
+        default:
+          return 0
+      }
+    }
+    return [...rows].sort((a, b) =>
+      sortAsc ? val(a) - val(b) : val(b) - val(a),
+    )
+  }
 
   useEffect(() => {
     const d = payment.paymentMade?.toDate
@@ -60,11 +91,19 @@ export default function PaymentDetail({
     let cancelled = false
     ;(async () => {
       try {
+        const baseRateHistPath = PATHS.baseRateHistory(abbr)
+        const baseRatePath = PATHS.baseRate(abbr)
+        const sessionsPath = PATHS.sessions
+        const retainersPath = PATHS.retainers(abbr)
+        logPath('baseRateHistory', baseRateHistPath)
+        logPath('baseRate', baseRatePath)
+        logPath('sessions', sessionsPath)
+        logPath('retainers', retainersPath)
         const [histSnap, baseSnap, sessSnap, retSnap] = await Promise.all([
-          getDocs(collection(db, 'Students', abbr, 'BaseRateHistory')),
-          getDocs(collection(db, 'Students', abbr, 'BaseRate')),
-          getDocs(query(collection(db, 'Sessions'), where('sessionName', '==', account))),
-          getDocs(collection(db, 'Students', abbr, 'Retainers')),
+          getDocs(collection(db, baseRateHistPath)),
+          getDocs(collection(db, baseRatePath)),
+          getDocs(query(collection(db, sessionsPath), where('sessionName', '==', account))),
+          getDocs(collection(db, retainersPath)),
         ])
 
         const baseRateDocs = [...histSnap.docs, ...baseSnap.docs]
@@ -78,24 +117,66 @@ export default function PaymentDetail({
           })
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
 
-        const retainers = retSnap.docs.map((d) => {
-          const data = d.data() as any
-          const s = data.retainerStarts?.toDate?.() ?? new Date(0)
-          const e = data.retainerEnds?.toDate?.() ?? new Date(0)
-          return { start: s, end: e }
+        const retainerDocs = retSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+        const retainers = retainerDocs.map((r) => {
+          const s = r.retainerStarts?.toDate?.() ?? new Date(0)
+          const e = r.retainerEnds?.toDate?.() ?? new Date(0)
+          return { start: s, end: e, id: r.id, rate: Number(r.retainerRate) || 0, paymentId: r.paymentId }
         })
 
         const rows = await Promise.all(
           sessSnap.docs.map(async (sd) => {
             const data = sd.data() as any
-            const [rateSnap, paySnap] = await Promise.all([
-              getDocs(collection(db, 'Sessions', sd.id, 'rateCharged')),
-              getDocs(collection(db, 'Sessions', sd.id, 'payment')),
+            const ratePath = PATHS.sessionRate(sd.id)
+            const payPath = PATHS.sessionPayment(sd.id)
+            logPath('sessionRate', ratePath)
+            logPath('sessionPayment', payPath)
+            const voucherPath = PATHS.sessionVoucher(sd.id)
+            logPath('sessionVoucher', voucherPath)
+            const histPath = PATHS.sessionHistory(sd.id)
+            logPath('sessionHistory', histPath)
+            const [rateSnap, paySnap, voucherSnap, histSnap] = await Promise.all([
+              getDocs(collection(db, ratePath)),
+              getDocs(collection(db, payPath)),
+              getDocs(collection(db, voucherPath)),
+              getDocs(collection(db, histPath)),
             ])
 
-            const startDate = await computeSessionStart(sd.id, data)
+            const parseDate = (v: any) => {
+              const d = v?.toDate ? v.toDate() : new Date(v)
+              return isNaN(d.getTime()) ? null : d
+            }
+            const hist = histSnap.docs
+              .map((d) => d.data() as any)
+              .sort((a, b) => {
+                const ta =
+                  a.changeTimestamp?.toDate?.() ??
+                  a.timestamp?.toDate?.() ??
+                  new Date(0)
+                const tb =
+                  b.changeTimestamp?.toDate?.() ??
+                  b.timestamp?.toDate?.() ??
+                  new Date(0)
+                return tb.getTime() - ta.getTime()
+              })[0]
+            let start =
+              hist?.newStartTimestamp ??
+              hist?.origStartTimestamp ??
+              data?.origStartTimestamp ??
+              data?.sessionDate ??
+              data?.startTimestamp
+            let end =
+              hist?.newEndTimestamp ??
+              hist?.origEndTimestamp ??
+              data?.origEndTimestamp ??
+              data?.endTimestamp
+            const startDate = parseDate(start)
+            const endDate = parseDate(end)
             const date = startDate ? fmtDate(startDate) : '-'
-            const time = startDate ? fmtTime(startDate) : '-'
+            const startStr = startDate ? fmtTime(startDate) : '-'
+            const endStr = endDate ? fmtTime(endDate) : ''
+            const time = startStr + (endStr ? `-${endStr}` : '')
+            const startMs = startDate?.getTime() ?? 0
 
             const base = (() => {
               if (!startDate || !baseRates.length) return 0
@@ -124,37 +205,69 @@ export default function PaymentDetail({
             const inRetainer = retainers.some(
               (r) => startDate && startDate >= r.start && startDate <= r.end,
             )
+            const hasVoucher = (() => {
+              const entries = voucherSnap.docs
+                .map((v) => {
+                  const data = v.data() as any
+                  const ts =
+                    (data.timestamp?.toDate?.()?.getTime() ??
+                      new Date(data.timestamp).getTime()) ||
+                    0
+                  return { ...data, ts }
+                })
+                .sort((a, b) => a.ts - b.ts)
+              const latest = entries[entries.length - 1]
+              return !!latest && latest['free?'] === true
+            })()
+            const isCancelled =
+              (data.sessionType || '').toLowerCase() === 'cancelled'
 
             return {
               id: sd.id,
+              type: 'session',
               date,
               time,
               rate,
               assigned,
               assignedToOther,
               inRetainer,
-              startDate,
+              startMs,
+              hasVoucher,
+              cancelled: isCancelled,
             }
           }),
         )
+        const retainerRows = retainers.map((r) => {
+          const startDate = r.start
+          const date = fmtDate(startDate)
+          return {
+            id: `retainer:${r.id}`,
+            type: 'retainer',
+            date,
+            time: 'Retainer',
+            rate: r.rate,
+            assigned: r.paymentId === payment.id,
+            assignedToOther: r.paymentId && r.paymentId !== payment.id,
+            startMs: startDate.getTime(),
+            inRetainer: false,
+            hasVoucher: false,
+            cancelled: false,
+            retainerId: r.id,
+          }
+        })
 
         if (cancelled) return
-        const map: Record<string, number> = {}
-        ;[...rows]
-          .sort(
-            (a, b) =>
-              (a.startDate?.getTime() || 0) - (b.startDate?.getTime() || 0),
-          )
-          .forEach((r, i) => {
-            map[r.id] = i + 1
-          })
-        setOrdinals(map)
-        setAssignedSessions(rows.filter((r) => r.assigned && !r.inRetainer))
-        setAvailable(
-          rows.filter(
-            (r) => !r.assigned && !r.assignedToOther && !r.inRetainer,
-          ),
+        const filteredSessions = rows.filter(
+          (r) => !r.inRetainer && !r.hasVoucher && !r.cancelled,
         )
+        const allRows: any[] = [...filteredSessions, ...retainerRows].sort(
+          (a, b) => a.startMs - b.startMs,
+        )
+        allRows.forEach((r, i) => {
+          r.ordinal = i + 1
+        })
+        setAssignedSessions(allRows.filter((r) => r.assigned))
+        setAvailable(allRows.filter((r) => !r.assigned && !r.assignedToOther))
       } catch (e) {
         console.error('load sessions failed', e)
         if (!cancelled) {
@@ -184,26 +297,50 @@ export default function PaymentDetail({
     setAssigning(true)
     try {
       const newlyAssigned: any[] = []
+      const newAssignedRet: string[] = []
       for (const id of selected) {
-        const session = available.find((s) => s.id === id)
-        const rate = session?.rate || 0
-        await setDoc(doc(db, 'Sessions', id, 'payment', payment.id), {
-          amount: rate,
-          paymentId: payment.id,
-          paymentMade: payment.paymentMade,
-        })
-        if (session) newlyAssigned.push(session)
+        if (id.startsWith('retainer:')) {
+          const retId = id.replace('retainer:', '')
+          const ret = available.find((s) => s.id === id)
+          const rate = ret?.rate || 0
+          await updateDoc(doc(db, PATHS.retainers(abbr), retId), {
+            paymentId: payment.id,
+          })
+          if (ret) newlyAssigned.push(ret)
+          newAssignedRet.push(retId)
+        } else {
+          const session = available.find((s) => s.id === id)
+          const rate = session?.rate || 0
+          const sessionPayPath = PATHS.sessionPayment(id)
+          logPath('assignPayment', `${sessionPayPath}/${payment.id}`)
+          await setDoc(doc(db, sessionPayPath, payment.id), {
+            amount: rate,
+            paymentId: payment.id,
+            paymentMade: payment.paymentMade,
+          })
+          if (session) newlyAssigned.push(session)
+        }
       }
       const newAssigned = [
         ...(payment.assignedSessions || []),
-        ...selected,
+        ...selected.filter((id) => !id.startsWith('retainer:')),
       ]
       const newRemaining = remaining - totalSelected
-      await updateDoc(doc(db, 'Students', abbr, 'Payments', payment.id), {
+      const payDocPath = PATHS.payments(abbr)
+      logPath('updatePayment', `${payDocPath}/${payment.id}`)
+      await updateDoc(doc(db, payDocPath, payment.id), {
         assignedSessions: newAssigned,
+        assignedRetainers: [
+          ...(payment.assignedRetainers || []),
+          ...newAssignedRet,
+        ],
         remainingAmount: newRemaining,
       })
       payment.assignedSessions = newAssigned
+      payment.assignedRetainers = [
+        ...(payment.assignedRetainers || []),
+        ...newAssignedRet,
+      ]
       setRemaining(newRemaining)
       setAssignedSessions((a) => [...a, ...newlyAssigned])
       setAvailable((s) => s.filter((sess) => !selected.includes(sess.id)))
@@ -268,51 +405,131 @@ export default function PaymentDetail({
         >
           For session:
         </Typography>
-        {assignedSessions.map((s, i) => {
-          const ord = ordinals[s.id] ?? i + 1
-          const date = s.date || '-'
-          const time = s.time || '-'
-          return (
-            <Typography
-              key={s.id}
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
-              {`#${ord} | ${date} | ${time}`}
-            </Typography>
-          )
-        })}
-        {remaining > 0 && (
-          <>
-            <FormGroup>
-              {available.map((s, i) => {
-                const ord = ordinals[s.id] ?? i + 1
-                const date = s.date || '-'
-                const time = s.time || '-'
-                return (
-                  <FormControlLabel
-                    key={s.id}
-                    control={
-                      <Checkbox
-                        checked={selected.includes(s.id)}
-                        onChange={() => toggle(s.id)}
-                        disabled={assigning || (s.rate || 0) > remaining}
-                      />
+        <Table size="small" sx={{ mt: 1 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableSortLabel
+                  active={sortField === 'ordinal'}
+                  direction={sortField === 'ordinal' && sortAsc ? 'asc' : 'desc'}
+                  onClick={() => {
+                    if (sortField === 'ordinal') setSortAsc((s) => !s)
+                    else {
+                      setSortField('ordinal')
+                      setSortAsc(true)
                     }
-                    label={`#${ord} | ${date} | ${time}`}
+                  }}
+                >
+                  Session #
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableSortLabel
+                  active={sortField === 'date'}
+                  direction={sortField === 'date' && sortAsc ? 'asc' : 'desc'}
+                  onClick={() => {
+                    if (sortField === 'date') setSortAsc((s) => !s)
+                    else {
+                      setSortField('date')
+                      setSortAsc(true)
+                    }
+                  }}
+                >
+                  Date
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableSortLabel
+                  active={sortField === 'time'}
+                  direction={sortField === 'time' && sortAsc ? 'asc' : 'desc'}
+                  onClick={() => {
+                    if (sortField === 'time') setSortAsc((s) => !s)
+                    else {
+                      setSortField('time')
+                      setSortAsc(true)
+                    }
+                  }}
+                >
+                  Time
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableSortLabel
+                  active={sortField === 'rate'}
+                  direction={sortField === 'rate' && sortAsc ? 'asc' : 'desc'}
+                  onClick={() => {
+                    if (sortField === 'rate') setSortAsc((s) => !s)
+                    else {
+                      setSortField('rate')
+                      setSortAsc(true)
+                    }
+                  }}
+                >
+                  Rate
+                </TableSortLabel>
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sortRows(assignedSessions).map((s) => (
+              <TableRow key={s.id}>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.ordinal}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.date || '-'}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.time || '-'}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {formatCurrency(Number(s.rate) || 0)}
+                </TableCell>
+              </TableRow>
+            ))}
+            {sortRows(available).map((s) => (
+              <TableRow key={s.id}>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  <Checkbox
+                    checked={selected.includes(s.id)}
+                    onChange={() => toggle(s.id)}
+                    disabled={assigning || (s.rate || 0) > remaining}
+                    sx={{ p: 0, mr: 1 }}
                   />
-                )
-              })}
-            </FormGroup>
-            <Button
-              variant="contained"
-              sx={{ mt: 1 }}
-              onClick={handleAssign}
-              disabled={assigning || totalSelected === 0 || totalSelected > remaining}
-            >
-              Assign
-            </Button>
-          </>
+                  {s.ordinal}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.date || '-'}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {s.time || '-'}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {formatCurrency(Number(s.rate) || 0)}
+                </TableCell>
+              </TableRow>
+            ))}
+            {assignedSessions.length === 0 && available.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                >
+                  No sessions available.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        {remaining > 0 && (
+          <Button
+            variant="contained"
+            sx={{ mt: 1 }}
+            onClick={handleAssign}
+            disabled={assigning || totalSelected === 0 || totalSelected > remaining}
+          >
+            Assign
+          </Button>
         )}
       </Box>
       <Box
