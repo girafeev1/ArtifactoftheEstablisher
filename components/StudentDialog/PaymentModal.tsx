@@ -11,18 +11,22 @@ import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
+import { useBillingClient } from '../../lib/billing/useBilling'
 
 export default function PaymentModal({
   abbr,
+  account,
   open,
   onClose,
 }: {
   abbr: string
+  account: string
   open: boolean
   onClose: () => void
 }) {
   const [amount, setAmount] = useState('')
   const [madeOn, setMadeOn] = useState('')
+  const qc = useBillingClient()
 
   const save = async () => {
     const paymentsPath = PATHS.payments(abbr)

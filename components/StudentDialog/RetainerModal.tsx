@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { Box, Button, TextField, Typography } from '@mui/material'
 import { addRetainer, calculateEndDate, RetainerDoc } from '../../lib/retainer'
+import { useBillingClient } from '../../lib/billing/useBilling'
+import { writeSummaryFromCache, markSessionsInRetainer } from '../../lib/liveRefresh'
 
 const formatDate = (d: Date | null) =>
   d
@@ -13,12 +15,14 @@ const formatDate = (d: Date | null) =>
 
 export default function RetainerModal({
   abbr,
+  account,
   balanceDue,
   retainer,
   nextStart,
   onClose,
 }: {
   abbr: string
+  account: string
   balanceDue: number
   retainer?: RetainerDoc & { id: string }
   nextStart?: Date
@@ -38,6 +42,7 @@ export default function RetainerModal({
   )
   const [error, setError] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const qc = useBillingClient()
 
   const startDate = start ? new Date(start) : null
   const endDate = startDate ? calculateEndDate(startDate) : null
@@ -55,6 +60,10 @@ export default function RetainerModal({
     setSaving(true)
     try {
       await addRetainer(abbr, startDate, numRate)
+      const startMs = startDate.getTime()
+      const endMs = endDate ? endDate.getTime() : startMs
+      markSessionsInRetainer(qc, abbr, account, startMs, endMs, true)
+      await writeSummaryFromCache(qc, abbr, account)
       onClose(true)
     } catch (e: any) {
       setError(String(e.message || e))
