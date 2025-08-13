@@ -22,6 +22,7 @@ import {
   Checkbox,
   Select,
   MenuItem,
+  Tooltip,
   Button,
   TableSortLabel,
 } from '@mui/material'
@@ -77,6 +78,7 @@ export default function SessionsTab({
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any | null>(null)
+  const cancelledCount = sessions.filter((s) => s.flags?.cancelled).length
 
   const allColumns = [
     { key: 'date', label: 'Date', width: 110 },
@@ -96,12 +98,22 @@ export default function SessionsTab({
     'time',
     'sessionType',
     'billingType',
-    'voucherBalance',
     'rateCharged',
     'paymentStatus',
     'payOn',
   ]
-  const [visibleCols, setVisibleCols] = useState<string[]>(defaultCols)
+  const [visibleCols, setVisibleCols] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('sessionCols')
+      if (saved) return JSON.parse(saved)
+    }
+    return defaultCols
+  })
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('sessionCols', JSON.stringify(visibleCols))
+    }
+  }, [visibleCols])
   const [period, setPeriod] = useState<'30' | '90' | 'all'>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [summary, setSummary] = useState({
@@ -586,6 +598,7 @@ export default function SessionsTab({
                 value={period}
                 size="small"
                 onChange={(e) => setPeriod(e.target.value as any)}
+                MenuProps={{ container: document.body, PaperProps: { sx: { zIndex: 1700 } } }}
               >
                 <MenuItem value="30">Last 30 days</MenuItem>
                 <MenuItem value="90">Last 90 days</MenuItem>
@@ -818,12 +831,18 @@ export default function SessionsTab({
               </Typography>
             </Box>
             <Box mb={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              <Tooltip
+                title={`✔️ ${
+                  (summary.totalSessions || 0) - cancelledCount
+                }`}
               >
-                Total Sessions:
-              </Typography>
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  {`Total Sessions (❌ ${cancelledCount})`}
+                </Typography>
+              </Tooltip>
               <Typography
                 variant="h6"
                 sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
@@ -851,6 +870,8 @@ export default function SessionsTab({
 
       {detail && (
         <SessionDetail
+          abbr={abbr}
+          account={account}
           session={detail}
           onBack={() => {
             setDetail(null)
