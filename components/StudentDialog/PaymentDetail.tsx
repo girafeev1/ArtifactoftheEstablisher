@@ -10,21 +10,20 @@ import {
   TableCell,
   TableBody,
   TableSortLabel,
+  CircularProgress,
 } from '@mui/material'
-import {
-  collection,
-  doc,
-  getDocs,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-} from 'firebase/firestore'
+import { doc, setDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
-import { fmtDate, fmtTime } from '../../lib/sessions'
 import { formatMMMDDYYYY } from '../../lib/date'
 import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
+import { useBillingClient, useBilling } from '../../lib/billing/useBilling'
+import {
+  patchBillingAssignedSessions,
+  writeSummaryFromCache,
+  payRetainerPatch,
+  upsertUnpaidRetainerRow,
+} from '../../lib/liveRefresh'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -47,8 +46,6 @@ export default function PaymentDetail({
   onBack: () => void
   onTitleChange?: (title: string | null) => void
 }) {
-  const [available, setAvailable] = useState<any[]>([])
-  const [assignedSessions, setAssignedSessions] = useState<any[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [assigning, setAssigning] = useState(false)
   const [remaining, setRemaining] = useState<number>(
@@ -58,6 +55,52 @@ export default function PaymentDetail({
     'ordinal',
   )
   const [sortAsc, setSortAsc] = useState(true)
+  const qc = useBillingClient()
+  const { data: bill } = useBilling(abbr, account)
+  const [retainers, setRetainers] = useState<any[]>([])
+
+  const assignedSet = new Set(payment.assignedSessions || [])
+  const sessionRows = bill
+    ? bill.rows
+        .filter(
+          (r) =>
+            !r.flags.cancelled &&
+            !r.flags.voucherUsed &&
+            !r.flags.inRetainer,
+        )
+        .map((r) => ({
+          id: r.id,
+          startMs: r.startMs,
+          date: r.date,
+          time: r.time,
+          rate: r.amountDue,
+          rateDisplay: r.displayRate,
+        }))
+        .sort((a, b) => a.startMs - b.startMs)
+    : []
+  sessionRows.forEach((r: any, i: number) => {
+    r.ordinal = i + 1
+  })
+  const assignedSessions = sessionRows.filter((r) => assignedSet.has(r.id))
+  const availableSessions = sessionRows.filter((r) => !assignedSet.has(r.id))
+  const retRows = retainers.map((r: any) => ({
+    id: `retainer:${r.retainerId}`,
+    retainerId: r.retainerId,
+    startMs: r.startMs,
+    date: (() => {
+      const d = new Date(r.startMs)
+      if (d.getDate() >= 21) d.setMonth(d.getMonth() + 1)
+      return d.toLocaleString('en-US', { month: 'short', year: 'numeric' })
+    })(),
+    time: '',
+    rate: r.rate,
+    rateDisplay: formatCurrency(r.rate),
+    paymentId: r.paymentId,
+  }))
+  const assignedRetainers = retRows.filter((r: any) => r.paymentId === payment.id)
+  const availableRetainers = retRows.filter((r: any) => !r.paymentId)
+  const assigned = [...assignedSessions, ...assignedRetainers]
+  const available = [...availableSessions, ...availableRetainers]
 
   const sortRows = (rows: any[]) => {
     const val = (r: any) => {
@@ -88,198 +131,60 @@ export default function PaymentDetail({
   }, [account, payment.paymentMade, onTitleChange])
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const baseRateHistPath = PATHS.baseRateHistory(abbr)
-        const baseRatePath = PATHS.baseRate(abbr)
-        const sessionsPath = PATHS.sessions
-        const retainersPath = PATHS.retainers(abbr)
-        logPath('baseRateHistory', baseRateHistPath)
-        logPath('baseRate', baseRatePath)
-        logPath('sessions', sessionsPath)
-        logPath('retainers', retainersPath)
-        const [histSnap, baseSnap, sessSnap, retSnap] = await Promise.all([
-          getDocs(collection(db, baseRateHistPath)),
-          getDocs(collection(db, baseRatePath)),
-          getDocs(query(collection(db, sessionsPath), where('sessionName', '==', account))),
-          getDocs(collection(db, retainersPath)),
-        ])
-
-        const baseRateDocs = [...histSnap.docs, ...baseSnap.docs]
-        const baseRates = baseRateDocs
-          .map((d) => {
-            const data = d.data() as any
-            return {
-              rate: data.rate ?? data.baseRate,
-              ts: data.timestamp?.toDate?.() ?? new Date(0),
-            }
-          })
-          .sort((a, b) => a.ts.getTime() - b.ts.getTime())
-
-        const retainerDocs = retSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
-        const retainers = retainerDocs.map((r) => {
-          const s = r.retainerStarts?.toDate?.() ?? new Date(0)
-          const e = r.retainerEnds?.toDate?.() ?? new Date(0)
-          return { start: s, end: e, id: r.id, rate: Number(r.retainerRate) || 0, paymentId: r.paymentId }
-        })
-
-        const rows = await Promise.all(
-          sessSnap.docs.map(async (sd) => {
-            const data = sd.data() as any
-            const ratePath = PATHS.sessionRate(sd.id)
-            const payPath = PATHS.sessionPayment(sd.id)
-            logPath('sessionRate', ratePath)
-            logPath('sessionPayment', payPath)
-            const voucherPath = PATHS.sessionVoucher(sd.id)
-            logPath('sessionVoucher', voucherPath)
-            const histPath = PATHS.sessionHistory(sd.id)
-            logPath('sessionHistory', histPath)
-            const [rateSnap, paySnap, voucherSnap, histSnap] = await Promise.all([
-              getDocs(collection(db, ratePath)),
-              getDocs(collection(db, payPath)),
-              getDocs(collection(db, voucherPath)),
-              getDocs(collection(db, histPath)),
-            ])
-
-            const parseDate = (v: any) => {
-              const d = v?.toDate ? v.toDate() : new Date(v)
-              return isNaN(d.getTime()) ? null : d
-            }
-            const hist = histSnap.docs
-              .map((d) => d.data() as any)
-              .sort((a, b) => {
-                const ta =
-                  a.changeTimestamp?.toDate?.() ??
-                  a.timestamp?.toDate?.() ??
-                  new Date(0)
-                const tb =
-                  b.changeTimestamp?.toDate?.() ??
-                  b.timestamp?.toDate?.() ??
-                  new Date(0)
-                return tb.getTime() - ta.getTime()
-              })[0]
-            let start =
-              hist?.newStartTimestamp ??
-              hist?.origStartTimestamp ??
-              data?.origStartTimestamp ??
-              data?.sessionDate ??
-              data?.startTimestamp
-            let end =
-              hist?.newEndTimestamp ??
-              hist?.origEndTimestamp ??
-              data?.origEndTimestamp ??
-              data?.endTimestamp
-            const startDate = parseDate(start)
-            const endDate = parseDate(end)
-            const date = startDate ? fmtDate(startDate) : '-'
-            const startStr = startDate ? fmtTime(startDate) : '-'
-            const endStr = endDate ? fmtTime(endDate) : ''
-            const time = startStr + (endStr ? `-${endStr}` : '')
-            const startMs = startDate?.getTime() ?? 0
-
-            const base = (() => {
-              if (!startDate || !baseRates.length) return 0
-              const entry = baseRates
-                .filter((b) => b.ts.getTime() <= startDate.getTime())
-                .pop()
-              return entry ? Number(entry.rate) || 0 : 0
-            })()
-
-            const rateHist = rateSnap.docs
-              .map((d) => d.data() as any)
-              .sort((a, b) => {
-                const ta = a.timestamp?.toDate?.() ?? new Date(0)
-                const tb = b.timestamp?.toDate?.() ?? new Date(0)
-                return tb.getTime() - ta.getTime()
-              })
-            const latestRate = rateHist[0]?.rateCharged
-            const rate = latestRate != null ? Number(latestRate) : base
-
-            const paymentIds = paySnap.docs.map(
-              (p) => (p.data() as any).paymentId as string,
-            )
-            const assigned = paymentIds.includes(payment.id)
-            const assignedToOther = paymentIds.length > 0 && !assigned
-
-            const inRetainer = retainers.some(
-              (r) => startDate && startDate >= r.start && startDate <= r.end,
-            )
-            const hasVoucher = (() => {
-              const entries = voucherSnap.docs
-                .map((v) => {
-                  const data = v.data() as any
-                  const ts =
-                    (data.timestamp?.toDate?.()?.getTime() ??
-                      new Date(data.timestamp).getTime()) ||
-                    0
-                  return { ...data, ts }
-                })
-                .sort((a, b) => a.ts - b.ts)
-              const latest = entries[entries.length - 1]
-              return !!latest && latest['free?'] === true
-            })()
-            const isCancelled =
-              (data.sessionType || '').toLowerCase() === 'cancelled'
-
-            return {
-              id: sd.id,
-              type: 'session',
-              date,
-              time,
-              rate,
-              assigned,
-              assignedToOther,
-              inRetainer,
-              startMs,
-              hasVoucher,
-              cancelled: isCancelled,
-            }
-          }),
-        )
-        const retainerRows = retainers.map((r) => {
-          const startDate = r.start
-          const date = fmtDate(startDate)
-          return {
-            id: `retainer:${r.id}`,
-            type: 'retainer',
-            date,
-            time: 'Retainer',
-            rate: r.rate,
-            assigned: r.paymentId === payment.id,
-            assignedToOther: r.paymentId && r.paymentId !== payment.id,
-            startMs: startDate.getTime(),
-            inRetainer: false,
-            hasVoucher: false,
-            cancelled: false,
-            retainerId: r.id,
-          }
-        })
-
-        if (cancelled) return
-        const filteredSessions = rows.filter(
-          (r) => !r.inRetainer && !r.hasVoucher && !r.cancelled,
-        )
-        const allRows: any[] = [...filteredSessions, ...retainerRows].sort(
-          (a, b) => a.startMs - b.startMs,
-        )
-        allRows.forEach((r, i) => {
-          r.ordinal = i + 1
-        })
-        setAssignedSessions(allRows.filter((r) => r.assigned))
-        setAvailable(allRows.filter((r) => !r.assigned && !r.assignedToOther))
-      } catch (e) {
-        console.error('load sessions failed', e)
-        if (!cancelled) {
-          setAssignedSessions([])
-          setAvailable([])
+    const unsub = onSnapshot(
+      doc(db, PATHS.payments(abbr), payment.id),
+      (snap) => {
+        const data = snap.data()
+        if (data) {
+          setRemaining(data.remainingAmount ?? Number(data.amount) ?? 0)
+          payment.assignedSessions = data.assignedSessions
+          payment.assignedRetainers = data.assignedRetainers
         }
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [abbr, account, payment.id])
+      },
+    )
+    return () => unsub()
+  }, [abbr, payment.id])
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, PATHS.retainers(abbr)),
+      (snap) => {
+        const list: any[] = []
+        snap.forEach((d) => {
+          const r = d.data() as any
+          const start = r.retainerStarts?.toDate
+            ? r.retainerStarts.toDate()
+            : new Date(r.retainerStarts)
+          const end = r.retainerEnds?.toDate
+            ? r.retainerEnds.toDate()
+            : new Date(r.retainerEnds)
+          const rate = Number(r.retainerRate) || 0
+          const paymentId = r.paymentId || null
+          const startMs = start.getTime()
+          list.push({
+            id: `retainer:${d.id}`,
+            retainerId: d.id,
+            startMs,
+            rate,
+            paymentId,
+          })
+          upsertUnpaidRetainerRow(
+            qc,
+            abbr,
+            account,
+            d.id,
+            startMs,
+            end.getTime(),
+            rate,
+            !paymentId,
+          )
+        })
+        setRetainers(list)
+      },
+    )
+    return () => unsub()
+  }, [abbr, account, qc])
+
 
   const toggle = (id: string) => {
     setSelected((prev) =>
@@ -296,55 +201,57 @@ export default function PaymentDetail({
     if (totalSelected > remaining) return
     setAssigning(true)
     try {
-      const newlyAssigned: any[] = []
-      const newAssignedRet: string[] = []
-      for (const id of selected) {
-        if (id.startsWith('retainer:')) {
-          const retId = id.replace('retainer:', '')
-          const ret = available.find((s) => s.id === id)
-          const rate = ret?.rate || 0
-          await updateDoc(doc(db, PATHS.retainers(abbr), retId), {
-            paymentId: payment.id,
-          })
-          if (ret) newlyAssigned.push(ret)
-          newAssignedRet.push(retId)
-        } else {
-          const session = available.find((s) => s.id === id)
-          const rate = session?.rate || 0
-          const sessionPayPath = PATHS.sessionPayment(id)
-          logPath('assignPayment', `${sessionPayPath}/${payment.id}`)
-          await setDoc(doc(db, sessionPayPath, payment.id), {
-            amount: rate,
-            paymentId: payment.id,
-            paymentMade: payment.paymentMade,
-          })
-          if (session) newlyAssigned.push(session)
-        }
+      const sessionIds = selected.filter((id) => !id.startsWith('retainer:'))
+      const retainerIds = selected
+        .filter((id) => id.startsWith('retainer:'))
+        .map((id) => id.replace('retainer:', ''))
+
+      for (const id of sessionIds) {
+        const session = available.find((s) => s.id === id)
+        const rate = session?.rate || 0
+        const sessionPayPath = PATHS.sessionPayment(id)
+        logPath('assignPayment', `${sessionPayPath}/${payment.id}`)
+        await setDoc(doc(db, sessionPayPath, payment.id), {
+          amount: rate,
+          paymentId: payment.id,
+          paymentMade: payment.paymentMade,
+        })
       }
-      const newAssigned = [
+
+      for (const rid of retainerIds) {
+        const retPath = PATHS.retainers(abbr)
+        logPath('retainerPay', `${retPath}/${rid}`)
+        await updateDoc(doc(db, retPath, rid), { paymentId: payment.id })
+      }
+
+      const newAssignedSessions = [
         ...(payment.assignedSessions || []),
-        ...selected.filter((id) => !id.startsWith('retainer:')),
+        ...sessionIds,
+      ]
+      const newAssignedRetainers = [
+        ...(payment.assignedRetainers || []),
+        ...retainerIds,
       ]
       const newRemaining = remaining - totalSelected
       const payDocPath = PATHS.payments(abbr)
       logPath('updatePayment', `${payDocPath}/${payment.id}`)
       await updateDoc(doc(db, payDocPath, payment.id), {
-        assignedSessions: newAssigned,
-        assignedRetainers: [
-          ...(payment.assignedRetainers || []),
-          ...newAssignedRet,
-        ],
+        assignedSessions: newAssignedSessions,
+        assignedRetainers: newAssignedRetainers,
         remainingAmount: newRemaining,
       })
-      payment.assignedSessions = newAssigned
-      payment.assignedRetainers = [
-        ...(payment.assignedRetainers || []),
-        ...newAssignedRet,
-      ]
+      payment.assignedSessions = newAssignedSessions
+      payment.assignedRetainers = newAssignedRetainers
       setRemaining(newRemaining)
-      setAssignedSessions((a) => [...a, ...newlyAssigned])
-      setAvailable((s) => s.filter((sess) => !selected.includes(sess.id)))
       setSelected([])
+
+      if (sessionIds.length) {
+        patchBillingAssignedSessions(qc, abbr, account, sessionIds)
+      }
+      retainerIds.forEach((rid) =>
+        payRetainerPatch(qc, abbr, account, rid),
+      )
+      await writeSummaryFromCache(qc, abbr, account)
     } catch (e) {
       console.error('assign payment failed', e)
     } finally {
@@ -471,53 +378,63 @@ export default function PaymentDetail({
             </TableRow>
           </TableHead>
           <TableBody>
-            {sortRows(assignedSessions).map((s) => (
-              <TableRow key={s.id}>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {s.ordinal}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {s.date || '-'}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {s.time || '-'}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {formatCurrency(Number(s.rate) || 0)}
-                </TableCell>
-              </TableRow>
-            ))}
-            {sortRows(available).map((s) => (
-              <TableRow key={s.id}>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  <Checkbox
-                    checked={selected.includes(s.id)}
-                    onChange={() => toggle(s.id)}
-                    disabled={assigning || (s.rate || 0) > remaining}
-                    sx={{ p: 0, mr: 1 }}
-                  />
-                  {s.ordinal}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {s.date || '-'}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {s.time || '-'}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {formatCurrency(Number(s.rate) || 0)}
-                </TableCell>
-              </TableRow>
-            ))}
-            {assignedSessions.length === 0 && available.length === 0 && (
+            {!bill ? (
               <TableRow>
-                <TableCell
-                  colSpan={4}
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                >
-                  No sessions available.
+                <TableCell colSpan={4} align="center">
+                  <CircularProgress size={16} />
                 </TableCell>
               </TableRow>
+            ) : (
+              <>
+                {sortRows(assigned).map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                      {s.ordinal ?? '-'}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                      {s.date || '-'}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                      {s.time || '-'}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                      {formatCurrency(Number(s.rate) || 0)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {sortRows(available).map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                      <Checkbox
+                        checked={selected.includes(s.id)}
+                        onChange={() => toggle(s.id)}
+                        disabled={assigning || (s.rate || 0) > remaining}
+                        sx={{ p: 0, mr: 1 }}
+                      />
+                      {s.ordinal ?? '-'}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                      {s.date || '-'}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                      {s.time || '-'}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                      {formatCurrency(Number(s.rate) || 0)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {assigned.length === 0 && available.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    >
+                      No sessions available.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </>
             )}
           </TableBody>
         </Table>
