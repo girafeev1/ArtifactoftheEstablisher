@@ -851,6 +851,8 @@ export default function SessionsTab({
 
       {detail && (
         <SessionDetail
+          abbr={abbr}
+          account={account}
           session={detail}
           onBack={() => {
             setDetail(null)

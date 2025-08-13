@@ -24,7 +24,7 @@ export interface SessionRow {
 export interface BillingResult {
   rows: SessionRow[]
   voucherBalance: number
-  unpaidRetainers: { id: string; monthLabel: string; rate: number }[]
+  unpaidRetainers?: { id: string; monthLabel: string; rate: number }[]
   balanceDue: number
 }
 
@@ -208,10 +208,12 @@ export function computeBilling(ctx: Ctx): BillingResult {
     const label = monthLabelFor(ret.start)
     return assignedRetTokens.has(ret.id)||assignedRetTokens.has(`retainer:${ret.id}`)||assignedRetTokens.has(label)||assignedRetTokens.has(`retainer:${label}`)
   }
-  const unpaidRetainers = ctx.retainers.filter(r=>!isRetPaid(r)).map(r=>({id:r.id,monthLabel:monthLabelFor(r.start),rate:r.rate}))
+  const unpaidRetainers = ctx.retainers
+    .filter(r => !isRetPaid(r))
+    .map(r => ({ id: r.id, monthLabel: monthLabelFor(r.start), rate: r.rate }))
 
   const unpaidSessions = rows.filter(r=>!r.flags.cancelled&&!r.flags.voucherUsed&&!r.flags.inRetainer&&!r.assignedPaymentId)
   const balanceDue = unpaidSessions.reduce((s,r)=>s+(Number(r.amountDue)||0),0)+unpaidRetainers.reduce((s,r)=>s+r.rate,0)
 
-  return { rows, voucherBalance, unpaidRetainers, balanceDue }
+  return { rows, voucherBalance, unpaidRetainers: unpaidRetainers || [], balanceDue }
 }
