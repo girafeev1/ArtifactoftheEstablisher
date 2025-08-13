@@ -1,7 +1,7 @@
 // pages/dashboard/businesses/coaching-sessions.tsx
 
 import React, { useEffect, useState } from 'react'
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, limit, onSnapshot, doc } from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
 import {
@@ -24,7 +24,6 @@ import FloatingWindow from '../../../components/StudentDialog/FloatingWindow'
 import { clearSessionSummaries } from '../../../lib/sessionStats'
 import BatchRenamePayments from '../../../tools/BatchRenamePayments'
 import { computeSessionStart } from '../../../lib/sessions'
-import { computeBalanceDue } from '../../../lib/billing/balance'
 
 interface StudentMeta {
   abbr: string
@@ -72,6 +71,7 @@ export default function CoachingSessions() {
 
   useEffect(() => {
     let mounted = true
+    const unsubs: (() => void)[] = []
 
     async function loadAll() {
       console.log('📥 loading students list')
@@ -85,6 +85,7 @@ export default function CoachingSessions() {
 
       if (!mounted) return
       setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
+      setLoading(false)
 
       const totalCount = basics.length
       await Promise.all(
@@ -114,9 +115,8 @@ export default function CoachingSessions() {
             `${firstName || b.account || b.abbr} ${lastName || ''} - (${i + 1} of ${totalCount})`
           )
 
-          const [sex, balanceDue, sessSnap] = await Promise.all([
+          const [sex, sessSnap] = await Promise.all([
             latest('sex'),
-            computeBalanceDue(b.abbr, b.account),
             (async () => {
               logPath('sessionsQuery', PATHS.sessions)
               return getDocs(
@@ -142,20 +142,31 @@ export default function CoachingSessions() {
           setStudents((prev) =>
             prev.map((s) =>
               s.abbr === b.abbr
-                ? { ...s, sex, balanceDue, total, upcoming }
+                ? { ...s, sex, total, upcoming }
                 : s,
             ),
           )
+
+          // Listen to billing summary updates on the student document
+          const unsub = onSnapshot(doc(db, PATHS.student(b.abbr)), (snap) => {
+            const bd = (snap.data() as any)?.billingSummary?.balanceDue
+            setStudents((prev) =>
+              prev.map((s) =>
+                s.abbr === b.abbr ? { ...s, balanceDue: bd } : s,
+              ),
+            )
+          })
+          unsubs.push(unsub)
         })
       )
 
       if (!mounted) return
-      setLoading(false)
     }
 
     loadAll().catch(console.error)
     return () => {
       mounted = false
+      unsubs.forEach((u) => u())
     }
   }, [])
 
@@ -173,49 +184,47 @@ export default function CoachingSessions() {
         </Box>
       )}
 
-      {!loading && (
-        <Box sx={{ position: 'relative', pb: 8 }}>
-          <Grid container spacing={2} sx={{ mt: 2 }}>
-            {students.map((s) => (
-              <Grid item key={s.abbr} xs={12} sm={6} md={4}>
-                <Card>
-                  <CardActionArea onClick={() => setSelected(s)}>
-                    <CardContent>
-                      <Typography variant="h6">{s.account}</Typography>
-                      <Typography>
-                        {s.sex ?? '–'} • Due: {formatCurrency(s.balanceDue ?? 0)}
-                      </Typography>
-                      <Typography>
-                        Total: {s.total}
-                        {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
-                      </Typography>
-                    </CardContent>
-                  </CardActionArea>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-          <Menu
-            anchorEl={toolsAnchor}
-            open={Boolean(toolsAnchor)}
-            onClose={closeToolsMenu}
-            anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-            transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      <Box sx={{ position: 'relative', pb: 8 }}>
+        <Grid container spacing={2} sx={{ mt: 2 }}>
+          {students.map((s) => (
+            <Grid item key={s.abbr} xs={12} sm={6} md={4}>
+              <Card>
+                <CardActionArea onClick={() => setSelected(s)}>
+                  <CardContent>
+                    <Typography variant="h6">{s.account}</Typography>
+                    <Typography>
+                      {s.sex ?? '–'} • Due: {formatCurrency(s.balanceDue ?? 0)}
+                    </Typography>
+                    <Typography>
+                      Total: {s.total}
+                      {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+        <Menu
+          anchorEl={toolsAnchor}
+          open={Boolean(toolsAnchor)}
+          onClose={closeToolsMenu}
+          anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        >
+          <MenuItem onClick={handleClearAll}>
+            🗑️ Clear All Session Summaries
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              closeToolsMenu()
+              setRenameOpen(true)
+            }}
           >
-            <MenuItem onClick={handleClearAll}>
-              🗑️ Clear All Session Summaries
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                closeToolsMenu()
-                setRenameOpen(true)
-              }}
-            >
-              🏷️ Batch Rename Payments
-            </MenuItem>
-          </Menu>
-        </Box>
-      )}
+            🏷️ Batch Rename Payments
+          </MenuItem>
+        </Menu>
+      </Box>
 
       {selected && (
         <OverviewTab
@@ -239,7 +248,12 @@ export default function CoachingSessions() {
           })} ${detached.time}`}
           onClose={() => setDetached(null)}
         >
-          <SessionDetail session={detached} onBack={() => setDetached(null)} />
+          <SessionDetail
+            abbr={detached.abbr}
+            account={detached.account}
+            session={detached}
+            onBack={() => setDetached(null)}
+          />
         </FloatingWindow>
       )}
 
