@@ -5,6 +5,7 @@ import type { AppProps } from 'next/app';
 import { setupClientLogging } from '../lib/clientLogger';
 import { Newsreader, Cantata_One, Nunito } from 'next/font/google';
 import '../styles/studentDialog.css';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 if (typeof window !== 'undefined') {
   setupClientLogging();
@@ -15,15 +16,18 @@ const newsreader = Newsreader({ subsets: ['latin'], weight: ['200', '500'] });
 // explicitly to satisfy the Next.js font loader typings.
 const cantata = Cantata_One({ subsets: ['latin'], weight: '400' });
 const nunito = Nunito({ subsets: ['latin'], weight: ['400', '700'], variable: '--font-nunito' });
+const queryClient = new QueryClient();
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <div className={`${newsreader.className} ${cantata.className} ${nunito.variable}`}>
-      <SessionProvider session={pageProps.session}>
-        <SnackbarProvider maxSnack={3}>
-          <Component {...pageProps} />
-        </SnackbarProvider>
-      </SessionProvider>
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider session={pageProps.session}>
+          <SnackbarProvider maxSnack={3}>
+            <Component {...pageProps} />
+          </SnackbarProvider>
+        </SessionProvider>
+      </QueryClientProvider>
     </div>
   );
 }
