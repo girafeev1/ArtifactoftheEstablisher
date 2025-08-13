@@ -10,18 +10,27 @@ import {
 import { collection, doc, getDocs, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
+import { buildContext, computeBilling } from '../../lib/billing/compute'
+import {
+  useBillingClient,
+  invalidateBilling,
+  writeBillingSummary,
+} from '../../lib/billing/useBilling'
 
 export default function VoucherModal({
   abbr,
+  account,
   open,
   onClose,
 }: {
   abbr: string
+  account: string
   open: boolean
   onClose: () => void
 }) {
   const [token, setToken] = useState('')
   const [effectiveDate, setEffectiveDate] = useState('')
+  const qc = useBillingClient()
 
   const save = async () => {
     const path = PATHS.freeMeal(abbr)
@@ -39,6 +48,9 @@ export default function VoucherModal({
       effectiveDate: eff,
       EditedBy: 'system',
     })
+    await invalidateBilling(abbr, account, qc)
+    const res = computeBilling(await buildContext(abbr, account))
+    await writeBillingSummary(abbr, res)
   }
 
   return (
