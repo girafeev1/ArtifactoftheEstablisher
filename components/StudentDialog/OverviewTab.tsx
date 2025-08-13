@@ -188,10 +188,9 @@ export default function OverviewTab({
     return String(v)
   }
 
-  const loading =
-    Object.values(personalLoading).some((v) => v) ||
-    Object.values(billingLoading).some((v) => v) ||
-    overviewLoading
+  // We no longer block the entire dialog with an overlay.
+  // Each field shows its own inline spinner while loading.
+  const loading = false
 
   const selected =
     tab === 'billing' && subTab ? `billing-${subTab}` : tab
@@ -202,21 +201,7 @@ export default function OverviewTab({
       <FloatingWindow onClose={closeAndReset} title={title} actions={actions}>
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', maxHeight: '100%', maxWidth: '100%', overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', flexGrow: 1, position: 'relative', alignItems: 'flex-start', maxHeight: '100%', maxWidth: '100%' }}>
-            {loading && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  bgcolor: 'background.paper',
-                  zIndex: 1,
-                }}
-              >
-                <CircularProgress />
-              </Box>
-            )}
+            {/* No blocking overlay. Show inline spinners per-field below. */}
 
             <Box
               sx={{
@@ -224,7 +209,6 @@ export default function OverviewTab({
                 pr: 3,
                 overflow: 'auto',
                 textAlign: 'left',
-                display: loading ? 'none' : 'block',
                 maxHeight: '100%',
                 maxWidth: '100%',
               }}
@@ -403,6 +387,7 @@ export default function OverviewTab({
               >
                 <RetainersTab
                   abbr={abbr}
+                  account={account}
                   balanceDue={Number(billing.balanceDue) || 0}
                 />
               </Box>
@@ -429,7 +414,7 @@ export default function OverviewTab({
                       : 'none',
                 }}
               >
-                <VouchersTab abbr={abbr} />
+                <VouchersTab abbr={abbr} account={account} />
               </Box>
             </Box>
 
@@ -442,7 +427,7 @@ export default function OverviewTab({
                 borderColor: 'divider',
                 minWidth: 140,
                 alignItems: 'flex-end',
-                display: loading ? 'none' : 'flex',
+                display: 'flex',
               }}
             >
               <Tab

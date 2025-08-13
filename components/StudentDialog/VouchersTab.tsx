@@ -39,7 +39,7 @@ interface Row {
   EditedBy?: string
 }
 
-export default function VouchersTab({ abbr }: { abbr: string }) {
+export default function VouchersTab({ abbr, account }: { abbr: string; account: string }) {
   const [rows, setRows] = useState<Row[]>([])
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -122,6 +122,7 @@ export default function VouchersTab({ abbr }: { abbr: string }) {
       </Table>
       <VoucherModal
         abbr={abbr}
+        account={account}
         open={modalOpen}
         onClose={() => {
           setModalOpen(false)

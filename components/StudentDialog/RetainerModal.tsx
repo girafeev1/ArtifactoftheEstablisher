@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { Box, Button, TextField, Typography } from '@mui/material'
 import { addRetainer, calculateEndDate, RetainerDoc } from '../../lib/retainer'
+import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
+import { writeSummaryFromCache } from '../../lib/liveRefresh'
 
 const formatDate = (d: Date | null) =>
   d
@@ -13,12 +15,14 @@ const formatDate = (d: Date | null) =>
 
 export default function RetainerModal({
   abbr,
+  account,
   balanceDue,
   retainer,
   nextStart,
   onClose,
 }: {
   abbr: string
+  account: string
   balanceDue: number
   retainer?: RetainerDoc & { id: string }
   nextStart?: Date
@@ -38,6 +42,7 @@ export default function RetainerModal({
   )
   const [error, setError] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const qc = useBillingClient()
 
   const startDate = start ? new Date(start) : null
   const endDate = startDate ? calculateEndDate(startDate) : null
@@ -55,6 +60,28 @@ export default function RetainerModal({
     setSaving(true)
     try {
       await addRetainer(abbr, startDate, numRate)
+      qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
+        if (!prev) return prev
+        const startMs = startDate.getTime()
+        const endMs = endDate ? endDate.getTime() : startMs
+        let balanceDue = prev.balanceDue || 0
+        const rows = prev.rows.map((r: any) => {
+          if (r.startMs >= startMs && r.startMs <= endMs) {
+            if (
+              !r.flags.cancelled &&
+              !r.flags.voucherUsed &&
+              !r.assignedPaymentId &&
+              !r.flags.inRetainer
+            ) {
+              balanceDue -= r.amountDue || 0
+            }
+            return { ...r, flags: { ...r.flags, inRetainer: true } }
+          }
+          return r
+        })
+        return { ...prev, rows, balanceDue: Math.max(0, balanceDue) }
+      })
+      await writeSummaryFromCache(qc, abbr, account)
       onClose(true)
     } catch (e: any) {
       setError(String(e.message || e))
