@@ -11,9 +11,17 @@ import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
+import { buildContext, computeBilling } from '../../lib/billing/compute'
+import {
+  useBillingClient,
+  invalidateBilling,
+  writeBillingSummary,
+} from '../../lib/billing/useBilling'
 
 interface RateModalProps {
   sessionId: string
+  abbr: string
+  account: string
   open: boolean
   onClose: () => void
   initialRate: string
@@ -22,12 +30,15 @@ interface RateModalProps {
 
 export default function RateModal({
   sessionId,
+  abbr,
+  account,
   open,
   onClose,
   initialRate,
   onSaved,
 }: RateModalProps) {
   const [amount, setAmount] = useState(initialRate)
+  const qc = useBillingClient()
 
   useEffect(() => {
     if (open) setAmount(initialRate)
@@ -48,6 +59,9 @@ export default function RateModal({
       editedBy: getAuth().currentUser?.email || 'system',
     })
     onSaved(Number(amount) || 0)
+    await invalidateBilling(abbr, account, qc)
+    const res = computeBilling(await buildContext(abbr, account))
+    await writeBillingSummary(abbr, res)
   }
 
   return (

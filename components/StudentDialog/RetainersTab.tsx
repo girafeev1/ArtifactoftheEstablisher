@@ -39,9 +39,11 @@ interface RetRow extends RetainerDoc {
 
 export default function RetainersTab({
   abbr,
+  account,
   balanceDue,
 }: {
   abbr: string
+  account: string
   balanceDue: number
 }) {
   const [rows, setRows] = useState<RetRow[]>([])
@@ -201,6 +203,7 @@ export default function RetainersTab({
       {modal.open && (
         <RetainerModal
           abbr={abbr}
+          account={account}
           balanceDue={balanceDue}
           retainer={modal.retainer}
           nextStart={modal.nextStart}

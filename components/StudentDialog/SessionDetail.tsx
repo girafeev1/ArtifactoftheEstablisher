@@ -5,6 +5,12 @@ import RateModal from './RateModal'
 import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
+import { buildContext, computeBilling } from '../../lib/billing/compute'
+import {
+  useBillingClient,
+  invalidateBilling,
+  writeBillingSummary,
+} from '../../lib/billing/useBilling'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -24,15 +30,23 @@ const formatDate = (s: string) => {
 }
 
 interface SessionDetailProps {
+  abbr: string
+  account: string
   session: any
   onBack: () => void
 }
 
 // SessionDetail shows information for a single session. Limited editing, such
 // as rate charged, occurs here rather than inline in the sessions table.
-export default function SessionDetail({ session, onBack }: SessionDetailProps) {
+export default function SessionDetail({
+  abbr,
+  account,
+  session,
+  onBack,
+}: SessionDetailProps) {
   const [voucherUsed, setVoucherUsed] = useState(!!session.voucherUsed)
   const [rateOpen, setRateOpen] = useState(false)
+  const qc = useBillingClient()
 
   const createVoucherEntry = async (free: boolean) => {
     const path = PATHS.sessionVoucher(session.id)
@@ -51,6 +65,9 @@ export default function SessionDetail({ session, onBack }: SessionDetailProps) {
     })
     setVoucherUsed(free)
     session.voucherUsed = free
+    await invalidateBilling(abbr, account, qc)
+    const res = computeBilling(await buildContext(abbr, account))
+    await writeBillingSummary(abbr, res)
   }
 
   const markVoucher = async () => {
@@ -198,6 +215,8 @@ export default function SessionDetail({ session, onBack }: SessionDetailProps) {
         </Typography>
         <RateModal
           sessionId={session.id}
+          abbr={abbr}
+          account={account}
           open={rateOpen}
           onClose={() => setRateOpen(false)}
           initialRate={

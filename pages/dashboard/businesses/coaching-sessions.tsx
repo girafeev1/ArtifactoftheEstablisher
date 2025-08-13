@@ -1,7 +1,7 @@
 // pages/dashboard/businesses/coaching-sessions.tsx
 
 import React, { useEffect, useState } from 'react'
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, limit, onSnapshot, doc } from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
 import {
@@ -86,6 +86,7 @@ export default function CoachingSessions() {
       if (!mounted) return
       setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
 
+      const unsubs: (() => void)[] = []
       const totalCount = basics.length
       await Promise.all(
         basics.map(async (b, i) => {
@@ -146,6 +147,17 @@ export default function CoachingSessions() {
                 : s,
             ),
           )
+
+          // Listen to billing summary updates on the student document
+          const unsub = onSnapshot(doc(db, PATHS.student(b.abbr)), (snap) => {
+            const bd = (snap.data() as any)?.billingSummary?.balanceDue
+            setStudents((prev) =>
+              prev.map((s) =>
+                s.abbr === b.abbr ? { ...s, balanceDue: bd } : s,
+              ),
+            )
+          })
+          unsubs.push(unsub)
         })
       )
 
@@ -156,6 +168,7 @@ export default function CoachingSessions() {
     loadAll().catch(console.error)
     return () => {
       mounted = false
+      unsubs.forEach((u) => u())
     }
   }, [])
 

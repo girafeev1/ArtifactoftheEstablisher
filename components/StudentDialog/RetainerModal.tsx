@@ -1,6 +1,12 @@
 import React, { useState } from 'react'
 import { Box, Button, TextField, Typography } from '@mui/material'
 import { addRetainer, calculateEndDate, RetainerDoc } from '../../lib/retainer'
+import { buildContext, computeBilling } from '../../lib/billing/compute'
+import {
+  useBillingClient,
+  invalidateBilling,
+  writeBillingSummary,
+} from '../../lib/billing/useBilling'
 
 const formatDate = (d: Date | null) =>
   d
@@ -13,12 +19,14 @@ const formatDate = (d: Date | null) =>
 
 export default function RetainerModal({
   abbr,
+  account,
   balanceDue,
   retainer,
   nextStart,
   onClose,
 }: {
   abbr: string
+  account: string
   balanceDue: number
   retainer?: RetainerDoc & { id: string }
   nextStart?: Date
@@ -38,6 +46,7 @@ export default function RetainerModal({
   )
   const [error, setError] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const qc = useBillingClient()
 
   const startDate = start ? new Date(start) : null
   const endDate = startDate ? calculateEndDate(startDate) : null
@@ -55,6 +64,9 @@ export default function RetainerModal({
     setSaving(true)
     try {
       await addRetainer(abbr, startDate, numRate)
+      await invalidateBilling(abbr, account, qc)
+      const res = computeBilling(await buildContext(abbr, account))
+      await writeBillingSummary(abbr, res)
       onClose(true)
     } catch (e: any) {
       setError(String(e.message || e))

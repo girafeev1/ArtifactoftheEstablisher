@@ -25,6 +25,12 @@ import { fmtDate, fmtTime } from '../../lib/sessions'
 import { formatMMMDDYYYY } from '../../lib/date'
 import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
+import { buildContext, computeBilling } from '../../lib/billing/compute'
+import {
+  useBillingClient,
+  invalidateBilling,
+  writeBillingSummary,
+} from '../../lib/billing/useBilling'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -58,6 +64,7 @@ export default function PaymentDetail({
     'ordinal',
   )
   const [sortAsc, setSortAsc] = useState(true)
+  const qc = useBillingClient()
 
   const sortRows = (rows: any[]) => {
     const val = (r: any) => {
@@ -345,6 +352,10 @@ export default function PaymentDetail({
       setAssignedSessions((a) => [...a, ...newlyAssigned])
       setAvailable((s) => s.filter((sess) => !selected.includes(sess.id)))
       setSelected([])
+
+      await invalidateBilling(abbr, account, qc)
+      const res = computeBilling(await buildContext(abbr, account))
+      await writeBillingSummary(abbr, res)
     } catch (e) {
       console.error('assign payment failed', e)
     } finally {

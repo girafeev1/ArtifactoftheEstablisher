@@ -200,6 +200,7 @@ export default function PaymentHistory({
           </Table>
           <PaymentModal
             abbr={abbr}
+            account={account}
             open={modalOpen}
             onClose={() => setModalOpen(false)}
           />
