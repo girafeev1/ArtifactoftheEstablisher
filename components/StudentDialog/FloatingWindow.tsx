@@ -2,6 +2,7 @@ import React from 'react'
 import { createPortal } from 'react-dom'
 import { Rnd } from 'react-rnd'
 import { Box, IconButton, Typography } from '@mui/material'
+import { Z_INDEX } from '../../lib/zindex'
 import CloseIcon from '@mui/icons-material/Close'
 
 interface FloatingWindowProps {
@@ -28,7 +29,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
             right: 0,
             bottom: 0,
             bgcolor: 'background.paper',
-            zIndex: 1500,
+            zIndex: Z_INDEX.floatingWindow,
             display: 'flex',
             flexDirection: 'column',
           }}
@@ -70,7 +71,7 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
         minWidth={300}
         minHeight={200}
         bounds="window"
-        style={{ zIndex: 1500 }}
+        style={{ zIndex: Z_INDEX.floatingWindow }}
         dragHandleClassName={HANDLE_CLASS}
       >
         <Box

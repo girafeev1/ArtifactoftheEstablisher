@@ -11,6 +11,7 @@ import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
+import { Z_INDEX } from '../../lib/zindex'
 
 export default function PaymentModal({
   abbr,
@@ -48,8 +49,8 @@ export default function PaymentModal({
       fullWidth
       maxWidth="xs"
       slotProps={{
-        backdrop: { sx: { zIndex: 1600 } },
-        paper: { sx: { zIndex: 1601 } },
+        backdrop: { sx: { zIndex: Z_INDEX.dialogBackdrop } },
+        paper: { sx: { zIndex: Z_INDEX.dialog } },
       }}
     >
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Payment</DialogTitle>

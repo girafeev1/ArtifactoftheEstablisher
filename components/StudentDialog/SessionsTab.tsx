@@ -26,12 +26,14 @@ import {
   Button,
   TableSortLabel,
 } from '@mui/material'
+import { Z_INDEX } from '../../lib/zindex'
 
 import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import SessionDetail from './SessionDetail'
 import { formatMMMDDYYYY } from '../../lib/date'
 import { PATHS, logPath } from '../../lib/paths'
+import { computeStudentSummary, writeStudentSummary } from '../../lib/studentSummary'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -153,6 +155,10 @@ export default function SessionsTab({
         return 0
     }
   }
+
+  useEffect(() => {
+    computeStudentSummary(abbr, account).then((s) => writeStudentSummary(abbr, s))
+  }, [abbr, account])
 
   useEffect(() => {
     console.log('SessionsTab effect: load sessions for', abbr)
@@ -397,7 +403,7 @@ export default function SessionsTab({
             const sessionType = data.sessionType ?? 'N/A'
 
             let billingType = 'Per Session'
-            let paymentStatus = hasPayment ? 'Paid' : 'Unpaid'
+            let paymentStatus = 'Unpaid'
 
             if (sessionType?.toLowerCase() === 'cancelled') {
               rateCharged = 0
@@ -405,16 +411,18 @@ export default function SessionsTab({
               paymentStatus = 'N/A'
               payOn = 'N/A'
               payOnMs = 0
+            } else if (hasPayment) {
+              paymentStatus = 'Paid'
             } else if (voucherUsed) {
               rateCharged = 0
               billingType = 'Session Voucher'
-              paymentStatus = 'N/A'
+              paymentStatus = 'Voucher'
               payOn = 'N/A'
               payOnMs = 0
             } else if (retainer) {
               billingType = 'Retainer'
+              paymentStatus = 'Retainer'
               const pd = retainer.paymentDate
-              paymentStatus = pd ? 'Paid' : 'Unpaid'
               payOn = pd ? formatMMMDDYYYY(pd) : '-'
               payOnMs = pd ? pd.getTime() : 0
               rateCharged = `${retainer.name} | ${formatCurrency(retainer.rate)}`
@@ -598,7 +606,10 @@ export default function SessionsTab({
                 value={period}
                 size="small"
                 onChange={(e) => setPeriod(e.target.value as any)}
-                MenuProps={{ container: document.body, PaperProps: { sx: { zIndex: 1700 } } }}
+                MenuProps={{
+                  container: document.body,
+                  PaperProps: { sx: { zIndex: Z_INDEX.menu } },
+                }}
               >
                 <MenuItem value="30">Last 30 days</MenuItem>
                 <MenuItem value="90">Last 90 days</MenuItem>

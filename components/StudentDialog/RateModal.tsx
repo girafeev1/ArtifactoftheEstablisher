@@ -13,6 +13,8 @@ import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
+import { computeStudentSummary, writeStudentSummary } from '../../lib/studentSummary'
+import { Z_INDEX } from '../../lib/zindex'
 
 interface RateModalProps {
   sessionId: string
@@ -85,6 +87,8 @@ export default function RateModal({
       return { ...prev, rows, balanceDue }
     })
     await writeSummaryFromCache(qc, abbr, account)
+    const summary = await computeStudentSummary(abbr, account)
+    await writeStudentSummary(abbr, summary)
   }
 
   return (
@@ -94,8 +98,8 @@ export default function RateModal({
       fullWidth
       maxWidth="xs"
       slotProps={{
-        backdrop: { sx: { zIndex: 1600 } },
-        paper: { sx: { zIndex: 1601 } },
+        backdrop: { sx: { zIndex: Z_INDEX.dialogBackdrop } },
+        paper: { sx: { zIndex: Z_INDEX.dialog } },
       }}
     >
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Edit Rate Charged</DialogTitle>

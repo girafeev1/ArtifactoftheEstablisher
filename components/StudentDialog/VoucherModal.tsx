@@ -12,6 +12,8 @@ import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
+import { computeStudentSummary, writeStudentSummary } from '../../lib/studentSummary'
+import { Z_INDEX } from '../../lib/zindex'
 
 export default function VoucherModal({
   abbr,
@@ -52,6 +54,8 @@ export default function VoucherModal({
       }
     })
     await writeSummaryFromCache(qc, abbr, account)
+    const summary = await computeStudentSummary(abbr, account)
+    await writeStudentSummary(abbr, summary)
   }
 
   return (
@@ -61,9 +65,9 @@ export default function VoucherModal({
       fullWidth
       maxWidth="xs"
       slotProps={{
-        root: { sx: { zIndex: 1600 } },
-        backdrop: { sx: { zIndex: 1600 } },
-        paper: { sx: { zIndex: 1601 } },
+        root: { sx: { zIndex: Z_INDEX.dialogBackdrop } },
+        backdrop: { sx: { zIndex: Z_INDEX.dialogBackdrop } },
+        paper: { sx: { zIndex: Z_INDEX.dialog } },
       }}
     >
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>

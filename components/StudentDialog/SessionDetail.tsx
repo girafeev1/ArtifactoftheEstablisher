@@ -7,6 +7,7 @@ import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
+import { computeStudentSummary, writeStudentSummary } from '../../lib/studentSummary'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -84,6 +85,8 @@ export default function SessionDetail({
       return { ...prev, rows, balanceDue }
     })
     await writeSummaryFromCache(qc, abbr, account)
+    const summary = await computeStudentSummary(abbr, account)
+    await writeStudentSummary(abbr, summary)
   }
 
   const markVoucher = async () => {

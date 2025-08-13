@@ -24,6 +24,7 @@ import {
   payRetainerPatch,
   upsertUnpaidRetainerRow,
 } from '../../lib/liveRefresh'
+import { computeStudentSummary, writeStudentSummary } from '../../lib/studentSummary'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -257,6 +258,8 @@ export default function PaymentDetail({
         payRetainerPatch(qc, abbr, account, rid),
       )
       await writeSummaryFromCache(qc, abbr, account)
+      const summary = await computeStudentSummary(abbr, account)
+      await writeStudentSummary(abbr, summary)
     } catch (e) {
       console.error('assign payment failed', e)
     } finally {

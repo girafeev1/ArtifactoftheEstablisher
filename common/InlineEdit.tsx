@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { TextField, MenuItem, Typography } from '@mui/material'
+import { Z_INDEX } from '../lib/zindex'
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
@@ -71,6 +72,7 @@ export default function InlineEdit({
         [fieldKey]: v,
         timestamp: today,
       })
+      await setDoc(doc(db, col, docId), { [fieldKey]: v }, { merge: true })
       setDraft(v)
       onSaved?.(v)
     } catch (e) {
@@ -149,6 +151,12 @@ export default function InlineEdit({
           setEditing(false)
         }}
         size="small"
+        SelectProps={{
+          MenuProps: {
+            container: document.body,
+            slotProps: { paper: { sx: { zIndex: Z_INDEX.menu } } },
+          },
+        }}
       >
         {options?.map(o => (
           <MenuItem key={o} value={o}>{o}</MenuItem>

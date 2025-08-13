@@ -1,16 +1,11 @@
-// lib/gcal.ts
-
-// Placeholder Google Calendar logging utilities.
-// Auto-mode stubs a background watcher; manual mode scans recent events.
-
 export async function scanGoogleCalendar() {
-  // TODO: integrate with Google Calendar API and persist session logs.
-  console.log('Scanning Google Calendar (stub)')
-  return { added: 0 }
+  const res = await fetch('/api/gcal/scan')
+  if (!res.ok) throw new Error('scan failed')
+  return res.json() as Promise<{ added?: number; updated?: number; skipped?: number }>
 }
 
 export function startGCalAutoLogging() {
-  // TODO: hook into Cloud Function or background worker.
-  console.log('Starting Google Calendar auto logging (stub)')
+  // Auto logging should be handled by a Cloud Function or external scheduler
+  // that periodically hits the /api/gcal/scan endpoint.
 }
 

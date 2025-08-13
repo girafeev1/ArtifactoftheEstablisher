@@ -44,3 +44,14 @@ Always use `useBilling(abbr, account)` for any session or billing display. Patch
 ## Do Not Persist Derived Data
 Only `billingSummary` (balanceDue, voucherBalance, updatedAt) is cached in Firestore. No other derived collections or summaries should be written.
 
+## Student Summary Cache
+Selected session fields (`jointDate`, `lastSession`, `totalSessionsExCancelled`, `cancelledCount`) are cached under `Students/{abbr}.cached`.
+Use:
+
+```ts
+const summary = await computeStudentSummary(abbr, account)
+await writeStudentSummary(abbr, summary)
+```
+
+Run this after session-affecting mutations and on `SessionsTab` mount so card views stay in sync.
+

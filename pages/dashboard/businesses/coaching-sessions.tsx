@@ -45,7 +45,13 @@ const blinkFade = keyframes`
   100% {opacity:.4}
 `
 
-const blinkSx = { animation: `${blinkFade} 1.2s ease-in-out infinite` }
+const blinkSx = {
+  animation: `${blinkFade} 1.2s ease-in-out infinite`,
+  '@media (prefers-reduced-motion: reduce)': {
+    animation: 'none',
+    opacity: 0.4,
+  },
+}
 
 function StudentCard({
   abbr,
@@ -179,8 +185,14 @@ export default function CoachingSessions() {
           <MenuItem
             onClick={async () => {
               closeToolsMenu()
-              const res = await scanGoogleCalendar()
-              setScanMessage(`Scanned ${res.added ?? 0} events`)
+              try {
+                const res = await scanGoogleCalendar()
+                setScanMessage(
+                  `Added ${res.added || 0}, updated ${res.updated || 0}, skipped ${res.skipped || 0}`,
+                )
+              } catch (e) {
+                setScanMessage('Google Calendar scan failed')
+              }
             }}
           >
             📅 Scan Google Calendar

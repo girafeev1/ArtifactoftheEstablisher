@@ -3,6 +3,7 @@ import { Box, Button, TextField, Typography } from '@mui/material'
 import { addRetainer, calculateEndDate, RetainerDoc } from '../../lib/retainer'
 import { useBillingClient } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache, markSessionsInRetainer } from '../../lib/liveRefresh'
+import { computeStudentSummary, writeStudentSummary } from '../../lib/studentSummary'
 
 const formatDate = (d: Date | null) =>
   d
@@ -58,6 +59,8 @@ export default function RetainerModal({
       const endMs = endDate ? endDate.getTime() : startMs
       markSessionsInRetainer(qc, abbr, account, startMs, endMs, true)
       await writeSummaryFromCache(qc, abbr, account)
+      const summary = await computeStudentSummary(abbr, account)
+      await writeStudentSummary(abbr, summary)
       onClose(true)
     } catch (e: any) {
       setError(String(e.message || e))
