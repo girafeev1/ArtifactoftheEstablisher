@@ -72,6 +72,7 @@ export default function CoachingSessions() {
 
   useEffect(() => {
     let mounted = true
+    const unsubs: (() => void)[] = []
 
     async function loadAll() {
       console.log('📥 loading students list')
@@ -86,7 +87,6 @@ export default function CoachingSessions() {
       if (!mounted) return
       setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
 
-      const unsubs: (() => void)[] = []
       const totalCount = basics.length
       await Promise.all(
         basics.map(async (b, i) => {
@@ -252,7 +252,12 @@ export default function CoachingSessions() {
           })} ${detached.time}`}
           onClose={() => setDetached(null)}
         >
-          <SessionDetail session={detached} onBack={() => setDetached(null)} />
+          <SessionDetail
+            abbr={detached.abbr}
+            account={detached.account}
+            session={detached}
+            onBack={() => setDetached(null)}
+          />
         </FloatingWindow>
       )}
 
