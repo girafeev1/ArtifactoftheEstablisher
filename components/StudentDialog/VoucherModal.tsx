@@ -10,18 +10,23 @@ import {
 import { collection, doc, getDocs, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
+import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
+import { writeSummaryFromCache } from '../../lib/liveRefresh'
 
 export default function VoucherModal({
   abbr,
+  account,
   open,
   onClose,
 }: {
   abbr: string
+  account: string
   open: boolean
   onClose: () => void
 }) {
   const [token, setToken] = useState('')
   const [effectiveDate, setEffectiveDate] = useState('')
+  const qc = useBillingClient()
 
   const save = async () => {
     const path = PATHS.freeMeal(abbr)
@@ -39,6 +44,14 @@ export default function VoucherModal({
       effectiveDate: eff,
       EditedBy: 'system',
     })
+    qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        voucherBalance: (prev.voucherBalance || 0) + (Number(token) || 0),
+      }
+    })
+    await writeSummaryFromCache(qc, abbr, account)
   }
 
   return (
