@@ -2,6 +2,7 @@
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
 import { PATHS } from '../paths'
+import { monthLabelFor as sharedMonthLabelFor } from './monthLabel'
 
 export interface SessionRow {
   id: string
@@ -66,11 +67,6 @@ const baseRateAt = (rates: Ctx['baseRates'], t: number) => {
 const retainerFor = (rets: Ctx['retainers'], t: number) =>
   rets.find(r => t >= r.start && t <= r.end)
 
-const monthLabelFor = (ms: number) => {
-  const d = new Date(ms)
-  if (d.getDate() >= 21) d.setMonth(d.getMonth() + 1)
-  return d.toLocaleString('en-US', { month: 'short', year: 'numeric' })
-}
 
 export async function buildContext(abbr: string, account: string): Promise<Ctx> {
   const [histSnap, baseSnap, retSnap, voucherSnap, paySnap, sessSnap] = await Promise.all([
@@ -165,7 +161,7 @@ export function computeBilling(ctx: Ctx): BillingResult {
     if(r.flags.cancelled||r.flags.voucherUsed) return
     if(r.flags.inRetainer){
       const ret = retainerFor(ctx.retainers,r.startMs)!
-      r.displayRate = `${monthLabelFor(ret.start)} | ${formatCurrencyHKD(ret.rate)}`
+      r.displayRate = `${sharedMonthLabelFor(ret.start)} | ${formatCurrencyHKD(ret.rate)}`
       return
     }
     if(r.flags.isTrial && !r.flags.manualRate){
@@ -205,10 +201,12 @@ export function computeBilling(ctx: Ctx): BillingResult {
 
   const isRetPaid = (ret:{id:string;start:number;paymentId?:string})=>{
     if(ret.paymentId) return true
-    const label = monthLabelFor(ret.start)
+    const label = sharedMonthLabelFor(ret.start)
     return assignedRetTokens.has(ret.id)||assignedRetTokens.has(`retainer:${ret.id}`)||assignedRetTokens.has(label)||assignedRetTokens.has(`retainer:${label}`)
   }
-  const unpaidRetainers = ctx.retainers.filter(r=>!isRetPaid(r)).map(r=>({id:r.id,monthLabel:monthLabelFor(r.start),rate:r.rate}))
+  const unpaidRetainers = ctx.retainers
+    .filter(r => !isRetPaid(r))
+    .map(r => ({ id: r.id, monthLabel: sharedMonthLabelFor(r.start), rate: r.rate }))
 
   const unpaidSessions = rows.filter(r=>!r.flags.cancelled&&!r.flags.voucherUsed&&!r.flags.inRetainer&&!r.assignedPaymentId)
   const balanceDue = unpaidSessions.reduce((s,r)=>s+(Number(r.amountDue)||0),0)+unpaidRetainers.reduce((s,r)=>s+r.rate,0)
