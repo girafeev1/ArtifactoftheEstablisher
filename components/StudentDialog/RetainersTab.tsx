@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { useColumnWidths } from '../../lib/useColumnWidths'
 import {
   Box,
   Typography,
@@ -53,6 +55,19 @@ export default function RetainersTab({
     retainer?: RetRow
     nextStart?: Date
   }>({ open: false })
+  const { data: session } = useSession()
+  const columns = [
+    { key: 'retainer', label: 'Retainer', width: 120 },
+    { key: 'period', label: 'Coverage Period', width: 200 },
+    { key: 'rate', label: 'Rate', width: 120 },
+    { key: 'status', label: 'Status', width: 120 },
+    { key: 'actions', label: 'Actions', width: 100 },
+  ]
+  const { widths, startResize } = useColumnWidths(
+    'retainers',
+    columns,
+    (session && (session.user as any)?.email) || 'anon',
+  )
 
   const load = async () => {
     try {
@@ -87,7 +102,7 @@ export default function RetainersTab({
     .sort((a, b) => a.s.getTime() - b.s.getTime())[0]?.row
 
   return (
-    <Box sx={{ p: 1, textAlign: 'left', height: '100%' }}>
+    <Box sx={{ p: 1, textAlign: 'left', height: '100%', overflow: 'auto' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
         <Typography
           variant="subtitle1"
@@ -113,10 +128,18 @@ export default function RetainersTab({
           </Tooltip>
         </Box>
       </Box>
-      <Table size="small">
+      <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
         <TableHead>
           <TableRow>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                width: widths.retainer,
+                minWidth: widths.retainer,
+                position: 'relative',
+              }}
+            >
               <TableSortLabel
                 active
                 direction={sortAsc ? 'asc' : 'desc'}
@@ -124,18 +147,70 @@ export default function RetainersTab({
               >
                 Retainer
               </TableSortLabel>
+              <Box
+                onMouseDown={(e) => startResize('retainer', e)}
+                sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize' }}
+              />
             </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                width: widths.period,
+                minWidth: widths.period,
+                position: 'relative',
+              }}
+            >
               Coverage Period
+              <Box
+                onMouseDown={(e) => startResize('period', e)}
+                sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize' }}
+              />
             </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                width: widths.rate,
+                minWidth: widths.rate,
+                position: 'relative',
+              }}
+            >
               Rate
+              <Box
+                onMouseDown={(e) => startResize('rate', e)}
+                sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize' }}
+              />
             </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                width: widths.status,
+                minWidth: widths.status,
+                position: 'relative',
+              }}
+            >
               Status
+              <Box
+                onMouseDown={(e) => startResize('status', e)}
+                sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize' }}
+              />
             </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                width: widths.actions,
+                minWidth: widths.actions,
+                position: 'relative',
+              }}
+            >
               Actions
+              <Box
+                onMouseDown={(e) => startResize('actions', e)}
+                sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize' }}
+              />
             </TableCell>
           </TableRow>
         </TableHead>
@@ -163,13 +238,34 @@ export default function RetainersTab({
             })
             return (
               <TableRow key={r.id} hover selected={active}>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Newsreader',
+                    fontWeight: 500,
+                    width: widths.retainer,
+                    minWidth: widths.retainer,
+                  }}
+                >
                   {monthLabel}
                 </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Newsreader',
+                    fontWeight: 500,
+                    width: widths.period,
+                    minWidth: widths.period,
+                  }}
+                >
                   {`${formatDate(r.retainerStarts)} – ${formatDate(r.retainerEnds)}`}
                 </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Newsreader',
+                    fontWeight: 500,
+                    width: widths.rate,
+                    minWidth: widths.rate,
+                  }}
+                >
                   {new Intl.NumberFormat(undefined, {
                     style: 'currency',
                     currency: 'HKD',
@@ -181,13 +277,22 @@ export default function RetainersTab({
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
                     color: colorMap[status.color],
+                    width: widths.status,
+                    minWidth: widths.status,
                   }}
                 >
                   <Tooltip title={status.label}>
                     <span>{status.label}</span>
                   </Tooltip>
                 </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Newsreader',
+                    fontWeight: 500,
+                    width: widths.actions,
+                    minWidth: widths.actions,
+                  }}
+                >
                   <Button
                     size="small"
                     onClick={() => setModal({ open: true, retainer: r })}

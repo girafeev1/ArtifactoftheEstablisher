@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { collection, getDocs, query, where, orderBy, limit, onSnapshot, doc } from 'firebase/firestore'
+import { useSnackbar } from 'notistack'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
 import {
@@ -12,11 +13,14 @@ import {
   CardContent,
   Button,
   LinearProgress,
+  CircularProgress,
   Box,
   Menu,
   MenuItem,
-  Snackbar,
+  IconButton,
+  TextField,
 } from '@mui/material'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
 import { PATHS, logPath } from '../../../lib/paths'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
 import SessionDetail from '../../../components/StudentDialog/SessionDetail'
@@ -50,9 +54,10 @@ export default function CoachingSessions() {
   const [selected, setSelected] = useState<StudentDetails | null>(null)
   const [serviceMode, setServiceMode] = useState(false)
   const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
-  const [scanMessage, setScanMessage] = useState('')
+  const { enqueueSnackbar } = useSnackbar()
   const [renameOpen, setRenameOpen] = useState(false)
   const [detached, setDetached] = useState<any | null>(null)
+  const [scanAccount, setScanAccount] = useState('')
 
   const openToolsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
     setToolsAnchor(e.currentTarget)
@@ -62,10 +67,49 @@ export default function CoachingSessions() {
     closeToolsMenu()
     try {
       await clearSessionSummaries()
-      setScanMessage('Session summaries cleared')
+      enqueueSnackbar('Session summaries cleared', { variant: 'success' })
     } catch (err) {
       console.error(err)
-      setScanMessage('Failed to clear session summaries')
+      enqueueSnackbar('Failed to clear session summaries', { variant: 'error' })
+    }
+  }
+
+  const handleScan = async (forceFull?: boolean) => {
+    try {
+      const res = await fetch('/api/calendar-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'scanAll', forceFull: forceFull || false }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Scan failed')
+      enqueueSnackbar('Processed: ' + (data.processed || 0), {
+        variant: 'success',
+      })
+    } catch (err: any) {
+      enqueueSnackbar(err.message || 'Scan failed', { variant: 'error' })
+    }
+  }
+
+  const handleScanOne = async () => {
+    try {
+      const res = await fetch('/api/calendar-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'scanOne',
+          account: scanAccount,
+          daysBack: 365,
+          daysForward: 90,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Scan failed')
+      enqueueSnackbar('Processed: ' + (data.processed || 0), {
+        variant: 'success',
+      })
+    } catch (err: any) {
+      enqueueSnackbar(err.message || 'Scan failed', { variant: 'error' })
     }
   }
 
@@ -115,7 +159,7 @@ export default function CoachingSessions() {
             `${firstName || b.account || b.abbr} ${lastName || ''} - (${i + 1} of ${totalCount})`
           )
 
-          const [sex, sessSnap] = await Promise.all([
+          const [sexRaw, sessSnap] = await Promise.all([
             latest('sex'),
             (async () => {
               logPath('sessionsQuery', PATHS.sessions)
@@ -127,6 +171,7 @@ export default function CoachingSessions() {
               )
             })(),
           ])
+          const sex = sexRaw === undefined || sexRaw === null ? null : sexRaw
 
           const starts = await Promise.all(
             sessSnap.docs.map((sd) => computeSessionStart(sd.id, sd.data() as any)),
@@ -149,7 +194,8 @@ export default function CoachingSessions() {
 
           // Listen to billing summary updates on the student document
           const unsub = onSnapshot(doc(db, PATHS.student(b.abbr)), (snap) => {
-            const bd = (snap.data() as any)?.billingSummary?.balanceDue
+            const bdRaw = (snap.data() as any)?.billingSummary?.balanceDue
+            const bd = bdRaw === undefined || bdRaw === null ? null : bdRaw
             setStudents((prev) =>
               prev.map((s) =>
                 s.abbr === b.abbr ? { ...s, balanceDue: bd } : s,
@@ -193,7 +239,13 @@ export default function CoachingSessions() {
                   <CardContent>
                     <Typography variant="h6">{s.account}</Typography>
                     <Typography>
-                      {s.sex ?? '–'} • Due: {formatCurrency(s.balanceDue ?? 0)}
+                      {s.sex === undefined ? (
+                        <CircularProgress size={14} className="slow-blink" />
+                      ) : s.sex || '–'}
+                      {' '}• Due:{' '}
+                      {s.balanceDue === undefined ? (
+                        <CircularProgress size={14} className="slow-blink" />
+                      ) : s.balanceDue === null ? '–' : formatCurrency(Number(s.balanceDue))}
                     </Typography>
                     <Typography>
                       Total: {s.total}
@@ -212,6 +264,14 @@ export default function CoachingSessions() {
           anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
           transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         >
+          <MenuItem
+            onClick={() => {
+              closeToolsMenu()
+              handleScan(true)
+            }}
+          >
+            ♻️ Force Full Rescan
+          </MenuItem>
           <MenuItem onClick={handleClearAll}>
             🗑️ Clear All Session Summaries
           </MenuItem>
@@ -224,6 +284,43 @@ export default function CoachingSessions() {
             🏷️ Batch Rename Payments
           </MenuItem>
         </Menu>
+        <Box
+          sx={{
+            position: 'sticky',
+            left: 0,
+            bottom: 16,
+            display: 'flex',
+            gap: 1,
+            mt: 2,
+            flexWrap: 'wrap',
+          }}
+        >
+          <TextField
+            size="small"
+            placeholder="Account"
+            value={scanAccount}
+            onChange={(e) => setScanAccount(e.target.value)}
+            sx={{ bgcolor: 'background.paper' }}
+          />
+          <Button
+            variant="contained"
+            disabled={!scanAccount}
+            onClick={handleScanOne}
+            sx={{ bgcolor: 'background.paper', color: 'text.primary' }}
+          >
+            Scan this account
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => handleScan(false)}
+            sx={{ bgcolor: 'background.paper', color: 'text.primary' }}
+          >
+            Tools
+          </Button>
+          <IconButton onClick={openToolsMenu} sx={{ bgcolor: 'background.paper' }}>
+            <MoreVertIcon />
+          </IconButton>
+        </Box>
       </Box>
 
       {selected && (
@@ -257,29 +354,10 @@ export default function CoachingSessions() {
         </FloatingWindow>
       )}
 
-      <Snackbar
-        open={Boolean(scanMessage)}
-        onClose={() => setScanMessage('')}
-        message={scanMessage}
-        autoHideDuration={4000}
-      />
       <BatchRenamePayments
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
       />
-      <Button
-        variant="contained"
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          left: 16,
-          bgcolor: 'background.paper',
-          color: 'text.primary',
-        }}
-        onClick={openToolsMenu}
-      >
-        Tools
-      </Button>
       <Button
         variant="contained"
         sx={{

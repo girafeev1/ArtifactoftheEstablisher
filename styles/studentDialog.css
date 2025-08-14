@@ -17,3 +17,30 @@
     Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-weight: 700;
 }
+
+@keyframes slowBlink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.slow-blink {
+  animation: slowBlink 2s ease-in-out infinite;
+}
+
+@keyframes yellowBlink {
+  0%, 100% {
+    background-color: inherit;
+  }
+  50% {
+    background-color: rgba(255, 255, 0, 0.5);
+  }
+}
+
+.yellow-blink {
+  animation: yellowBlink 2s ease-in-out infinite;
+  outline: 0;
+}

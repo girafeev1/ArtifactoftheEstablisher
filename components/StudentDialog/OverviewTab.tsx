@@ -4,6 +4,8 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Tabs, Tab, Box, CircularProgress, Typography } from '@mui/material'
 import FloatingWindow from './FloatingWindow'
 import { titleFor, MainTab, BillingSubTab } from './title'
+import { useBilling } from '../../lib/billing/useBilling'
+import { getCountsFromBilling } from '../../lib/billing/counts'
 
 // OverviewTab acts purely as a presenter. PersonalTab, SessionsTab and
 // BillingTab each fetch and compute their own data then "stream" summary
@@ -80,6 +82,9 @@ export default function OverviewTab({
     [tab, subTab, account],
   )
   const [actions, setActions] = useState<React.ReactNode | null>(null)
+  const { data: bill } = useBilling(abbr, account)
+  const counts = getCountsFromBilling(bill)
+  const [hoverCount, setHoverCount] = useState(false)
 
   // personal summary streamed from PersonalTab
   const [personal, setPersonal] = useState<any>({})
@@ -281,23 +286,20 @@ export default function OverviewTab({
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                 >
                   Total Sessions:{' '}
-                  {overviewLoading && <CircularProgress size={14} />}
+                  {!bill && <CircularProgress size={14} className="slow-blink" />}
                 </Typography>
-                {overviewLoading ? (
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  >
-                    Loading…
-                  </Typography>
-                ) : (
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  >
-                    {overview.total ?? '–'}
-                  </Typography>
-                )}
+                <Typography
+                  variant="h6"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  onMouseEnter={() => setHoverCount(true)}
+                  onMouseLeave={() => setHoverCount(false)}
+                >
+                  {!bill
+                    ? '–'
+                    : hoverCount
+                    ? `✅ ${counts.total - counts.cancelled}`
+                    : `${counts.total} (❌ ${counts.cancelled})`}
+                </Typography>
 
                 <Typography
                   variant="subtitle2"
