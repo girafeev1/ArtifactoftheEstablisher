@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import {
   Box,
   Table,
@@ -12,6 +12,9 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material'
+import { useSession } from 'next-auth/react'
+import { useBilling } from '../../lib/billing/useBilling'
+import { useColumnWidths } from '../../lib/useColumnWidths'
 import { collection, orderBy, query, onSnapshot } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import PaymentDetail from './PaymentDetail'
@@ -60,6 +63,23 @@ export default function PaymentHistory({
   const [sortField, setSortField] = useState<'amount' | 'paymentMade'>('paymentMade')
   const [sortAsc, setSortAsc] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const { data: session } = useSession()
+  const { data: bill } = useBilling(abbr, account)
+  const ordinalMap = useMemo(() => {
+    const map: any = {}
+    if (bill) bill.rows.forEach((r: any, i: number) => (map[r.id] = i + 1))
+    return map
+  }, [bill])
+  const columns = [
+    { key: 'paymentMade', label: 'Payment Made On', width: 160 },
+    { key: 'session', label: 'For session', width: 120 },
+    { key: 'amount', label: 'Amount Received', width: 160 },
+  ]
+  const { widths, startResize } = useColumnWidths(
+    'payments',
+    columns,
+    (session && (session.user as any)?.email) || 'anon',
+  )
 
   useEffect(() => {
     if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
@@ -130,10 +150,18 @@ export default function PaymentHistory({
               </IconButton>
             </Tooltip>
           </Box>
-          <Table size="small" sx={{ cursor: 'pointer' }}>
+          <Table size="small" sx={{ cursor: 'pointer', tableLayout: 'fixed', width: 'max-content' }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    width: widths.paymentMade,
+                    minWidth: widths.paymentMade,
+                    position: 'relative',
+                  }}
+                >
                   <TableSortLabel
                     active={sortField === 'paymentMade'}
                     direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
@@ -147,8 +175,35 @@ export default function PaymentHistory({
                   >
                     Payment Made On
                   </TableSortLabel>
+                  <Box
+                    onMouseDown={(e) => startResize('paymentMade', e)}
+                    sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize' }}
+                  />
                 </TableCell>
-                <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    width: widths.session,
+                    minWidth: widths.session,
+                    position: 'relative',
+                  }}
+                >
+                  For session
+                  <Box
+                    onMouseDown={(e) => startResize('session', e)}
+                    sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize' }}
+                  />
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    width: widths.amount,
+                    minWidth: widths.amount,
+                    position: 'relative',
+                  }}
+                >
                   <TableSortLabel
                     active={sortField === 'amount'}
                     direction={sortField === 'amount' && sortAsc ? 'asc' : 'desc'}
@@ -162,36 +217,69 @@ export default function PaymentHistory({
                   >
                     Amount Received
                   </TableSortLabel>
+                  <Box
+                    onMouseDown={(e) => startResize('amount', e)}
+                    sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize' }}
+                  />
                 </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedPayments.map((p) => (
-                <TableRow
-                  key={p.id}
-                  hover
-                  onClick={() => setDetail(p)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      setDetail(p)
-                    }
-                  }}
-                  sx={{ cursor: 'pointer', py: 1 }}
-                >
-                  <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                    {formatDate(p.paymentMade)}
-                  </TableCell>
-                  <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                    {formatCurrency(Number(p.amount) || 0)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {sortedPayments.map((p) => {
+                const sessNum = p.assignedSessions && p.assignedSessions.length > 0 ? ordinalMap[p.assignedSessions[0]] || '–' : '–'
+                const remaining = Number(p.remainingAmount) || 0
+                return (
+                  <TableRow
+                    key={p.id}
+                    hover
+                    onClick={() => setDetail(p)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setDetail(p)
+                      }
+                    }}
+                    sx={{ cursor: 'pointer', py: 1 }}
+                  >
+                    <TableCell
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths.paymentMade,
+                        minWidth: widths.paymentMade,
+                      }}
+                    >
+                      {formatDate(p.paymentMade)}
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths.session,
+                        minWidth: widths.session,
+                      }}
+                    >
+                      {sessNum || '–'}
+                    </TableCell>
+                    <TableCell
+                      className={remaining > 0 ? 'yellow-blink' : undefined}
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths.amount,
+                        minWidth: widths.amount,
+                      }}
+                    >
+                      {formatCurrency(Number(p.amount) || 0)}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
               {sortedPayments.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={2} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  <TableCell colSpan={3} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                     No payments recorded.
                   </TableCell>
                 </TableRow>

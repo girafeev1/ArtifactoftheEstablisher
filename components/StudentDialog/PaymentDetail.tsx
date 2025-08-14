@@ -307,6 +307,7 @@ export default function PaymentDetail({
         <Typography
           variant="h6"
           sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          className={remaining > 0 ? 'yellow-blink' : undefined}
         >
           {formatCurrency(remaining)}{' '}
           {totalSelected > 0 && (

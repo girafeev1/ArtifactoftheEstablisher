@@ -1,6 +1,10 @@
 // components/StudentDialog/SessionsTab.tsx
 
 import React, { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { useBilling } from '../../lib/billing/useBilling'
+import { getCountsFromBilling } from '../../lib/billing/counts'
+import { useColumnWidths } from '../../lib/useColumnWidths'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -77,6 +81,10 @@ export default function SessionsTab({
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any | null>(null)
+  const { data: session } = useSession()
+  const { data: bill } = useBilling(abbr, account)
+  const counts = getCountsFromBilling(bill)
+  const [hoverCount, setHoverCount] = useState(false)
 
   const allColumns = [
     { key: 'date', label: 'Date', width: 110 },
@@ -90,7 +98,12 @@ export default function SessionsTab({
     { key: 'paymentStatus', label: 'Payment Status', width: 150 },
     { key: 'payOn', label: 'Pay on', width: 160 },
   ]
-  const colWidth = (key: string) => allColumns.find((c) => c.key === key)?.width
+  const { widths, startResize } = useColumnWidths(
+    'sessions',
+    allColumns,
+    (session && (session.user as any)?.email) || 'anon',
+  )
+  const colWidth = (key: string) => widths[key] || allColumns.find((c) => c.key === key)?.width
   const defaultCols = [
     'date',
     'time',
@@ -606,8 +619,9 @@ export default function SessionsTab({
                         typography: 'body2',
                         fontFamily: 'Cantata One',
                         fontWeight: 'bold',
-                        width: c.width,
-                        minWidth: c.width,
+                        width: colWidth(c.key),
+                        minWidth: colWidth(c.key),
+                        position: 'relative',
                       }}
                     >
                       <TableSortLabel
@@ -617,6 +631,17 @@ export default function SessionsTab({
                       >
                         {c.label}
                       </TableSortLabel>
+                      <Box
+                        onMouseDown={(e) => startResize(c.key, e)}
+                        sx={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: 4,
+                          cursor: 'col-resize',
+                        }}
+                      />
                     </TableCell>
                   ))}
               </TableRow>
@@ -827,8 +852,16 @@ export default function SessionsTab({
               <Typography
                 variant="h6"
                 sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                onMouseEnter={() => setHoverCount(true)}
+                onMouseLeave={() => setHoverCount(false)}
               >
-                {summary.totalSessions ?? '–'}
+                {!bill ? (
+                  <CircularProgress size={14} className="slow-blink" />
+                ) : hoverCount ? (
+                  `✅ ${counts.total - counts.cancelled}`
+                ) : (
+                  `${counts.total} (❌ ${counts.cancelled})`
+                )}
               </Typography>
             </Box>
             <Box mb={1}>

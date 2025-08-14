@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { collection, getDocs, query, where, orderBy, limit, onSnapshot, doc } from 'firebase/firestore'
+import { useSnackbar } from 'notistack'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
 import {
@@ -12,11 +13,13 @@ import {
   CardContent,
   Button,
   LinearProgress,
+  CircularProgress,
   Box,
   Menu,
   MenuItem,
-  Snackbar,
+  IconButton,
 } from '@mui/material'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
 import { PATHS, logPath } from '../../../lib/paths'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
 import SessionDetail from '../../../components/StudentDialog/SessionDetail'
@@ -50,7 +53,7 @@ export default function CoachingSessions() {
   const [selected, setSelected] = useState<StudentDetails | null>(null)
   const [serviceMode, setServiceMode] = useState(false)
   const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
-  const [scanMessage, setScanMessage] = useState('')
+  const { enqueueSnackbar } = useSnackbar()
   const [renameOpen, setRenameOpen] = useState(false)
   const [detached, setDetached] = useState<any | null>(null)
 
@@ -62,10 +65,27 @@ export default function CoachingSessions() {
     closeToolsMenu()
     try {
       await clearSessionSummaries()
-      setScanMessage('Session summaries cleared')
+      enqueueSnackbar('Session summaries cleared', { variant: 'success' })
     } catch (err) {
       console.error(err)
-      setScanMessage('Failed to clear session summaries')
+      enqueueSnackbar('Failed to clear session summaries', { variant: 'error' })
+    }
+  }
+
+  const handleScan = async (forceFull?: boolean) => {
+    try {
+      const res = await fetch('/api/calendar-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'scanAll', forceFull: forceFull || false }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Scan failed')
+      enqueueSnackbar('Processed: ' + (data.processed || 0), {
+        variant: 'success',
+      })
+    } catch (err: any) {
+      enqueueSnackbar(err.message || 'Scan failed', { variant: 'error' })
     }
   }
 
@@ -193,7 +213,13 @@ export default function CoachingSessions() {
                   <CardContent>
                     <Typography variant="h6">{s.account}</Typography>
                     <Typography>
-                      {s.sex ?? '–'} • Due: {formatCurrency(s.balanceDue ?? 0)}
+                      {s.sex === undefined ? (
+                        <CircularProgress size={14} className="slow-blink" />
+                      ) : s.sex || '–'}
+                      {' '}• Due:{' '}
+                      {s.balanceDue === undefined ? (
+                        <CircularProgress size={14} className="slow-blink" />
+                      ) : formatCurrency(s.balanceDue || 0)}
                     </Typography>
                     <Typography>
                       Total: {s.total}
@@ -212,6 +238,14 @@ export default function CoachingSessions() {
           anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
           transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         >
+          <MenuItem
+            onClick={() => {
+              closeToolsMenu()
+              handleScan(true)
+            }}
+          >
+            ♻️ Force Full Rescan
+          </MenuItem>
           <MenuItem onClick={handleClearAll}>
             🗑️ Clear All Session Summaries
           </MenuItem>
@@ -224,6 +258,27 @@ export default function CoachingSessions() {
             🏷️ Batch Rename Payments
           </MenuItem>
         </Menu>
+        <Box
+          sx={{
+            position: 'sticky',
+            left: 0,
+            bottom: 16,
+            display: 'flex',
+            gap: 1,
+            mt: 2,
+          }}
+        >
+          <Button
+            variant="contained"
+            onClick={() => handleScan(false)}
+            sx={{ bgcolor: 'background.paper', color: 'text.primary' }}
+          >
+            Tools
+          </Button>
+          <IconButton onClick={openToolsMenu} sx={{ bgcolor: 'background.paper' }}>
+            <MoreVertIcon />
+          </IconButton>
+        </Box>
       </Box>
 
       {selected && (
@@ -257,29 +312,10 @@ export default function CoachingSessions() {
         </FloatingWindow>
       )}
 
-      <Snackbar
-        open={Boolean(scanMessage)}
-        onClose={() => setScanMessage('')}
-        message={scanMessage}
-        autoHideDuration={4000}
-      />
       <BatchRenamePayments
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
       />
-      <Button
-        variant="contained"
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          left: 16,
-          bgcolor: 'background.paper',
-          color: 'text.primary',
-        }}
-        onClick={openToolsMenu}
-      >
-        Tools
-      </Button>
       <Button
         variant="contained"
         sx={{
