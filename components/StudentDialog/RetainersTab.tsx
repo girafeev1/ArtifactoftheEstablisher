@@ -113,10 +113,17 @@ export default function RetainersTab({
           </Tooltip>
         </Box>
       </Box>
-      <Table size="small">
+      <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
         <TableHead>
           <TableRow>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                position: 'relative',
+                width: 120,
+              }}
+            >
               <TableSortLabel
                 active
                 direction={sortAsc ? 'asc' : 'desc'}
@@ -124,18 +131,51 @@ export default function RetainersTab({
               >
                 Retainer
               </TableSortLabel>
+              <Box className="col-resizer" />
             </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                position: 'relative',
+                width: 200,
+              }}
+            >
               Coverage Period
+              <Box className="col-resizer" />
             </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                position: 'relative',
+                width: 120,
+              }}
+            >
               Rate
+              <Box className="col-resizer" />
             </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                position: 'relative',
+                width: 120,
+              }}
+            >
               Status
+              <Box className="col-resizer" />
             </TableCell>
-            <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <TableCell
+              sx={{
+                fontFamily: 'Cantata One',
+                fontWeight: 'bold',
+                position: 'relative',
+                width: 100,
+              }}
+            >
               Actions
+              <Box className="col-resizer" />
             </TableCell>
           </TableRow>
         </TableHead>

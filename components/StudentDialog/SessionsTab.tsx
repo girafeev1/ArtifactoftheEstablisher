@@ -79,6 +79,7 @@ export default function SessionsTab({
   const [detail, setDetail] = useState<any | null>(null)
 
   const allColumns = [
+    { key: 'ordinal', label: '#', width: 60 },
     { key: 'date', label: 'Date', width: 110 },
     { key: 'time', label: 'Time', width: 100 },
     { key: 'duration', label: 'Duration', width: 110 },
@@ -558,26 +559,28 @@ export default function SessionsTab({
             <Box mb={2}>
               <Typography variant="subtitle2">Columns</Typography>
               <FormGroup row>
-                {allColumns.map((c) => (
-                  <FormControlLabel
-                    key={c.key}
-                    control={
-                      <Checkbox
-                        checked={visibleCols.includes(c.key)}
-                        onChange={(e) => {
-                          const checked = e.target.checked
-                          setVisibleCols((cols) =>
-                            checked
-                              ? [...cols, c.key]
-                              : cols.filter((k) => k !== c.key),
-                          )
-                        }}
-                        size="small"
-                      />
-                    }
-                    label={c.label}
-                  />
-                ))}
+                {allColumns
+                  .filter((c) => c.key !== 'ordinal')
+                  .map((c) => (
+                    <FormControlLabel
+                      key={c.key}
+                      control={
+                        <Checkbox
+                          checked={visibleCols.includes(c.key)}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setVisibleCols((cols) =>
+                              checked
+                                ? [...cols, c.key]
+                                : cols.filter((k) => k !== c.key),
+                            )
+                          }}
+                          size="small"
+                        />
+                      }
+                      label={c.label}
+                    />
+                  ))}
               </FormGroup>
               <Typography variant="subtitle2" sx={{ mt: 1 }}>
                 Period
@@ -594,11 +597,70 @@ export default function SessionsTab({
             </Box>
           )}
 
+          <Box sx={{ display: 'flex', gap: 4, mb: 2 }}>
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Joint Date:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.jointDate || '–'}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Last Session:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.lastSession || '–'}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Total Sessions:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.totalSessions ?? '–'}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Voucher Balance:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {voucherBalance ?? '–'}
+              </Typography>
+            </Box>
+          </Box>
+
           <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
             <TableHead>
               <TableRow>
                 {allColumns
-                  .filter((c) => visibleCols.includes(c.key))
+                  .filter((c) => c.key === 'ordinal' || visibleCols.includes(c.key))
                   .map((c) => (
                     <TableCell
                       key={c.key}
@@ -608,15 +670,21 @@ export default function SessionsTab({
                         fontWeight: 'bold',
                         width: c.width,
                         minWidth: c.width,
+                        position: 'relative',
                       }}
                     >
-                      <TableSortLabel
-                        active={sortBy === c.key}
-                        direction={sortBy === c.key ? sortDir : 'asc'}
-                        onClick={() => handleSort(c.key)}
-                      >
-                        {c.label}
-                      </TableSortLabel>
+                      {c.key === 'ordinal' ? (
+                        c.label
+                      ) : (
+                        <TableSortLabel
+                          active={sortBy === c.key}
+                          direction={sortBy === c.key ? sortDir : 'asc'}
+                          onClick={() => handleSort(c.key)}
+                        >
+                          {c.label}
+                        </TableSortLabel>
+                      )}
+                      <Box className="col-resizer" />
                     </TableCell>
                   ))}
               </TableRow>
@@ -653,6 +721,17 @@ export default function SessionsTab({
                     }}
                     sx={{ cursor: 'pointer' }}
                   >
+                    <TableCell
+                      sx={{
+                        typography: 'body2',
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: colWidth('ordinal'),
+                        minWidth: colWidth('ordinal'),
+                      }}
+                    >
+                      {i + 1}
+                    </TableCell>
                     {visibleCols.includes('date') && (
                       <TableCell
                         sx={{
@@ -788,64 +867,6 @@ export default function SessionsTab({
             </TableBody>
           </Table>
 
-          <Box mt={2}>
-            <Box mb={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
-                Joint Date:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
-                {summary.jointDate || '–'}
-              </Typography>
-            </Box>
-            <Box mb={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
-                Last Session:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
-                {summary.lastSession || '–'}
-              </Typography>
-            </Box>
-            <Box mb={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
-                Total Sessions:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
-                {summary.totalSessions ?? '–'}
-              </Typography>
-            </Box>
-            <Box mb={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
-                Voucher Balance:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
-                {voucherBalance ?? '–'}
-              </Typography>
-            </Box>
-          </Box>
         </>
       )}
 

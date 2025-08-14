@@ -19,6 +19,7 @@ import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
 import { WriteIcon } from './icons'
 import PaymentModal from './PaymentModal'
+import { useBilling } from '../../lib/billing/useBilling'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -60,6 +61,15 @@ export default function PaymentHistory({
   const [sortField, setSortField] = useState<'amount' | 'paymentMade'>('paymentMade')
   const [sortAsc, setSortAsc] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const { data: bill } = useBilling(abbr, account)
+
+  const sessionMap = React.useMemo(() => {
+    const m: Record<string, number> = {}
+    bill?.rows?.forEach((r: any, i: number) => {
+      m[r.id] = i + 1
+    })
+    return m
+  }, [bill])
 
   useEffect(() => {
     if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
@@ -130,10 +140,17 @@ export default function PaymentHistory({
               </IconButton>
             </Tooltip>
           </Box>
-          <Table size="small" sx={{ cursor: 'pointer' }}>
+          <Table size="small" sx={{ cursor: 'pointer', tableLayout: 'fixed', width: 'max-content' }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: 160,
+                  }}
+                >
                   <TableSortLabel
                     active={sortField === 'paymentMade'}
                     direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
@@ -147,8 +164,16 @@ export default function PaymentHistory({
                   >
                     Payment Made On
                   </TableSortLabel>
+                  <Box className="col-resizer" />
                 </TableCell>
-                <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: 160,
+                  }}
+                >
                   <TableSortLabel
                     active={sortField === 'amount'}
                     direction={sortField === 'amount' && sortAsc ? 'asc' : 'desc'}
@@ -162,6 +187,18 @@ export default function PaymentHistory({
                   >
                     Amount Received
                   </TableSortLabel>
+                  <Box className="col-resizer" />
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: 200,
+                  }}
+                >
+                  For Session(s)
+                  <Box className="col-resizer" />
                 </TableCell>
               </TableRow>
             </TableHead>
@@ -187,11 +224,24 @@ export default function PaymentHistory({
                   <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                     {formatCurrency(Number(p.amount) || 0)}
                   </TableCell>
+                  <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    {(() => {
+                      const ords = (p.assignedSessions || [])
+                        .map((id: string) => sessionMap[id])
+                        .filter(Boolean)
+                      return ords.length
+                        ? ords.map((o) => `#${o}`).join(', ')
+                        : '—'
+                    })()}
+                  </TableCell>
                 </TableRow>
               ))}
               {sortedPayments.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={2} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  <TableCell
+                    colSpan={3}
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
                     No payments recorded.
                   </TableCell>
                 </TableRow>
