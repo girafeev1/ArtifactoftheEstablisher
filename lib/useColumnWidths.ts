@@ -7,7 +7,7 @@ interface ColumnDef {
 
 export function useColumnWidths(
   tableId: string,
-  columns: ColumnDef[],
+  columns: readonly ColumnDef[],
   userId: string,
 ) {
   const storageKey = `tableWidth:${tableId}:${userId}`
