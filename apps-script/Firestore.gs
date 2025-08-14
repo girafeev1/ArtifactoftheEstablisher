@@ -42,18 +42,28 @@ function getDocument_(path) {
   return JSON.parse(resp.getContentText());
 }
 
-function runQuery_(structuredQuery, parent) {
-  var path = parent ? parent + ':runQuery' : ':runQuery';
-  var url = getFirestoreUrl(path);
+function runQuery_(structuredQuery, parentPath) {
+  var url = 'https://firestore.googleapis.com/v1/projects/' +
+    CONFIG.FIRESTORE_PROJECT_ID + '/databases/' +
+    encodeURIComponent(CONFIG.FIRESTORE_DB) + '/documents:runQuery';
+  var body = { structuredQuery: structuredQuery };
+  if (parentPath) {
+    if (parentPath.charAt(0) === '/') parentPath = parentPath.substring(1);
+    body.parent = 'projects/' + CONFIG.FIRESTORE_PROJECT_ID +
+      '/databases/' + CONFIG.FIRESTORE_DB + '/documents/' + parentPath;
+  }
   var resp = UrlFetchApp.fetch(url, {
     method: 'post',
     headers: {
       Authorization: 'Bearer ' + getFirestoreToken_(),
       'Content-Type': 'application/json'
     },
-    payload: JSON.stringify({ structuredQuery: structuredQuery }),
+    payload: JSON.stringify(body),
     muteHttpExceptions: true
   });
+  if (resp.getResponseCode() >= 400) {
+    Logger.log('Firestore query error: %s', resp.getContentText().substring(0, 1000));
+  }
   return JSON.parse(resp.getContentText());
 }
 

@@ -170,7 +170,7 @@ function logEventHistory_(encodedEventId, entry) {
     from: [{ collectionId: 'AppointmentHistory' }],
     orderBy: [{ field: { fieldPath: 'changeTimestamp' }, direction: 'DESCENDING' }],
     limit: 1
-  }, histPath);
+  }, 'Sessions/' + encodedEventId);
   if (existing && existing.length && existing[0].document) {
     var fields = existing[0].document.fields || {};
     if (fields.type && fields.type.stringValue === entry.type &&
