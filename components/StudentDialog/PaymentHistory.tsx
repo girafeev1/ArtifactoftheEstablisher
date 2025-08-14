@@ -20,6 +20,8 @@ import { PATHS, logPath } from '../../lib/paths'
 import { WriteIcon } from './icons'
 import PaymentModal from './PaymentModal'
 import { useBilling } from '../../lib/billing/useBilling'
+import { useSession } from 'next-auth/react'
+import { useColumnWidths } from '../../lib/useColumnWidths'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -62,6 +64,14 @@ export default function PaymentHistory({
   const [sortAsc, setSortAsc] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const { data: bill } = useBilling(abbr, account)
+  const { data: session } = useSession()
+  const userEmail = session?.user?.email || 'anon'
+  const columns = [
+    { key: 'paymentMade', label: 'Payment Made On', width: 160 },
+    { key: 'amount', label: 'Amount Received', width: 160 },
+    { key: 'session', label: 'For Session(s)', width: 200 },
+  ] as const
+  const { widths, startResize } = useColumnWidths('payments', columns, userEmail)
 
   const sessionMap = React.useMemo(() => {
     const m: Record<string, number> = {}
@@ -148,7 +158,8 @@ export default function PaymentHistory({
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
                     position: 'relative',
-                    width: 160,
+                    width: widths['paymentMade'],
+                    minWidth: widths['paymentMade'],
                   }}
                 >
                   <TableSortLabel
@@ -164,14 +175,19 @@ export default function PaymentHistory({
                   >
                     Payment Made On
                   </TableSortLabel>
-                  <Box className="col-resizer" />
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column Payment Made On"
+                    onMouseDown={(e) => startResize('paymentMade', e)}
+                  />
                 </TableCell>
                 <TableCell
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
                     position: 'relative',
-                    width: 160,
+                    width: widths['amount'],
+                    minWidth: widths['amount'],
                   }}
                 >
                   <TableSortLabel
@@ -187,18 +203,27 @@ export default function PaymentHistory({
                   >
                     Amount Received
                   </TableSortLabel>
-                  <Box className="col-resizer" />
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column Amount Received"
+                    onMouseDown={(e) => startResize('amount', e)}
+                  />
                 </TableCell>
                 <TableCell
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
                     position: 'relative',
-                    width: 200,
+                    width: widths['session'],
+                    minWidth: widths['session'],
                   }}
                 >
                   For Session(s)
-                  <Box className="col-resizer" />
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column For Session(s)"
+                    onMouseDown={(e) => startResize('session', e)}
+                  />
                 </TableCell>
               </TableRow>
             </TableHead>
@@ -218,13 +243,34 @@ export default function PaymentHistory({
                   }}
                   sx={{ cursor: 'pointer', py: 1 }}
                 >
-                  <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  <TableCell
+                    sx={{
+                      fontFamily: 'Newsreader',
+                      fontWeight: 500,
+                      width: widths['paymentMade'],
+                      minWidth: widths['paymentMade'],
+                    }}
+                  >
                     {formatDate(p.paymentMade)}
                   </TableCell>
-                  <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  <TableCell
+                    sx={{
+                      fontFamily: 'Newsreader',
+                      fontWeight: 500,
+                      width: widths['amount'],
+                      minWidth: widths['amount'],
+                    }}
+                  >
                     {formatCurrency(Number(p.amount) || 0)}
                   </TableCell>
-                  <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  <TableCell
+                    sx={{
+                      fontFamily: 'Newsreader',
+                      fontWeight: 500,
+                      width: widths['session'],
+                      minWidth: widths['session'],
+                    }}
+                  >
                     {(() => {
                       const ords = (p.assignedSessions || [])
                         .map((id: string) => sessionMap[id])

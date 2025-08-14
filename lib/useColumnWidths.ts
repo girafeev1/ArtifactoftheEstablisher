@@ -1,33 +1,73 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
-export function useColumnWidths(key: string, defaults: number[]) {
-  const [widths, setWidths] = useState<number[]>(() => {
-    if (typeof window === 'undefined') return defaults
+interface ColumnDef {
+  key: string
+  width: number
+}
+
+export function useColumnWidths(
+  tableId: string,
+  columns: ColumnDef[],
+  userId: string,
+) {
+  const storageKey = `tableWidth:${tableId}:${userId}`
+
+  const getInitial = () => {
+    const base: Record<string, number> = {}
+    columns.forEach((c) => {
+      base[c.key] = c.width
+    })
+    if (typeof window === 'undefined') return base
     try {
-      const saved = localStorage.getItem(key)
-      if (saved) {
-        const arr = JSON.parse(saved)
-        if (Array.isArray(arr)) return arr
+      const raw = localStorage.getItem(storageKey)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed === 'object') {
+          Object.keys(parsed).forEach((k) => {
+            if (typeof parsed[k] === 'number') base[k] = parsed[k]
+          })
+        }
       }
     } catch {
-      // ignore parse errors
+      // ignore
     }
-    return defaults
-  })
+    return base
+  }
+
+  const [widths, setWidths] = useState<Record<string, number>>(getInitial)
+
+  useEffect(() => {
+    setWidths(getInitial())
+  }, [storageKey])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(key, JSON.stringify(widths))
+      localStorage.setItem(storageKey, JSON.stringify(widths))
     }
-  }, [key, widths])
+  }, [storageKey, widths])
 
-  const updateWidth = (index: number, width: number) => {
-    setWidths((prev) => {
-      const next = [...prev]
-      next[index] = width
-      return next
-    })
-  }
+  const startResize = useCallback(
+    (key: string, e: React.MouseEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startWidth = widths[key]
+      const onMove = (ev: MouseEvent) => {
+        const delta = ev.clientX - startX
+        setWidths((prev) => {
+          const next = Math.max(60, Math.min(1000, startWidth + delta))
+          return { ...prev, [key]: next }
+        })
+      }
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+      }
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    },
+    [widths],
+  )
 
-  return [widths, updateWidth] as const
+  return { widths, startResize }
 }
+

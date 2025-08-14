@@ -31,6 +31,8 @@ import { db } from '../../lib/firebase'
 import SessionDetail from './SessionDetail'
 import { formatMMMDDYYYY } from '../../lib/date'
 import { PATHS, logPath } from '../../lib/paths'
+import { useSession } from 'next-auth/react'
+import { useColumnWidths } from '../../lib/useColumnWidths'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -77,7 +79,6 @@ export default function SessionsTab({
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any | null>(null)
-
   const allColumns = [
     { key: 'ordinal', label: '#', width: 60 },
     { key: 'date', label: 'Date', width: 110 },
@@ -91,7 +92,10 @@ export default function SessionsTab({
     { key: 'paymentStatus', label: 'Payment Status', width: 150 },
     { key: 'payOn', label: 'Pay on', width: 160 },
   ]
-  const colWidth = (key: string) => allColumns.find((c) => c.key === key)?.width
+  const { data: session } = useSession()
+  const userEmail = session?.user?.email || 'anon'
+  const { widths, startResize } = useColumnWidths('sessions', allColumns, userEmail)
+  const colWidth = (key: string) => widths[key]
   const defaultCols = [
     'date',
     'time',
@@ -668,9 +672,12 @@ export default function SessionsTab({
                         typography: 'body2',
                         fontFamily: 'Cantata One',
                         fontWeight: 'bold',
-                        width: c.width,
-                        minWidth: c.width,
-                        position: 'relative',
+                        width: colWidth(c.key),
+                        minWidth: colWidth(c.key),
+                        position: c.key === 'ordinal' ? 'sticky' : 'relative',
+                        left: c.key === 'ordinal' ? 0 : undefined,
+                        zIndex: c.key === 'ordinal' ? 3 : undefined,
+                        backgroundColor: c.key === 'ordinal' ? 'background.paper' : undefined,
                       }}
                     >
                       {c.key === 'ordinal' ? (
@@ -684,7 +691,13 @@ export default function SessionsTab({
                           {c.label}
                         </TableSortLabel>
                       )}
-                      <Box className="col-resizer" />
+                      {c.key !== 'ordinal' && (
+                        <Box
+                          className="col-resizer"
+                          aria-label={`Resize column ${c.label}`}
+                          onMouseDown={(e) => startResize(c.key, e)}
+                        />
+                      )}
                     </TableCell>
                   ))}
               </TableRow>
@@ -728,6 +741,10 @@ export default function SessionsTab({
                         fontWeight: 500,
                         width: colWidth('ordinal'),
                         minWidth: colWidth('ordinal'),
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 2,
+                        backgroundColor: 'background.paper',
                       }}
                     >
                       {i + 1}
@@ -817,6 +834,7 @@ export default function SessionsTab({
                           fontFamily: 'Newsreader',
                           fontWeight: 500,
                           width: colWidth('baseRate'),
+                          minWidth: colWidth('baseRate'),
                         }}
                       >
                         {s.baseRate !== '-' ? formatCurrency(Number(s.baseRate)) : '-'}
@@ -829,6 +847,7 @@ export default function SessionsTab({
                           fontFamily: 'Newsreader',
                           fontWeight: 500,
                           width: colWidth('rateCharged'),
+                          minWidth: colWidth('rateCharged'),
                         }}
                       >
                         {typeof s.rateCharged === 'string'
@@ -845,6 +864,7 @@ export default function SessionsTab({
                           fontFamily: 'Newsreader',
                           fontWeight: 500,
                           width: colWidth('paymentStatus'),
+                          minWidth: colWidth('paymentStatus'),
                         }}
                       >
                         {s.paymentStatus}
@@ -857,6 +877,7 @@ export default function SessionsTab({
                           fontFamily: 'Newsreader',
                           fontWeight: 500,
                           width: colWidth('payOn'),
+                          minWidth: colWidth('payOn'),
                         }}
                       >
                         {s.payOn}
