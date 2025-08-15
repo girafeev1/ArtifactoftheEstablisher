@@ -8,6 +8,11 @@ State: ✅ done · ⏳ in progress · 🧭 next · 🧪 QA/verify · 🗓️ def
 ⸻
 
 ## Latest change summary (this PR / diff you shared)
+- Reverted Total Sessions to include cancelled/proceeded like before.
+- Added double-click to auto-size columns to widest visible content; persisted per-user.
+- Unified Balance Due source-of-truth: compute via useBilling, write to billingSummary.balanceDue, card view uses computed value with skeleton fallback.
+- Hardened dialog stacking/portals: “Add Payment” and similar modals always topmost.
+- Added Base Rate History (info icon) with rate, timestamp, editedBy and add-entry flow.
 - Polish: Task Log headings/code fences.
 - Add PR Quality Gate (soft): Task ID required; warns for task-log & missing Context Bundle.
 - Add CI concurrency/timeout for Context Bundle workflow.
@@ -24,32 +29,37 @@ State: ✅ done · ⏳ in progress · 🧭 next · 🧪 QA/verify · 🗓️ def
 
 ## Tasks (T-xxx)
 
-| ID    | Title                                                             | State | Notes / Files |
-|-------|-------------------------------------------------------------------|:-----:|---------------|
-| T-001 | Column resizing (thin lever, hover, big hit area) + per-user persistence | ✅ | `lib/useColumnWidths.ts`, `.col-resizer` in `styles/studentDialog.css`; integrated in Sessions/Retainers/Payments tables |
-| T-002 | Sticky footers for Student Dialog screens (with shadow)           | ✅ | `.dialog-footer` + `pb:'64px'` in PaymentDetail, PaymentHistory, RetainerModal, SessionDetail, SessionsTab; CSS shadow |
-| T-003 | “Amount Received” blink: infinite + darker yellow (list & detail) | ✅ | `PaymentHistory.tsx`, `PaymentDetail.tsx`, `styles/studentDialog.css` (`.blink-amount`, reduced-motion safe) |
-| T-004 | PaymentDetail: robust remaining calculation + sticky Assign       | ✅ | Uses `remainingAmount ?? (amount - appliedAmount)`; Assign button moved to sticky footer; fixed-layout table |
-| T-005 | Payment list “For Session(s)” by ordinal                          | ✅ | Maps assigned session IDs to session ordinals via billing rows |
-| T-006 | Popover/Menu/Select clipping fix inside dialogs                   | ✅ | ThemeProvider + `lib/theme.ts` sets portal container to `document.body`; applied in `_app.tsx` |
-| T-007 | Sticky, resizable ordinal “#” column in Sessions                  | ✅ | Added ordinal column; sticky + resizable; maintained sorting/filters |
-| T-008 | Calendar scan integration (UI+API+Apps Script)                     | ✅ | `/api/calendar-scan` proxy; tools menu w/ Incremental/Full + spinner; Apps Script `doPost/syncCalendarChanges` with syncToken |
-| T-009 | Configure `CALENDAR_SCAN_URL` in `.env.local`                      | 🧭 | Add: `CALENDAR_SCAN_URL="https://script.google.com/macros/s/…/exec"` then restart. Optional: add to Vercel envs (Production/Preview/Dev). |
-| T-010 | Apps Script config: set `COACHING_CALENDAR_ID`, `FIRESTORE_PROJECT_ID`; enable services & scopes | 🧭 | In `apps-script/CONFIG.gs`. Enable Advanced Calendar + OAuth scopes; redeploy web app |
-| T-011 | Firestore number encoding: support `doubleValue` for non-integers | 🧭 | `toFirestoreFields()` currently uses `integerValue` for all numbers. Change to `doubleValue` when `!Number.isInteger(val)` |
-| T-012 | Calendar incremental sync: auto-recover on stale `syncToken` (HTTP 410) | 🧭 | Catch 410, call `clearSyncToken()`, retry once in `syncCalendarChanges()` |
-| T-013 | Add column resizers to PaymentDetail table headers (consistency)  | 🧭 | Bring header resizer rails to the “For session” table in `PaymentDetail.tsx` |
-| T-014 | Accessibility polish for loading/blink                            | 🧪 | We already respect `prefers-reduced-motion` for `.blink-amount`. Consider same for `.slow-blink` and `aria-live` for assign results |
-| T-015 | Sticky footer regression tour on small viewports                  | 🧪 | Verify scrollbars always accessible; confirm no overlap with bottom OS UI on mobile |
-| T-016 | Tests for calendar scan endpoints (proxy & Apps Script)           | 🧭 | Add node-side tests for `/api/calendar-scan` (happy-path + error) |
-| T-017 | Canonicalize Task Log + add quick-access entry point              | 🧭 | Keep `docs/task-log-vol-1.md` as source; (optional) add a top-level menu/link or readme pointer |
-| T-018 | Remove legacy Batch Rename Payments tool                          | ✅ | `tools/BatchRenamePayments.tsx` removed; confirm no menu entry remains |
-| T-019 | Dropdowns covered by dialog (global audit)                        | 🧪 | Theme fix should cover all; quick sweep to confirm no custom popper overrides |
-| T-020 | Table perf for large datasets                                     | 🗓️ | Consider virtualization if rows grow large (>500) to keep scroll smooth |
-| T-021 | Scan security: restrict `/api/calendar-scan`                      | 🧭 | Add admin check or shared secret header forwarded to Apps Script to avoid public triggering |
-| T-022 | Surface scan results/log in UI                                    | 🗓️ | Beyond snackbar, optional “Scan Log” panel with last run & processed count |
-| T-023 | Student cards: skeletons instead of blink for placeholders        | 🧭 | Replace `.slow-blink` with MUI Skeletons for sex/total/upcoming/balance |
-| T-024 | Consistency pass: horizontal scrollbar always in footer across all tables | 🧪 | Most main tables done; confirm any remaining secondary tables |
+| ID    | Title | State | Notes / Files |
+|-------|-------|:-----:|---------------|
+| T-001 | Column resizing (thin lever, hover, big hit area) + per-user persistence | ✅ | `lib/useColumnWidths.ts`, `.col-resizer` |
+| T-002 | Sticky footers for Student Dialog screens (with shadow) | ✅ | `.dialog-footer` + padding in detail views |
+| T-003 | “Amount Received” blink: infinite + darker yellow (list & detail) | ✅ | `.blink-amount` |
+| T-004 | PaymentDetail: robust remaining calculation + sticky Assign | ✅ | Remaining = remainingAmount ?? (amount - appliedAmount) |
+| T-005 | Payment list “For Session(s)” by ordinal | ✅ | Uses billing rows to map ordinals |
+| T-006 | Popover/Menu/Select clipping fix inside dialogs | ✅ | Theme defaults to body |
+| T-007 | Sticky, resizable ordinal “#” column in Sessions | ✅ | Sticky first column + resizer |
+| T-008 | Calendar scan integration (UI+API+Apps Script) | ✅ | `/api/calendar-scan`, tools menu |
+| T-009 | Configure `CALENDAR_SCAN_URL` in `.env.local` | 🧭 | Set and restart; add to Vercel envs |
+| T-010 | Apps Script config IDs + services & scopes | 🧭 | `COACHING_CALENDAR_ID`, `FIRESTORE_PROJECT_ID` |
+| T-025 | Revert Total Sessions to include cancelled/proceeded | ✅ | SessionsTab summary + card view; ordinal mapping stable |
+| T-026 | Double-click to auto-size column to widest visible content | ✅ | `useColumnWidths` autoSize() + `data-col=...` + persisted |
+| T-027 | Balance-due unification and cache write-back | ✅ | Card uses `useBilling`; `writeSummaryFromCache` audited |
+| T-028 | Dialog/overlay z-index & portal audit (Add Payment on top) | ✅ | Theme `MuiDialog` container; remove conflicting z-index |
+| T-029 | Base Rate history modal + add entry (editedBy) | ✅ | Info icon in SessionDetail; new `BaseRateHistoryModal` |
+| T-011 | Firestore number encoding: doubleValue for non-integers | 🧭 | Update `toFirestoreFields` |
+| T-012 | Calendar sync 410 recovery (stale syncToken) | 🧭 | Retry full on 410 |
+| T-013 | Add resizers to PaymentDetail headers | 🧭 | Consistency |
+| T-014 | A11y polish for loading/blink | 🧪 | Reduced motion for all blinks |
+| T-015 | Sticky footer regression tour on small viewports | 🧪 | Visual QA |
+| T-016 | Tests for calendar scan endpoints | 🧭 | Node tests |
+| T-017 | Canonicalize Task Log + quick-access link | 🧭 | Readme/menu |
+| T-018 | Remove legacy Batch Rename Payments tool | ✅ | File removed |
+| T-019 | Dropdowns covered by dialog (global audit) | 🧪 | Confirm after theme fix |
+| T-020 | Table perf for large datasets | 🗓️ | Virtualization later |
+| T-021 | Secure `/api/calendar-scan` | 🧭 | Admin check/secret header |
+| T-022 | Surface scan results/log in UI | 🗓️ | Optional log panel |
+| T-023 | Replace slow-blink placeholders with Skeletons | 🧭 | Card metrics |
+| T-024 | Make scrollbar-in-footer consistent across all tables | 🧪 | Quick sweep |
 
 ⸻
 
@@ -57,9 +67,9 @@ State: ✅ done · ⏳ in progress · 🧭 next · 🧪 QA/verify · 🗓️ def
 
 | ID   | Title                                          | State | Notes |
 |------|------------------------------------------------|:----:|-------|
-| P-011| Calendar scan integration (Apps Script)        | ✅ | Added Apps Script sync + Next API proxy + UI tools |
-| P-012| Resizable tables + sticky # + blink polish     | ✅ | Implemented thin lever, sticky ordinal, infinite/darker blink |
-| P-013| UI polish + scan hardening                     | ⏳ | Tracks T-009/T-010/T-011/T-012/T-021 |
+| P-011| Calendar scan integration (Apps Script)        | ✅ | Shipped |
+| P-012| Resizable tables + sticky # + blink polish     | ✅ | Shipped |
+| P-014| Session totals revert, auto-size, due unification, dialog audit, base-rate history | ✅ | This change |
 
 ⸻
 
