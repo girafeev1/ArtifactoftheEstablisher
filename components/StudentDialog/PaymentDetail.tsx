@@ -277,7 +277,15 @@ export default function PaymentDetail({
           variant="h6"
           sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
         >
-          {formatCurrency(Number(payment.amount) || 0)}
+          <span
+            className={
+              remaining > 0 || assignedSessionIds.length === 0
+                ? 'blink-amount'
+                : undefined
+            }
+          >
+            {formatCurrency(Number(payment.amount) || 0)}
+          </span>
         </Typography>
 
         <Typography
@@ -467,13 +475,14 @@ export default function PaymentDetail({
         )}
       </Box>
       <Box
+        className="dialog-footer"
         sx={{
-          borderTop: 1,
-          borderColor: 'divider',
           p: 1,
           display: 'flex',
           justifyContent: 'flex-start',
           bgcolor: 'background.paper',
+          borderTop: 1,
+          borderColor: 'divider',
         }}
       >
         <Button

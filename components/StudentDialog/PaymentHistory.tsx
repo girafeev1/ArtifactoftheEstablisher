@@ -261,7 +261,15 @@ export default function PaymentHistory({
                       minWidth: widths['amount'],
                     }}
                   >
-                    {formatCurrency(Number(p.amount) || 0)}
+                    <span
+                      className={
+                        p.remainingAmount > 0 || !(p.assignedSessions || []).length
+                          ? 'blink-amount'
+                          : undefined
+                      }
+                    >
+                      {formatCurrency(Number(p.amount) || 0)}
+                    </span>
                   </TableCell>
                   <TableCell
                     sx={{

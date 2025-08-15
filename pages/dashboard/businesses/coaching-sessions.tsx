@@ -79,10 +79,12 @@ export default function CoachingSessions() {
         ),
       })
       const data = await res.json()
-      setScanMessage(data.message || (res.ok ? 'Scan complete' : 'Scan failed'))
-    } catch (err) {
+      setScanMessage(
+        res.ok ? data.message : `Scan failed: ${data.message || res.statusText}`,
+      )
+    } catch (err: any) {
       console.error(err)
-      setScanMessage('Scan failed')
+      setScanMessage(`Scan failed: ${err.message || err}`)
     }
   }
 
@@ -259,6 +261,7 @@ export default function CoachingSessions() {
           onClose={closeToolsMenu}
           anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
           transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          disablePortal={false}
         >
           <MenuItem onClick={() => handleScan(false)}>
             🔄 Incremental Scan

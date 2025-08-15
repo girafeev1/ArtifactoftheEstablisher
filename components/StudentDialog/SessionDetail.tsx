@@ -246,13 +246,14 @@ export default function SessionDetail({
       </Box>
 
       <Box
+        className="dialog-footer"
         sx={{
-          borderTop: 1,
-          borderColor: 'divider',
           p: 1,
           display: 'flex',
           justifyContent: 'flex-start',
           bgcolor: 'background.paper',
+          borderTop: 1,
+          borderColor: 'divider',
         }}
       >
         <Button variant="text" onClick={onBack} aria-label="back to sessions">

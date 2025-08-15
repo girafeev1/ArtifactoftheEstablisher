@@ -4,6 +4,7 @@
 function syncCalendarChanges() {
   var props = PropertiesService.getScriptProperties();
   var token = props.getProperty(CONFIG.SYNC_TOKEN_KEY);
+  var isFull = !token;
   var now = new Date();
   var params = { singleEvents: true };
   if (token) {
@@ -33,7 +34,11 @@ function syncCalendarChanges() {
   if (lastResponse && lastResponse.nextSyncToken) {
     props.setProperty(CONFIG.SYNC_TOKEN_KEY, lastResponse.nextSyncToken);
   }
-  return { processed: Object.keys(processed).length };
+  return {
+    ok: true,
+    processed: Object.keys(processed).length,
+    message: isFull ? 'Full rescan complete' : 'Incremental scan complete'
+  };
 }
 
 function handleCalendarItem_(eventId, item) {

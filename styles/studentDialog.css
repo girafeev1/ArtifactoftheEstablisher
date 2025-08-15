@@ -38,8 +38,43 @@
   position: absolute;
   top: 0;
   right: 0;
-  width: 4px;
+  width: 2px;
   height: 100%;
   cursor: col-resize;
   background-color: rgba(0, 0, 0, 0.1);
+}
+
+.col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -5px;
+  width: 12px;
+  height: 100%;
+}
+
+@keyframes blinkAmount {
+  0%, 100% {
+    color: #ffe082;
+  }
+  50% {
+    color: #ffb300;
+  }
+}
+
+.blink-amount {
+  animation: blinkAmount 1.5s infinite;
+}
+
+.dialog-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  box-shadow: 0 -6px 14px rgba(0, 0, 0, 0.06);
+  background-color: var(--mui-palette-background-paper, #fff);
+}
+
+.student-dialog-modal .MuiDialog-paper,
+.student-dialog-modal .MuiDialogContent-root {
+  overflow: visible;
 }

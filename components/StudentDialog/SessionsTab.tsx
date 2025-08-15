@@ -593,6 +593,7 @@ export default function SessionsTab({
                 value={period}
                 size="small"
                 onChange={(e) => setPeriod(e.target.value as any)}
+                MenuProps={{ disablePortal: false }}
               >
                 <MenuItem value="30">Last 30 days</MenuItem>
                 <MenuItem value="90">Last 90 days</MenuItem>
@@ -691,13 +692,11 @@ export default function SessionsTab({
                           {c.label}
                         </TableSortLabel>
                       )}
-                      {c.key !== 'ordinal' && (
-                        <Box
-                          className="col-resizer"
-                          aria-label={`Resize column ${c.label}`}
-                          onMouseDown={(e) => startResize(c.key, e)}
-                        />
-                      )}
+                      <Box
+                        className="col-resizer"
+                        aria-label={`Resize column ${c.label}`}
+                        onMouseDown={(e) => startResize(c.key, e)}
+                      />
                     </TableCell>
                   ))}
               </TableRow>

@@ -15,9 +15,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       body: JSON.stringify(req.body || { action: 'scanAll' }),
     });
     const data = await response.json();
-    return res.status(response.ok ? 200 : 500).json(data);
+    if (response.ok) {
+      return res.status(200).json(data);
+    } else {
+      return res
+        .status(500)
+        .json({ ok: false, message: data.message || `HTTP ${response.status}` });
+    }
   } catch (err: any) {
     console.error('[api/calendar-scan] error', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
   }
 }

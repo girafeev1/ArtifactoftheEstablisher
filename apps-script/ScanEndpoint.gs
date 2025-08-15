@@ -2,23 +2,25 @@
  * Web endpoint for triggering calendar scans.
  */
 function doPost(e) {
-  var body = {};
   try {
+    var body = {};
     if (e && e.postData && e.postData.contents) {
       body = JSON.parse(e.postData.contents);
     }
-  } catch (err) {}
-  var action = body.action || 'scanAll';
-  if (action === 'scanOne') {
-    var account = body.account;
-    var daysBack = body.daysBack;
-    var daysForward = body.daysForward;
-    var result = scanAccountWindow_(account, daysBack, daysForward);
-    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
-  } else {
-    if (body.forceFull) clearSyncToken();
-    var res = syncCalendarChanges();
-    return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+    var action = body.action || 'scanAll';
+    if (action === 'scanOne') {
+      var account = body.account;
+      var daysBack = body.daysBack;
+      var daysForward = body.daysForward;
+      var result = scanAccountWindow_(account, daysBack, daysForward);
+      return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    } else {
+      if (body.forceFull) clearSyncToken();
+      var res = syncCalendarChanges();
+      return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, message: String(err) })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -52,5 +54,9 @@ function scanAccountWindow_(account, daysBack, daysForward) {
     }
     pageToken = resp.nextPageToken;
   } while (pageToken);
-  return { processed: Object.keys(processed).length };
+  return {
+    ok: true,
+    processed: Object.keys(processed).length,
+    message: 'Account scan complete'
+  };
 }
