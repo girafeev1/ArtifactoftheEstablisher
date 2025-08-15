@@ -9,8 +9,7 @@ import {
   CircularProgress,
   Typography,
   TableSortLabel,
-  IconButton,
-  Tooltip,
+  Button,
 } from '@mui/material'
 import { collection, orderBy, query, onSnapshot } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
@@ -132,27 +131,21 @@ export default function PaymentHistory({
     )
 
   return (
-    <Box sx={{ p: 4, overflow: 'auto' }}>
-      {loading ? (
-        <CircularProgress />
-      ) : (
-        <>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
+        {loading ? (
+          <CircularProgress />
+        ) : (
+          <>
             <Typography
               variant="subtitle1"
-              sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+              sx={{ fontFamily: 'Cantata One', textDecoration: 'underline', mb: 1 }}
             >
               Payment History
             </Typography>
-            <Tooltip title="Add Payment">
-              <IconButton color="primary" onClick={() => setModalOpen(true)}>
-                <WriteIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
-          <Table size="small" sx={{ cursor: 'pointer', tableLayout: 'fixed', width: 'max-content' }}>
-            <TableHead>
-              <TableRow>
+            <Table size="small" sx={{ cursor: 'pointer', tableLayout: 'fixed', width: 'max-content' }}>
+              <TableHead>
+                <TableRow>
                 <TableCell
                   sx={{
                     fontFamily: 'Cantata One',
@@ -228,68 +221,71 @@ export default function PaymentHistory({
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedPayments.map((p) => (
-                <TableRow
-                  key={p.id}
-                  hover
-                  onClick={() => setDetail(p)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      setDetail(p)
-                    }
-                  }}
-                  sx={{ cursor: 'pointer', py: 1 }}
-                >
-                  <TableCell
-                    sx={{
-                      fontFamily: 'Newsreader',
-                      fontWeight: 500,
-                      width: widths['paymentMade'],
-                      minWidth: widths['paymentMade'],
-                    }}
-                  >
-                    {formatDate(p.paymentMade)}
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontFamily: 'Newsreader',
-                      fontWeight: 500,
-                      width: widths['amount'],
-                      minWidth: widths['amount'],
-                    }}
-                  >
-                    <span
-                      className={
-                        p.remainingAmount > 0 || !(p.assignedSessions || []).length
-                          ? 'blink-amount'
-                          : undefined
+              {sortedPayments.map((p) => {
+                const amount = Number(p.amount) || 0
+                const applied = Number(p.appliedAmount ?? 0)
+                const remaining = Number(
+                  p.remainingAmount ?? (amount - applied),
+                )
+                const unassigned = (p.assignedSessions?.length ?? 0) === 0
+                const blink = (amount > 0 && remaining > 0) || unassigned
+                return (
+                  <TableRow
+                    key={p.id}
+                    hover
+                    onClick={() => setDetail(p)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setDetail(p)
                       }
-                    >
-                      {formatCurrency(Number(p.amount) || 0)}
-                    </span>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontFamily: 'Newsreader',
-                      fontWeight: 500,
-                      width: widths['session'],
-                      minWidth: widths['session'],
                     }}
+                    sx={{ cursor: 'pointer', py: 1 }}
                   >
-                    {(() => {
-                      const ords = (p.assignedSessions || [])
-                        .map((id: string) => sessionMap[id])
-                        .filter(Boolean)
-                      return ords.length
-                        ? ords.map((o) => `#${o}`).join(', ')
-                        : '—'
-                    })()}
-                  </TableCell>
-                </TableRow>
-              ))}
+                    <TableCell
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['paymentMade'],
+                        minWidth: widths['paymentMade'],
+                      }}
+                    >
+                      {formatDate(p.paymentMade)}
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['amount'],
+                        minWidth: widths['amount'],
+                      }}
+                    >
+                      <span className={blink ? 'blink-amount' : undefined}>
+                        {formatCurrency(amount)}
+                      </span>
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['session'],
+                        minWidth: widths['session'],
+                      }}
+                    >
+                      {(() => {
+                        const ords = (p.assignedSessions || [])
+                          .map((id: string) => sessionMap[id])
+                          .filter(Boolean)
+                        return ords.length
+                          ? ords.map((o) => `#${o}`).join(', ')
+                          : '—'
+                      })()}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
               {sortedPayments.length === 0 && (
                 <TableRow>
                   <TableCell
@@ -301,14 +297,28 @@ export default function PaymentHistory({
                 </TableRow>
               )}
             </TableBody>
-          </Table>
-          <PaymentModal
-            abbr={abbr}
-            open={modalOpen}
-            onClose={() => setModalOpen(false)}
-          />
-        </>
-      )}
+            </Table>
+          </>
+        )}
+      </Box>
+      <Box
+        className="dialog-footer"
+        sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
+      >
+        <span />
+        <Button
+          variant="contained"
+          onClick={() => setModalOpen(true)}
+          startIcon={<WriteIcon fontSize="small" />}
+        >
+          Add Payment
+        </Button>
+      </Box>
+      <PaymentModal
+        abbr={abbr}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+      />
     </Box>
   )
 }

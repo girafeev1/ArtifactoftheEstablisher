@@ -9,7 +9,6 @@ import {
   TableBody,
   Button,
   TableSortLabel,
-  IconButton,
   Tooltip,
 } from '@mui/material'
 import { collection, getDocs } from 'firebase/firestore'
@@ -99,33 +98,15 @@ export default function RetainersTab({
     .sort((a, b) => a.s.getTime() - b.s.getTime())[0]?.row
 
   return (
-    <Box sx={{ p: 1, textAlign: 'left', height: '100%' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', textAlign: 'left' }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1, pb: '64px' }}>
         <Typography
           variant="subtitle1"
-          sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+          sx={{ fontFamily: 'Cantata One', textDecoration: 'underline', mb: 1 }}
         >
           Retainers
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Tooltip title="Add Retainer">
-            <IconButton
-              color="primary"
-              onClick={() =>
-                setModal({
-                  open: true,
-                  nextStart: rows[rows.length - 1]
-                    ? rows[rows.length - 1].retainerEnds.toDate()
-                    : undefined,
-                })
-              }
-            >
-              <WriteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
-      <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
+        <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
         <TableHead>
           <TableRow>
             <TableCell
@@ -306,20 +287,41 @@ export default function RetainersTab({
             )
           })}
         </TableBody>
-      </Table>
-      {modal.open && (
-        <RetainerModal
-          abbr={abbr}
-          account={account}
-          balanceDue={balanceDue}
-          retainer={modal.retainer}
-          nextStart={modal.nextStart}
-          onClose={(saved) => {
-            setModal({ open: false })
-            if (saved) load()
-          }}
-        />
-      )}
+        </Table>
+        {modal.open && (
+          <RetainerModal
+            abbr={abbr}
+            account={account}
+            balanceDue={balanceDue}
+            retainer={modal.retainer}
+            nextStart={modal.nextStart}
+            onClose={(saved) => {
+              setModal({ open: false })
+              if (saved) load()
+            }}
+          />
+        )}
+      </Box>
+      <Box
+        className="dialog-footer"
+        sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
+      >
+        <span />
+        <Button
+          variant="contained"
+          onClick={() =>
+            setModal({
+              open: true,
+              nextStart: rows[rows.length - 1]
+                ? rows[rows.length - 1].retainerEnds.toDate()
+                : undefined,
+            })
+          }
+          startIcon={<WriteIcon fontSize="small" />}
+        >
+          Add Retainer
+        </Button>
+      </Box>
     </Box>
   )
 }

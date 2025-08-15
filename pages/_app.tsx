@@ -6,6 +6,8 @@ import { setupClientLogging } from '../lib/clientLogger';
 import { Newsreader, Cantata_One, Nunito } from 'next/font/google';
 import '../styles/studentDialog.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from '../lib/theme';
 
 if (typeof window !== 'undefined') {
   setupClientLogging();
@@ -21,13 +23,15 @@ const queryClient = new QueryClient();
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <div className={`${newsreader.className} ${cantata.className} ${nunito.variable}`}>
-      <QueryClientProvider client={queryClient}>
-        <SessionProvider session={pageProps.session}>
-          <SnackbarProvider maxSnack={3}>
-            <Component {...pageProps} />
-          </SnackbarProvider>
-        </SessionProvider>
-      </QueryClientProvider>
+      <ThemeProvider theme={theme}>
+        <QueryClientProvider client={queryClient}>
+          <SessionProvider session={pageProps.session}>
+            <SnackbarProvider maxSnack={3}>
+              <Component {...pageProps} />
+            </SnackbarProvider>
+          </SessionProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
     </div>
   );
 }

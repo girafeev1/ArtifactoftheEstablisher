@@ -16,6 +16,7 @@ import {
   Menu,
   MenuItem,
   Snackbar,
+  CircularProgress,
 } from '@mui/material'
 import { PATHS, logPath } from '../../../lib/paths'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
@@ -52,6 +53,7 @@ export default function CoachingSessions() {
   const [serviceMode, setServiceMode] = useState(false)
   const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
   const [scanMessage, setScanMessage] = useState('')
+  const [scanning, setScanning] = useState<'inc' | 'full' | null>(null)
   const [detached, setDetached] = useState<any | null>(null)
   const openToolsMenu = (e: React.MouseEvent<HTMLElement>) => {
     setToolsAnchor(e.currentTarget)
@@ -70,6 +72,7 @@ export default function CoachingSessions() {
 
   const handleScan = async (full: boolean) => {
     closeToolsMenu()
+    setScanning(full ? 'full' : 'inc')
     try {
       const res = await fetch('/api/calendar-scan', {
         method: 'POST',
@@ -79,12 +82,15 @@ export default function CoachingSessions() {
         ),
       })
       const data = await res.json()
+      console.info('calendar scan', data)
       setScanMessage(
         res.ok ? data.message : `Scan failed: ${data.message || res.statusText}`,
       )
     } catch (err: any) {
       console.error(err)
       setScanMessage(`Scan failed: ${err.message || err}`)
+    } finally {
+      setScanning(null)
     }
   }
 
@@ -263,10 +269,22 @@ export default function CoachingSessions() {
           transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
           disablePortal={false}
         >
-          <MenuItem onClick={() => handleScan(false)}>
+          <MenuItem
+            disabled={scanning !== null}
+            onClick={() => handleScan(false)}
+          >
+            {scanning === 'inc' && (
+              <CircularProgress size={14} sx={{ mr: 1 }} />
+            )}
             🔄 Incremental Scan
           </MenuItem>
-          <MenuItem onClick={() => handleScan(true)}>
+          <MenuItem
+            disabled={scanning !== null}
+            onClick={() => handleScan(true)}
+          >
+            {scanning === 'full' && (
+              <CircularProgress size={14} sx={{ mr: 1 }} />
+            )}
             ♻️ Full Rescan
           </MenuItem>
           <MenuItem onClick={handleClearAll}>

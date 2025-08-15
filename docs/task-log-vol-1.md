@@ -90,4 +90,3 @@ Enable Advanced Calendar service and re-deploy the web app.
 Notes
 	•	Keep newest tasks at the top when updating.
 	•	For each merged PR, add 1–2 bullets in “Latest change summary” and note key files touched.
-

@@ -539,17 +539,12 @@ export default function SessionsTab({
   }
   return (
     <Box
-      sx={{
-        textAlign: 'left',
-        position: 'relative',
-        maxWidth: '100%',
-        maxHeight: '100%',
-        overflow: 'auto',
-      }}
+      sx={{ display: 'flex', flexDirection: 'column', height: '100%', textAlign: 'left' }}
       style={style}
     >
-      {!detail && (
-        <>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1, pb: '64px' }}>
+        {!detail && (
+          <>
           <Button
             variant="outlined"
             size="small"
@@ -887,20 +882,22 @@ export default function SessionsTab({
             </TableBody>
           </Table>
 
-        </>
-      )}
+          </>
+        )}
 
-      {detail && (
-        <SessionDetail
-          abbr={abbr}
-          account={account}
-          session={detail}
-          onBack={() => {
-            setDetail(null)
-            onTitle?.(account)
-          }}
-        />
-      )}
+        {detail && (
+          <SessionDetail
+            abbr={abbr}
+            account={account}
+            session={detail}
+            onBack={() => {
+              setDetail(null)
+              onTitle?.(account)
+            }}
+          />
+        )}
+      </Box>
+      <Box className="dialog-footer" sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }} />
     </Box>
   )
 }

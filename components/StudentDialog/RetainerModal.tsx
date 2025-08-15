@@ -92,7 +92,7 @@ export default function RetainerModal({
           maxHeight: '90vh',
         }}
       >
-        <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+        <Box sx={{ flexGrow: 1, overflow: 'auto', pb: '64px' }}>
           <Typography
             variant="h6"
             sx={{ fontFamily: 'Cantata One', mb: 2 }}
@@ -141,7 +141,7 @@ export default function RetainerModal({
         </Box>
         <Box
           className="dialog-footer"
-          sx={{ mt: 2, pt: 1, display: 'flex', justifyContent: 'space-between', borderTop: 1, borderColor: 'divider' }}
+          sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
         >
           <Button onClick={() => onClose(false)} disabled={saving}>
             Close
