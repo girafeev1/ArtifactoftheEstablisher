@@ -1,0 +1,58 @@
+name: PR Quality Gate (soft)
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: List changed files
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=50
+          git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD > changed.txt
+          cat changed.txt || true
+
+      - name: Quality checks
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pr = context.payload.pull_request;
+
+            const title = pr.title || '';
+            const body = pr.body || '';
+            const idRe = /\b(T-\d{3,}|P-\d{3,})\b/;
+
+            const hasTaskId = idRe.test(title) || idRe.test(body);
+            if (!hasTaskId) {
+              core.setFailed('Missing Task ID (T-xxx or P-###) in PR title or body.');
+            }
+
+            const list = fs.readFileSync('changed.txt','utf8').split('\n').filter(Boolean);
+            const isAppFile = p => !/^docs\//.test(p) && !/^\.github\//.test(p) && !/\.md$/.test(p);
+            const appChanges = list.filter(isAppFile);
+
+            if (appChanges.length > 0 && !list.includes('docs/task-log-vol-1.md')) {
+              core.warning('App files changed but docs/task-log-vol-1.md was not updated.');
+            }
+
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: pr.number,
+              per_page: 100
+            });
+            const hasBundle = comments.some(c => /#\s*Context Bundle/i.test(c.body || ''));
+            if (!hasBundle) {
+              core.warning('No "Context Bundle" sticky comment found yet. Ensure the Context Bundle workflow ran.');
+            }
+

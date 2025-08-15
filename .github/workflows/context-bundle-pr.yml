@@ -1,0 +1,154 @@
+name: Context Bundle (PR)
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  bundle:
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: context-bundle-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute refs
+        id: refs
+        run: |
+          echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
+          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          echo "BASE_REF=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
+          echo "HEAD_REF=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Detect package manager
+        id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then echo "name=pnpm" >> $GITHUB_OUTPUT; exit 0; fi
+          if [ -f yarn.lock ]; then echo "name=yarn" >> $GITHUB_OUTPUT; exit 0; fi
+          echo "name=npm" >> $GITHUB_OUTPUT
+
+      - name: Install deps (best-effort)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -e
+          PM="${{ steps.pm.outputs.name }}"
+          if [ "$PM" = "pnpm" ]; then
+            corepack enable
+            pnpm i --frozen-lockfile || pnpm i
+          elif [ "$PM" = "yarn" ]; then
+            corepack enable
+            yarn install --frozen-lockfile || yarn install
+          else
+            npm ci || npm i
+          fi
+
+      - name: Generate file change list
+        shell: bash
+        run: |
+          git diff --name-status ${{ steps.refs.outputs.BASE_SHA }}...${{ steps.refs.outputs.HEAD_SHA }} > files.txt || true
+          {
+            echo "# Context Bundle"
+            echo
+            echo "_PR_: #${{ github.event.pull_request.number }}  |  _Base_: ${{ steps.refs.outputs.BASE_REF }}  |  _Head_: ${{ steps.refs.outputs.HEAD_REF }}"
+            echo "_Generated_: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo
+            echo "### Changed Files (vs base)"
+            echo
+            if [ -s files.txt ]; then
+              awk '{print "- " $0}' files.txt
+            else
+              echo "_No changes detected._"
+            fi
+            echo
+          } > bundle.md
+
+      - name: Generate compact diff hunks
+        shell: bash
+        run: |
+          echo "### Compact Diff Hunks" >> bundle.md
+          echo >> bundle.md
+          git diff --unified=0 ${{ steps.refs.outputs.BASE_SHA }}...${{ steps.refs.outputs.HEAD_SHA }} | head -n 3000 > hunks.patch || true
+          if [ -s hunks.patch ]; then
+            echo '```diff' >> bundle.md
+            cat hunks.patch >> bundle.md
+            echo '```' >> bundle.md
+          else
+            echo "_(empty)_" >> bundle.md
+          fi
+          echo >> bundle.md
+
+      - name: TypeScript diagnostics (optional)
+        if: ${{ hashFiles('tsconfig.json') != '' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          npx tsc -p tsconfig.json --noEmit > ts.txt 2>&1 || true
+          echo "### TypeScript Diagnostics" >> bundle.md
+          echo >> bundle.md
+          if [ -s ts.txt ]; then
+            echo '```' >> bundle.md
+            head -n 300 ts.txt >> bundle.md
+            echo '```' >> bundle.md
+          else
+            echo "_No TypeScript errors._" >> bundle.md
+          fi
+          echo >> bundle.md
+
+      - name: ESLint summary (optional)
+        continue-on-error: true
+        shell: bash
+        run: |
+          HAS_ESLINT=0
+          if [ -f .eslintrc ] || [ -f .eslintrc.js ] || [ -f .eslintrc.cjs ] || [ -f .eslintrc.json ]; then HAS_ESLINT=1; fi
+          if grep -q '"eslintConfig"' package.json 2>/dev/null; then HAS_ESLINT=1; fi
+          echo "### ESLint Summary" >> bundle.md
+          echo >> bundle.md
+          if [ "$HAS_ESLINT" = "1" ]; then
+            npx eslint . -f stylish > eslint.txt 2>&1 || true
+            if [ -s eslint.txt ]; then
+              echo '```' >> bundle.md
+              head -n 300 eslint.txt >> bundle.md
+              echo '```' >> bundle.md
+            else
+              echo "_No ESLint output._" >> bundle.md
+            fi
+          else
+            echo "_No ESLint config detected._" >> bundle.md
+          fi
+          echo >> bundle.md
+
+      - name: Post sticky PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: context-bundle
+          path: bundle.md
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: context-bundle-pr-${{ github.event.pull_request.number }}
+          path: |
+            bundle.md
+            files.txt
+            hunks.patch
+            ts.txt
+            eslint.txt
+          if-no-files-found: ignore
