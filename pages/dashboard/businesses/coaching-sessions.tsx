@@ -16,24 +16,26 @@ import {
   Menu,
   MenuItem,
   Snackbar,
+  CircularProgress,
 } from '@mui/material'
 import { PATHS, logPath } from '../../../lib/paths'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
 import SessionDetail from '../../../components/StudentDialog/SessionDetail'
 import FloatingWindow from '../../../components/StudentDialog/FloatingWindow'
 import { clearSessionSummaries } from '../../../lib/sessionStats'
-import BatchRenamePayments from '../../../tools/BatchRenamePayments'
 import { computeSessionStart } from '../../../lib/sessions'
+import IconButton from '@mui/material/IconButton'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
 
 interface StudentMeta {
   abbr: string
   account: string
 }
 interface StudentDetails extends StudentMeta {
-  sex?: string
-  balanceDue?: number
-  total: number
-  upcoming: number
+  sex?: string | null
+  balanceDue?: number | null
+  total?: number | null
+  upcoming?: number | null
 }
 
 const formatCurrency = (n: number) =>
@@ -51,10 +53,9 @@ export default function CoachingSessions() {
   const [serviceMode, setServiceMode] = useState(false)
   const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
   const [scanMessage, setScanMessage] = useState('')
-  const [renameOpen, setRenameOpen] = useState(false)
+  const [scanning, setScanning] = useState<'inc' | 'full' | null>(null)
   const [detached, setDetached] = useState<any | null>(null)
-
-  const openToolsMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const openToolsMenu = (e: React.MouseEvent<HTMLElement>) => {
     setToolsAnchor(e.currentTarget)
   }
   const closeToolsMenu = () => setToolsAnchor(null)
@@ -66,6 +67,30 @@ export default function CoachingSessions() {
     } catch (err) {
       console.error(err)
       setScanMessage('Failed to clear session summaries')
+    }
+  }
+
+  const handleScan = async (full: boolean) => {
+    closeToolsMenu()
+    setScanning(full ? 'full' : 'inc')
+    try {
+      const res = await fetch('/api/calendar-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          full ? { action: 'scanAll', forceFull: true } : { action: 'scanAll' },
+        ),
+      })
+      const data = await res.json()
+      console.info('calendar scan', data)
+      setScanMessage(
+        res.ok ? data.message : `Scan failed: ${data.message || res.statusText}`,
+      )
+    } catch (err: any) {
+      console.error(err)
+      setScanMessage(`Scan failed: ${err.message || err}`)
+    } finally {
+      setScanning(null)
     }
   }
 
@@ -84,7 +109,15 @@ export default function CoachingSessions() {
       }))
 
       if (!mounted) return
-      setStudents(basics.map((b) => ({ ...b, total: 0, upcoming: 0 })))
+      setStudents(
+        basics.map((b) => ({
+          ...b,
+          total: undefined,
+          upcoming: undefined,
+          sex: undefined,
+          balanceDue: undefined,
+        })),
+      )
       setLoading(false)
 
       const totalCount = basics.length
@@ -142,7 +175,7 @@ export default function CoachingSessions() {
           setStudents((prev) =>
             prev.map((s) =>
               s.abbr === b.abbr
-                ? { ...s, sex, total, upcoming }
+                ? { ...s, sex: sex ?? null, total, upcoming }
                 : s,
             ),
           )
@@ -152,7 +185,7 @@ export default function CoachingSessions() {
             const bd = (snap.data() as any)?.billingSummary?.balanceDue
             setStudents((prev) =>
               prev.map((s) =>
-                s.abbr === b.abbr ? { ...s, balanceDue: bd } : s,
+                s.abbr === b.abbr ? { ...s, balanceDue: bd ?? null } : s,
               ),
             )
           })
@@ -193,11 +226,34 @@ export default function CoachingSessions() {
                   <CardContent>
                     <Typography variant="h6">{s.account}</Typography>
                     <Typography>
-                      {s.sex ?? '–'} • Due: {formatCurrency(s.balanceDue ?? 0)}
+                      <span className={s.sex === undefined ? 'slow-blink' : undefined}>
+                        {s.sex ?? '—'}
+                      </span>
+                      {' '}• Due:{' '}
+                      <span
+                        className={
+                          s.balanceDue === undefined ? 'slow-blink' : undefined
+                        }
+                      >
+                        {s.balanceDue == null
+                          ? '—'
+                          : formatCurrency(s.balanceDue)}
+                      </span>
                     </Typography>
                     <Typography>
-                      Total: {s.total}
-                      {s.upcoming > 0 ? ` → ${s.upcoming}` : ''}
+                      Total:{' '}
+                      <span
+                        className={s.total === undefined ? 'slow-blink' : undefined}
+                      >
+                        {s.total ?? '—'}
+                      </span>
+                      {s.upcoming === undefined ? (
+                        <span className="slow-blink"> → —</span>
+                      ) : s.upcoming > 0 ? (
+                        ` → ${s.upcoming}`
+                      ) : (
+                        ''
+                      )}
                     </Typography>
                   </CardContent>
                 </CardActionArea>
@@ -211,17 +267,28 @@ export default function CoachingSessions() {
           onClose={closeToolsMenu}
           anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
           transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          disablePortal={false}
         >
-          <MenuItem onClick={handleClearAll}>
-            🗑️ Clear All Session Summaries
+          <MenuItem
+            disabled={scanning !== null}
+            onClick={() => handleScan(false)}
+          >
+            {scanning === 'inc' && (
+              <CircularProgress size={14} sx={{ mr: 1 }} />
+            )}
+            🔄 Incremental Scan
           </MenuItem>
           <MenuItem
-            onClick={() => {
-              closeToolsMenu()
-              setRenameOpen(true)
-            }}
+            disabled={scanning !== null}
+            onClick={() => handleScan(true)}
           >
-            🏷️ Batch Rename Payments
+            {scanning === 'full' && (
+              <CircularProgress size={14} sx={{ mr: 1 }} />
+            )}
+            ♻️ Full Rescan
+          </MenuItem>
+          <MenuItem onClick={handleClearAll}>
+            🗑️ Clear All Session Summaries
           </MenuItem>
         </Menu>
       </Box>
@@ -263,23 +330,20 @@ export default function CoachingSessions() {
         message={scanMessage}
         autoHideDuration={4000}
       />
-      <BatchRenamePayments
-        open={renameOpen}
-        onClose={() => setRenameOpen(false)}
-      />
-      <Button
-        variant="contained"
+      <IconButton
+        aria-label="Tools"
+        onClick={openToolsMenu}
         sx={{
           position: 'fixed',
           bottom: 16,
           left: 16,
           bgcolor: 'background.paper',
           color: 'text.primary',
+          zIndex: 1300,
         }}
-        onClick={openToolsMenu}
       >
-        Tools
-      </Button>
+        <MoreVertIcon />
+      </IconButton>
       <Button
         variant="contained"
         sx={{

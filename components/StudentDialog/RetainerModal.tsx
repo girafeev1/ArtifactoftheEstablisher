@@ -87,62 +87,61 @@ export default function RetainerModal({
           width: 360,
           maxWidth: '90%',
           textAlign: 'left',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '90vh',
         }}
       >
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Cantata One', mb: 2 }}
-        >
-          {retainer ? 'Edit Retainer' : 'Add Retainer'}
-        </Typography>
-        {/* TODO: replace TextField type="date" with MUI DatePicker + shouldDisableDate to gray out overlapping ranges. */}
-        <TextField
-          type="date"
-          label="Start Date"
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
-          fullWidth
-          sx={{ mb: 2 }}
-          InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-        />
-        <TextField
-          label="End Date"
-          value={formatDate(endDate)}
-          fullWidth
-          sx={{ mb: 2 }}
-          InputProps={{ readOnly: true, sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-          InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-        />
-        <TextField
-          label="Rate"
-          value={rate}
-          onChange={(e) => setRate(e.target.value)}
-          type="number"
-          fullWidth
-          sx={{ mb: 1 }}
-          InputLabelProps={{
-            shrink: true,
-            sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-          }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-          helperText={`Balance Due: ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD', currencyDisplay: 'code' }).format(balanceDue)} (retainers can be added even if balance is insufficient)`}
-          FormHelperTextProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-        />
-        {error && (
-          <Typography color="error" sx={{ mb: 2 }}>
-            {error}
+        <Box sx={{ flexGrow: 1, overflow: 'auto', pb: '64px' }}>
+          <Typography
+            variant="h6"
+            sx={{ fontFamily: 'Cantata One', mb: 2 }}
+          >
+            {retainer ? 'Edit Retainer' : 'Add Retainer'}
           </Typography>
-        )}
+          {/* TODO: replace TextField type="date" with MUI DatePicker + shouldDisableDate to gray out overlapping ranges. */}
+          <TextField
+            type="date"
+            label="Start Date"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+            fullWidth
+            sx={{ mb: 2 }}
+            InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+            inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          />
+          <TextField
+            label="End Date"
+            value={formatDate(endDate)}
+            fullWidth
+            sx={{ mb: 2 }}
+            InputProps={{ readOnly: true, sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+            InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+          />
+          <TextField
+            label="Rate"
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            type="number"
+            fullWidth
+            sx={{ mb: 1 }}
+            InputLabelProps={{
+              shrink: true,
+              sx: { fontFamily: 'Newsreader', fontWeight: 200 },
+            }}
+            inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+            helperText={`Balance Due: ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD', currencyDisplay: 'code' }).format(balanceDue)} (retainers can be added even if balance is insufficient)`}
+            FormHelperTextProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          />
+          {error && (
+            <Typography color="error" sx={{ mb: 2 }}>
+              {error}
+            </Typography>
+          )}
+        </Box>
         <Box
-          sx={{
-            borderTop: 1,
-            borderColor: 'divider',
-            mt: 2,
-            pt: 1,
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
+          className="dialog-footer"
+          sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
         >
           <Button onClick={() => onClose(false)} disabled={saving}>
             Close

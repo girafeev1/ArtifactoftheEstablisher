@@ -31,6 +31,8 @@ import { db } from '../../lib/firebase'
 import SessionDetail from './SessionDetail'
 import { formatMMMDDYYYY } from '../../lib/date'
 import { PATHS, logPath } from '../../lib/paths'
+import { useSession } from 'next-auth/react'
+import { useColumnWidths } from '../../lib/useColumnWidths'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -77,8 +79,8 @@ export default function SessionsTab({
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any | null>(null)
-
   const allColumns = [
+    { key: 'ordinal', label: '#', width: 60 },
     { key: 'date', label: 'Date', width: 110 },
     { key: 'time', label: 'Time', width: 100 },
     { key: 'duration', label: 'Duration', width: 110 },
@@ -90,7 +92,10 @@ export default function SessionsTab({
     { key: 'paymentStatus', label: 'Payment Status', width: 150 },
     { key: 'payOn', label: 'Pay on', width: 160 },
   ]
-  const colWidth = (key: string) => allColumns.find((c) => c.key === key)?.width
+  const { data: session } = useSession()
+  const userEmail = session?.user?.email || 'anon'
+  const { widths, startResize } = useColumnWidths('sessions', allColumns, userEmail)
+  const colWidth = (key: string) => widths[key]
   const defaultCols = [
     'date',
     'time',
@@ -534,17 +539,12 @@ export default function SessionsTab({
   }
   return (
     <Box
-      sx={{
-        textAlign: 'left',
-        position: 'relative',
-        maxWidth: '100%',
-        maxHeight: '100%',
-        overflow: 'auto',
-      }}
+      sx={{ display: 'flex', flexDirection: 'column', height: '100%', textAlign: 'left' }}
       style={style}
     >
-      {!detail && (
-        <>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1, pb: '64px' }}>
+        {!detail && (
+          <>
           <Button
             variant="outlined"
             size="small"
@@ -558,26 +558,28 @@ export default function SessionsTab({
             <Box mb={2}>
               <Typography variant="subtitle2">Columns</Typography>
               <FormGroup row>
-                {allColumns.map((c) => (
-                  <FormControlLabel
-                    key={c.key}
-                    control={
-                      <Checkbox
-                        checked={visibleCols.includes(c.key)}
-                        onChange={(e) => {
-                          const checked = e.target.checked
-                          setVisibleCols((cols) =>
-                            checked
-                              ? [...cols, c.key]
-                              : cols.filter((k) => k !== c.key),
-                          )
-                        }}
-                        size="small"
-                      />
-                    }
-                    label={c.label}
-                  />
-                ))}
+                {allColumns
+                  .filter((c) => c.key !== 'ordinal')
+                  .map((c) => (
+                    <FormControlLabel
+                      key={c.key}
+                      control={
+                        <Checkbox
+                          checked={visibleCols.includes(c.key)}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setVisibleCols((cols) =>
+                              checked
+                                ? [...cols, c.key]
+                                : cols.filter((k) => k !== c.key),
+                            )
+                          }}
+                          size="small"
+                        />
+                      }
+                      label={c.label}
+                    />
+                  ))}
               </FormGroup>
               <Typography variant="subtitle2" sx={{ mt: 1 }}>
                 Period
@@ -586,6 +588,7 @@ export default function SessionsTab({
                 value={period}
                 size="small"
                 onChange={(e) => setPeriod(e.target.value as any)}
+                MenuProps={{ disablePortal: false }}
               >
                 <MenuItem value="30">Last 30 days</MenuItem>
                 <MenuItem value="90">Last 90 days</MenuItem>
@@ -594,11 +597,70 @@ export default function SessionsTab({
             </Box>
           )}
 
+          <Box sx={{ display: 'flex', gap: 4, mb: 2 }}>
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Joint Date:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.jointDate || '–'}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Last Session:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.lastSession || '–'}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Total Sessions:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {summary.totalSessions ?? '–'}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              >
+                Voucher Balance:
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              >
+                {voucherBalance ?? '–'}
+              </Typography>
+            </Box>
+          </Box>
+
           <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
             <TableHead>
               <TableRow>
                 {allColumns
-                  .filter((c) => visibleCols.includes(c.key))
+                  .filter((c) => c.key === 'ordinal' || visibleCols.includes(c.key))
                   .map((c) => (
                     <TableCell
                       key={c.key}
@@ -606,17 +668,30 @@ export default function SessionsTab({
                         typography: 'body2',
                         fontFamily: 'Cantata One',
                         fontWeight: 'bold',
-                        width: c.width,
-                        minWidth: c.width,
+                        width: colWidth(c.key),
+                        minWidth: colWidth(c.key),
+                        position: c.key === 'ordinal' ? 'sticky' : 'relative',
+                        left: c.key === 'ordinal' ? 0 : undefined,
+                        zIndex: c.key === 'ordinal' ? 3 : undefined,
+                        backgroundColor: c.key === 'ordinal' ? 'background.paper' : undefined,
                       }}
                     >
-                      <TableSortLabel
-                        active={sortBy === c.key}
-                        direction={sortBy === c.key ? sortDir : 'asc'}
-                        onClick={() => handleSort(c.key)}
-                      >
-                        {c.label}
-                      </TableSortLabel>
+                      {c.key === 'ordinal' ? (
+                        c.label
+                      ) : (
+                        <TableSortLabel
+                          active={sortBy === c.key}
+                          direction={sortBy === c.key ? sortDir : 'asc'}
+                          onClick={() => handleSort(c.key)}
+                        >
+                          {c.label}
+                        </TableSortLabel>
+                      )}
+                      <Box
+                        className="col-resizer"
+                        aria-label={`Resize column ${c.label}`}
+                        onMouseDown={(e) => startResize(c.key, e)}
+                      />
                     </TableCell>
                   ))}
               </TableRow>
@@ -653,6 +728,21 @@ export default function SessionsTab({
                     }}
                     sx={{ cursor: 'pointer' }}
                   >
+                    <TableCell
+                      sx={{
+                        typography: 'body2',
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: colWidth('ordinal'),
+                        minWidth: colWidth('ordinal'),
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 2,
+                        backgroundColor: 'background.paper',
+                      }}
+                    >
+                      {i + 1}
+                    </TableCell>
                     {visibleCols.includes('date') && (
                       <TableCell
                         sx={{
@@ -738,6 +828,7 @@ export default function SessionsTab({
                           fontFamily: 'Newsreader',
                           fontWeight: 500,
                           width: colWidth('baseRate'),
+                          minWidth: colWidth('baseRate'),
                         }}
                       >
                         {s.baseRate !== '-' ? formatCurrency(Number(s.baseRate)) : '-'}
@@ -750,6 +841,7 @@ export default function SessionsTab({
                           fontFamily: 'Newsreader',
                           fontWeight: 500,
                           width: colWidth('rateCharged'),
+                          minWidth: colWidth('rateCharged'),
                         }}
                       >
                         {typeof s.rateCharged === 'string'
@@ -766,6 +858,7 @@ export default function SessionsTab({
                           fontFamily: 'Newsreader',
                           fontWeight: 500,
                           width: colWidth('paymentStatus'),
+                          minWidth: colWidth('paymentStatus'),
                         }}
                       >
                         {s.paymentStatus}
@@ -778,6 +871,7 @@ export default function SessionsTab({
                           fontFamily: 'Newsreader',
                           fontWeight: 500,
                           width: colWidth('payOn'),
+                          minWidth: colWidth('payOn'),
                         }}
                       >
                         {s.payOn}
@@ -788,78 +882,22 @@ export default function SessionsTab({
             </TableBody>
           </Table>
 
-          <Box mt={2}>
-            <Box mb={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
-                Joint Date:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
-                {summary.jointDate || '–'}
-              </Typography>
-            </Box>
-            <Box mb={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
-                Last Session:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
-                {summary.lastSession || '–'}
-              </Typography>
-            </Box>
-            <Box mb={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
-                Total Sessions:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
-                {summary.totalSessions ?? '–'}
-              </Typography>
-            </Box>
-            <Box mb={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
-                Voucher Balance:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
-                {voucherBalance ?? '–'}
-              </Typography>
-            </Box>
-          </Box>
-        </>
-      )}
+          </>
+        )}
 
-      {detail && (
-        <SessionDetail
-          abbr={abbr}
-          account={account}
-          session={detail}
-          onBack={() => {
-            setDetail(null)
-            onTitle?.(account)
-          }}
-        />
-      )}
+        {detail && (
+          <SessionDetail
+            abbr={abbr}
+            account={account}
+            session={detail}
+            onBack={() => {
+              setDetail(null)
+              onTitle?.(account)
+            }}
+          />
+        )}
+      </Box>
+      <Box className="dialog-footer" sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }} />
     </Box>
   )
 }

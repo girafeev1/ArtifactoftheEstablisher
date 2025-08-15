@@ -1,0 +1,62 @@
+/**
+ * Web endpoint for triggering calendar scans.
+ */
+function doPost(e) {
+  try {
+    var body = {};
+    if (e && e.postData && e.postData.contents) {
+      body = JSON.parse(e.postData.contents);
+    }
+    var action = body.action || 'scanAll';
+    if (action === 'scanOne') {
+      var account = body.account;
+      var daysBack = body.daysBack;
+      var daysForward = body.daysForward;
+      var result = scanAccountWindow_(account, daysBack, daysForward);
+      return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    } else {
+      if (body.forceFull) clearSyncToken();
+      var res = syncCalendarChanges();
+      return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, message: String(err) })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return doPost(e);
+}
+
+function scanAccountWindow_(account, daysBack, daysForward) {
+  var now = new Date();
+  var back = daysBack || 365;
+  var forward = daysForward || 90;
+  var params = {
+    timeMin: new Date(now.getTime() - back * 24 * 60 * 60 * 1000).toISOString(),
+    timeMax: new Date(now.getTime() + forward * 24 * 60 * 60 * 1000).toISOString(),
+    singleEvents: true,
+    orderBy: 'startTime'
+  };
+  if (account) params.q = account;
+  var processed = {};
+  var pageToken;
+  do {
+    if (pageToken) params.pageToken = pageToken;
+    var resp = Calendar.Events.list(CONFIG.COACHING_CALENDAR_ID, params);
+    var items = resp.items || [];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var eventId = extractEventId(item);
+      if (!eventId || processed[eventId]) continue;
+      processed[eventId] = true;
+      handleCalendarItem_(eventId, item);
+    }
+    pageToken = resp.nextPageToken;
+  } while (pageToken);
+  return {
+    ok: true,
+    processed: Object.keys(processed).length,
+    message: 'Account scan complete'
+  };
+}

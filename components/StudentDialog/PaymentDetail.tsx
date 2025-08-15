@@ -48,9 +48,12 @@ export default function PaymentDetail({
 }) {
   const [selected, setSelected] = useState<string[]>([])
   const [assigning, setAssigning] = useState(false)
-  const [remaining, setRemaining] = useState<number>(
-    payment.remainingAmount ?? Number(payment.amount) ?? 0,
+  const amount = Number(payment.amount) || 0
+  const applied = Number(payment.appliedAmount ?? 0)
+  const initialRemaining = Number(
+    payment.remainingAmount ?? (amount - applied),
   )
+  const [remaining, setRemaining] = useState<number>(initialRemaining)
   const [assignedSessionIds, setAssignedSessionIds] = useState<string[]>(
     payment.assignedSessions || [],
   )
@@ -146,7 +149,11 @@ export default function PaymentDetail({
       (snap) => {
         const data = snap.data()
         if (data) {
-          setRemaining(data.remainingAmount ?? Number(data.amount) ?? 0)
+          const amt = Number(data.amount) || 0
+          const appliedAmt = Number(data.appliedAmount ?? 0)
+          setRemaining(
+            Number(data.remainingAmount ?? (amt - appliedAmt)),
+          )
           setAssignedSessionIds(data.assignedSessions || [])
           setAssignedRetainerIds(data.assignedRetainers || [])
         }
@@ -266,7 +273,7 @@ export default function PaymentDetail({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
@@ -277,7 +284,15 @@ export default function PaymentDetail({
           variant="h6"
           sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
         >
-          {formatCurrency(Number(payment.amount) || 0)}
+          <span
+            className={
+              remaining > 0 || assignedSessionIds.length === 0
+                ? 'blink-amount'
+                : undefined
+            }
+          >
+            {formatCurrency(amount)}
+          </span>
         </Typography>
 
         <Typography
@@ -322,7 +337,7 @@ export default function PaymentDetail({
         >
           For session:
         </Typography>
-        <Table size="small" sx={{ mt: 1 }}>
+        <Table size="small" sx={{ mt: 1, tableLayout: 'fixed', width: 'max-content' }}>
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
@@ -453,28 +468,10 @@ export default function PaymentDetail({
             )}
           </TableBody>
         </Table>
-        {remaining > 0 && (
-          <Button
-            variant="contained"
-            sx={{ mt: 1 }}
-            onClick={handleAssign}
-            disabled={
-              assigning || totalSelected === 0 || totalSelected > remaining
-            }
-          >
-            Assign
-          </Button>
-        )}
       </Box>
       <Box
-        sx={{
-          borderTop: 1,
-          borderColor: 'divider',
-          p: 1,
-          display: 'flex',
-          justifyContent: 'flex-start',
-          bgcolor: 'background.paper',
-        }}
+        className="dialog-footer"
+        sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
       >
         <Button
           variant="text"
@@ -486,6 +483,17 @@ export default function PaymentDetail({
         >
           ← Back
         </Button>
+        {remaining > 0 && (
+          <Button
+            variant="contained"
+            onClick={handleAssign}
+            disabled={
+              assigning || totalSelected === 0 || totalSelected > remaining
+            }
+          >
+            Assign
+          </Button>
+        )}
       </Box>
     </Box>
   )

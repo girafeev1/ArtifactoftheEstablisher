@@ -9,8 +9,7 @@ import {
   CircularProgress,
   Typography,
   TableSortLabel,
-  IconButton,
-  Tooltip,
+  Button,
 } from '@mui/material'
 import { collection, orderBy, query, onSnapshot } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
@@ -19,6 +18,9 @@ import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
 import { WriteIcon } from './icons'
 import PaymentModal from './PaymentModal'
+import { useBilling } from '../../lib/billing/useBilling'
+import { useSession } from 'next-auth/react'
+import { useColumnWidths } from '../../lib/useColumnWidths'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -60,6 +62,23 @@ export default function PaymentHistory({
   const [sortField, setSortField] = useState<'amount' | 'paymentMade'>('paymentMade')
   const [sortAsc, setSortAsc] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const { data: bill } = useBilling(abbr, account)
+  const { data: session } = useSession()
+  const userEmail = session?.user?.email || 'anon'
+  const columns = [
+    { key: 'paymentMade', label: 'Payment Made On', width: 160 },
+    { key: 'amount', label: 'Amount Received', width: 160 },
+    { key: 'session', label: 'For Session(s)', width: 200 },
+  ] as const
+  const { widths, startResize } = useColumnWidths('payments', columns, userEmail)
+
+  const sessionMap = React.useMemo(() => {
+    const m: Record<string, number> = {}
+    bill?.rows?.forEach((r: any, i: number) => {
+      m[r.id] = i + 1
+    })
+    return m
+  }, [bill])
 
   useEffect(() => {
     if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
@@ -112,28 +131,30 @@ export default function PaymentHistory({
     )
 
   return (
-    <Box sx={{ p: 4, overflow: 'auto' }}>
-      {loading ? (
-        <CircularProgress />
-      ) : (
-        <>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
+        {loading ? (
+          <CircularProgress />
+        ) : (
+          <>
             <Typography
               variant="subtitle1"
-              sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+              sx={{ fontFamily: 'Cantata One', textDecoration: 'underline', mb: 1 }}
             >
               Payment History
             </Typography>
-            <Tooltip title="Add Payment">
-              <IconButton color="primary" onClick={() => setModalOpen(true)}>
-                <WriteIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
-          <Table size="small" sx={{ cursor: 'pointer' }}>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+            <Table size="small" sx={{ cursor: 'pointer', tableLayout: 'fixed', width: 'max-content' }}>
+              <TableHead>
+                <TableRow>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: widths['paymentMade'],
+                    minWidth: widths['paymentMade'],
+                  }}
+                >
                   <TableSortLabel
                     active={sortField === 'paymentMade'}
                     direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
@@ -147,8 +168,21 @@ export default function PaymentHistory({
                   >
                     Payment Made On
                   </TableSortLabel>
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column Payment Made On"
+                    onMouseDown={(e) => startResize('paymentMade', e)}
+                  />
                 </TableCell>
-                <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: widths['amount'],
+                    minWidth: widths['amount'],
+                  }}
+                >
                   <TableSortLabel
                     active={sortField === 'amount'}
                     direction={sortField === 'amount' && sortAsc ? 'asc' : 'desc'}
@@ -162,49 +196,129 @@ export default function PaymentHistory({
                   >
                     Amount Received
                   </TableSortLabel>
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column Amount Received"
+                    onMouseDown={(e) => startResize('amount', e)}
+                  />
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: widths['session'],
+                    minWidth: widths['session'],
+                  }}
+                >
+                  For Session(s)
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column For Session(s)"
+                    onMouseDown={(e) => startResize('session', e)}
+                  />
                 </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedPayments.map((p) => (
-                <TableRow
-                  key={p.id}
-                  hover
-                  onClick={() => setDetail(p)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      setDetail(p)
-                    }
-                  }}
-                  sx={{ cursor: 'pointer', py: 1 }}
-                >
-                  <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                    {formatDate(p.paymentMade)}
-                  </TableCell>
-                  <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                    {formatCurrency(Number(p.amount) || 0)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {sortedPayments.map((p) => {
+                const amount = Number(p.amount) || 0
+                const applied = Number(p.appliedAmount ?? 0)
+                const remaining = Number(
+                  p.remainingAmount ?? (amount - applied),
+                )
+                const unassigned = (p.assignedSessions?.length ?? 0) === 0
+                const blink = (amount > 0 && remaining > 0) || unassigned
+                return (
+                  <TableRow
+                    key={p.id}
+                    hover
+                    onClick={() => setDetail(p)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setDetail(p)
+                      }
+                    }}
+                    sx={{ cursor: 'pointer', py: 1 }}
+                  >
+                    <TableCell
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['paymentMade'],
+                        minWidth: widths['paymentMade'],
+                      }}
+                    >
+                      {formatDate(p.paymentMade)}
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['amount'],
+                        minWidth: widths['amount'],
+                      }}
+                    >
+                      <span className={blink ? 'blink-amount' : undefined}>
+                        {formatCurrency(amount)}
+                      </span>
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['session'],
+                        minWidth: widths['session'],
+                      }}
+                    >
+                      {(() => {
+                        const ords = (p.assignedSessions || [])
+                          .map((id: string) => sessionMap[id])
+                          .filter(Boolean)
+                        return ords.length
+                          ? ords.map((o) => `#${o}`).join(', ')
+                          : '—'
+                      })()}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
               {sortedPayments.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={2} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  <TableCell
+                    colSpan={3}
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  >
                     No payments recorded.
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
-          </Table>
-          <PaymentModal
-            abbr={abbr}
-            open={modalOpen}
-            onClose={() => setModalOpen(false)}
-          />
-        </>
-      )}
+            </Table>
+          </>
+        )}
+      </Box>
+      <Box
+        className="dialog-footer"
+        sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
+      >
+        <span />
+        <Button
+          variant="contained"
+          onClick={() => setModalOpen(true)}
+          startIcon={<WriteIcon fontSize="small" />}
+        >
+          Add Payment
+        </Button>
+      </Box>
+      <PaymentModal
+        abbr={abbr}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+      />
     </Box>
   )
 }

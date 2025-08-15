@@ -97,7 +97,7 @@ export default function SessionDetail({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
@@ -246,14 +246,8 @@ export default function SessionDetail({
       </Box>
 
       <Box
-        sx={{
-          borderTop: 1,
-          borderColor: 'divider',
-          p: 1,
-          display: 'flex',
-          justifyContent: 'flex-start',
-          bgcolor: 'background.paper',
-        }}
+        className="dialog-footer"
+        sx={{ p: 1, display: 'flex', justifyContent: 'flex-start' }}
       >
         <Button variant="text" onClick={onBack} aria-label="back to sessions">
           ← Back
