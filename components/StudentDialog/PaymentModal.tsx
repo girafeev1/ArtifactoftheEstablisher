@@ -42,16 +42,7 @@ export default function PaymentModal({
   }
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="xs"
-      slotProps={{
-        backdrop: { sx: { zIndex: 1600 } },
-        paper: { sx: { zIndex: 1601 } },
-      }}
-    >
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Payment</DialogTitle>
       <DialogContent>
         <TextField
@@ -62,6 +53,10 @@ export default function PaymentModal({
           fullWidth
           autoFocus
           sx={{ mt: 1 }}
+          InputLabelProps={{
+            sx: { fontFamily: 'Newsreader', fontWeight: 200 },
+          }}
+          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
         />
         <TextField
           label="Payment Made On"
@@ -69,7 +64,11 @@ export default function PaymentModal({
           value={madeOn}
           onChange={(e) => setMadeOn(e.target.value)}
           fullWidth
-          InputLabelProps={{ shrink: true }}
+          InputLabelProps={{
+            shrink: true,
+            sx: { fontFamily: 'Newsreader', fontWeight: 200 },
+          }}
+          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
           sx={{ mt: 2 }}
         />
       </DialogContent>

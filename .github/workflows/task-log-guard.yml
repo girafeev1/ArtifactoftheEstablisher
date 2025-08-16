@@ -1,4 +1,4 @@
-name: task-log-guard
+name: Task Log Guard
 
 on:
   pull_request:
@@ -12,13 +12,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: ensure Task Log not truncated
+      - name: Check Task Log line count
         run: |
-          base=$(git show origin/main:"docs/Task Log.md" | wc -l)
-          head=$(wc -l < "docs/Task Log.md")
-          echo "Base lines: $base"
-          echo "Head lines: $head"
-          if [ "$head" -lt $((base - 10)) ]; then
-            echo "docs/Task Log.md decreased by more than 10 lines"
+          git fetch origin main
+          head_lines=$(wc -l < "docs/Task Log.md")
+          base_lines=$(git show origin/main:"docs/Task Log.md" | wc -l)
+          if [ $head_lines -lt $((base_lines - 10)) ]; then
+            echo "Task Log line count decreased by more than 10 (base $base_lines vs head $head_lines)" >&2
             exit 1
           fi

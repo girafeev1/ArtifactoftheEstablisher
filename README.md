@@ -72,6 +72,13 @@ other history records.
 When values are not available from Firestore the UI must remain responsive and show placeholders instead of failing. Empty strings, `null`, or `undefined` values render as **N/A**, while retrieval errors display as **Error**. Numeric or date values that are unavailable should show a dash (`-`).
  
 
+## Environment Variables
+
+Set the following in `.env.local`:
+
+- `CALENDAR_SCAN_URL` – URL of the Apps Script endpoint.
+- `SCAN_SECRET` – shared secret used for calendar scans.
+
 ## Documentation
 
  - [Task Log](docs/Task%20Log.md)

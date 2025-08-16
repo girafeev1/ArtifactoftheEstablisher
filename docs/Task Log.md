@@ -4,6 +4,7 @@
 > Convention: ✅ done, ⏳ in progress, 🧭 next / planned.
 
 Latest change summary
+- Enforced append-only Task Log with CI guard.
 - Add continuous Context Bundle for branch pushes (Issue per branch).
 - Reverted Total Sessions to include cancelled/proceeded like before.
 - Added double-click to auto-size columns to widest visible content; persisted per-user.
@@ -17,6 +18,7 @@ Tasks table — add/update:
 
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
+| T-030 | Task Log guardrails CI & append-only rule | ✅    | docs/Task Log.md, CONTRIBUTING.md, .github/workflows/task-log-guard.yml |
 | T-001 | Column resizing (thin lever, hover, big hit area) + per-user persistence | ✅    | lib/useColumnWidths.ts, .col-resizer |
 | T-002 | Sticky footers for Student Dialog screens (with shadow) | ✅    | .dialog-footer + padding in detail views |
 | T-003 | "Amount Received" blink: infinite + darker yellow (list & detail) | ✅    | .blink-amount |
@@ -53,11 +55,13 @@ Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
 |-------|------------------------------------------------------|-------|-------|
+| P-017 | Task Log guardrails + finish P-016 acceptance | ✅    | This change |
 | P-016 | Autosize cols; sessions total parity; balance due source; modal stacking; base rate audit; GAS TZ/secret | 🧭    | See `prompts/p-016.md` for scope and acceptance criteria. Includes tasks T-090..T-095. |
 | P-015 | UI polish + scan hardening               | ✅    | Sticky dialog footers; thinner resize lever; per-user column widths; sticky ordinal #; infinite/darker blink on “Amount Received” (list & detail); “For Session(s)” mapping in Payment History; `/api/calendar-scan` bridged to GAS with incremental/full; spinner & toasts; removed BatchRenamePayments; Theme Popper/Menu containers pinned to `document.body`. |
 | P-011 | Calendar scan integration (Apps Script)              | ✅    | Shipped |
 | P-012 | Resizable tables + sticky # + blink polish           | ✅    | Shipped |
 | P-014 | Session totals revert, auto-size, due unification, dialog audit, base-rate history | ✅    | This change |
+
 
 ### Changes — P-015
 

@@ -1,5 +1,13 @@
 import React, { useState } from 'react'
-import { Box, Button, TextField, Typography } from '@mui/material'
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  Typography,
+} from '@mui/material'
 import { addRetainer, calculateEndDate, RetainerDoc } from '../../lib/retainer'
 import { useBillingClient } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache, markSessionsInRetainer } from '../../lib/liveRefresh'
@@ -19,6 +27,7 @@ export default function RetainerModal({
   balanceDue,
   retainer,
   nextStart,
+  open,
   onClose,
 }: {
   abbr: string
@@ -26,6 +35,7 @@ export default function RetainerModal({
   balanceDue: number
   retainer?: RetainerDoc & { id: string }
   nextStart?: Date
+  open: boolean
   onClose: (saved: boolean) => void
 }) {
   const [start, setStart] = useState<string>(() => {
@@ -67,95 +77,64 @@ export default function RetainerModal({
   }
 
   return (
-    <Box
-      sx={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        bgcolor: 'rgba(0,0,0,0.3)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Box
-        sx={{
-          bgcolor: 'background.paper',
-          p: 4,
-          width: 360,
-          maxWidth: '90%',
-          textAlign: 'left',
-          display: 'flex',
-          flexDirection: 'column',
-          maxHeight: '90vh',
-        }}
-      >
-        <Box sx={{ flexGrow: 1, overflow: 'auto', pb: '64px' }}>
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Cantata One', mb: 2 }}
-          >
-            {retainer ? 'Edit Retainer' : 'Add Retainer'}
+    <Dialog open={open} onClose={() => onClose(false)} fullWidth maxWidth="xs">
+      <DialogTitle sx={{ fontFamily: 'Cantata One' }}>
+        {retainer ? 'Edit Retainer' : 'Add Retainer'}
+      </DialogTitle>
+      <DialogContent>
+        {/* TODO: replace TextField type="date" with MUI DatePicker + shouldDisableDate to gray out overlapping ranges. */}
+        <TextField
+          type="date"
+          label="Start Date"
+          value={start}
+          onChange={(e) => setStart(e.target.value)}
+          fullWidth
+          sx={{ mb: 2 }}
+          InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+        />
+        <TextField
+          label="End Date"
+          value={formatDate(endDate)}
+          fullWidth
+          sx={{ mb: 2 }}
+          InputProps={{ readOnly: true, sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+        />
+        <TextField
+          label="Rate"
+          value={rate}
+          onChange={(e) => setRate(e.target.value)}
+          type="number"
+          fullWidth
+          sx={{ mb: 1 }}
+          InputLabelProps={{
+            shrink: true,
+            sx: { fontFamily: 'Newsreader', fontWeight: 200 },
+          }}
+          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          helperText={`Balance Due: ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD', currencyDisplay: 'code' }).format(balanceDue)} (retainers can be added even if balance is insufficient)`}
+          FormHelperTextProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+        />
+        {error && (
+          <Typography color="error" sx={{ mb: 2 }}>
+            {error}
           </Typography>
-          {/* TODO: replace TextField type="date" with MUI DatePicker + shouldDisableDate to gray out overlapping ranges. */}
-          <TextField
-            type="date"
-            label="Start Date"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            fullWidth
-            sx={{ mb: 2 }}
-            InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-            inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-          />
-          <TextField
-            label="End Date"
-            value={formatDate(endDate)}
-            fullWidth
-            sx={{ mb: 2 }}
-            InputProps={{ readOnly: true, sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-            InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-          />
-          <TextField
-            label="Rate"
-            value={rate}
-            onChange={(e) => setRate(e.target.value)}
-            type="number"
-            fullWidth
-            sx={{ mb: 1 }}
-            InputLabelProps={{
-              shrink: true,
-              sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-            }}
-            inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-            helperText={`Balance Due: ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD', currencyDisplay: 'code' }).format(balanceDue)} (retainers can be added even if balance is insufficient)`}
-            FormHelperTextProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-          />
-          {error && (
-            <Typography color="error" sx={{ mb: 2 }}>
-              {error}
-            </Typography>
-          )}
-        </Box>
-        <Box
-          className="dialog-footer"
-          sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => onClose(false)} disabled={saving}>
+          Close
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={saving || !start || !rate}
         >
-          <Button onClick={() => onClose(false)} disabled={saving}>
-            Close
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={saving || !start || !rate}
-          >
-            Save
-          </Button>
-        </Box>
-      </Box>
-    </Box>
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 
