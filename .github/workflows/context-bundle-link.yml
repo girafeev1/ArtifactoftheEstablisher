@@ -1,12 +1,7 @@
--name: Context Bundle Link
--
--on:
--  pull_request:
--    types: [opened, reopened, synchronize]
-+name: Context Bundle Link
-+on:
-+  pull_request_target:
-+    types: [opened, reopened, synchronize, ready_for_review]
+ name: Context Bundle Link
+ on:
+   pull_request_target:
+     types: [opened, reopened, synchronize, ready_for_review]
 
  permissions:
    contents: read
@@ -22,7 +17,7 @@
          with:
            script: |
              const pr = context.payload.pull_request;
-+            if (!pr) { core.setFailed('No pull_request in payload'); return; }
+             if (!pr) { core.setFailed('No pull_request in payload'); return; }
              const num = pr.number;
              const headRepo = pr.head.repo.full_name;
              const headSha  = pr.head.sha;
@@ -31,7 +26,7 @@
              const raw = `https://raw.githubusercontent.com/${headRepo}/${headSha}/${path}`;
              const pretty = `https://github.com/${headRepo}/blob/${headSha}/${path}`;
              const indexRaw = `https://raw.githubusercontent.com/${baseRepo}/main/docs/context/index.md`;
-+            core.info(`Checking ${headRepo}@${headSha} -> ${path}`);
+             core.info(`Checking ${headRepo}@${headSha} -> ${path}`);
 
              // Check if file exists at head SHA
              let exists = false;
@@ -44,12 +39,11 @@
                });
                exists = true;
              } catch (e) {
--              if (e.status !== 404) throw e;
-+              if (e.status === 404) {
-+                core.info('Bundle not found at head SHA (404).');
-+              } else {
-+                core.warning(`getContent failed: ${e.status} ${e.message}`);
-+              }
+               if (e.status === 404) {
+                 core.info('Bundle not found at head SHA (404).');
+               } else {
+                 core.warning(`getContent failed: ${e.status} ${e.message}`);
+               }
              }
 
              const marker = '<!-- context-bundle-link -->';
@@ -75,12 +69,7 @@
                per_page: 100
              });
 
--            const mine = comments.find(c =>
--              c.user?.type === 'Bot' &&
--              typeof c.body === 'string' &&
--              c.body.includes(marker)
--            );
-+            const mine = comments.find(c => typeof c.body === 'string' && c.body.includes(marker));
+             const mine = comments.find(c => typeof c.body === 'string' && c.body.includes(marker));
 
              const body = exists ? bodyWhenExists : bodyWhenMissing;
 
