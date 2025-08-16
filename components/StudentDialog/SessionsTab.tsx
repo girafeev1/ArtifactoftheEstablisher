@@ -418,6 +418,7 @@ export default function SessionsTab({
               id,
               sessionType,
               billingType,
+              ordinal: 0,
               voucherBalance: 0,
               date,
               time,
@@ -486,8 +487,9 @@ export default function SessionsTab({
           }
         }
 
-        rows.forEach((r) => {
+        rows.forEach((r, i) => {
           delete r.rateSpecified
+          r.ordinal = i + 1
         })
 
         const validDates = rows
@@ -495,11 +497,11 @@ export default function SessionsTab({
           .map((r) => r.startMs)
           .sort((a, b) => a - b)
         const today = new Date()
-        const lastPast = validDates.filter(ms => ms <= today.getTime()).pop()
+        const lastPast = validDates.filter((ms) => ms <= today.getTime()).pop()
         const newSummary = {
           jointDate: validDates.length ? toHKDate(new Date(validDates[0])) : '',
           lastSession: lastPast ? toHKDate(new Date(lastPast)) : '',
-          totalSessions: validDates.length,
+          totalSessions: rows.length,
         }
         console.log('Computed summary:', newSummary)
 
@@ -741,7 +743,7 @@ export default function SessionsTab({
                         backgroundColor: 'background.paper',
                       }}
                     >
-                      {i + 1}
+                      {s.ordinal}
                     </TableCell>
                     {visibleCols.includes('date') && (
                       <TableCell
