@@ -12,6 +12,7 @@ Latest change summary
 - Hardened dialog stacking/portals: "Add Payment" and similar modals always topmost.
 - Added Base Rate History (info icon) with rate, timestamp, editedBy and add-entry flow.
 - Added PR Context Bundle automation, PaymentModal summary write, overlay test, and README Task Log link fix.
+- Replaced dayjs timezone dependency with built-in plugin to fix install failures.
 
 ---
 
