@@ -19,6 +19,7 @@ Latest change summary
 Tasks table — add/update:
 
 | ID    | Title                                                | State | Notes / Files |
+|-------|------------------------------------------------------|-------|---------------|
 | T-045 | Base rate SSOT: derive by `effectDate` (HK midnight) for sessions     |       | Apply when computing/reading Base Rate across UI & billing; fallback: if missing, treat `effectDate = startOfDay(timestamp, HK)`; add migration util |
 | T-046 | Base Rate History: edit existing entries (rate & effectDate) + audit  |       | BaseRateHistoryDialog: inline edit w/ validation; write `editedBy`; keep `timestamp` as entry time; no “Edited By” column (show in tooltip) |
 | T-047 | Base Rate History: “transit line” visualization (toggle view)         |       | Dialog toggle between table and timeline; responsive; keyboard accessible |
@@ -35,7 +36,6 @@ Tasks table — add/update:
 | T-034 | Base Rate history redesign & timezone | 🧭    | BaseRateHistoryDialog.tsx, BillingTab.tsx, SessionDetail.tsx |
 | T-035 | Blink animation tokens & reduced motion | 🧭    | studentDialog.css, PaymentDetail.tsx |
 | T-036 | Cypress tests for width/blink/base rate | 🧭    | cypress/e2e |
-|-------|------------------------------------------------------|-------|---------------|
 | T-037 | Reduce table column min width to ~36px with ellipsis + hover tooltip; keep auto-fit       | 🧭    | lib/useColumnWidths.ts, table cell styles |
 | T-038 | Sessions summary format (fix legacy T-217): Total {all} (❌ {cancelled}); tooltip ✔️ {…}   | 🧭    | SessionsTab + mirror in Personal tab |
 | T-039 | Payment History: yellow blink when remaining > 0                                          | 🧭    | PaymentHistory; CSS blink class |
@@ -80,8 +80,8 @@ Tasks table — add/update:
 Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
-| P-020 | Base Rate effectDate SSOT, summary naming/hover, card Total, min-width v2, cached.billingSummary, tests |        | Will implement T-045..T-054 |
 |-------|------------------------------------------------------|-------|-------|
+| P-020 | Base Rate effectDate SSOT, summary naming/hover, card Total, min-width v2, cached.billingSummary, tests |        | Will implement T-045..T-054 |
 | P-019 | Min-width squeeze, T-217 display, payment blink logic, Base Rate history redesign         | 🧭    | This change |
 | P-018 | Context Bundle automation, payment summary write, overlay test hardening, README link fix | ✅    | This change |
 | P-017 | Task Log guardrails + finish P-016 acceptance | ✅    | This change |
