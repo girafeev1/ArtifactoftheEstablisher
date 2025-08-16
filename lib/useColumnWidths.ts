@@ -54,7 +54,7 @@ export function useColumnWidths(
       const onMove = (ev: MouseEvent) => {
         const delta = ev.clientX - startX
         setWidths((prev) => {
-          const next = Math.max(36, Math.min(1000, startWidth + delta))
+          const next = Math.max(30, Math.min(1000, startWidth + delta))
           return { ...prev, [key]: next }
         })
       }
@@ -94,7 +94,7 @@ export function useColumnWidths(
         const w = measurer.offsetWidth
         if (w > max) max = w
       })
-      const next = Math.max(36, Math.min(600, max + 20))
+      const next = Math.max(30, Math.min(600, max + 20))
       setWidths((prev) => ({ ...prev, [key]: next }))
     },
     [],
@@ -107,6 +107,17 @@ export function useColumnWidths(
     [autoSize],
   )
 
-  return { widths, startResize, dblClickResize }
+  const keyResize = useCallback(
+    (key: string, dir: 'left' | 'right') => {
+      setWidths((prev) => {
+        const delta = dir === 'left' ? -8 : 8
+        const next = Math.max(30, Math.min(1000, (prev[key] || 0) + delta))
+        return { ...prev, [key]: next }
+      })
+    },
+    [],
+  )
+
+  return { widths, startResize, dblClickResize, keyResize }
 }
 
