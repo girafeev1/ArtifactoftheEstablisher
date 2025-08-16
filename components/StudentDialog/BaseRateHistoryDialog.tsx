@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import LoadingDash from '../LoadingDash'
 import {
   Dialog,
   DialogTitle,
@@ -57,7 +58,7 @@ export default function BaseRateHistoryDialog({
   const [addOpen, setAddOpen] = useState(false)
   const [newRate, setNewRate] = useState('')
   const [newDate, setNewDate] = useState(dayjs().tz().format('YYYY-MM-DD'))
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ id: string; field: 'rate' | 'date' } | null>(null)
   const { data: session } = useSession()
   const qc = useBillingClient()
   const formatDate = (v: any) => {
@@ -118,6 +119,15 @@ export default function BaseRateHistoryDialog({
     setEditing(null)
   }
 
+  const saveRate = async (id: string, rate: string) => {
+    const ref = doc(db, PATHS.baseRateHistory(abbr), id)
+    await updateDoc(ref, {
+      rate: Number(rate) || 0,
+      editedBy: session?.user?.email || 'unknown',
+    })
+    setEditing(null)
+  }
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Base Rate History</DialogTitle>
@@ -143,27 +153,54 @@ export default function BaseRateHistoryDialog({
                     r.timestamp,
                   )}`}
                 >
-                  {formatCurrency(Number(r.rate) || 0)}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {r.effectDate ? (
-                    formatDate(r.effectDate)
-                  ) : editing === r.id ? (
+                  {editing?.id === r.id && editing.field === 'rate' ? (
                     <TextField
-                      type="date"
+                      type="number"
                       size="small"
-                      defaultValue={dayjs().tz().format('YYYY-MM-DD')}
-                      onBlur={(e) => saveEffectDate(r.id, e.target.value)}
+                      defaultValue={r.rate}
+                      onBlur={(e) => saveRate(r.id, e.target.value)}
                       inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
                     />
                   ) : (
                     <span
-                      className="blink-amount--warn"
                       role="button"
                       tabIndex={0}
-                      onClick={() => setEditing(r.id)}
+                      onClick={() => setEditing({ id: r.id, field: 'rate' })}
                     >
-                      –
+                      {formatCurrency(Number(r.rate) || 0)}
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                  {editing?.id === r.id && editing.field === 'date' ? (
+                    <TextField
+                      type="date"
+                      size="small"
+                      defaultValue={
+                        r.effectDate
+                          ? dayjs(r.effectDate.toDate ? r.effectDate.toDate() : r.effectDate)
+                              .tz()
+                              .format('YYYY-MM-DD')
+                          : dayjs().tz().format('YYYY-MM-DD')
+                      }
+                      onBlur={(e) => saveEffectDate(r.id, e.target.value)}
+                      inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+                    />
+                  ) : r.effectDate ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setEditing({ id: r.id, field: 'date' })}
+                    >
+                      {formatDate(r.effectDate)}
+                    </span>
+                  ) : (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setEditing({ id: r.id, field: 'date' })}
+                    >
+                      <LoadingDash />
                     </span>
                   )}
                 </TableCell>

@@ -27,6 +27,7 @@ import { computeSessionStart } from '../../../lib/sessions'
 import IconButton from '@mui/material/IconButton'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import { useBilling } from '../../../lib/billing/useBilling'
+import LoadingDash from '../../../components/LoadingDash'
 
 interface StudentMeta {
   abbr: string
@@ -55,8 +56,15 @@ function StudentCard({
   student: StudentDetails
   onSelect: (s: StudentDetails) => void
 }) {
-  const { data: bill } = useBilling(student.abbr, student.account)
+  const { data: bill, isLoading: billLoading } = useBilling(
+    student.abbr,
+    student.account,
+  )
   const due = bill?.balanceDue ?? student.balanceDue ?? null
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null)
+  useEffect(() => {
+    if (bill) setLastUpdated(Date.now())
+  }, [bill])
   return (
     <Grid item xs={12} sm={6} md={4} lg={3}>
       <Card>
@@ -68,9 +76,11 @@ function StudentCard({
                 {student.sex ?? '—'}
               </span>{' '}
               • Due:{' '}
-              <span className={!bill ? 'slow-blink' : undefined}>
-                {due == null ? '—' : formatCurrency(due)}
-              </span>
+              {billLoading ? (
+                <LoadingDash />
+              ) : (
+                <span>{due == null ? '—' : formatCurrency(due)}</span>
+              )}
             </Typography>
             <Typography>
               Total:{' '}
