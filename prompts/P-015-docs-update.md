@@ -2,7 +2,7 @@ Goal: Rename the task log and update entries to reflect current state.
 
 Do the following changes:
 
-Rename docs/task-log-vol-1.md → docs/Task Log.md.
+Task log lives at `docs/Task Log.md`.
 
 Replace its contents with the markdown below (keep newest on top):
 
