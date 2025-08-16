@@ -1,0 +1,189 @@
+name: Context Bundle (branch)
+
+on:
+  push:
+    branches:
+      - '**'    # all branches
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  bundle:
+    # Skip the default branch (use the repo's configured default)
+    if: ${{ github.ref_name != github.event.repository.default_branch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: context-bundle-branch-${{ github.ref_name }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute refs
+        id: refs
+        shell: bash
+        run: |
+          echo "BASE_REF=${{ github.event.repository.default_branch }}" >> $GITHUB_OUTPUT
+          echo "HEAD_SHA=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "BRANCH_NAME=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Fetch base
+        shell: bash
+        run: |
+          git fetch origin ${{ steps.refs.outputs.BASE_REF }} --depth=50 || true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Detect package manager
+        id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then echo "name=pnpm" >> $GITHUB_OUTPUT; exit 0; fi
+          if [ -f yarn.lock ]; then echo "name=yarn" >> $GITHUB_OUTPUT; exit 0; fi
+          echo "name=npm" >> $GITHUB_OUTPUT
+
+      - name: Install deps (best-effort)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -e
+          PM="${{ steps.pm.outputs.name }}"
+          if [ "$PM" = "pnpm" ]; then
+            corepack enable
+            pnpm i --frozen-lockfile || pnpm i
+          elif [ "$PM" = "yarn" ]; then
+            corepack enable
+            yarn install --frozen-lockfile || yarn install
+          else
+            npm ci || npm i
+          fi
+
+      - name: Changed files list
+        shell: bash
+        run: |
+          git diff --name-status origin/${{ steps.refs.outputs.BASE_REF }}...${{ steps.refs.outputs.HEAD_SHA }} > files.txt || true
+          {
+            echo "# Context Bundle"
+            echo
+            echo "_Branch_: ${{ steps.refs.outputs.BRANCH_NAME }}  |  _Base_: ${{ steps.refs.outputs.BASE_REF }}"
+            echo "_Generated_: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo
+            echo "### Changed Files (vs base)"
+            echo
+            if [ -s files.txt ]; then
+              awk '{print "- " $0}' files.txt
+            else
+              echo "_No changes detected._"
+            fi
+            echo
+          } > bundle.md
+
+      - name: Compact diff hunks
+        shell: bash
+        run: |
+          echo "### Compact Diff Hunks" >> bundle.md
+          echo >> bundle.md
+          git diff --unified=0 origin/${{ steps.refs.outputs.BASE_REF }}...${{ steps.refs.outputs.HEAD_SHA }} | head -n 3000 > hunks.patch || true
+          if [ -s hunks.patch ]; then
+            echo '```diff' >> bundle.md
+            cat hunks.patch >> bundle.md
+            echo '```' >> bundle.md
+          else
+            echo "_(empty)_" >> bundle.md
+          fi
+          echo >> bundle.md
+
+      - name: TypeScript diagnostics (optional)
+        if: ${{ hashFiles('tsconfig.json') != '' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          npx tsc -p tsconfig.json --noEmit > ts.txt 2>&1 || true
+          echo "### TypeScript Diagnostics" >> bundle.md
+          echo >> bundle.md
+          if [ -s ts.txt ]; then
+            echo '```' >> bundle.md
+            head -n 300 ts.txt >> bundle.md
+            echo '```' >> bundle.md
+          else
+            echo "_No TypeScript errors._" >> bundle.md
+          fi
+          echo >> bundle.md
+
+      - name: ESLint summary (optional)
+        continue-on-error: true
+        shell: bash
+        run: |
+          HAS_ESLINT=0
+          if [ -f .eslintrc ] || [ -f .eslintrc.js ] || [ -f .eslintrc.cjs ] || [ -f .eslintrc.json ]; then HAS_ESLINT=1; fi
+          if grep -q '"eslintConfig"' package.json 2>/dev/null; then HAS_ESLINT=1; fi
+          echo "### ESLint Summary" >> bundle.md
+          echo >> bundle.md
+          if [ "$HAS_ESLINT" = "1" ] ; then
+            npx eslint . -f stylish > eslint.txt 2>&1 || true
+            if [ -s eslint.txt ]; then
+              echo '```' >> bundle.md
+              head -n 300 eslint.txt >> bundle.md
+              echo '```' >> bundle.md
+            else
+              echo "_No ESLint output._" >> bundle.md
+            fi
+          else
+            echo "_No ESLint config detected._" >> bundle.md
+          fi
+          echo >> bundle.md
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: context-bundle-branch-${{ steps.refs.outputs.BRANCH_NAME }}
+          path: |
+            bundle.md
+            files.txt
+            hunks.patch
+            ts.txt
+            eslint.txt
+          if-no-files-found: ignore
+
+      - name: Create or update branch Issue with bundle
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const branch = process.env.BRANCH || '${{ steps.refs.outputs.BRANCH_NAME }}';
+            const title = `Context Bundle: ${branch}`;
+            const body = fs.readFileSync('bundle.md','utf8');
+
+            // Find existing open issue with this exact title
+            const { data: issues } = await github.rest.issues.listForRepo({
+              ...context.repo,
+              state: 'open',
+              labels: 'context-bundle',
+              per_page: 100
+            });
+            const existing = issues.find(i => i.title === title);
+
+            if (existing) {
+              await github.rest.issues.update({
+                ...context.repo,
+                issue_number: existing.number,
+                body
+              });
+            } else {
+              await github.rest.issues.create({
+                ...context.repo,
+                title,
+                body,
+                labels: ['context-bundle','branch']
+              });
+            }
+

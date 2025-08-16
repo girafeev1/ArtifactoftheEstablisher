@@ -8,6 +8,7 @@ State: ✅ done · ⏳ in progress · 🧭 next · 🧪 QA/verify · 🗓️ def
 ⸻
 
 ## Latest change summary (this PR / diff you shared)
+- Add continuous Context Bundle for branch pushes (Issue per branch).
 - Polish: Task Log headings/code fences.
 - Add PR Quality Gate (soft): Task ID required; warns for task-log & missing Context Bundle.
 - Add CI concurrency/timeout for Context Bundle workflow.
