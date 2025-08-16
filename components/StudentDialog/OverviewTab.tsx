@@ -1,7 +1,7 @@
 // components/StudentDialog/OverviewTab.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Tabs, Tab, Box, CircularProgress, Typography } from '@mui/material'
+import { Tabs, Tab, Box, CircularProgress, Typography, Tooltip } from '@mui/material'
 import FloatingWindow from './FloatingWindow'
 import { titleFor, MainTab, BillingSubTab } from './title'
 
@@ -97,7 +97,12 @@ export default function OverviewTab({
   })
 
   // overview summary streamed from SessionsTab
-  const [overview, setOverview] = useState<any>({ joint: '', last: '', total: 0 })
+  const [overview, setOverview] = useState<any>({
+    joint: '',
+    last: '',
+    total: 0,
+    cancelled: 0,
+  })
   const [overviewLoading, setOverviewLoading] = useState(true)
 
   const handlePersonal = useCallback(
@@ -121,8 +126,18 @@ export default function OverviewTab({
   )
 
   const handleSummary = useCallback(
-    (s: { jointDate: string; lastSession: string; totalSessions: number }) => {
-      setOverview({ joint: s.jointDate, last: s.lastSession, total: s.totalSessions })
+    (s: {
+      jointDate: string
+      lastSession: string
+      totalSessions: number
+      cancelled: number
+    }) => {
+      setOverview({
+        joint: s.jointDate,
+        last: s.lastSession,
+        total: s.totalSessions,
+        cancelled: s.cancelled,
+      })
       setOverviewLoading(false)
     },
     [setOverview, setOverviewLoading],
@@ -276,27 +291,30 @@ export default function OverviewTab({
                   </Typography>
                 )}
 
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-                >
-                  Total Sessions:{' '}
-                  {overviewLoading && <CircularProgress size={14} />}
-                </Typography>
                 {overviewLoading ? (
                   <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    variant="subtitle2"
+                    sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                   >
-                    Loading…
+                    Total: <CircularProgress size={14} />
                   </Typography>
                 ) : (
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  <Tooltip
+                    title={`✔️ ${(overview.total || 0) - (overview.cancelled || 0)} excluding cancelled`}
                   >
-                    {overview.total ?? '–'}
-                  </Typography>
+                    <Typography
+                      variant="subtitle2"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                    >
+                      Total:{' '}
+                      <Box
+                        component="span"
+                        sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                      >
+                        {overview.total ?? '–'} (❌ {overview.cancelled ?? '–'})
+                      </Box>
+                    </Typography>
+                  </Tooltip>
                 )}
 
                 <Typography

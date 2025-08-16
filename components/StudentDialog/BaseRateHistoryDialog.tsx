@@ -12,12 +12,28 @@ import {
   TableBody,
   TextField,
 } from '@mui/material'
-import { collection, addDoc, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'
+import {
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  Timestamp,
+  doc,
+  updateDoc,
+} from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
 import { useSession } from 'next-auth/react'
 import { useBillingClient } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
+import dayjs from 'dayjs'
+import utc from 'dayjs-plugin-utc'
+import timezone from 'dayjs-plugin-timezone'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
+dayjs.tz.setDefault('Asia/Hong_Kong')
 
 export default function BaseRateHistoryDialog({
   abbr,
@@ -31,7 +47,10 @@ export default function BaseRateHistoryDialog({
   onClose: () => void
 }) {
   const [rows, setRows] = useState<any[]>([])
-  const [rate, setRate] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
+  const [newRate, setNewRate] = useState('')
+  const [newDate, setNewDate] = useState(dayjs().tz().format('YYYY-MM-DD'))
+  const [editing, setEditing] = useState<string | null>(null)
   const { data: session } = useSession()
   const qc = useBillingClient()
   const formatDate = (v: any) => {
@@ -63,62 +82,82 @@ export default function BaseRateHistoryDialog({
 
   const add = async () => {
     const path = PATHS.baseRateHistory(abbr)
+    const eff = dayjs
+      .tz(newDate, 'Asia/Hong_Kong')
+      .startOf('day')
+      .toDate()
     await addDoc(collection(db, path), {
-      rate: Number(rate) || 0,
+      rate: Number(newRate) || 0,
       timestamp: Timestamp.fromDate(new Date()),
+      effectDate: Timestamp.fromDate(eff),
       editedBy: session?.user?.email || 'unknown',
     })
-    setRate('')
+    setNewRate('')
+    setNewDate(dayjs().tz().format('YYYY-MM-DD'))
+    setAddOpen(false)
     await writeSummaryFromCache(qc, abbr, account)
+  }
+
+  const saveEffectDate = async (id: string, date: string) => {
+    const eff = dayjs
+      .tz(date, 'Asia/Hong_Kong')
+      .startOf('day')
+      .toDate()
+    const ref = doc(db, PATHS.baseRateHistory(abbr), id)
+    await updateDoc(ref, {
+      effectDate: Timestamp.fromDate(eff),
+      editedBy: session?.user?.email || 'unknown',
+    })
+    setEditing(null)
   }
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Base Rate History</DialogTitle>
       <DialogContent>
-        <TextField
-          label="New Rate"
-          type="number"
-          value={rate}
-          onChange={(e) => setRate(e.target.value)}
-          fullWidth
-          sx={{ my: 1 }}
-          InputLabelProps={{
-            sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-          }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-        />
-        <Button onClick={add} variant="contained" disabled={!rate} sx={{ mb: 2 }}>
-          Add
-        </Button>
         <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Rate</TableCell>
-              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Timestamp</TableCell>
-              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Edited By</TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Effective Date</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {rows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+              <TableRow key={r.id} title={r.editedBy || 'unknown'}>
+                <TableCell
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                  title={r.editedBy || 'unknown'}
+                >
                   {r.rate}
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {formatDate(r.timestamp)}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {r.editedBy || 'unknown'}
+                  {r.effectDate ? (
+                    formatDate(r.effectDate)
+                  ) : editing === r.id ? (
+                    <TextField
+                      type="date"
+                      size="small"
+                      defaultValue={dayjs().tz().format('YYYY-MM-DD')}
+                      onBlur={(e) => saveEffectDate(r.id, e.target.value)}
+                      inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+                    />
+                  ) : (
+                    <span
+                      className="blink-amount--warn"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setEditing(r.id)}
+                    >
+                      –
+                    </span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
             {rows.length === 0 && (
               <TableRow>
-                <TableCell
-                  colSpan={3}
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                >
+                <TableCell colSpan={2} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                   No history.
                 </TableCell>
               </TableRow>
@@ -126,9 +165,41 @@ export default function BaseRateHistoryDialog({
           </TableBody>
         </Table>
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{ justifyContent: 'space-between' }}>
+        <Button onClick={() => setAddOpen(true)}>Add</Button>
         <Button onClick={onClose}>Close</Button>
       </DialogActions>
+      <Dialog open={addOpen} onClose={() => setAddOpen(false)}>
+        <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Base Rate</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="New Rate"
+            type="number"
+            value={newRate}
+            onChange={(e) => setNewRate(e.target.value)}
+            fullWidth
+            sx={{ my: 1 }}
+            InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+            inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          />
+          <TextField
+            label="Effective Date"
+            type="date"
+            value={newDate}
+            onChange={(e) => setNewDate(e.target.value)}
+            fullWidth
+            sx={{ my: 1 }}
+            InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+            inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'space-between' }}>
+          <Button onClick={() => setAddOpen(false)}>Cancel</Button>
+          <Button onClick={add} disabled={!newRate}>
+            Add
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   )
 }

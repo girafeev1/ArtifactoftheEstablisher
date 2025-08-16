@@ -17,6 +17,12 @@ Latest change summary
 Tasks table — add/update:
 
 | ID    | Title                                                | State | Notes / Files |
+| T-031 | Column min-width squeeze & ellipsis | 🧭    | lib/useColumnWidths.ts; components |
+| T-032 | Sessions summary tooltip format | 🧭    | SessionsTab.tsx, OverviewTab.tsx |
+| T-033 | Payment History blink logic | 🧭    | PaymentHistory.tsx, styles |
+| T-034 | Base Rate history redesign & timezone | 🧭    | BaseRateHistoryDialog.tsx, BillingTab.tsx, SessionDetail.tsx |
+| T-035 | Blink animation tokens & reduced motion | 🧭    | studentDialog.css, PaymentDetail.tsx |
+| T-036 | Cypress tests for width/blink/base rate | 🧭    | cypress/e2e |
 |-------|------------------------------------------------------|-------|---------------|
 | T-037 | Reduce table column min width to ~36px with ellipsis + hover tooltip; keep auto-fit       | 🧭    | lib/useColumnWidths.ts, table cell styles |
 | T-038 | Sessions summary format (fix legacy T-217): Total {all} (❌ {cancelled}); tooltip ✔️ {…}   | 🧭    | SessionsTab + mirror in Personal tab |
@@ -62,6 +68,7 @@ Tasks table — add/update:
 Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
+| P-019 | Column min-width squeeze, sessions summary regression fix, payment blink logic, base rate history redesign | 🧭    | See `prompts/P-019.md` |
 |-------|------------------------------------------------------|-------|-------|
 | P-019 | Min-width squeeze, T-217 display, payment blink logic, Base Rate history redesign         | 🧭    | This change |
 | P-017 | Task Log guardrails + finish P-016 acceptance | ✅    | This change |

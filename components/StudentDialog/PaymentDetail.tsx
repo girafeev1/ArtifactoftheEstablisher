@@ -330,7 +330,7 @@ export default function PaymentDetail({
           <span
             className={
               remaining > 0 || assignedSessionIds.length === 0
-                ? 'blink-amount'
+                ? 'blink-amount--warn'
                 : undefined
             }
           >
@@ -352,12 +352,22 @@ export default function PaymentDetail({
         <Table
           ref={tableRef}
           size="small"
-          sx={{ mt: 1, tableLayout: 'fixed', width: 'max-content' }}
+          sx={{
+            mt: 1,
+            tableLayout: 'fixed',
+            width: 'max-content',
+            '& td, & th': {
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            },
+          }}
         >
           <TableHead>
             <TableRow>
               <TableCell
                 data-col="ordinal"
+                title="Session #"
                 sx={{
                   fontFamily: 'Cantata One',
                   fontWeight: 'bold',
@@ -390,6 +400,7 @@ export default function PaymentDetail({
               </TableCell>
               <TableCell
                 data-col="date"
+                title="Date"
                 sx={{
                   fontFamily: 'Cantata One',
                   fontWeight: 'bold',
@@ -422,6 +433,7 @@ export default function PaymentDetail({
               </TableCell>
               <TableCell
                 data-col="time"
+                title="Time"
                 sx={{
                   fontFamily: 'Cantata One',
                   fontWeight: 'bold',
@@ -454,6 +466,7 @@ export default function PaymentDetail({
               </TableCell>
               <TableCell
                 data-col="rate"
+                title="Rate"
                 sx={{
                   fontFamily: 'Cantata One',
                   fontWeight: 'bold',
@@ -499,24 +512,28 @@ export default function PaymentDetail({
                   <TableRow key={s.id}>
                     <TableCell
                       data-col="ordinal"
+                      title={String(s.ordinal ?? '-')}
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                     >
                       {s.ordinal ?? '-'}
                     </TableCell>
                     <TableCell
                       data-col="date"
+                      title={s.date || '-'}
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                     >
                       {s.date || '-'}
                     </TableCell>
                     <TableCell
                       data-col="time"
+                      title={s.time || '-'}
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                     >
                       {s.time || '-'}
                     </TableCell>
                     <TableCell
                       data-col="rate"
+                      title={formatCurrency(Number(s.rate) || 0)}
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                     >
                       {formatCurrency(Number(s.rate) || 0)}
@@ -527,6 +544,7 @@ export default function PaymentDetail({
                   <TableRow key={s.id}>
                     <TableCell
                       data-col="ordinal"
+                      title={String(s.ordinal ?? '-')}
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                     >
                       <Checkbox
@@ -544,18 +562,21 @@ export default function PaymentDetail({
                     </TableCell>
                     <TableCell
                       data-col="date"
+                      title={s.date || '-'}
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                     >
                       {s.date || '-'}
                     </TableCell>
                     <TableCell
                       data-col="time"
+                      title={s.time || '-'}
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                     >
                       {s.time || '-'}
                     </TableCell>
                     <TableCell
                       data-col="rate"
+                      title={formatCurrency(Number(s.rate) || 0)}
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                     >
                       {formatCurrency(Number(s.rate) || 0)}
