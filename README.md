@@ -81,4 +81,4 @@ Set the following in `.env.local`:
 
 ## Documentation
 
- - [Task Log](docs/Task%20Log.md)
+ - [Task Log](./docs/Task%20Log.md)

@@ -8,5 +8,6 @@ describe('Dialog layering', () => {
     cy.contains('Payment History').click()
     cy.get('button[aria-label="Add Payment"]').click()
     cy.get('div[role="dialog"]').should('have.length.at.least', 2)
+    cy.get('div[role="dialog"]').last().should('contain', 'Add Payment')
   })
 })

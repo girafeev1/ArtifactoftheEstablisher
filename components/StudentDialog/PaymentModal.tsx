@@ -11,18 +11,23 @@ import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
+import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
+import { writeSummaryFromCache } from '../../lib/liveRefresh'
 
 export default function PaymentModal({
   abbr,
+  account,
   open,
   onClose,
 }: {
   abbr: string
+  account: string
   open: boolean
   onClose: () => void
 }) {
   const [amount, setAmount] = useState('')
   const [madeOn, setMadeOn] = useState('')
+  const qc = useBillingClient()
 
   const save = async () => {
     const paymentsPath = PATHS.payments(abbr)
@@ -39,6 +44,14 @@ export default function PaymentModal({
       timestamp: Timestamp.fromDate(today),
       editedBy: getAuth().currentUser?.email || 'system',
     })
+    qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        balanceDue: Math.max(0, (prev.balanceDue || 0) - (Number(amount) || 0)),
+      }
+    })
+    await writeSummaryFromCache(qc, abbr, account)
   }
 
   return (

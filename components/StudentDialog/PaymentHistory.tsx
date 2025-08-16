@@ -381,6 +381,7 @@ export default function PaymentHistory({
       </Box>
       <PaymentModal
         abbr={abbr}
+        account={account}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
       />
