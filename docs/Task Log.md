@@ -13,6 +13,7 @@ Latest change summary
 - Added Base Rate History (info icon) with rate, timestamp, editedBy and add-entry flow.
 - Added PR Context Bundle automation, PaymentModal summary write, overlay test, and README Task Log link fix.
 - Replaced dayjs timezone dependency with built-in plugin to fix install failures.
+- Queue P-021: loading UX cleanup, due parity, vouchers default, payment blink, base-rate history editing, min-width v3, calendar scan fixes.
 
 ---
 
@@ -20,6 +21,17 @@ Tasks table — add/update:
 
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
+| T-055 | Loading UX: spinner→blinking “–” in value (respect reduced-motion)       | 🧭    | OverviewTab & other fields; remove label spinners |
+| T-056 | Card Due parity & loading fallback                                       | 🧭    | Prefer cached.billingSummary; show “–” while loading |
+| T-057 | Sessions: “Session Vouchers” column hidden by default (persist per user) | 🧭    | SessionsTab columns/filters |
+| T-058 | Payment History blink: yellow (remaining>0), red (< minUnpaidRate)       | 🧭    | PaymentHistory; minUnpaidRate util; a11y fallback |
+| T-059 | Base Rate info icon relocation (Billing tab Base Rate field)             | 🧭    | Move from Session Detail to Billing tab |
+| T-060 | Base Rate History: footer Add, sub-dialog (Rate+Effective Date), editing | 🧭    | Inline fix for missing effectDate; keep tooltips/currency |
+| T-061 | Column min-width v3 (~24–26px) + ellipsis + keyboard resize              | 🧭    | useColumnWidths + cell styles |
+| T-062 | Calendar scan UX: error surfacing & logs (incremental/full)              | 🧭    | /api/calendar-scan + UI toasts + ScanLogs |
+| T-063 | Calendar delete/cancel propagation & 410 full-resync fallback            | 🧭    | GAS sync + session updates |
+| T-064 | Scan status caption in Tools menu (last run, result)                      | 🧭    | Small status text; optional link to logs |
+| T-065 | Tests: blink logic, base-rate effectDate, min-width keyboard             | 🧭    | Unit + Cypress |
 | T-045 | Base rate SSOT: derive by `effectDate` (HK midnight) for sessions     |       | Apply when computing/reading Base Rate across UI & billing; fallback: if missing, treat `effectDate = startOfDay(timestamp, HK)`; add migration util |
 | T-046 | Base Rate History: edit existing entries (rate & effectDate) + audit  |       | BaseRateHistoryDialog: inline edit w/ validation; write `editedBy`; keep `timestamp` as entry time; no “Edited By” column (show in tooltip) |
 | T-047 | Base Rate History: “transit line” visualization (toggle view)         |       | Dialog toggle between table and timeline; responsive; keyboard accessible |
@@ -81,6 +93,7 @@ Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
 |-------|------------------------------------------------------|-------|-------|
+| P-021 | Loading UX, due parity, vouchers default, payment blink, base-rate UX/edit, min-width v3, calendar scan reliability | 🧭 | See prompts/P-021.md |
 | P-020 | Base Rate effectDate SSOT, summary naming/hover, card Total, min-width v2, cached.billingSummary, tests |        | Will implement T-045..T-054 |
 | P-019 | Min-width squeeze, T-217 display, payment blink logic, Base Rate history redesign         | 🧭    | This change |
 | P-018 | Context Bundle automation, payment summary write, overlay test hardening, README link fix | ✅    | This change |
