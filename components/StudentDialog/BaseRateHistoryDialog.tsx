@@ -28,8 +28,8 @@ import { useSession } from 'next-auth/react'
 import { useBillingClient } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
 import dayjs from 'dayjs'
-import utc from 'dayjs-plugin-utc'
-import timezone from 'dayjs-plugin-timezone'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)

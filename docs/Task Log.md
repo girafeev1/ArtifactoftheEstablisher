@@ -11,6 +11,8 @@ Latest change summary
 - Unified Balance Due source-of-truth: compute via useBilling, write to billingSummary.balanceDue, card view uses computed value with skeleton fallback.
 - Hardened dialog stacking/portals: "Add Payment" and similar modals always topmost.
 - Added Base Rate History (info icon) with rate, timestamp, editedBy and add-entry flow.
+- Added PR Context Bundle automation, PaymentModal summary write, overlay test, and README Task Log link fix.
+- Replaced dayjs timezone dependency with built-in plugin to fix install failures.
 
 ---
 
@@ -71,6 +73,7 @@ Prompts table — update:
 | P-019 | Column min-width squeeze, sessions summary regression fix, payment blink logic, base rate history redesign | 🧭    | See `prompts/P-019.md` |
 |-------|------------------------------------------------------|-------|-------|
 | P-019 | Min-width squeeze, T-217 display, payment blink logic, Base Rate history redesign         | 🧭    | This change |
+| P-018 | Context Bundle automation, payment summary write, overlay test hardening, README link fix | ✅    | This change |
 | P-017 | Task Log guardrails + finish P-016 acceptance | ✅    | This change |
 | P-016 | Autosize cols; sessions total parity; balance due source; modal stacking; base rate audit; GAS TZ/secret | 🧭    | See `prompts/p-016.md` for scope and acceptance criteria. Includes tasks T-090..T-095. |
 | P-015 | UI polish + scan hardening               | ✅    | Sticky dialog footers; thinner resize lever; per-user column widths; sticky ordinal #; infinite/darker blink on “Amount Received” (list & detail); “For Session(s)” mapping in Payment History; `/api/calendar-scan` bridged to GAS with incremental/full; spinner & toasts; removed BatchRenamePayments; Theme Popper/Menu containers pinned to `document.body`. |

@@ -1,0 +1,70 @@
+name: Context Bundle
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch: {}
+permissions:
+  pull-requests: write
+  issues: write
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const {owner, repo} = context.repo;
+            const files = await github.paginate(
+              github.rest.pulls.listFiles, { owner, repo, pull_number: pr.number, per_page: 100 }
+            );
+            const groups = new Map();
+            let add=0, del=0;
+            for (const f of files) {
+              add += f.additions; del += f.deletions;
+              const top = (f.filename.split('/')[0]) || '.';
+              const arr = groups.get(top) || [];
+              arr.push(`- \`${f.filename}\` (+${f.additions}/-${f.deletions})`);
+              groups.set(top, arr);
+            }
+            const groupMd = [...groups.entries()]
+              .map(([g, arr]) => `**${g}/**\n` + arr.join('\n'))
+              .join('\n\n');
+
+            // Task Log deltas
+            const tl = files.find(f => f.filename === 'docs/Task Log.md');
+            let tlLine = tl
+              ? `- Task Log changed: +${tl.additions}/-${tl.deletions}` +
+                (tl.deletions > 10 ? ' ⚠️ (removals > 10 will fail guard)' : '')
+              : '- Task Log changed: no';
+
+            // Prompts touched
+            const prompts = files.filter(f => f.filename.startsWith('prompts/')).map(f => f.filename);
+            const promptsLine = prompts.length ? `- Prompts: ${prompts.map(p => `\`${p}\``).join(', ')}` : '- Prompts: none';
+
+            const body = [
+              '### Context Bundle',
+              `**PR** #${pr.number}: ${pr.title}`,
+              `**Head** \`${pr.head.ref}\` @ \`${pr.head.sha.slice(0,7)}\``,
+              `**Files**: ${files.length}  (**+${add} / -${del}**)`,
+              '',
+              tlLine,
+              promptsLine,
+              '',
+              groupMd || '_No file changes?_' 
+            ].join('\n');
+
+            // Upsert comment
+            const comments = await github.paginate(
+              github.rest.issues.listComments, { owner, repo, issue_number: pr.number, per_page: 100 }
+            );
+            const mine = comments.find(c =>
+              c.user.type === 'Bot' && c.user.login.endsWith('[bot]') && c.body.startsWith('### Context Bundle')
+            );
+            if (mine) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+            }
