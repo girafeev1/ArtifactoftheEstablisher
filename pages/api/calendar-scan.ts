@@ -6,14 +6,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   try {
     const url = process.env.CALENDAR_SCAN_URL;
-    const secret = process.env.CALENDAR_SCAN_SECRET;
+    const secret = process.env.SCAN_SECRET;
     if (!url) {
       return res.status(500).json({ error: 'CALENDAR_SCAN_URL not configured' });
     }
-    const body = { ...(req.body || { action: 'scanAll' }), secret };
+    const body = req.body || { action: 'scanAll' };
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Scan-Secret': secret || '',
+      },
       body: JSON.stringify(body),
     });
     const data = await response.json();

@@ -26,6 +26,7 @@ import { clearSessionSummaries } from '../../../lib/sessionStats'
 import { computeSessionStart } from '../../../lib/sessions'
 import IconButton from '@mui/material/IconButton'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
+import { useBilling } from '../../../lib/billing/useBilling'
 
 interface StudentMeta {
   abbr: string
@@ -44,6 +45,50 @@ const formatCurrency = (n: number) =>
     currency: 'HKD',
     currencyDisplay: 'code',
   }).format(n)
+
+function StudentCard({
+  student,
+  onSelect,
+}: {
+  student: StudentDetails
+  onSelect: (s: StudentDetails) => void
+}) {
+  const { data: bill } = useBilling(student.abbr, student.account)
+  const due = bill?.balanceDue ?? student.balanceDue ?? null
+  return (
+    <Grid item xs={12} sm={6} md={4} lg={3}>
+      <Card>
+        <CardActionArea onClick={() => onSelect(student)}>
+          <CardContent>
+            <Typography variant="h6">{student.account}</Typography>
+            <Typography>
+              <span className={student.sex === undefined ? 'slow-blink' : undefined}>
+                {student.sex ?? '—'}
+              </span>{' '}
+              • Due:{' '}
+              <span className={!bill ? 'slow-blink' : undefined}>
+                {due == null ? '—' : formatCurrency(due)}
+              </span>
+            </Typography>
+            <Typography>
+              Total:{' '}
+              <span className={student.total === undefined ? 'slow-blink' : undefined}>
+                {student.total ?? '—'}
+              </span>
+              {student.upcoming === undefined ? (
+                <span className="slow-blink"> → —</span>
+              ) : student.upcoming > 0 ? (
+                ` → ${student.upcoming}`
+              ) : (
+                ''
+              )}
+            </Typography>
+          </CardContent>
+        </CardActionArea>
+      </Card>
+    </Grid>
+  )
+}
 
 export default function CoachingSessions() {
   const [students, setStudents] = useState<StudentDetails[]>([])
@@ -228,45 +273,7 @@ export default function CoachingSessions() {
       <Box sx={{ position: 'relative', pb: 8 }}>
         <Grid container spacing={2} sx={{ mt: 2 }}>
           {students.map((s) => (
-            <Grid item key={s.abbr} xs={12} sm={6} md={4}>
-              <Card>
-                <CardActionArea onClick={() => setSelected(s)}>
-                  <CardContent>
-                    <Typography variant="h6">{s.account}</Typography>
-                    <Typography>
-                      <span className={s.sex === undefined ? 'slow-blink' : undefined}>
-                        {s.sex ?? '—'}
-                      </span>
-                      {' '}• Due:{' '}
-                      <span
-                        className={
-                          s.balanceDue === undefined ? 'slow-blink' : undefined
-                        }
-                      >
-                        {s.balanceDue == null
-                          ? '—'
-                          : formatCurrency(s.balanceDue)}
-                      </span>
-                    </Typography>
-                    <Typography>
-                      Total:{' '}
-                      <span
-                        className={s.total === undefined ? 'slow-blink' : undefined}
-                      >
-                        {s.total ?? '—'}
-                      </span>
-                      {s.upcoming === undefined ? (
-                        <span className="slow-blink"> → —</span>
-                      ) : s.upcoming > 0 ? (
-                        ` → ${s.upcoming}`
-                      ) : (
-                        ''
-                      )}
-                    </Typography>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            </Grid>
+            <StudentCard key={s.abbr} student={s} onSelect={setSelected} />
           ))}
         </Grid>
         <Menu

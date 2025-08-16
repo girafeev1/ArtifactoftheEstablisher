@@ -68,7 +68,7 @@ export function useColumnWidths(
     [widths],
   )
 
-  const autoFit = useCallback(
+  const autoSize = useCallback(
     (key: string, root: HTMLElement) => {
       const cells = root.querySelectorAll<HTMLElement>(`[data-col="${key}"]`)
       let max = 0
@@ -82,6 +82,14 @@ export function useColumnWidths(
     [],
   )
 
-  return { widths, startResize, autoFit }
+  const dblClickResize = useCallback(
+    (key: string, e: React.MouseEvent) => {
+      const root = (e.currentTarget as HTMLElement).closest('table')
+      if (root) autoSize(key, root as HTMLElement)
+    },
+    [autoSize],
+  )
+
+  return { widths, startResize, dblClickResize }
 }
 

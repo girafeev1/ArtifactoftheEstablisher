@@ -9,7 +9,11 @@ function doPost(e) {
     }
     var props = PropertiesService.getScriptProperties();
     var secret = props.getProperty('SCAN_SECRET');
-    if (!body.secret || body.secret !== secret) {
+    var headerSecret = '';
+    if (e && e.headers) {
+      headerSecret = e.headers['X-Scan-Secret'] || e.headers['x-scan-secret'];
+    }
+    if (!headerSecret || headerSecret !== secret) {
       return ContentService.createTextOutput(
         JSON.stringify({ ok: false, message: 'unauthorized' }),
       ).setMimeType(ContentService.MimeType.JSON);

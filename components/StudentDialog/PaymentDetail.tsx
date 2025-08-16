@@ -77,12 +77,11 @@ export default function PaymentDetail({
     { key: 'time', width: 100 },
     { key: 'rate', width: 130 },
   ] as const
-  const { widths, startResize, autoFit } = useColumnWidths(
+  const { widths, startResize, dblClickResize } = useColumnWidths(
     'paymentDetail',
     columns,
     userEmail,
   )
-  const tableRef = React.useRef<HTMLTableElement>(null)
 
   const assignedSet = new Set(assignedSessionIds)
   const allRows = bill
@@ -352,7 +351,6 @@ export default function PaymentDetail({
         <Table
           size="small"
           sx={{ mt: 1, tableLayout: 'fixed', width: 'max-content' }}
-          ref={tableRef}
         >
           <TableHead>
             <TableRow>
@@ -383,7 +381,7 @@ export default function PaymentDetail({
                   className="col-resizer"
                   aria-label="Resize column Session #"
                   onMouseDown={(e) => startResize('ordinal', e)}
-                  onDoubleClick={() => tableRef.current && autoFit('ordinal', tableRef.current)}
+                  onDoubleClick={(e) => dblClickResize('ordinal', e)}
                 />
               </TableCell>
               <TableCell
@@ -413,7 +411,7 @@ export default function PaymentDetail({
                   className="col-resizer"
                   aria-label="Resize column Date"
                   onMouseDown={(e) => startResize('date', e)}
-                  onDoubleClick={() => tableRef.current && autoFit('date', tableRef.current)}
+                  onDoubleClick={(e) => dblClickResize('date', e)}
                 />
               </TableCell>
               <TableCell
@@ -443,7 +441,7 @@ export default function PaymentDetail({
                   className="col-resizer"
                   aria-label="Resize column Time"
                   onMouseDown={(e) => startResize('time', e)}
-                  onDoubleClick={() => tableRef.current && autoFit('time', tableRef.current)}
+                  onDoubleClick={(e) => dblClickResize('time', e)}
                 />
               </TableCell>
               <TableCell
@@ -473,7 +471,7 @@ export default function PaymentDetail({
                   className="col-resizer"
                   aria-label="Resize column Rate"
                   onMouseDown={(e) => startResize('rate', e)}
-                  onDoubleClick={() => tableRef.current && autoFit('rate', tableRef.current)}
+                  onDoubleClick={(e) => dblClickResize('rate', e)}
                 />
               </TableCell>
             </TableRow>

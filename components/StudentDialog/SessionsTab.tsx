@@ -94,7 +94,7 @@ export default function SessionsTab({
   ]
   const { data: session } = useSession()
   const userEmail = session?.user?.email || 'anon'
-  const { widths, startResize, autoFit } = useColumnWidths(
+  const { widths, startResize, dblClickResize } = useColumnWidths(
     'sessions',
     allColumns,
     userEmail,
@@ -123,7 +123,6 @@ export default function SessionsTab({
   const [voucherBalance, setVoucherBalance] = useState<number | null>(null)
   const [sortBy, setSortBy] = useState<string>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const tableRef = React.useRef<HTMLTableElement>(null)
   const handleSort = (key: string) => {
     if (sortBy === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -717,7 +716,7 @@ export default function SessionsTab({
           <Table
             size="small"
             sx={{ tableLayout: 'fixed', width: 'max-content' }}
-            ref={tableRef}
+            
           >
             <TableHead>
               <TableRow>
@@ -754,7 +753,7 @@ export default function SessionsTab({
                         className="col-resizer"
                         aria-label={`Resize column ${c.label}`}
                         onMouseDown={(e) => startResize(c.key, e)}
-                        onDoubleClick={() => tableRef.current && autoFit(c.key, tableRef.current)}
+                        onDoubleClick={(e) => dblClickResize(c.key, e)}
                       />
                     </TableCell>
                   ))}

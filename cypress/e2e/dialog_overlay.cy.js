@@ -1,3 +1,6 @@
+/* eslint-env mocha */
+/* global cy, describe, it */
+
 describe('Dialog layering', () => {
   it('shows Add Payment above student dialog', () => {
     cy.visit('/dashboard/businesses/coaching-sessions')

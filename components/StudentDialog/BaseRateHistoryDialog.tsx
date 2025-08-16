@@ -19,7 +19,7 @@ import { useSession } from 'next-auth/react'
 import { useBillingClient } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
 
-export default function BaseRateHistoryModal({
+export default function BaseRateHistoryDialog({
   abbr,
   account,
   open,
@@ -34,6 +34,21 @@ export default function BaseRateHistoryModal({
   const [rate, setRate] = useState('')
   const { data: session } = useSession()
   const qc = useBillingClient()
+  const formatDate = (v: any) => {
+    if (!v) return 'N/A'
+    try {
+      const d = v.toDate ? v.toDate() : new Date(v)
+      return isNaN(d.getTime())
+        ? 'N/A'
+        : d.toLocaleDateString(undefined, {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+          })
+    } catch {
+      return 'N/A'
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -68,6 +83,10 @@ export default function BaseRateHistoryModal({
           onChange={(e) => setRate(e.target.value)}
           fullWidth
           sx={{ my: 1 }}
+          InputLabelProps={{
+            sx: { fontFamily: 'Newsreader', fontWeight: 200 },
+          }}
+          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
         />
         <Button onClick={add} variant="contained" disabled={!rate} sx={{ mb: 2 }}>
           Add
@@ -87,9 +106,7 @@ export default function BaseRateHistoryModal({
                   {r.rate}
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {r.timestamp?.toDate
-                    ? r.timestamp.toDate().toLocaleString()
-                    : ''}
+                  {formatDate(r.timestamp)}
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                   {r.editedBy || 'unknown'}

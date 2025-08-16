@@ -72,12 +72,11 @@ export default function PaymentHistory({
     { key: 'amount', label: 'Amount Received', width: 160 },
     { key: 'session', label: 'For Session(s)', width: 200 },
   ] as const
-  const { widths, startResize, autoFit } = useColumnWidths(
+  const { widths, startResize, dblClickResize } = useColumnWidths(
     'payments',
     columns,
     userEmail,
   )
-  const tableRef = React.useRef<HTMLTableElement>(null)
 
   const sessionMap = React.useMemo(() => {
     const m: Record<string, number> = {}
@@ -164,7 +163,6 @@ export default function PaymentHistory({
             <Table
               size="small"
               sx={{ cursor: 'pointer', tableLayout: 'fixed', width: 'max-content' }}
-              ref={tableRef}
             >
               <TableHead>
                 <TableRow>
@@ -195,7 +193,7 @@ export default function PaymentHistory({
                     className="col-resizer"
                     aria-label="Resize column Payment Made On"
                     onMouseDown={(e) => startResize('paymentMade', e)}
-                    onDoubleClick={() => tableRef.current && autoFit('paymentMade', tableRef.current)}
+                    onDoubleClick={(e) => dblClickResize('paymentMade', e)}
                   />
                 </TableCell>
                 <TableCell
@@ -225,7 +223,7 @@ export default function PaymentHistory({
                     className="col-resizer"
                     aria-label="Resize column Amount Received"
                     onMouseDown={(e) => startResize('amount', e)}
-                    onDoubleClick={() => tableRef.current && autoFit('amount', tableRef.current)}
+                    onDoubleClick={(e) => dblClickResize('amount', e)}
                   />
                 </TableCell>
                 <TableCell
@@ -243,7 +241,7 @@ export default function PaymentHistory({
                     className="col-resizer"
                     aria-label="Resize column For Session(s)"
                     onMouseDown={(e) => startResize('session', e)}
-                    onDoubleClick={() => tableRef.current && autoFit('session', tableRef.current)}
+                    onDoubleClick={(e) => dblClickResize('session', e)}
                   />
                 </TableCell>
               </TableRow>

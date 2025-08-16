@@ -8,7 +8,7 @@ import { db } from '../../lib/firebase'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
-import BaseRateHistoryModal from './BaseRateHistoryModal'
+import BaseRateHistoryDialog from './BaseRateHistoryDialog'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -213,7 +213,7 @@ export default function SessionDetail({
             Use Session Voucher
           </Button>
         )}
-        <BaseRateHistoryModal
+        <BaseRateHistoryDialog
           abbr={abbr}
           account={account}
           open={histOpen}

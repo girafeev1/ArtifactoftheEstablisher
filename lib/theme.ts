@@ -12,6 +12,7 @@ const theme = createTheme({
       },
     },
   },
+  zIndex: { modal: 1500 },
 });
 
 export default theme;

@@ -64,12 +64,11 @@ export default function RetainersTab({
     { key: 'status', width: 120 },
     { key: 'actions', width: 100 },
   ] as const
-  const { widths, startResize, autoFit } = useColumnWidths(
+  const { widths, startResize, dblClickResize } = useColumnWidths(
     'retainers',
     columns,
     userEmail,
   )
-  const tableRef = React.useRef<HTMLTableElement>(null)
 
   const load = async () => {
     try {
@@ -133,7 +132,6 @@ export default function RetainersTab({
         <Table
           size="small"
           sx={{ tableLayout: 'fixed', width: 'max-content' }}
-          ref={tableRef}
         >
         <TableHead>
           <TableRow>
@@ -158,7 +156,7 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Retainer"
                 onMouseDown={(e) => startResize('retainer', e)}
-                onDoubleClick={() => tableRef.current && autoFit('retainer', tableRef.current)}
+                onDoubleClick={(e) => dblClickResize('retainer', e)}
               />
             </TableCell>
             <TableCell
@@ -176,7 +174,7 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Coverage Period"
                 onMouseDown={(e) => startResize('period', e)}
-                onDoubleClick={() => tableRef.current && autoFit('period', tableRef.current)}
+                onDoubleClick={(e) => dblClickResize('period', e)}
               />
             </TableCell>
             <TableCell
@@ -194,7 +192,7 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Rate"
                 onMouseDown={(e) => startResize('rate', e)}
-                onDoubleClick={() => tableRef.current && autoFit('rate', tableRef.current)}
+                onDoubleClick={(e) => dblClickResize('rate', e)}
               />
             </TableCell>
             <TableCell
@@ -212,7 +210,7 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Status"
                 onMouseDown={(e) => startResize('status', e)}
-                onDoubleClick={() => tableRef.current && autoFit('status', tableRef.current)}
+                onDoubleClick={(e) => dblClickResize('status', e)}
               />
             </TableCell>
             <TableCell
@@ -230,7 +228,7 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Actions"
                 onMouseDown={(e) => startResize('actions', e)}
-                onDoubleClick={() => tableRef.current && autoFit('actions', tableRef.current)}
+                onDoubleClick={(e) => dblClickResize('actions', e)}
               />
             </TableCell>
           </TableRow>
