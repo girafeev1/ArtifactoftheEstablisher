@@ -27,11 +27,9 @@ jobs:
 
       - name: Compute refs
         id: refs
-        shell: bash
         run: |
-          echo "BASE_REF=${{ github.event.repository.default_branch }}" >> $GITHUB_OUTPUT
-          echo "HEAD_SHA=${GITHUB_SHA}" >> $GITHUB_OUTPUT
           echo "BRANCH_NAME=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          echo "SANITIZED_BRANCH_NAME=${GITHUB_REF_NAME//\//-}" >> $GITHUB_OUTPUT
 
       - name: Fetch base
         shell: bash
@@ -145,14 +143,8 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: context-bundle-branch-${{ steps.refs.outputs.BRANCH_NAME }}
-          path: |
-            bundle.md
-            files.txt
-            hunks.patch
-            ts.txt
-            eslint.txt
-          if-no-files-found: ignore
+          name: context-bundle-branch-${{ steps.refs.outputs.SANITIZED_BRANCH_NAME }}
+          path: path/to/your/artifacts
 
       - name: Create or update branch Issue with bundle
         uses: actions/github-script@v7
