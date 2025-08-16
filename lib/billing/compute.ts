@@ -3,6 +3,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
 import { PATHS } from '../paths'
 import { monthLabelFor as sharedMonthLabelFor } from './monthLabel'
+import { toHKMidnight } from '../time'
 
 export interface SessionRow {
   id: string
@@ -79,7 +80,13 @@ export async function buildContext(abbr: string, account: string): Promise<Ctx> 
   ])
 
   const baseRates = [...histSnap.docs, ...baseSnap.docs]
-    .map(d => ({ ts: toDate((d.data() as any).timestamp) || new Date(0), rate: Number((d.data() as any).rate ?? (d.data() as any).baseRate) || 0 }))
+    .map(d => {
+      const data = d.data() as any
+      const raw = toDate(data.effectDate) || toDate(data.timestamp)
+      const eff = raw ? toHKMidnight(raw) : new Date(0)
+      const rate = Number(data.rate ?? data.baseRate) || 0
+      return { ts: eff, rate }
+    })
     .sort((a, b) => a.ts.getTime() - b.ts.getTime())
 
   const retainers = retSnap.docs.map(d => {
@@ -173,7 +180,7 @@ export function computeBilling(ctx: Ctx): BillingResult {
 
   rows.forEach(r=>{
     if(r.flags.cancelled||r.flags.voucherUsed||r.flags.inRetainer||r.amountDue>0) return
-    const base = baseRateAt(ctx.baseRates,r.startMs)
+    const base = baseRateAt(ctx.baseRates,toHKMidnight(new Date(r.startMs)).getTime())
     const sess = ctx.sessions.find(s=>s.id===r.id)!
     if(r.flags.manualRate){
       const man = sess.rateDocs.sort((a,b)=> (toDate(b.timestamp)?.getTime()??0)-(toDate(a.timestamp)?.getTime()??0))[0]?.rateCharged

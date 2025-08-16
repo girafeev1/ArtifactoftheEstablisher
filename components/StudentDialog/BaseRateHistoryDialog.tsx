@@ -35,6 +35,13 @@ dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.tz.setDefault('Asia/Hong_Kong')
 
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'HKD',
+    currencyDisplay: 'code',
+  }).format(n)
+
 export default function BaseRateHistoryDialog({
   abbr,
   account,
@@ -118,18 +125,25 @@ export default function BaseRateHistoryDialog({
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Rate</TableCell>
+              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Rate (HKD)</TableCell>
               <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Effective Date</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {rows.map((r) => (
-              <TableRow key={r.id} title={r.editedBy || 'unknown'}>
+              <TableRow
+                key={r.id}
+                title={`Edited by ${r.editedBy || 'unknown'} on ${formatDate(
+                  r.timestamp,
+                )}`}
+              >
                 <TableCell
                   sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  title={r.editedBy || 'unknown'}
+                  title={`Edited by ${r.editedBy || 'unknown'} on ${formatDate(
+                    r.timestamp,
+                  )}`}
                 >
-                  {r.rate}
+                  {formatCurrency(Number(r.rate) || 0)}
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
                   {r.effectDate ? (
@@ -170,10 +184,10 @@ export default function BaseRateHistoryDialog({
         <Button onClick={onClose}>Close</Button>
       </DialogActions>
       <Dialog open={addOpen} onClose={() => setAddOpen(false)}>
-        <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Base Rate</DialogTitle>
+      <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Base Rate</DialogTitle>
         <DialogContent>
           <TextField
-            label="New Rate"
+            label="New Rate (HKD)"
             type="number"
             value={newRate}
             onChange={(e) => setNewRate(e.target.value)}

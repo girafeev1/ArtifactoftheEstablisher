@@ -36,6 +36,8 @@ interface StudentDetails extends StudentMeta {
   sex?: string | null
   balanceDue?: number | null
   total?: number | null
+  cancelled?: number | null
+  proceeded?: number | null
   upcoming?: number | null
 }
 
@@ -72,8 +74,12 @@ function StudentCard({
             </Typography>
             <Typography>
               Total:{' '}
-              <span className={student.total === undefined ? 'slow-blink' : undefined}>
-                {student.total ?? '—'}
+              <span
+                className={
+                  student.proceeded === undefined ? 'slow-blink' : undefined
+                }
+              >
+                {student.proceeded ?? student.total ?? '—'}
               </span>
               {student.upcoming === undefined ? (
                 <span className="slow-blink"> → —</span>
@@ -158,6 +164,8 @@ export default function CoachingSessions() {
         basics.map((b) => ({
           ...b,
           total: undefined,
+          cancelled: undefined,
+          proceeded: undefined,
           upcoming: undefined,
           sex: undefined,
           balanceDue: undefined,
@@ -228,8 +236,15 @@ export default function CoachingSessions() {
           // Listen to billing summary updates on the student document
           const unsub = onSnapshot(doc(db, PATHS.student(b.abbr)), (snap) => {
             const data = snap.data() as any
-            const bd = data?.billingSummary?.balanceDue
+            const bs = data?.cached?.billingSummary || data?.billingSummary
+            const bd = bs?.balanceDue
             const totalSessions = data?.totalSessions
+            const cancelled = data?.cancelled
+            const proceeded =
+              data?.proceeded ??
+              (totalSessions != null && cancelled != null
+                ? totalSessions - cancelled
+                : undefined)
             setStudents((prev) =>
               prev.map((s) =>
                 s.abbr === b.abbr
@@ -237,6 +252,8 @@ export default function CoachingSessions() {
                       ...s,
                       balanceDue: bd ?? null,
                       total: totalSessions ?? s.total,
+                      cancelled: cancelled ?? s.cancelled,
+                      proceeded: proceeded ?? s.proceeded,
                     }
                   : s,
               ),

@@ -24,7 +24,6 @@ import {
   MenuItem,
   Button,
   TableSortLabel,
-  Tooltip,
 } from '@mui/material'
 
 import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firestore'
@@ -34,6 +33,7 @@ import { formatMMMDDYYYY } from '../../lib/date'
 import { PATHS, logPath } from '../../lib/paths'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
+import { toHKMidnight } from '../../lib/time'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -74,6 +74,7 @@ export default function SessionsTab({
     jointDate: string
     lastSession: string
     totalSessions: number
+    proceeded: number
     cancelled: number
   }) => void
   onTitle?: (t: string) => void
@@ -100,7 +101,7 @@ export default function SessionsTab({
   ]
   const { data: session } = useSession()
   const userEmail = session?.user?.email || 'anon'
-  const { widths, startResize, dblClickResize } = useColumnWidths(
+  const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
     'sessions',
     allColumns,
     userEmail,
@@ -127,6 +128,7 @@ export default function SessionsTab({
     proceeded: 0,
     cancelled: 0,
   })
+  const [hover, setHover] = useState(false)
   const [voucherBalance, setVoucherBalance] = useState<number | null>(null)
   const [sortBy, setSortBy] = useState<string>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -227,9 +229,11 @@ export default function SessionsTab({
         const baseRates = baseRateDocs
           .map((d) => {
             const data = d.data() as any
+            const raw = data.effectDate?.toDate?.() ?? data.timestamp?.toDate?.()
+            const eff = raw ? toHKMidnight(raw) : new Date(0)
             return {
               rate: data.rate ?? data.baseRate,
-              ts: data.timestamp?.toDate?.() ?? new Date(0),
+              ts: eff,
             }
           })
           .sort((a, b) => a.ts.getTime() - b.ts.getTime())
@@ -345,8 +349,9 @@ export default function SessionsTab({
                 console.warn(`Session ${id}: no base rates or invalid startDate`)
                 return '-'
               }
+              const day = toHKMidnight(startDate)
               const entry = baseRates
-                .filter((b) => b.ts.getTime() <= startDate.getTime())
+                .filter((b) => b.ts.getTime() <= day.getTime())
                 .pop()
               console.log(`Session ${id}: base rates`, baseRates, 'selected', entry)
               return entry ? entry.rate : '-'
@@ -540,6 +545,7 @@ export default function SessionsTab({
             jointDate: newSummary.jointDate,
             lastSession: newSummary.lastSession,
             totalSessions: newSummary.totalSessions,
+            proceeded: newSummary.proceeded,
             cancelled: newSummary.cancelled,
           })
         }
@@ -556,7 +562,13 @@ export default function SessionsTab({
             proceeded: 0,
             cancelled: 0,
           })
-          onSummary?.({ jointDate: '', lastSession: '', totalSessions: 0, cancelled: 0 })
+          onSummary?.({
+            jointDate: '',
+            lastSession: '',
+            totalSessions: 0,
+            proceeded: 0,
+            cancelled: 0,
+          })
         }
       } finally {
         if (!cancelled)
@@ -663,19 +675,24 @@ export default function SessionsTab({
                 {summary.lastSession || '–'}
               </Typography>
             </Box>
-          <Tooltip
-            title={`✔️ ${(summary.totalSessions || 0) - (summary.cancelled || 0)} excluding cancelled`}
-          >
+          <Box>
             <Typography
               variant="subtitle2"
               sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
             >
-              Total:{' '}
-              <Box component="span" sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                {summary.totalSessions ?? '–'} (❌ {summary.cancelled ?? '–'})
-              </Box>
+              Total Sessions:
             </Typography>
-          </Tooltip>
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+              onMouseEnter={() => setHover(true)}
+              onMouseLeave={() => setHover(false)}
+            >
+              {hover
+                ? `✔︎ ${summary.proceeded ?? 0}`
+                : `${summary.totalSessions ?? '–'} (❌ ${summary.cancelled ?? '–'})`}
+            </Typography>
+          </Box>
             <Box>
               <Typography
                 variant="subtitle2"
@@ -740,10 +757,16 @@ export default function SessionsTab({
                       <Box
                         className="col-resizer"
                         aria-label={`Resize column ${c.label}`}
+                        role="separator"
+                        tabIndex={0}
                         onMouseDown={(e) => startResize(c.key, e)}
                         onDoubleClick={() =>
                           dblClickResize(c.key, tableRef.current || undefined)
                         }
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowLeft') keyResize(c.key, 'left')
+                          if (e.key === 'ArrowRight') keyResize(c.key, 'right')
+                        }}
                       />
                     </TableCell>
                   ))}

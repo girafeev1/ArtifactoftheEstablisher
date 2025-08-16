@@ -93,6 +93,12 @@
   .blink-amount--error {
     animation: none;
   }
+  .blink-amount--warn {
+    color: #ffb300;
+  }
+  .blink-amount--error {
+    color: #d32f2f;
+  }
 }
 
 .dialog-footer {

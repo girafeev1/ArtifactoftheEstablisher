@@ -22,12 +22,21 @@ export function useBilling(abbr: string, account: string) {
 export async function writeBillingSummary(abbr: string, result: BillingResult) {
   await setDoc(
     doc(db, PATHS.student(abbr)),
-    { billingSummary: {
+    {
+      billingSummary: {
         balanceDue: result.balanceDue,
         voucherBalance: result.voucherBalance,
         updatedAt: new Date(),
-      }},
-    { merge: true }
+      },
+      cached: {
+        billingSummary: {
+          balanceDue: result.balanceDue,
+          voucherBalance: result.voucherBalance,
+          updatedAt: new Date(),
+        },
+      },
+    },
+    { merge: true },
   )
 }
 
