@@ -113,12 +113,30 @@ export default function SessionsTab({
     'time',
     'sessionType',
     'billingType',
-    'voucherBalance',
     'rateCharged',
     'paymentStatus',
     'payOn',
   ]
-  const [visibleCols, setVisibleCols] = useState<string[]>(defaultCols)
+  const storageKey = `sessions:cols:${userEmail}`
+  const getInitialCols = () => {
+    if (typeof window === 'undefined') return defaultCols
+    try {
+      const raw = localStorage.getItem(storageKey)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) return parsed as string[]
+      }
+    } catch {
+      // ignore
+    }
+    return defaultCols
+  }
+  const [visibleCols, setVisibleCols] = useState<string[]>(getInitialCols)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(storageKey, JSON.stringify(visibleCols))
+    }
+  }, [storageKey, visibleCols])
   const [period, setPeriod] = useState<'30' | '90' | 'all'>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [summary, setSummary] = useState({
