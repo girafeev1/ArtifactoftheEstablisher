@@ -1,0 +1,24 @@
+name: task-log-guard
+
+on:
+  pull_request:
+    paths:
+      - 'docs/Task Log.md'
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: ensure Task Log not truncated
+        run: |
+          base=$(git show origin/main:"docs/Task Log.md" | wc -l)
+          head=$(wc -l < "docs/Task Log.md")
+          echo "Base lines: $base"
+          echo "Head lines: $head"
+          if [ "$head" -lt $((base - 10)) ]; then
+            echo "docs/Task Log.md decreased by more than 10 lines"
+            exit 1
+          fi
