@@ -133,12 +133,21 @@ export default function RetainersTab({
         <Table
           ref={tableRef}
           size="small"
-          sx={{ tableLayout: 'fixed', width: 'max-content' }}
+          sx={{
+            tableLayout: 'fixed',
+            width: 'max-content',
+            '& td, & th': {
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            },
+          }}
         >
         <TableHead>
           <TableRow>
             <TableCell
               data-col="retainer"
+              title="Retainer"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -165,6 +174,7 @@ export default function RetainersTab({
             </TableCell>
             <TableCell
               data-col="period"
+              title="Coverage Period"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -185,6 +195,7 @@ export default function RetainersTab({
             </TableCell>
             <TableCell
               data-col="rate"
+              title="Rate"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -205,6 +216,7 @@ export default function RetainersTab({
             </TableCell>
             <TableCell
               data-col="status"
+              title="Status"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -225,6 +237,7 @@ export default function RetainersTab({
             </TableCell>
             <TableCell
               data-col="actions"
+              title="Actions"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -271,6 +284,7 @@ export default function RetainersTab({
               <TableRow key={r.id} hover selected={active}>
                 <TableCell
                   data-col="retainer"
+                  title={monthLabel}
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
@@ -282,6 +296,7 @@ export default function RetainersTab({
                 </TableCell>
                 <TableCell
                   data-col="period"
+                  title={`${formatDate(r.retainerStarts)} – ${formatDate(r.retainerEnds)}`}
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
@@ -293,6 +308,11 @@ export default function RetainersTab({
                 </TableCell>
                 <TableCell
                   data-col="rate"
+                  title={new Intl.NumberFormat(undefined, {
+                    style: 'currency',
+                    currency: 'HKD',
+                    currencyDisplay: 'code',
+                  }).format(r.retainerRate)}
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
@@ -308,6 +328,7 @@ export default function RetainersTab({
                 </TableCell>
                 <TableCell
                   data-col="status"
+                  title={status.label}
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
@@ -322,6 +343,7 @@ export default function RetainersTab({
                 </TableCell>
                 <TableCell
                   data-col="actions"
+                  title="Edit"
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,

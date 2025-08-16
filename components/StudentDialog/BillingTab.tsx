@@ -1,7 +1,9 @@
 // components/StudentDialog/BillingTab.tsx
 
 import React, { useEffect, useState } from 'react'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography, Tooltip, IconButton } from '@mui/material'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import BaseRateHistoryDialog from './BaseRateHistoryDialog'
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import InlineEdit from '../../common/InlineEdit'
@@ -66,6 +68,7 @@ export default function BillingTab({
     balanceDue: true,
     voucherBalance: true,
   })
+  const [histOpen, setHistOpen] = useState(false)
 
   const loadLatest = async (sub: string, field: string, orderField = 'timestamp') => {
     try {
@@ -238,6 +241,13 @@ export default function BillingTab({
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
         >
           {LABELS[k]}:
+          {k === 'baseRate' && (
+            <Tooltip title="Base rate history">
+              <IconButton size="small" onClick={() => setHistOpen(true)}>
+                <InfoOutlinedIcon fontSize="inherit" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Typography>
         {loading[k] ? (
           <Typography
@@ -352,6 +362,12 @@ export default function BillingTab({
         </Typography>
         {['defaultBillingType', 'billingCompany'].map((k) => renderField(k))}
       </Box>
+      <BaseRateHistoryDialog
+        abbr={abbr}
+        account={account}
+        open={histOpen}
+        onClose={() => setHistOpen(false)}
+      />
     </Box>
   )
 }

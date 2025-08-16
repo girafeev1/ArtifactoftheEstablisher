@@ -24,6 +24,7 @@ import {
   MenuItem,
   Button,
   TableSortLabel,
+  Tooltip,
 } from '@mui/material'
 
 import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firestore'
@@ -69,7 +70,12 @@ export default function SessionsTab({
 }: {
   abbr: string
   account: string
-  onSummary?: (s: { jointDate: string; lastSession: string; totalSessions: number }) => void
+  onSummary?: (s: {
+    jointDate: string
+    lastSession: string
+    totalSessions: number
+    cancelled: number
+  }) => void
   onTitle?: (t: string) => void
   onActions?: (a: React.ReactNode | null) => void
   style?: React.CSSProperties
@@ -534,6 +540,7 @@ export default function SessionsTab({
             jointDate: newSummary.jointDate,
             lastSession: newSummary.lastSession,
             totalSessions: newSummary.totalSessions,
+            cancelled: newSummary.cancelled,
           })
         }
 
@@ -549,7 +556,7 @@ export default function SessionsTab({
             proceeded: 0,
             cancelled: 0,
           })
-          onSummary?.({ jointDate: '', lastSession: '', totalSessions: 0 })
+          onSummary?.({ jointDate: '', lastSession: '', totalSessions: 0, cancelled: 0 })
         }
       } finally {
         if (!cancelled)
@@ -656,48 +663,19 @@ export default function SessionsTab({
                 {summary.lastSession || '–'}
               </Typography>
             </Box>
-          <Box>
+          <Tooltip
+            title={`✔️ ${(summary.totalSessions || 0) - (summary.cancelled || 0)} excluding cancelled`}
+          >
             <Typography
               variant="subtitle2"
               sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
             >
-              Total Sessions:
+              Total:{' '}
+              <Box component="span" sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                {summary.totalSessions ?? '–'} (❌ {summary.cancelled ?? '–'})
+              </Box>
             </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
-              {summary.totalSessions ?? '–'}
-            </Typography>
-          </Box>
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-            >
-              Proceeded:
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
-              {summary.proceeded ?? '–'}
-            </Typography>
-          </Box>
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-            >
-              Cancelled:
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
-              {summary.cancelled ?? '–'}
-            </Typography>
-          </Box>
+          </Tooltip>
             <Box>
               <Typography
                 variant="subtitle2"
@@ -717,8 +695,15 @@ export default function SessionsTab({
           <Table
             ref={tableRef}
             size="small"
-            sx={{ tableLayout: 'fixed', width: 'max-content' }}
-
+            sx={{
+              tableLayout: 'fixed',
+              width: 'max-content',
+              '& td, & th': {
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              },
+            }}
           >
             <TableHead>
               <TableRow>
@@ -728,6 +713,7 @@ export default function SessionsTab({
                     <TableCell
                       key={c.key}
                       data-col={c.key}
+                      title={c.label}
                       sx={{
                         typography: 'body2',
                         fontFamily: 'Cantata One',
@@ -797,6 +783,7 @@ export default function SessionsTab({
                   >
                     <TableCell
                       data-col="ordinal"
+                      title={String(s.ordinal)}
                       sx={{
                         typography: 'body2',
                         fontFamily: 'Newsreader',
@@ -814,6 +801,7 @@ export default function SessionsTab({
                     {visibleCols.includes('date') && (
                       <TableCell
                         data-col="date"
+                        title={s.date}
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -828,6 +816,7 @@ export default function SessionsTab({
                     {visibleCols.includes('time') && (
                       <TableCell
                         data-col="time"
+                        title={s.time}
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -855,6 +844,7 @@ export default function SessionsTab({
                     {visibleCols.includes('sessionType') && (
                       <TableCell
                         data-col="sessionType"
+                        title={s.sessionType}
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -869,6 +859,7 @@ export default function SessionsTab({
                     {visibleCols.includes('billingType') && (
                       <TableCell
                         data-col="billingType"
+                        title={s.billingType}
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -883,6 +874,7 @@ export default function SessionsTab({
                     {visibleCols.includes('voucherBalance') && (
                       <TableCell
                         data-col="voucherBalance"
+                        title={String(s.voucherBalance ?? '-')}
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -897,6 +889,9 @@ export default function SessionsTab({
                     {visibleCols.includes('baseRate') && (
                       <TableCell
                         data-col="baseRate"
+                        title={
+                          s.baseRate !== '-' ? formatCurrency(Number(s.baseRate)) : '-'
+                        }
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -911,6 +906,13 @@ export default function SessionsTab({
                     {visibleCols.includes('rateCharged') && (
                       <TableCell
                         data-col="rateCharged"
+                        title={
+                          typeof s.rateCharged === 'string'
+                            ? s.rateCharged
+                            : s.rateCharged !== '-'
+                            ? formatCurrency(Number(s.rateCharged))
+                            : '-'
+                        }
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -929,6 +931,7 @@ export default function SessionsTab({
                     {visibleCols.includes('paymentStatus') && (
                       <TableCell
                         data-col="paymentStatus"
+                        title={s.paymentStatus}
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -943,6 +946,7 @@ export default function SessionsTab({
                     {visibleCols.includes('payOn') && (
                       <TableCell
                         data-col="payOn"
+                        title={s.payOn}
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
