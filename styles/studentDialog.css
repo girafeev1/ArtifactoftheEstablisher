@@ -60,7 +60,7 @@
   cursor: col-resize;
 }
 
-@keyframes blinkAmount {
+@keyframes blinkAmountWarn {
   0%, 100% {
     color: #ffe082;
   }
@@ -69,13 +69,28 @@
   }
 }
 
-.blink-amount {
-  animation: blinkAmount 1.5s linear infinite;
+@keyframes blinkAmountError {
+  0%, 100% {
+    color: #ef9a9a;
+  }
+  50% {
+    color: #d32f2f;
+  }
+}
+
+.blink-amount--warn {
+  animation: blinkAmountWarn 1.5s linear infinite;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.12);
+}
+
+.blink-amount--error {
+  animation: blinkAmountError 1.5s linear infinite;
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.12);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .blink-amount {
+  .blink-amount--warn,
+  .blink-amount--error {
     animation: none;
   }
 }

@@ -87,6 +87,21 @@ export default function PaymentHistory({
     return m
   }, [bill])
 
+  const minDue = React.useMemo(() => {
+    const rows = bill?.rows || []
+    const amounts = rows
+      .filter(
+        (r: any) =>
+          !r.flags.cancelled &&
+          !r.flags.voucherUsed &&
+          !r.flags.inRetainer &&
+          !r.assignedPaymentId,
+      )
+      .map((r: any) => Number(r.amountDue) || 0)
+      .filter((n: number) => n > 0)
+    return amounts.length ? Math.min(...amounts) : null
+  }, [bill])
+
   useEffect(() => {
     if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
     else onTitleChange?.(null)
@@ -164,12 +179,22 @@ export default function PaymentHistory({
             <Table
               ref={tableRef}
               size="small"
-              sx={{ cursor: 'pointer', tableLayout: 'fixed', width: 'max-content' }}
+              sx={{
+                cursor: 'pointer',
+                tableLayout: 'fixed',
+                width: 'max-content',
+                '& td, & th': {
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                },
+              }}
             >
               <TableHead>
                 <TableRow>
                 <TableCell
                   data-col="paymentMade"
+                  title="Payment Made On"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
@@ -202,6 +227,7 @@ export default function PaymentHistory({
                 </TableCell>
                 <TableCell
                   data-col="amount"
+                  title="Amount Received"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
@@ -234,6 +260,7 @@ export default function PaymentHistory({
                 </TableCell>
                 <TableCell
                   data-col="session"
+                  title="For Session(s)"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
@@ -279,6 +306,7 @@ export default function PaymentHistory({
                   >
                     <TableCell
                       data-col="paymentMade"
+                      title={formatDate(p.paymentMade)}
                       sx={{
                         fontFamily: 'Newsreader',
                         fontWeight: 500,
@@ -290,6 +318,14 @@ export default function PaymentHistory({
                     </TableCell>
                     <TableCell
                       data-col="amount"
+                      title={formatCurrency(amount)}
+                      className={
+                        remaining > 0
+                          ? remaining < (minDue ?? 0)
+                            ? 'blink-amount--error'
+                            : 'blink-amount--warn'
+                          : undefined
+                      }
                       sx={{
                         fontFamily: 'Newsreader',
                         fontWeight: 500,
@@ -301,6 +337,14 @@ export default function PaymentHistory({
                     </TableCell>
                     <TableCell
                       data-col="session"
+                      title={(() => {
+                        const ords = (p.assignedSessions || [])
+                          .map((id: string) => sessionMap[id])
+                          .filter(Boolean)
+                        return ords.length
+                          ? ords.map((o) => `#${o}`).join(', ')
+                          : '—'
+                      })()}
                       sx={{
                         fontFamily: 'Newsreader',
                         fontWeight: 500,
