@@ -5,6 +5,12 @@ const theme = createTheme({
     MuiPopover: { defaultProps: { container: () => document.body } },
     MuiPopper: { defaultProps: { container: () => document.body } },
     MuiMenu: { defaultProps: { container: () => document.body } },
+    MuiDialog: {
+      defaultProps: {
+        container:
+          typeof window !== 'undefined' ? () => document.body : undefined,
+      },
+    },
   },
 });
 
