@@ -94,7 +94,11 @@ export default function SessionsTab({
   ]
   const { data: session } = useSession()
   const userEmail = session?.user?.email || 'anon'
-  const { widths, startResize } = useColumnWidths('sessions', allColumns, userEmail)
+  const { widths, startResize, autoFit } = useColumnWidths(
+    'sessions',
+    allColumns,
+    userEmail,
+  )
   const colWidth = (key: string) => widths[key]
   const defaultCols = [
     'date',
@@ -113,10 +117,13 @@ export default function SessionsTab({
     jointDate: '',
     lastSession: '',
     totalSessions: 0,
+    proceeded: 0,
+    cancelled: 0,
   })
   const [voucherBalance, setVoucherBalance] = useState<number | null>(null)
   const [sortBy, setSortBy] = useState<string>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const tableRef = React.useRef<HTMLTableElement>(null)
   const handleSort = (key: string) => {
     if (sortBy === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -418,6 +425,7 @@ export default function SessionsTab({
               id,
               sessionType,
               billingType,
+              ordinal: 0,
               voucherBalance: 0,
               date,
               time,
@@ -486,8 +494,9 @@ export default function SessionsTab({
           }
         }
 
-        rows.forEach((r) => {
+        rows.forEach((r, i) => {
           delete r.rateSpecified
+          r.ordinal = i + 1
         })
 
         const validDates = rows
@@ -495,11 +504,22 @@ export default function SessionsTab({
           .map((r) => r.startMs)
           .sort((a, b) => a - b)
         const today = new Date()
-        const lastPast = validDates.filter(ms => ms <= today.getTime()).pop()
+        const lastPast = validDates.filter((ms) => ms <= today.getTime()).pop()
+        const cancelledCount = rows.filter(
+          (r) => r.sessionType?.toLowerCase() === 'cancelled',
+        ).length
+        const proceededCount = rows.filter(
+          (r) =>
+            r.sessionType?.toLowerCase() !== 'cancelled' &&
+            r.startMs > 0 &&
+            r.startMs <= today.getTime(),
+        ).length
         const newSummary = {
           jointDate: validDates.length ? toHKDate(new Date(validDates[0])) : '',
           lastSession: lastPast ? toHKDate(new Date(lastPast)) : '',
-          totalSessions: validDates.length,
+          totalSessions: rows.length,
+          proceeded: proceededCount,
+          cancelled: cancelledCount,
         }
         console.log('Computed summary:', newSummary)
 
@@ -510,7 +530,11 @@ export default function SessionsTab({
           setSummary(newSummary)
           setSessions(rows)
           setVoucherBalance(balance)
-          onSummary?.(newSummary)
+          onSummary?.({
+            jointDate: newSummary.jointDate,
+            lastSession: newSummary.lastSession,
+            totalSessions: newSummary.totalSessions,
+          })
         }
 
         console.log('Final session rows:', rows)
@@ -518,7 +542,13 @@ export default function SessionsTab({
         console.error('load sessions failed', e)
         if (!cancelled) {
           setSessions([])
-          setSummary({ jointDate: '', lastSession: '', totalSessions: 0 })
+          setSummary({
+            jointDate: '',
+            lastSession: '',
+            totalSessions: 0,
+            proceeded: 0,
+            cancelled: 0,
+          })
           onSummary?.({ jointDate: '', lastSession: '', totalSessions: 0 })
         }
       } finally {
@@ -626,20 +656,48 @@ export default function SessionsTab({
                 {summary.lastSession || '–'}
               </Typography>
             </Box>
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
-                Total Sessions:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
-                {summary.totalSessions ?? '–'}
-              </Typography>
-            </Box>
+          <Box>
+            <Typography
+              variant="subtitle2"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+            >
+              Total Sessions:
+            </Typography>
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
+              {summary.totalSessions ?? '–'}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography
+              variant="subtitle2"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+            >
+              Proceeded:
+            </Typography>
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
+              {summary.proceeded ?? '–'}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography
+              variant="subtitle2"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+            >
+              Cancelled:
+            </Typography>
+            <Typography
+              variant="h6"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            >
+              {summary.cancelled ?? '–'}
+            </Typography>
+          </Box>
             <Box>
               <Typography
                 variant="subtitle2"
@@ -656,7 +714,11 @@ export default function SessionsTab({
             </Box>
           </Box>
 
-          <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
+          <Table
+            size="small"
+            sx={{ tableLayout: 'fixed', width: 'max-content' }}
+            ref={tableRef}
+          >
             <TableHead>
               <TableRow>
                 {allColumns
@@ -664,6 +726,7 @@ export default function SessionsTab({
                   .map((c) => (
                     <TableCell
                       key={c.key}
+                      data-col={c.key}
                       sx={{
                         typography: 'body2',
                         fontFamily: 'Cantata One',
@@ -691,6 +754,7 @@ export default function SessionsTab({
                         className="col-resizer"
                         aria-label={`Resize column ${c.label}`}
                         onMouseDown={(e) => startResize(c.key, e)}
+                        onDoubleClick={() => tableRef.current && autoFit(c.key, tableRef.current)}
                       />
                     </TableCell>
                   ))}
@@ -729,6 +793,7 @@ export default function SessionsTab({
                     sx={{ cursor: 'pointer' }}
                   >
                     <TableCell
+                      data-col="ordinal"
                       sx={{
                         typography: 'body2',
                         fontFamily: 'Newsreader',
@@ -741,10 +806,11 @@ export default function SessionsTab({
                         backgroundColor: 'background.paper',
                       }}
                     >
-                      {i + 1}
+                      {s.ordinal}
                     </TableCell>
                     {visibleCols.includes('date') && (
                       <TableCell
+                        data-col="date"
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -758,6 +824,7 @@ export default function SessionsTab({
                     )}
                     {visibleCols.includes('time') && (
                       <TableCell
+                        data-col="time"
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -784,6 +851,7 @@ export default function SessionsTab({
                     )}
                     {visibleCols.includes('sessionType') && (
                       <TableCell
+                        data-col="sessionType"
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -797,6 +865,7 @@ export default function SessionsTab({
                     )}
                     {visibleCols.includes('billingType') && (
                       <TableCell
+                        data-col="billingType"
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -810,6 +879,7 @@ export default function SessionsTab({
                     )}
                     {visibleCols.includes('voucherBalance') && (
                       <TableCell
+                        data-col="voucherBalance"
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -823,6 +893,7 @@ export default function SessionsTab({
                     )}
                     {visibleCols.includes('baseRate') && (
                       <TableCell
+                        data-col="baseRate"
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -836,6 +907,7 @@ export default function SessionsTab({
                     )}
                     {visibleCols.includes('rateCharged') && (
                       <TableCell
+                        data-col="rateCharged"
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -853,6 +925,7 @@ export default function SessionsTab({
                     )}
                     {visibleCols.includes('paymentStatus') && (
                       <TableCell
+                        data-col="paymentStatus"
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',
@@ -866,6 +939,7 @@ export default function SessionsTab({
                     )}
                     {visibleCols.includes('payOn') && (
                       <TableCell
+                        data-col="payOn"
                         sx={{
                           typography: 'body2',
                           fontFamily: 'Newsreader',

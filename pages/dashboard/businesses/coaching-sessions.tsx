@@ -182,10 +182,18 @@ export default function CoachingSessions() {
 
           // Listen to billing summary updates on the student document
           const unsub = onSnapshot(doc(db, PATHS.student(b.abbr)), (snap) => {
-            const bd = (snap.data() as any)?.billingSummary?.balanceDue
+            const data = snap.data() as any
+            const bd = data?.billingSummary?.balanceDue
+            const totalSessions = data?.totalSessions
             setStudents((prev) =>
               prev.map((s) =>
-                s.abbr === b.abbr ? { ...s, balanceDue: bd ?? null } : s,
+                s.abbr === b.abbr
+                  ? {
+                      ...s,
+                      balanceDue: bd ?? null,
+                      total: totalSessions ?? s.total,
+                    }
+                  : s,
               ),
             )
           })

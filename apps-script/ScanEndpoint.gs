@@ -7,6 +7,13 @@ function doPost(e) {
     if (e && e.postData && e.postData.contents) {
       body = JSON.parse(e.postData.contents);
     }
+    var props = PropertiesService.getScriptProperties();
+    var secret = props.getProperty('SCAN_SECRET');
+    if (!body.secret || body.secret !== secret) {
+      return ContentService.createTextOutput(
+        JSON.stringify({ ok: false, message: 'unauthorized' }),
+      ).setMimeType(ContentService.MimeType.JSON);
+    }
     var action = body.action || 'scanAll';
     if (action === 'scanOne') {
       var account = body.account;

@@ -21,6 +21,8 @@ import PaymentModal from './PaymentModal'
 import { useBilling } from '../../lib/billing/useBilling'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
+import Tooltip from '@mui/material/Tooltip'
+import IconButton from '@mui/material/IconButton'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -70,7 +72,12 @@ export default function PaymentHistory({
     { key: 'amount', label: 'Amount Received', width: 160 },
     { key: 'session', label: 'For Session(s)', width: 200 },
   ] as const
-  const { widths, startResize } = useColumnWidths('payments', columns, userEmail)
+  const { widths, startResize, autoFit } = useColumnWidths(
+    'payments',
+    columns,
+    userEmail,
+  )
+  const tableRef = React.useRef<HTMLTableElement>(null)
 
   const sessionMap = React.useMemo(() => {
     const m: Record<string, number> = {}
@@ -137,16 +144,32 @@ export default function PaymentHistory({
           <CircularProgress />
         ) : (
           <>
-            <Typography
-              variant="subtitle1"
-              sx={{ fontFamily: 'Cantata One', textDecoration: 'underline', mb: 1 }}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+              <Typography
+                variant="subtitle1"
+                sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+              >
+                Payment History
+              </Typography>
+              <Tooltip title="Add Payment">
+                <IconButton
+                  color="primary"
+                  onClick={() => setModalOpen(true)}
+                  aria-label="Add Payment"
+                >
+                  <WriteIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+            <Table
+              size="small"
+              sx={{ cursor: 'pointer', tableLayout: 'fixed', width: 'max-content' }}
+              ref={tableRef}
             >
-              Payment History
-            </Typography>
-            <Table size="small" sx={{ cursor: 'pointer', tableLayout: 'fixed', width: 'max-content' }}>
               <TableHead>
                 <TableRow>
                 <TableCell
+                  data-col="paymentMade"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
@@ -172,9 +195,11 @@ export default function PaymentHistory({
                     className="col-resizer"
                     aria-label="Resize column Payment Made On"
                     onMouseDown={(e) => startResize('paymentMade', e)}
+                    onDoubleClick={() => tableRef.current && autoFit('paymentMade', tableRef.current)}
                   />
                 </TableCell>
                 <TableCell
+                  data-col="amount"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
@@ -200,9 +225,11 @@ export default function PaymentHistory({
                     className="col-resizer"
                     aria-label="Resize column Amount Received"
                     onMouseDown={(e) => startResize('amount', e)}
+                    onDoubleClick={() => tableRef.current && autoFit('amount', tableRef.current)}
                   />
                 </TableCell>
                 <TableCell
+                  data-col="session"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
@@ -216,6 +243,7 @@ export default function PaymentHistory({
                     className="col-resizer"
                     aria-label="Resize column For Session(s)"
                     onMouseDown={(e) => startResize('session', e)}
+                    onDoubleClick={() => tableRef.current && autoFit('session', tableRef.current)}
                   />
                 </TableCell>
               </TableRow>
@@ -228,7 +256,6 @@ export default function PaymentHistory({
                   p.remainingAmount ?? (amount - applied),
                 )
                 const unassigned = (p.assignedSessions?.length ?? 0) === 0
-                const blink = (amount > 0 && remaining > 0) || unassigned
                 return (
                   <TableRow
                     key={p.id}
@@ -245,6 +272,7 @@ export default function PaymentHistory({
                     sx={{ cursor: 'pointer', py: 1 }}
                   >
                     <TableCell
+                      data-col="paymentMade"
                       sx={{
                         fontFamily: 'Newsreader',
                         fontWeight: 500,
@@ -255,6 +283,7 @@ export default function PaymentHistory({
                       {formatDate(p.paymentMade)}
                     </TableCell>
                     <TableCell
+                      data-col="amount"
                       sx={{
                         fontFamily: 'Newsreader',
                         fontWeight: 500,
@@ -262,11 +291,10 @@ export default function PaymentHistory({
                         minWidth: widths['amount'],
                       }}
                     >
-                      <span className={blink ? 'blink-amount' : undefined}>
-                        {formatCurrency(amount)}
-                      </span>
+                      {formatCurrency(amount)}
                     </TableCell>
                     <TableCell
+                      data-col="session"
                       sx={{
                         fontFamily: 'Newsreader',
                         fontWeight: 500,
@@ -300,19 +328,6 @@ export default function PaymentHistory({
             </Table>
           </>
         )}
-      </Box>
-      <Box
-        className="dialog-footer"
-        sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
-      >
-        <span />
-        <Button
-          variant="contained"
-          onClick={() => setModalOpen(true)}
-          startIcon={<WriteIcon fontSize="small" />}
-        >
-          Add Payment
-        </Button>
       </Box>
       <PaymentModal
         abbr={abbr}

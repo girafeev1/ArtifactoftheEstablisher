@@ -18,6 +18,7 @@ import RetainerModal from './RetainerModal'
 import { WriteIcon } from './icons'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
+import IconButton from '@mui/material/IconButton'
 
 const formatDate = (v: any) => {
   try {
@@ -63,7 +64,12 @@ export default function RetainersTab({
     { key: 'status', width: 120 },
     { key: 'actions', width: 100 },
   ] as const
-  const { widths, startResize } = useColumnWidths('retainers', columns, userEmail)
+  const { widths, startResize, autoFit } = useColumnWidths(
+    'retainers',
+    columns,
+    userEmail,
+  )
+  const tableRef = React.useRef<HTMLTableElement>(null)
 
   const load = async () => {
     try {
@@ -100,16 +106,39 @@ export default function RetainersTab({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', textAlign: 'left' }}>
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1, pb: '64px' }}>
-        <Typography
-          variant="subtitle1"
-          sx={{ fontFamily: 'Cantata One', textDecoration: 'underline', mb: 1 }}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+          >
+            Retainers
+          </Typography>
+          <Tooltip title="Add Retainer">
+            <IconButton
+              color="primary"
+              aria-label="Add Retainer"
+              onClick={() =>
+                setModal({
+                  open: true,
+                  nextStart: rows[rows.length - 1]
+                    ? rows[rows.length - 1].retainerEnds.toDate()
+                    : undefined,
+                })
+              }
+            >
+              <WriteIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+        <Table
+          size="small"
+          sx={{ tableLayout: 'fixed', width: 'max-content' }}
+          ref={tableRef}
         >
-          Retainers
-        </Typography>
-        <Table size="small" sx={{ tableLayout: 'fixed', width: 'max-content' }}>
         <TableHead>
           <TableRow>
             <TableCell
+              data-col="retainer"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -129,9 +158,11 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Retainer"
                 onMouseDown={(e) => startResize('retainer', e)}
+                onDoubleClick={() => tableRef.current && autoFit('retainer', tableRef.current)}
               />
             </TableCell>
             <TableCell
+              data-col="period"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -145,9 +176,11 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Coverage Period"
                 onMouseDown={(e) => startResize('period', e)}
+                onDoubleClick={() => tableRef.current && autoFit('period', tableRef.current)}
               />
             </TableCell>
             <TableCell
+              data-col="rate"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -161,9 +194,11 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Rate"
                 onMouseDown={(e) => startResize('rate', e)}
+                onDoubleClick={() => tableRef.current && autoFit('rate', tableRef.current)}
               />
             </TableCell>
             <TableCell
+              data-col="status"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -177,9 +212,11 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Status"
                 onMouseDown={(e) => startResize('status', e)}
+                onDoubleClick={() => tableRef.current && autoFit('status', tableRef.current)}
               />
             </TableCell>
             <TableCell
+              data-col="actions"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
@@ -193,6 +230,7 @@ export default function RetainersTab({
                 className="col-resizer"
                 aria-label="Resize column Actions"
                 onMouseDown={(e) => startResize('actions', e)}
+                onDoubleClick={() => tableRef.current && autoFit('actions', tableRef.current)}
               />
             </TableCell>
           </TableRow>
@@ -222,6 +260,7 @@ export default function RetainersTab({
             return (
               <TableRow key={r.id} hover selected={active}>
                 <TableCell
+                  data-col="retainer"
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
@@ -232,6 +271,7 @@ export default function RetainersTab({
                   {monthLabel}
                 </TableCell>
                 <TableCell
+                  data-col="period"
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
@@ -242,6 +282,7 @@ export default function RetainersTab({
                   {`${formatDate(r.retainerStarts)} – ${formatDate(r.retainerEnds)}`}
                 </TableCell>
                 <TableCell
+                  data-col="rate"
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
@@ -256,6 +297,7 @@ export default function RetainersTab({
                   }).format(r.retainerRate)}
                 </TableCell>
                 <TableCell
+                  data-col="status"
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
@@ -269,6 +311,7 @@ export default function RetainersTab({
                   </Tooltip>
                 </TableCell>
                 <TableCell
+                  data-col="actions"
                   sx={{
                     fontFamily: 'Newsreader',
                     fontWeight: 500,
@@ -295,32 +338,13 @@ export default function RetainersTab({
             balanceDue={balanceDue}
             retainer={modal.retainer}
             nextStart={modal.nextStart}
+            open={modal.open}
             onClose={(saved) => {
               setModal({ open: false })
               if (saved) load()
             }}
           />
         )}
-      </Box>
-      <Box
-        className="dialog-footer"
-        sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
-      >
-        <span />
-        <Button
-          variant="contained"
-          onClick={() =>
-            setModal({
-              open: true,
-              nextStart: rows[rows.length - 1]
-                ? rows[rows.length - 1].retainerEnds.toDate()
-                : undefined,
-            })
-          }
-          startIcon={<WriteIcon fontSize="small" />}
-        >
-          Add Retainer
-        </Button>
       </Box>
     </Box>
   )

@@ -68,6 +68,20 @@ export function useColumnWidths(
     [widths],
   )
 
-  return { widths, startResize }
+  const autoFit = useCallback(
+    (key: string, root: HTMLElement) => {
+      const cells = root.querySelectorAll<HTMLElement>(`[data-col="${key}"]`)
+      let max = 0
+      cells.forEach((el) => {
+        const w = el.scrollWidth
+        if (w > max) max = w
+      })
+      const next = Math.max(60, Math.min(600, max + 16))
+      setWidths((prev) => ({ ...prev, [key]: next }))
+    },
+    [],
+  )
+
+  return { widths, startResize, autoFit }
 }
 
