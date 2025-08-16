@@ -74,4 +74,4 @@ When values are not available from Firestore the UI must remain responsive and s
 
 ## Documentation
 
-- [Task Log — Vol. 1](docs/task-log-vol-1.md)
+ - [Task Log](docs/Task%20Log.md)
