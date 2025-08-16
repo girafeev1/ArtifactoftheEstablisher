@@ -1,7 +1,8 @@
 // components/StudentDialog/OverviewTab.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Tabs, Tab, Box, CircularProgress, Typography } from '@mui/material'
+import { Tabs, Tab, Box, Typography } from '@mui/material'
+import LoadingDash from '../LoadingDash'
 import FloatingWindow from './FloatingWindow'
 import { titleFor, MainTab, BillingSubTab } from './title'
 
@@ -237,17 +238,14 @@ export default function OverviewTab({
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                 >
-                  Legal Name:{' '}
-                  {(personalLoading.firstName || personalLoading.lastName) && (
-                    <CircularProgress size={14} />
-                  )}
+                  Legal Name:
                 </Typography>
                 <Typography
                   variant="h6"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                 >
                   {(personalLoading.firstName || personalLoading.lastName)
-                    ? 'Loading…'
+                    ? <LoadingDash />
                     : (() => {
                         const first = displayField(personal.firstName)
                         const last = displayField(personal.lastName)
@@ -260,31 +258,27 @@ export default function OverviewTab({
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                 >
-                  Gender:{' '}
-                  {personalLoading.sex && <CircularProgress size={14} />}
+                  Gender:
                 </Typography>
                 <Typography
                   variant="h6"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                 >
-                  {personalLoading.sex
-                    ? 'Loading…'
-                    : displayField(personal.sex)}
+                  {personalLoading.sex ? <LoadingDash /> : displayField(personal.sex)}
                 </Typography>
 
                 <Typography
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                 >
-                  Joint Date:{' '}
-                  {overviewLoading && <CircularProgress size={14} />}
+                  Joint Date:
                 </Typography>
                 {overviewLoading ? (
                   <Typography
                     variant="h6"
                     sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                   >
-                    Loading…
+                    <LoadingDash />
                   </Typography>
                 ) : (
                   <Typography
@@ -295,21 +289,21 @@ export default function OverviewTab({
                   </Typography>
                 )}
 
-                {overviewLoading ? (
+                <Box>
                   <Typography
                     variant="subtitle2"
                     sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                   >
-                    Total Sessions: <CircularProgress size={14} />
+                    Total Sessions:
                   </Typography>
-                ) : (
-                  <Box>
+                  {overviewLoading ? (
                     <Typography
-                      variant="subtitle2"
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                      variant="h6"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                     >
-                      Total Sessions:
+                      <LoadingDash />
                     </Typography>
+                  ) : (
                     <Typography
                       variant="h6"
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
@@ -320,22 +314,21 @@ export default function OverviewTab({
                         ? `✔︎ ${overview.proceeded ?? 0}`
                         : `${overview.total ?? '–'} (❌ ${overview.cancelled ?? '–'})`}
                     </Typography>
-                  </Box>
-                )}
+                  )}
+                </Box>
 
                 <Typography
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                 >
-                  Balance Due:{' '}
-                  {billingLoading.balanceDue && <CircularProgress size={14} />}
+                  Balance Due:
                 </Typography>
                 {billingLoading.balanceDue ? (
                   <Typography
                     variant="h6"
                     sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                   >
-                    Loading…
+                    <LoadingDash />
                   </Typography>
                 ) : (
                   <Typography
@@ -352,15 +345,14 @@ export default function OverviewTab({
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                 >
-                  Voucher Balance:{' '}
-                  {billingLoading.voucherBalance && <CircularProgress size={14} />}
+                  Voucher Balance:
                 </Typography>
                 {billingLoading.voucherBalance ? (
                   <Typography
                     variant="h6"
                     sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                   >
-                    Loading…
+                    <LoadingDash />
                   </Typography>
                 ) : (
                   <Typography

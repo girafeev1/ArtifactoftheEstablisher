@@ -19,6 +19,7 @@ import { PATHS, logPath } from '../../lib/paths'
 import { WriteIcon } from './icons'
 import PaymentModal from './PaymentModal'
 import { useBilling } from '../../lib/billing/useBilling'
+import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
 import Tooltip from '@mui/material/Tooltip'
@@ -87,20 +88,7 @@ export default function PaymentHistory({
     return m
   }, [bill])
 
-  const minDue = React.useMemo(() => {
-    const rows = bill?.rows || []
-    const amounts = rows
-      .filter(
-        (r: any) =>
-          !r.flags.cancelled &&
-          !r.flags.voucherUsed &&
-          !r.flags.inRetainer &&
-          !r.assignedPaymentId,
-      )
-      .map((r: any) => Number(r.amountDue) || 0)
-      .filter((n: number) => n > 0)
-    return amounts.length ? Math.min(...amounts) : null
-  }, [bill])
+  const minDue = React.useMemo(() => minUnpaidRate(bill?.rows || []), [bill])
 
   useEffect(() => {
     if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
