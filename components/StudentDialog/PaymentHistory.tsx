@@ -20,6 +20,7 @@ import { WriteIcon } from './icons'
 import PaymentModal from './PaymentModal'
 import { useBilling } from '../../lib/billing/useBilling'
 import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
+import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
 import Tooltip from '@mui/material/Tooltip'
@@ -294,7 +295,6 @@ export default function PaymentHistory({
                 const remaining = Number(
                   p.remainingAmount ?? (amount - applied),
                 )
-                const unassigned = (p.assignedSessions?.length ?? 0) === 0
                 return (
                   <TableRow
                     key={p.id}
@@ -325,13 +325,7 @@ export default function PaymentHistory({
                     <TableCell
                       data-col="amount"
                       title={formatCurrency(amount)}
-                      className={
-                        remaining > 0
-                          ? remaining < (minDue ?? 0)
-                            ? 'blink-amount--error'
-                            : 'blink-amount--warn'
-                          : undefined
-                      }
+                      className={paymentBlinkClass(remaining, minDue)}
                       sx={{
                         fontFamily: 'Newsreader',
                         fontWeight: 500,

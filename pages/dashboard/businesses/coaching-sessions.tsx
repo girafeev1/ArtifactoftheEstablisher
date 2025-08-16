@@ -28,6 +28,7 @@ import IconButton from '@mui/material/IconButton'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import { useBilling } from '../../../lib/billing/useBilling'
 import LoadingDash from '../../../components/LoadingDash'
+import { readScanLogs, writeScanLog, ScanLog } from '../../../lib/scanLogs'
 
 interface StudentMeta {
   abbr: string
@@ -115,6 +116,7 @@ export default function CoachingSessions() {
   const [toolsAnchor, setToolsAnchor] = useState<null | HTMLElement>(null)
   const [scanMessage, setScanMessage] = useState('')
   const [scanning, setScanning] = useState<'inc' | 'full' | null>(null)
+  const [lastScan, setLastScan] = useState<ScanLog | null>(null)
   const [detached, setDetached] = useState<any | null>(null)
   const openToolsMenu = (e: React.MouseEvent<HTMLElement>) => {
     setToolsAnchor(e.currentTarget)
@@ -144,16 +146,38 @@ export default function CoachingSessions() {
       })
       const data = await res.json()
       console.info('calendar scan', data)
-      setScanMessage(
-        res.ok ? data.message : `Scan failed: ${data.message || res.statusText}`,
-      )
+      const msg = res.ok
+        ? data.message || (full ? 'Full resync' : 'OK')
+        : data.message || res.statusText
+      setScanMessage(res.ok ? msg : `Scan failed: ${msg}`)
+      const log = {
+        at: Date.now(),
+        mode: full ? 'full' : 'inc',
+        ok: res.ok,
+        message: msg,
+      } as ScanLog
+      writeScanLog(log)
+      setLastScan(log)
     } catch (err: any) {
       console.error(err)
-      setScanMessage(`Scan failed: ${err.message || err}`)
+      const msg = err.message || String(err)
+      setScanMessage(`Scan failed: ${msg}`)
+      const log = {
+        at: Date.now(),
+        mode: full ? 'full' : 'inc',
+        ok: false,
+        message: msg,
+      } as ScanLog
+      writeScanLog(log)
+      setLastScan(log)
     } finally {
       setScanning(null)
     }
   }
+
+  useEffect(() => {
+    setLastScan(readScanLogs()[0] || null)
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -332,6 +356,20 @@ export default function CoachingSessions() {
           <MenuItem onClick={handleClearAll}>
             🗑️ Clear All Session Summaries
           </MenuItem>
+          <Box sx={{ px: 2, pb: 1 }}>
+            <Typography variant="caption">
+              Last scan:{' '}
+              {lastScan
+                ? `${new Date(lastScan.at).toLocaleString(undefined, {
+                    month: 'short',
+                    day: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })} – ${lastScan.message}`
+                : '—'}
+            </Typography>
+          </Box>
         </Menu>
       </Box>
 
