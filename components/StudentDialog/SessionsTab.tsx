@@ -670,7 +670,7 @@ export default function SessionsTab({
                 variant="subtitle2"
                 sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
               >
-                Joint Date:
+                Joined Date:
               </Typography>
               <Typography
                 variant="h6"

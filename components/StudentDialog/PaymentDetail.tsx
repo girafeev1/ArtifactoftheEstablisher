@@ -18,6 +18,8 @@ import { formatMMMDDYYYY } from '../../lib/date'
 import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, useBilling } from '../../lib/billing/useBilling'
+import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
+import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
 import {
   patchBillingAssignedSessions,
   writeSummaryFromCache,
@@ -83,6 +85,8 @@ export default function PaymentDetail({
     userEmail,
   )
   const tableRef = React.useRef<HTMLTableElement>(null)
+  const minDue = React.useMemo(() => minUnpaidRate(bill?.rows || []), [bill])
+  const amountClass = paymentBlinkClass(remaining, minDue)
 
   const assignedSet = new Set(assignedSessionIds)
   const allRows = bill
@@ -296,7 +300,7 @@ export default function PaymentDetail({
           variant="h6"
           sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
         >
-          {formatCurrency(amount)}
+          <span className={amountClass}>{formatCurrency(amount)}</span>
         </Typography>
 
         <Typography
@@ -327,15 +331,7 @@ export default function PaymentDetail({
           variant="h6"
           sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
         >
-          <span
-            className={
-              remaining > 0 || assignedSessionIds.length === 0
-                ? 'blink-amount--warn'
-                : undefined
-            }
-          >
-            {formatCurrency(remaining)}
-          </span>{' '}
+          <span className={amountClass}>{formatCurrency(remaining)}</span>{' '}
           {totalSelected > 0 && (
             <Box component="span" sx={{ color: 'error.main' }}>
               ({`-${formatCurrency(totalSelected)} = ${formatCurrency(remainingAfterSelection)}`})
