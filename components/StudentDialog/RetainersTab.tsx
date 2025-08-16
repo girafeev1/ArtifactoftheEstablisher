@@ -64,7 +64,7 @@ export default function RetainersTab({
     { key: 'status', width: 120 },
     { key: 'actions', width: 100 },
   ] as const
-  const { widths, startResize, dblClickResize } = useColumnWidths(
+  const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
     'retainers',
     columns,
     userEmail,
@@ -166,10 +166,16 @@ export default function RetainersTab({
               <Box
                 className="col-resizer"
                 aria-label="Resize column Retainer"
+                role="separator"
+                tabIndex={0}
                 onMouseDown={(e) => startResize('retainer', e)}
                 onDoubleClick={() =>
                   dblClickResize('retainer', tableRef.current || undefined)
                 }
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowLeft') keyResize('retainer', 'left')
+                  if (e.key === 'ArrowRight') keyResize('retainer', 'right')
+                }}
               />
             </TableCell>
             <TableCell
@@ -187,10 +193,16 @@ export default function RetainersTab({
               <Box
                 className="col-resizer"
                 aria-label="Resize column Coverage Period"
+                role="separator"
+                tabIndex={0}
                 onMouseDown={(e) => startResize('period', e)}
                 onDoubleClick={() =>
                   dblClickResize('period', tableRef.current || undefined)
                 }
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowLeft') keyResize('period', 'left')
+                  if (e.key === 'ArrowRight') keyResize('period', 'right')
+                }}
               />
             </TableCell>
             <TableCell
@@ -208,10 +220,16 @@ export default function RetainersTab({
               <Box
                 className="col-resizer"
                 aria-label="Resize column Rate"
+                role="separator"
+                tabIndex={0}
                 onMouseDown={(e) => startResize('rate', e)}
                 onDoubleClick={() =>
                   dblClickResize('rate', tableRef.current || undefined)
                 }
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowLeft') keyResize('rate', 'left')
+                  if (e.key === 'ArrowRight') keyResize('rate', 'right')
+                }}
               />
             </TableCell>
             <TableCell
@@ -229,10 +247,16 @@ export default function RetainersTab({
               <Box
                 className="col-resizer"
                 aria-label="Resize column Status"
+                role="separator"
+                tabIndex={0}
                 onMouseDown={(e) => startResize('status', e)}
                 onDoubleClick={() =>
                   dblClickResize('status', tableRef.current || undefined)
                 }
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowLeft') keyResize('status', 'left')
+                  if (e.key === 'ArrowRight') keyResize('status', 'right')
+                }}
               />
             </TableCell>
             <TableCell
@@ -250,10 +274,16 @@ export default function RetainersTab({
               <Box
                 className="col-resizer"
                 aria-label="Resize column Actions"
+                role="separator"
+                tabIndex={0}
                 onMouseDown={(e) => startResize('actions', e)}
                 onDoubleClick={() =>
                   dblClickResize('actions', tableRef.current || undefined)
                 }
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowLeft') keyResize('actions', 'left')
+                  if (e.key === 'ArrowRight') keyResize('actions', 'right')
+                }}
               />
             </TableCell>
           </TableRow>

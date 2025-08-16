@@ -77,7 +77,7 @@ export default function PaymentDetail({
     { key: 'time', width: 100 },
     { key: 'rate', width: 130 },
   ] as const
-  const { widths, startResize, dblClickResize } = useColumnWidths(
+  const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
     'paymentDetail',
     columns,
     userEmail,
@@ -392,10 +392,16 @@ export default function PaymentDetail({
                 <Box
                   className="col-resizer"
                   aria-label="Resize column Session #"
+                  role="separator"
+                  tabIndex={0}
                   onMouseDown={(e) => startResize('ordinal', e)}
                   onDoubleClick={() =>
                     dblClickResize('ordinal', tableRef.current || undefined)
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowLeft') keyResize('ordinal', 'left')
+                    if (e.key === 'ArrowRight') keyResize('ordinal', 'right')
+                  }}
                 />
               </TableCell>
               <TableCell
@@ -425,10 +431,16 @@ export default function PaymentDetail({
                 <Box
                   className="col-resizer"
                   aria-label="Resize column Date"
+                  role="separator"
+                  tabIndex={0}
                   onMouseDown={(e) => startResize('date', e)}
                   onDoubleClick={() =>
                     dblClickResize('date', tableRef.current || undefined)
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowLeft') keyResize('date', 'left')
+                    if (e.key === 'ArrowRight') keyResize('date', 'right')
+                  }}
                 />
               </TableCell>
               <TableCell
@@ -458,10 +470,16 @@ export default function PaymentDetail({
                 <Box
                   className="col-resizer"
                   aria-label="Resize column Time"
+                  role="separator"
+                  tabIndex={0}
                   onMouseDown={(e) => startResize('time', e)}
                   onDoubleClick={() =>
                     dblClickResize('time', tableRef.current || undefined)
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowLeft') keyResize('time', 'left')
+                    if (e.key === 'ArrowRight') keyResize('time', 'right')
+                  }}
                 />
               </TableCell>
               <TableCell
@@ -491,10 +509,16 @@ export default function PaymentDetail({
                 <Box
                   className="col-resizer"
                   aria-label="Resize column Rate"
+                  role="separator"
+                  tabIndex={0}
                   onMouseDown={(e) => startResize('rate', e)}
                   onDoubleClick={() =>
                     dblClickResize('rate', tableRef.current || undefined)
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowLeft') keyResize('rate', 'left')
+                    if (e.key === 'ArrowRight') keyResize('rate', 'right')
+                  }}
                 />
               </TableCell>
             </TableRow>

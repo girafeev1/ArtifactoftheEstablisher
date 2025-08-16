@@ -53,6 +53,12 @@ Field numbers are:
 Each document stores only the edited value and a `timestamp` so the full history
 can be tracked.
 
+### Billing Summary Cache
+
+The `billingSummary` field on each student is deprecated. Use
+`cached.billingSummary` when reading cached values and continue writing both
+locations during the transition.
+
 ### Retainers
 
 Each student has a `Retainers` subcollection storing individual retainer

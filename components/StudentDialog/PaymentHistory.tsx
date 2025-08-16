@@ -72,7 +72,7 @@ export default function PaymentHistory({
     { key: 'amount', label: 'Amount Received', width: 130 },
     { key: 'session', label: 'For Session(s)', width: 180 },
   ] as const
-  const { widths, startResize, dblClickResize } = useColumnWidths(
+  const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
     'payments',
     columns,
     userEmail,
@@ -219,10 +219,16 @@ export default function PaymentHistory({
                   <Box
                     className="col-resizer"
                     aria-label="Resize column Payment Made On"
+                    role="separator"
+                    tabIndex={0}
                     onMouseDown={(e) => startResize('paymentMade', e)}
                     onDoubleClick={() =>
                       dblClickResize('paymentMade', tableRef.current || undefined)
                     }
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowLeft') keyResize('paymentMade', 'left')
+                      if (e.key === 'ArrowRight') keyResize('paymentMade', 'right')
+                    }}
                   />
                 </TableCell>
                 <TableCell
@@ -252,10 +258,16 @@ export default function PaymentHistory({
                   <Box
                     className="col-resizer"
                     aria-label="Resize column Amount Received"
+                    role="separator"
+                    tabIndex={0}
                     onMouseDown={(e) => startResize('amount', e)}
                     onDoubleClick={() =>
                       dblClickResize('amount', tableRef.current || undefined)
                     }
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowLeft') keyResize('amount', 'left')
+                      if (e.key === 'ArrowRight') keyResize('amount', 'right')
+                    }}
                   />
                 </TableCell>
                 <TableCell
@@ -273,10 +285,16 @@ export default function PaymentHistory({
                   <Box
                     className="col-resizer"
                     aria-label="Resize column For Session(s)"
+                    role="separator"
+                    tabIndex={0}
                     onMouseDown={(e) => startResize('session', e)}
                     onDoubleClick={() =>
                       dblClickResize('session', tableRef.current || undefined)
                     }
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowLeft') keyResize('session', 'left')
+                      if (e.key === 'ArrowRight') keyResize('session', 'right')
+                    }}
                   />
                 </TableCell>
               </TableRow>

@@ -1,7 +1,7 @@
 // components/StudentDialog/OverviewTab.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Tabs, Tab, Box, CircularProgress, Typography, Tooltip } from '@mui/material'
+import { Tabs, Tab, Box, CircularProgress, Typography } from '@mui/material'
 import FloatingWindow from './FloatingWindow'
 import { titleFor, MainTab, BillingSubTab } from './title'
 
@@ -101,9 +101,11 @@ export default function OverviewTab({
     joint: '',
     last: '',
     total: 0,
+    proceeded: 0,
     cancelled: 0,
   })
   const [overviewLoading, setOverviewLoading] = useState(true)
+  const [hover, setHover] = useState(false)
 
   const handlePersonal = useCallback(
     (data: Partial<{ firstName: string; lastName: string; sex: string }>) => {
@@ -130,12 +132,14 @@ export default function OverviewTab({
       jointDate: string
       lastSession: string
       totalSessions: number
+      proceeded: number
       cancelled: number
     }) => {
       setOverview({
         joint: s.jointDate,
         last: s.lastSession,
         total: s.totalSessions,
+        proceeded: s.proceeded,
         cancelled: s.cancelled,
       })
       setOverviewLoading(false)
@@ -296,25 +300,27 @@ export default function OverviewTab({
                     variant="subtitle2"
                     sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                   >
-                    Total: <CircularProgress size={14} />
+                    Total Sessions: <CircularProgress size={14} />
                   </Typography>
                 ) : (
-                  <Tooltip
-                    title={`✔️ ${(overview.total || 0) - (overview.cancelled || 0)} excluding cancelled`}
-                  >
+                  <Box>
                     <Typography
                       variant="subtitle2"
                       sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                     >
-                      Total:{' '}
-                      <Box
-                        component="span"
-                        sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                      >
-                        {overview.total ?? '–'} (❌ {overview.cancelled ?? '–'})
-                      </Box>
+                      Total Sessions:
                     </Typography>
-                  </Tooltip>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                      onMouseEnter={() => setHover(true)}
+                      onMouseLeave={() => setHover(false)}
+                    >
+                      {hover
+                        ? `✔︎ ${overview.proceeded ?? 0}`
+                        : `${overview.total ?? '–'} (❌ ${overview.cancelled ?? '–'})`}
+                    </Typography>
+                  </Box>
                 )}
 
                 <Typography
