@@ -7,6 +7,6 @@ var CONFIG = {
   FIRESTORE_PROJECT_ID: 'REPLACE_WITH_PROJECT_ID',
   FIRESTORE_DB: '(default)',
   BACKFILL_DAYS: 365,
-  TIMEZONE: 'America/New_York',
+  TIMEZONE: 'Asia/Hong_Kong',
   SYNC_TOKEN_KEY: 'calendarSyncToken'
 };

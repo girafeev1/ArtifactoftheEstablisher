@@ -66,7 +66,11 @@ function toFirestoreFields(obj) {
     } else if (typeof val === 'string') {
       fields[key] = { stringValue: val };
     } else if (typeof val === 'number') {
-      fields[key] = { integerValue: String(val) };
+      if (Math.floor(val) === val) {
+        fields[key] = { integerValue: String(val) };
+      } else {
+        fields[key] = { doubleValue: val };
+      }
     } else if (typeof val === 'boolean') {
       fields[key] = { booleanValue: val };
     } else if (Object.prototype.toString.call(val) === '[object Array]') {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Box, Typography, Button } from '@mui/material'
+import { Box, Typography, Button, IconButton, Tooltip } from '@mui/material'
 import { PATHS, logPath } from '../../lib/paths'
 import RateModal from './RateModal'
 import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore'
@@ -7,6 +7,8 @@ import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import BaseRateHistoryDialog from './BaseRateHistoryDialog'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -42,6 +44,7 @@ export default function SessionDetail({
 }: SessionDetailProps) {
   const [voucherUsed, setVoucherUsed] = useState(!!session.voucherUsed)
   const [rateOpen, setRateOpen] = useState(false)
+  const [histOpen, setHistOpen] = useState(false)
   const qc = useBillingClient()
 
   const createVoucherEntry = async (free: boolean) => {
@@ -151,6 +154,11 @@ export default function SessionDetail({
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
         >
           Base Rate:
+          <Tooltip title="Base rate history">
+            <IconButton size="small" onClick={() => setHistOpen(true)}>
+              <InfoOutlinedIcon fontSize="inherit" />
+            </IconButton>
+          </Tooltip>
         </Typography>
         <Typography
           variant="h6"
@@ -205,6 +213,12 @@ export default function SessionDetail({
             Use Session Voucher
           </Button>
         )}
+        <BaseRateHistoryDialog
+          abbr={abbr}
+          account={account}
+          open={histOpen}
+          onClose={() => setHistOpen(false)}
+        />
         <Typography
           variant="subtitle2"
           sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}

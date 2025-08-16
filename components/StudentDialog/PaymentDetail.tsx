@@ -24,6 +24,8 @@ import {
   payRetainerPatch,
   upsertUnpaidRetainerRow,
 } from '../../lib/liveRefresh'
+import { useSession } from 'next-auth/react'
+import { useColumnWidths } from '../../lib/useColumnWidths'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -67,30 +69,40 @@ export default function PaymentDetail({
   const qc = useBillingClient()
   const { data: bill } = useBilling(abbr, account)
   const [retainers, setRetainers] = useState<any[]>([])
+  const { data: session } = useSession()
+  const userEmail = session?.user?.email || 'anon'
+  const columns = [
+    { key: 'ordinal', width: 80 },
+    { key: 'date', width: 110 },
+    { key: 'time', width: 100 },
+    { key: 'rate', width: 130 },
+  ] as const
+  const { widths, startResize, dblClickResize } = useColumnWidths(
+    'paymentDetail',
+    columns,
+    userEmail,
+  )
+  const tableRef = React.useRef<HTMLTableElement>(null)
 
   const assignedSet = new Set(assignedSessionIds)
-  const sessionRows = bill
-    ? bill.rows
-        .filter(
-          (r) =>
-            !r.flags.cancelled &&
-            !r.flags.voucherUsed &&
-            !r.flags.inRetainer,
-        )
-        .map((r) => ({
-          id: r.id,
-          startMs: r.startMs,
-          date: r.date,
-          time: r.time,
-          rate: r.amountDue,
-          rateDisplay: r.displayRate,
-          assignedPaymentId: r.assignedPaymentId,
-        }))
-        .sort((a, b) => a.startMs - b.startMs)
+  const allRows = bill
+    ? bill.rows.map((r: any, i: number) => ({ ...r, ordinal: i + 1 }))
     : []
-  sessionRows.forEach((r: any, i: number) => {
-    r.ordinal = i + 1
-  })
+  const sessionRows = allRows
+    .filter(
+      (r) => !r.flags.cancelled && !r.flags.voucherUsed && !r.flags.inRetainer,
+    )
+    .map((r) => ({
+      id: r.id,
+      startMs: r.startMs,
+      date: r.date,
+      time: r.time,
+      rate: r.amountDue,
+      rateDisplay: r.displayRate,
+      assignedPaymentId: r.assignedPaymentId,
+      ordinal: r.ordinal,
+    }))
+    .sort((a, b) => a.startMs - b.startMs)
   const assignedSessions = sessionRows.filter((r) => assignedSet.has(r.id))
   const availableSessions = sessionRows.filter(
     (r) => !assignedSet.has(r.id) && !r.assignedPaymentId,
@@ -284,15 +296,7 @@ export default function PaymentDetail({
           variant="h6"
           sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
         >
-          <span
-            className={
-              remaining > 0 || assignedSessionIds.length === 0
-                ? 'blink-amount'
-                : undefined
-            }
-          >
-            {formatCurrency(amount)}
-          </span>
+          {formatCurrency(amount)}
         </Typography>
 
         <Typography
@@ -323,7 +327,15 @@ export default function PaymentDetail({
           variant="h6"
           sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
         >
-          {formatCurrency(remaining)}{' '}
+          <span
+            className={
+              remaining > 0 || assignedSessionIds.length === 0
+                ? 'blink-amount'
+                : undefined
+            }
+          >
+            {formatCurrency(remaining)}
+          </span>{' '}
           {totalSelected > 0 && (
             <Box component="span" sx={{ color: 'error.main' }}>
               ({`-${formatCurrency(totalSelected)} = ${formatCurrency(remainingAfterSelection)}`})
@@ -337,10 +349,23 @@ export default function PaymentDetail({
         >
           For session:
         </Typography>
-        <Table size="small" sx={{ mt: 1, tableLayout: 'fixed', width: 'max-content' }}>
+        <Table
+          ref={tableRef}
+          size="small"
+          sx={{ mt: 1, tableLayout: 'fixed', width: 'max-content' }}
+        >
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+              <TableCell
+                data-col="ordinal"
+                sx={{
+                  fontFamily: 'Cantata One',
+                  fontWeight: 'bold',
+                  position: 'relative',
+                  width: widths['ordinal'],
+                  minWidth: widths['ordinal'],
+                }}
+              >
                 <TableSortLabel
                   active={sortField === 'ordinal'}
                   direction={sortField === 'ordinal' && sortAsc ? 'asc' : 'desc'}
@@ -354,8 +379,25 @@ export default function PaymentDetail({
                 >
                   Session #
                 </TableSortLabel>
+                <Box
+                  className="col-resizer"
+                  aria-label="Resize column Session #"
+                  onMouseDown={(e) => startResize('ordinal', e)}
+                  onDoubleClick={() =>
+                    dblClickResize('ordinal', tableRef.current || undefined)
+                  }
+                />
               </TableCell>
-              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+              <TableCell
+                data-col="date"
+                sx={{
+                  fontFamily: 'Cantata One',
+                  fontWeight: 'bold',
+                  position: 'relative',
+                  width: widths['date'],
+                  minWidth: widths['date'],
+                }}
+              >
                 <TableSortLabel
                   active={sortField === 'date'}
                   direction={sortField === 'date' && sortAsc ? 'asc' : 'desc'}
@@ -369,8 +411,25 @@ export default function PaymentDetail({
                 >
                   Date
                 </TableSortLabel>
+                <Box
+                  className="col-resizer"
+                  aria-label="Resize column Date"
+                  onMouseDown={(e) => startResize('date', e)}
+                  onDoubleClick={() =>
+                    dblClickResize('date', tableRef.current || undefined)
+                  }
+                />
               </TableCell>
-              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+              <TableCell
+                data-col="time"
+                sx={{
+                  fontFamily: 'Cantata One',
+                  fontWeight: 'bold',
+                  position: 'relative',
+                  width: widths['time'],
+                  minWidth: widths['time'],
+                }}
+              >
                 <TableSortLabel
                   active={sortField === 'time'}
                   direction={sortField === 'time' && sortAsc ? 'asc' : 'desc'}
@@ -384,8 +443,25 @@ export default function PaymentDetail({
                 >
                   Time
                 </TableSortLabel>
+                <Box
+                  className="col-resizer"
+                  aria-label="Resize column Time"
+                  onMouseDown={(e) => startResize('time', e)}
+                  onDoubleClick={() =>
+                    dblClickResize('time', tableRef.current || undefined)
+                  }
+                />
               </TableCell>
-              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
+              <TableCell
+                data-col="rate"
+                sx={{
+                  fontFamily: 'Cantata One',
+                  fontWeight: 'bold',
+                  position: 'relative',
+                  width: widths['rate'],
+                  minWidth: widths['rate'],
+                }}
+              >
                 <TableSortLabel
                   active={sortField === 'rate'}
                   direction={sortField === 'rate' && sortAsc ? 'asc' : 'desc'}
@@ -399,6 +475,14 @@ export default function PaymentDetail({
                 >
                   Rate
                 </TableSortLabel>
+                <Box
+                  className="col-resizer"
+                  aria-label="Resize column Rate"
+                  onMouseDown={(e) => startResize('rate', e)}
+                  onDoubleClick={() =>
+                    dblClickResize('rate', tableRef.current || undefined)
+                  }
+                />
               </TableCell>
             </TableRow>
           </TableHead>
@@ -413,23 +497,38 @@ export default function PaymentDetail({
               <>
                 {sortRows(assigned).map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    <TableCell
+                      data-col="ordinal"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    >
                       {s.ordinal ?? '-'}
                     </TableCell>
-                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    <TableCell
+                      data-col="date"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    >
                       {s.date || '-'}
                     </TableCell>
-                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    <TableCell
+                      data-col="time"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    >
                       {s.time || '-'}
                     </TableCell>
-                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    <TableCell
+                      data-col="rate"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    >
                       {formatCurrency(Number(s.rate) || 0)}
                     </TableCell>
                   </TableRow>
                 ))}
                 {sortRows(available).map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    <TableCell
+                      data-col="ordinal"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    >
                       <Checkbox
                         checked={selected.includes(s.id)}
                         onChange={() => toggle(s.id)}
@@ -443,13 +542,22 @@ export default function PaymentDetail({
                       />
                       {s.ordinal ?? '-'}
                     </TableCell>
-                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    <TableCell
+                      data-col="date"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    >
                       {s.date || '-'}
                     </TableCell>
-                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    <TableCell
+                      data-col="time"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    >
                       {s.time || '-'}
                     </TableCell>
-                    <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+                    <TableCell
+                      data-col="rate"
+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    >
                       {formatCurrency(Number(s.rate) || 0)}
                     </TableCell>
                   </TableRow>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 interface ColumnDef {
   key: string
@@ -68,6 +68,45 @@ export function useColumnWidths(
     [widths],
   )
 
-  return { widths, startResize }
+  const measurerRef = useRef<HTMLDivElement | null>(null)
+
+  const autoSize = useCallback(
+    (key: string, root: HTMLElement) => {
+      if (!measurerRef.current && typeof document !== 'undefined') {
+        const m = document.createElement('div')
+        m.style.position = 'absolute'
+        m.style.visibility = 'hidden'
+        m.style.height = 'auto'
+        m.style.whiteSpace = 'nowrap'
+        m.style.top = '-9999px'
+        m.style.left = '-9999px'
+        document.body.appendChild(m)
+        measurerRef.current = m
+      }
+      const measurer = measurerRef.current
+      if (!measurer) return
+      let max = 0
+      const cells = root.querySelectorAll<HTMLElement>(`[data-col="${key}"]`)
+      cells.forEach((el) => {
+        const style = getComputedStyle(el)
+        measurer.style.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+        measurer.textContent = el.textContent || ''
+        const w = measurer.offsetWidth
+        if (w > max) max = w
+      })
+      const next = Math.max(60, Math.min(600, max + 20))
+      setWidths((prev) => ({ ...prev, [key]: next }))
+    },
+    [],
+  )
+
+  const dblClickResize = useCallback(
+    (key: string, rootEl?: HTMLElement) => {
+      if (rootEl) autoSize(key, rootEl)
+    },
+    [autoSize],
+  )
+
+  return { widths, startResize, dblClickResize }
 }
 

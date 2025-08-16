@@ -1,0 +1,23 @@
+name: Task Log Guard
+
+on:
+  pull_request:
+    paths:
+      - 'docs/Task Log.md'
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check Task Log line count
+        run: |
+          git fetch origin main
+          head_lines=$(wc -l < "docs/Task Log.md")
+          base_lines=$(git show origin/main:"docs/Task Log.md" | wc -l)
+          if [ $head_lines -lt $((base_lines - 10)) ]; then
+            echo "Task Log line count decreased by more than 10 (base $base_lines vs head $head_lines)" >&2
+            exit 1
+          fi

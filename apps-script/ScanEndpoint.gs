@@ -7,6 +7,17 @@ function doPost(e) {
     if (e && e.postData && e.postData.contents) {
       body = JSON.parse(e.postData.contents);
     }
+    var props = PropertiesService.getScriptProperties();
+    var secret = props.getProperty('SCAN_SECRET');
+    var headerSecret = '';
+    if (e && e.headers) {
+      headerSecret = e.headers['X-Scan-Secret'] || e.headers['x-scan-secret'];
+    }
+    if (!headerSecret || headerSecret !== secret) {
+      return ContentService.createTextOutput(
+        JSON.stringify({ ok: false, message: 'unauthorized' }),
+      ).setMimeType(ContentService.MimeType.JSON);
+    }
     var action = body.action || 'scanAll';
     if (action === 'scanOne') {
       var account = body.account;
