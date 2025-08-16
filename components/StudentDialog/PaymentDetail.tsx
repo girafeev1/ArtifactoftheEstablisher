@@ -69,28 +69,24 @@ export default function PaymentDetail({
   const [retainers, setRetainers] = useState<any[]>([])
 
   const assignedSet = new Set(assignedSessionIds)
-  const sessionRows = bill
-    ? bill.rows
-        .filter(
-          (r) =>
-            !r.flags.cancelled &&
-            !r.flags.voucherUsed &&
-            !r.flags.inRetainer,
-        )
-        .map((r) => ({
-          id: r.id,
-          startMs: r.startMs,
-          date: r.date,
-          time: r.time,
-          rate: r.amountDue,
-          rateDisplay: r.displayRate,
-          assignedPaymentId: r.assignedPaymentId,
-        }))
-        .sort((a, b) => a.startMs - b.startMs)
+  const allRows = bill
+    ? bill.rows.map((r: any, i: number) => ({ ...r, ordinal: i + 1 }))
     : []
-  sessionRows.forEach((r: any, i: number) => {
-    r.ordinal = i + 1
-  })
+  const sessionRows = allRows
+    .filter(
+      (r) => !r.flags.cancelled && !r.flags.voucherUsed && !r.flags.inRetainer,
+    )
+    .map((r) => ({
+      id: r.id,
+      startMs: r.startMs,
+      date: r.date,
+      time: r.time,
+      rate: r.amountDue,
+      rateDisplay: r.displayRate,
+      assignedPaymentId: r.assignedPaymentId,
+      ordinal: r.ordinal,
+    }))
+    .sort((a, b) => a.startMs - b.startMs)
   const assignedSessions = sessionRows.filter((r) => assignedSet.has(r.id))
   const availableSessions = sessionRows.filter(
     (r) => !assignedSet.has(r.id) && !r.assignedPaymentId,
