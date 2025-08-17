@@ -2,10 +2,10 @@ name: Context Bundle (PR)
 
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  contents: write
+  contents: write       # needed to push docs/context/PR-<num>.md
   pull-requests: write
 
 jobs:
@@ -25,16 +25,15 @@ jobs:
 
       - name: Compute refs
         id: refs
+        shell: bash
         run: |
+          echo "PR_NUM=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
           echo "BASE_REF=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
           echo "HEAD_REF=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+          # Sanitized branch name for artifact naming (no slashes)
+          echo "SANITIZED_HEAD_REF=${GITHUB_HEAD_REF//\//-}" >> $GITHUB_OUTPUT
 
       - name: Detect package manager
         id: pm
@@ -43,6 +42,11 @@ jobs:
           if [ -f pnpm-lock.yaml ]; then echo "name=pnpm" >> $GITHUB_OUTPUT; exit 0; fi
           if [ -f yarn.lock ]; then echo "name=yarn" >> $GITHUB_OUTPUT; exit 0; fi
           echo "name=npm" >> $GITHUB_OUTPUT
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Install deps (best-effort)
         continue-on-error: true
@@ -67,7 +71,7 @@ jobs:
           {
             echo "# Context Bundle"
             echo
-            echo "_PR_: #${{ github.event.pull_request.number }}  |  _Base_: ${{ steps.refs.outputs.BASE_REF }}  |  _Head_: ${{ steps.refs.outputs.HEAD_REF }}"
+            echo "_PR_: #${{ steps.refs.outputs.PR_NUM }}  |  _Base_: ${{ steps.refs.outputs.BASE_REF }}  |  _Head_: ${{ steps.refs.outputs.HEAD_REF }}"
             echo "_Generated_: $(date -u '+%Y-%m-%d %H:%M UTC')"
             echo
             echo "### Changed Files (vs base)"
@@ -135,7 +139,28 @@ jobs:
           fi
           echo >> bundle.md
 
-      - name: Post sticky PR comment
+      # ⬇️ Commit AFTER diagnostics so the committed file is complete
+      - name: Commit context bundle into PR branch
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          PR_NUM: ${{ steps.refs.outputs.PR_NUM }}
+          HEAD_REF: ${{ steps.refs.outputs.HEAD_REF }}
+        shell: bash
+        run: |
+          set -e
+          mkdir -p docs/context
+          cp bundle.md docs/context/PR-${PR_NUM}.md
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          git add docs/context/PR-${PR_NUM}.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(context): add PR-${PR_NUM} bundle"
+            git push origin HEAD:${HEAD_REF}
+          fi
+
+      - name: Post sticky PR comment (summary)
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: context-bundle
@@ -144,7 +169,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: context-bundle-pr-${{ github.event.pull_request.number }}
+          name: context-bundle-pr-${{ steps.refs.outputs.SANITIZED_HEAD_REF }}-${{ steps.refs.outputs.PR_NUM }}
           path: |
             bundle.md
             files.txt
