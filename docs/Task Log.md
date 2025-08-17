@@ -14,6 +14,7 @@ Latest change summary
 - Added PR Context Bundle automation, PaymentModal summary write, overlay test, and README Task Log link fix.
 - Replaced dayjs timezone dependency with built-in plugin to fix install failures.
 - Queue P-021: loading UX cleanup, due parity, vouchers default, payment blink, base-rate history editing, min-width v3, calendar scan fixes.
+- Queued P-022 to complete P-021 acceptance (payment blink hookup, base-rate info relocation), add scan status/logs, and tidy labels.
 
 ---
 
@@ -21,6 +22,13 @@ Tasks table — add/update:
 
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
+| T-066 | Payment History/Detail: hook up blink classes (yellow when remaining>0; red when < minRate) | 🧭    | PaymentHistory.tsx, PaymentDetail.tsx, CSS,
+ reduced-motion |
+| T-067 | Move Base Rate info icon to Billing tab label; remove from Session Detail | 🧭    | BillingTab.tsx, SessionDetail.tsx |
+| T-068 | Calendar scan: toast messages + last-scan status caption | 🧭    | Tools UI; consume /api/calendar-scan messages |
+| T-069 | (Optional) ScanLogs storage (last 20 runs) | 🧭    | lib/scanLogs.ts; tiny list/read |
+| T-070 | Label consistency: “Joined Date” | 🧭    | OverviewTab + any references |
+| T-071 | Repo hygiene: ensure single prompts/P-021.md (keep the longer version) | 🧭    | Remove duplicate if present |
 | T-055 | Loading UX: spinner→blinking “–” in value (respect reduced-motion)       | 🧭    | OverviewTab & other fields; remove label spinners |
 | T-056 | Card Due parity & loading fallback                                       | 🧭    | Prefer cached.billingSummary; show “–” while loading |
 | T-057 | Sessions: “Session Vouchers” column hidden by default (persist per user) | 🧭    | SessionsTab columns/filters |
@@ -103,6 +111,7 @@ Prompts table — update:
 | P-011 | Calendar scan integration (Apps Script)              | ✅    | Shipped |
 | P-012 | Resizable tables + sticky # + blink polish           | ✅    | Shipped |
 | P-014 | Session totals revert, auto-size, due unification, dialog audit, base-rate history | ✅    | This change |
+| P-022 | Finish P-021 acceptance: payment blink hookup, base-rate icon move, scan status/logs, label tidy | 🧭    | See prompts/P-022.md |
 
 
 ### Changes — P-015
