@@ -271,7 +271,7 @@ export default function OverviewTab({
                   variant="subtitle2"
                   sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
                 >
-                  Joint Date:
+                  Joined Date:
                 </Typography>
                 {overviewLoading ? (
                   <Typography
