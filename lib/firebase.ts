@@ -20,7 +20,7 @@ Object.entries(firebaseConfig).forEach(([k, v]) => {
 const databaseId = 'mel-sessions'
 console.log('📚 Firestore database ID:', databaseId)
 
-const app = !getApps().length
+export const app = !getApps().length
   ? initializeApp(firebaseConfig)
   : getApp()
 export const db = getFirestore(app, databaseId)
