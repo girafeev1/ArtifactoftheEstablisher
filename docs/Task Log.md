@@ -4,6 +4,7 @@
 > Convention: ✅ done, ⏳ in progress, 🧭 next / planned.
 
 Latest change summary
+- Queued P-023: Payments metadata (method/entity/bank), header ellipsis, “For Session(s)” truncation, sticky footer, and ERL directory integration.
 - Enforced append-only Task Log with CI guard.
 - Add continuous Context Bundle for branch pushes (Issue per branch).
 - Reverted Total Sessions to include cancelled/proceeded like before.
@@ -22,12 +23,20 @@ Tasks table — add/update:
 
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
-| T-066 | Payment History/Detail: hook up blink classes (yellow when remaining>0; red when < minRate) | 🧭    | PaymentHistory.tsx, PaymentDetail.tsx, CSS,
+| T-072 | Header ellipsis & width decouple (header no longer blocks narrow columns)                     | 🧭    | Table headers CSS + autosize guard |
+| T-073 | Payment History “For Session(s)” max 5 then “…”                                                | 🧭    | PaymentHistory formatter |
+| T-074 | Sticky dialog footer (window bottom, not scroller)                                            | 🧭    | FloatingWindow/Dialog layout, CSS |
+| T-075 | Add Payment: Method/Entity/Bank/Account/RefNumber fields + writes (timestamp, editedBy)       | 🧭    | PaymentModal, writes, types |
+| T-076 | ERL directory integration (read banks+accounts from `erl-directory`; graceful fallback)       | 🧭    | lib/erlDirectory.ts, firebase init |
+| T-077 | Payment list: rename columns; add Method & Entity                                             | 🧭    | PaymentHistory.tsx |
+| T-078 | Payment detail: two-column summary layout                                                     | 🧭    | PaymentDetail.tsx, styles |
+| T-079 | Tests: formatters, identifier write guard, sticky footer, Add Payment flow                    | 🧭    | unit + e2e |
+| T-066 | Payment History/Detail: hook up blink classes (yellow when remaining>0; red when < minRate) | ✅    | PaymentHistory.tsx, PaymentDetail.tsx, CSS,
  reduced-motion |
 | T-067 | Move Base Rate info icon to Billing tab label; remove from Session Detail | 🧭    | BillingTab.tsx, SessionDetail.tsx |
-| T-068 | Calendar scan: toast messages + last-scan status caption | 🧭    | Tools UI; consume /api/calendar-scan messages |
-| T-069 | (Optional) ScanLogs storage (last 20 runs) | 🧭    | lib/scanLogs.ts; tiny list/read |
-| T-070 | Label consistency: “Joined Date” | 🧭    | OverviewTab + any references |
+| T-068 | Calendar scan: toast messages + last-scan status caption | ⏳    | Tools UI; consume /api/calendar-scan messages |
+| T-069 | (Optional) ScanLogs storage (last 20 runs) | ✅    | lib/scanLogs.ts; tiny list/read |
+| T-070 | Label consistency: “Joined Date” | ✅    | OverviewTab + any references |
 | T-071 | Repo hygiene: ensure single prompts/P-021.md (keep the longer version) | 🧭    | Remove duplicate if present |
 | T-055 | Loading UX: spinner→blinking “–” in value (respect reduced-motion)       | 🧭    | OverviewTab & other fields; remove label spinners |
 | T-056 | Card Due parity & loading fallback                                       | 🧭    | Prefer cached.billingSummary; show “–” while loading |
@@ -101,6 +110,7 @@ Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
 |-------|------------------------------------------------------|-------|-------|
+| P-023 | Payments metadata & UI polish (headers, “For Session(s)”, sticky footer, ERL dir)     | 🧭    | See prompts/P-023.md |
 | P-021 | Loading UX, due parity, vouchers default, payment blink, base-rate UX/edit, min-width v3, calendar scan reliability | 🧭 | See prompts/P-021.md |
 | P-020 | Base Rate effectDate SSOT, summary naming/hover, card Total, min-width v2, cached.billingSummary, tests |        | Will implement T-045..T-054 |
 | P-019 | Min-width squeeze, T-217 display, payment blink logic, Base Rate history redesign         | 🧭    | This change |
