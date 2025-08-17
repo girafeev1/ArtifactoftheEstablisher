@@ -748,17 +748,21 @@ export default function SessionsTab({
                     <TableCell
                       key={c.key}
                       data-col={c.key}
+                      data-col-header
                       title={c.label}
                       sx={{
                         typography: 'body2',
                         fontFamily: 'Cantata One',
                         fontWeight: 'bold',
                         width: colWidth(c.key),
-                        minWidth: colWidth(c.key),
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                         position: c.key === 'ordinal' ? 'sticky' : 'relative',
                         left: c.key === 'ordinal' ? 0 : undefined,
                         zIndex: c.key === 'ordinal' ? 3 : undefined,
-                        backgroundColor: c.key === 'ordinal' ? 'background.paper' : undefined,
+                        backgroundColor:
+                          c.key === 'ordinal' ? 'background.paper' : undefined,
                       }}
                     >
                       {c.key === 'ordinal' ? (

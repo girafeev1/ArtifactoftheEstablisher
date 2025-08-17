@@ -21,6 +21,7 @@ import PaymentModal from './PaymentModal'
 import { useBilling } from '../../lib/billing/useBilling'
 import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
 import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
+import { formatSessions } from '../../lib/billing/formatSessions'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
 import Tooltip from '@mui/material/Tooltip'
@@ -70,8 +71,10 @@ export default function PaymentHistory({
   const { data: session } = useSession()
   const userEmail = session?.user?.email || 'anon'
   const columns = [
-    { key: 'paymentMade', label: 'Payment Made On', width: 140 },
-    { key: 'amount', label: 'Amount Received', width: 130 },
+    { key: 'paymentMade', label: 'Payment Date', width: 140 },
+    { key: 'amount', label: 'Amount', width: 130 },
+    { key: 'method', label: 'Method', width: 120 },
+    { key: 'entity', label: 'Entity', width: 160 },
     { key: 'session', label: 'For Session(s)', width: 180 },
   ] as const
   const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
@@ -183,13 +186,16 @@ export default function PaymentHistory({
                 <TableRow>
                 <TableCell
                   data-col="paymentMade"
-                  title="Payment Made On"
+                  data-col-header
+                  title="Payment Date"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
                     position: 'relative',
                     width: widths['paymentMade'],
-                    minWidth: widths['paymentMade'],
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
                   <TableSortLabel
@@ -203,11 +209,11 @@ export default function PaymentHistory({
                       }
                     }}
                   >
-                    Payment Made On
+                    Payment Date
                   </TableSortLabel>
                   <Box
                     className="col-resizer"
-                    aria-label="Resize column Payment Made On"
+                    aria-label="Resize column Payment Date"
                     role="separator"
                     tabIndex={0}
                     onMouseDown={(e) => startResize('paymentMade', e)}
@@ -222,13 +228,16 @@ export default function PaymentHistory({
                 </TableCell>
                 <TableCell
                   data-col="amount"
-                  title="Amount Received"
+                  data-col-header
+                  title="Amount"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
                     position: 'relative',
                     width: widths['amount'],
-                    minWidth: widths['amount'],
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
                   <TableSortLabel
@@ -238,15 +247,15 @@ export default function PaymentHistory({
                       if (sortField === 'amount') setSortAsc((s) => !s)
                       else {
                         setSortField('amount')
-                        setSortAsc(true)
+                        setSortAsc(false)
                       }
                     }}
                   >
-                    Amount Received
+                    Amount
                   </TableSortLabel>
                   <Box
                     className="col-resizer"
-                    aria-label="Resize column Amount Received"
+                    aria-label="Resize column Amount"
                     role="separator"
                     tabIndex={0}
                     onMouseDown={(e) => startResize('amount', e)}
@@ -260,14 +269,77 @@ export default function PaymentHistory({
                   />
                 </TableCell>
                 <TableCell
+                  data-col="method"
+                  data-col-header
+                  title="Method"
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: widths['method'],
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  Method
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column Method"
+                    role="separator"
+                    tabIndex={0}
+                    onMouseDown={(e) => startResize('method', e)}
+                    onDoubleClick={() =>
+                      dblClickResize('method', tableRef.current || undefined)
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowLeft') keyResize('method', 'left')
+                      if (e.key === 'ArrowRight') keyResize('method', 'right')
+                    }}
+                  />
+                </TableCell>
+                <TableCell
+                  data-col="entity"
+                  data-col-header
+                  title="Entity"
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: widths['entity'],
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  Entity
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column Entity"
+                    role="separator"
+                    tabIndex={0}
+                    onMouseDown={(e) => startResize('entity', e)}
+                    onDoubleClick={() =>
+                      dblClickResize('entity', tableRef.current || undefined)
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowLeft') keyResize('entity', 'left')
+                      if (e.key === 'ArrowRight') keyResize('entity', 'right')
+                    }}
+                  />
+                </TableCell>
+                <TableCell
                   data-col="session"
+                  data-col-header
                   title="For Session(s)"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
                     position: 'relative',
                     width: widths['session'],
-                    minWidth: widths['session'],
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
                   For Session(s)
@@ -336,14 +408,40 @@ export default function PaymentHistory({
                       {formatCurrency(amount)}
                     </TableCell>
                     <TableCell
+                      data-col="method"
+                      title={p.method || '—'}
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['method'],
+                        minWidth: widths['method'],
+                      }}
+                    >
+                      {p.method || '—'}
+                    </TableCell>
+                    <TableCell
+                      data-col="entity"
+                      title={p.entity ? (p.entity === 'ME-ERL' ? 'Music Establish (ERL)' : p.entity) : '—'}
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['entity'],
+                        minWidth: widths['entity'],
+                      }}
+                    >
+                      {p.entity
+                        ? p.entity === 'ME-ERL'
+                          ? 'Music Establish (ERL)'
+                          : p.entity
+                        : '—'}
+                    </TableCell>
+                    <TableCell
                       data-col="session"
                       title={(() => {
                         const ords = (p.assignedSessions || [])
                           .map((id: string) => sessionMap[id])
                           .filter(Boolean)
-                        return ords.length
-                          ? ords.map((o) => `#${o}`).join(', ')
-                          : '—'
+                        return formatSessions(ords)
                       })()}
                       sx={{
                         fontFamily: 'Newsreader',
@@ -356,9 +454,7 @@ export default function PaymentHistory({
                         const ords = (p.assignedSessions || [])
                           .map((id: string) => sessionMap[id])
                           .filter(Boolean)
-                        return ords.length
-                          ? ords.map((o) => `#${o}`).join(', ')
-                          : '—'
+                        return formatSessions(ords)
                       })()}
                     </TableCell>
                   </TableRow>
