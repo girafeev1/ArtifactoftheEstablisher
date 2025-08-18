@@ -5,8 +5,8 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: write        # to commit the diff file on same-repo PRs
+  pull-requests: write   # to create/update PR comments
 
 concurrency:
   group: pr-diff-${{ github.event.pull_request.number }}
@@ -19,6 +19,7 @@ jobs:
     steps:
       - name: Determine if PR is from same repo
         id: ownership
+        shell: bash
         run: |
           if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
             echo "same_repo=true" >> "$GITHUB_OUTPUT"
@@ -35,6 +36,7 @@ jobs:
 
       - name: Generate diff markdown
         id: diff
+        shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -81,6 +83,8 @@ jobs:
 
       - name: Commit diff file to PR branch (same-repo only)
         if: steps.ownership.outputs.same_repo == 'true'
+        id: commit
+        shell: bash
         env:
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
@@ -93,18 +97,23 @@ jobs:
             git commit -m "docs: update PR diff for #${{ github.event.number }}"
             git push origin "HEAD:${PR_BRANCH}"
           fi
+          # Record the current (post-commit) SHA so the snapshot always points to the commit that contains the file
+          echo "post_commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Compose links
         id: links
+        shell: bash
         env:
           OWNER_REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_NUMBER: ${{ github.event.number }}
-          HEAD_SHA: ${{ steps.diff.outputs.head_sha }}
+          HEAD_SHA: ${{ steps.diff.outputs.head_sha }}               # pre-commit head
+          POST_SHA: ${{ steps.commit.outputs.post_commit_sha }}      # post-commit head (if same-repo)
         run: |
           FILE="docs/context/PR-${PR_NUMBER}.md"
           echo "evergreen=https://github.com/${OWNER_REPO}/blob/${BRANCH}/${FILE}" >> "$GITHUB_OUTPUT"
-          echo "snapshot=https://raw.githubusercontent.com/${OWNER_REPO}/${HEAD_SHA}/${FILE}" >> "$GITHUB_OUTPUT"
+          SNAP="${POST_SHA:-$HEAD_SHA}"
+          echo "snapshot=https://raw.githubusercontent.com/${OWNER_REPO}/${SNAP}/${FILE}" >> "$GITHUB_OUTPUT"
 
       - name: Post sticky comment with links (or inline preview for forks)
         uses: actions/github-script@v7
