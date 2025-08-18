@@ -5,19 +5,18 @@ on:
     types: [opened, synchronize, reopened, edited]
 
 permissions:
-  contents: write      # needed to commit the diff file to the PR branch (same-repo PRs)
-  pull-requests: write # needed to create/update PR comments
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: pr-diff-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  generate-and-comment:
+  generate_and_comment:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Determine if PR is from same repo
+      - name: Check PR source
         id: ownership
         run: |
           if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
@@ -26,39 +25,30 @@ jobs:
             echo "same_repo=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Checkout PR HEAD (branch if same-repo; detached if fork)
+      - name: Checkout PR HEAD
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # When the PR is from the same repo, check out the named branch so we can push a commit.
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Gather diff
-        id: diff
+      - name: Generate diff bundle
+        id: bundle
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.number }}
-          REPO: ${{ github.repository }}
         run: |
           mkdir -p docs/context
+          git diff --name-status "$BASE_SHA" "$HEAD_SHA" > /tmp/changed.txt || true
+          git diff --stat "$BASE_SHA" "$HEAD_SHA" > /tmp/stat.txt || true
+          git diff "$BASE_SHA" "$HEAD_SHA" | head -n 4000 > /tmp/diff.patch || true
 
-          # Files changed & stats
-          git diff --name-status "$BASE_SHA" "$HEAD_SHA" > /tmp/changed.txt
-          git diff --stat "$BASE_SHA" "$HEAD_SHA" > /tmp/stat.txt
-
-          # Full patch (truncate to avoid megacomment explosions; tweak as you like)
-          # Keep first 4000 lines of unified diff:
-          git diff "$BASE_SHA" "$HEAD_SHA" | head -n 4000 > /tmp/diff.patch
-
-          # Build markdown
           {
             echo "# PR #$PR_NUMBER — Diff Summary"
             echo
-            echo "- **Base (target)**: \`$BASE_SHA\`"
-            echo "- **Head (source)**: \`$HEAD_SHA\`"
-            echo "- **Repo**: \`${REPO}\`"
+            echo "- **Base**: \`$BASE_SHA\`"
+            echo "- **Head**: \`$HEAD_SHA\`"
             echo
             echo "## Changed Files"
             echo
@@ -72,34 +62,30 @@ jobs:
             cat /tmp/stat.txt
             echo '```'
             echo
-            echo "## Unified Diff (truncated to first 4000 lines)"
+            echo "## Unified Diff (truncated)"
             echo
             echo '```diff'
             cat /tmp/diff.patch
             echo '```'
           } > "docs/context/PR-${PR_NUMBER}.md"
 
-          # For compatibility with older references:
+          # compatibility with other tools
           cp "docs/context/PR-${PR_NUMBER}.md" context-bundle.md
 
-          # Expose paths & head sha
           echo "diff_path=docs/context/PR-${PR_NUMBER}.md" >> $GITHUB_OUTPUT
-          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
 
-      - name: Commit diff file to PR branch (evergreen) — same-repo only
+      - name: Commit diff file back to PR branch (same-repo only)
         if: steps.ownership.outputs.same_repo == 'true'
         env:
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add docs/context/PR-*.md context-bundle.md
+          git add docs/context/PR-*.md context-bundle.md || true
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
             git commit -m "docs: update PR diff for #${{ github.event.number }}"
-            # Push to the PR branch on the same repo
             git push origin "HEAD:${PR_BRANCH}"
           fi
 
@@ -109,81 +95,40 @@ jobs:
           OWNER_REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_NUMBER: ${{ github.event.number }}
-          HEAD_SHA: ${{ steps.diff.outputs.head_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           FILE="docs/context/PR-${PR_NUMBER}.md"
-          # Evergreen (branch) link updates on each push:
           echo "evergreen=https://github.com/${OWNER_REPO}/blob/${BRANCH}/${FILE}" >> $GITHUB_OUTPUT
-          # Snapshot (pinned to exact commit of this run):
           echo "snapshot=https://raw.githubusercontent.com/${OWNER_REPO}/${HEAD_SHA}/${FILE}" >> $GITHUB_OUTPUT
 
-      - name: Post sticky comment with links (or inline diff for forks)
+      - name: Post sticky comment with links
         uses: actions/github-script@v7
+        env:
+          EVERGREEN: ${{ steps.links.outputs.evergreen }}
+          SNAPSHOT: ${{ steps.links.outputs.snapshot }}
         with:
           script: |
+            const { context, github } = require('@actions/github');
             const pr = context.payload.pull_request;
-            const bodySameRepo = `
-**Diff file generated** ✅
+            const marker = '<!-- pr-diff-file-sticky -->';
+            const body = [
+              '**Diff file generated.**',
+              `- Evergreen: ${process.env.EVERGREEN}`,
+              `- Snapshot: ${process.env.SNAPSHOT}`,
+              '',
+              `_File path:_ docs/context/PR-${pr.number}.md`,
+              marker
+            ].join('\n');
 
-- **Evergreen (updates as you push):**
-  ${process.env.EVERGREEN}
-- **Snapshot (pinned to this commit):**
-  ${process.env.SNAPSHOT}
-
-_File path:_ \`docs/context/PR-${pr.number}.md\`
-`;
-
-            const fs = require('fs');
-            const diffPath = 'docs/context/PR-' + pr.number + '.md';
-            let inline = '';
-            try {
-              const txt = fs.readFileSync(diffPath, 'utf8');
-              // keep inline preview small
-              const preview = txt.split('\n').slice(0, 250).join('\n');
-              inline = `
-<details><summary>Preview (first 250 lines)</summary>
-
-\`\`\`md
-${preview}
-\`\`\`
-
-</details>`;
-            } catch {}
-
-            const fromSameRepo = "${{ steps.ownership.outputs.same_repo }}" === "true";
-            const bodyFork = `
-**Diff generated (fork PR)** ⚠️  
-This PR comes from a fork; workflows cannot push files back to the branch.
-
-${inline}
-`;
-
-            // Make it a sticky (update-in-place) comment
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: pr.number
             });
 
-            const marker = "<!-- pr-diff-file-sticky -->";
-            const newBody = (fromSameRepo ? bodySameRepo : bodyFork) + "\n" + marker;
-
-            const existing = comments.find(c => c.user.type === "Bot" && c.body && c.body.includes(marker));
+            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
             if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body: newBody
-              });
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
             } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number,
-                body: newBody
-              });
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, body });
             }
-        env:
-          EVERGREEN: ${{ steps.links.outputs.evergreen }}
-          SNAPSHOT:  ${{ steps.links.outputs.snapshot }}
