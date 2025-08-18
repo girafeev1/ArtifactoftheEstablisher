@@ -1,0 +1,19 @@
+context:
+  - "docs/context/**"
+  - "context-bundle.md"
+
+frontend:
+  - "components/**"
+  - "pages/**"
+  - "app/**"
+  - "**/*.tsx"
+  - "**/*.ts"
+
+backend:
+  - "lib/**"
+  - "api/**"
+  - "server/**"
+  - "**/*.ts"
+
+ci:
+  - ".github/workflows/**"
