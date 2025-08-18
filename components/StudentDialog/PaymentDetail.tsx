@@ -480,28 +480,31 @@ export default function PaymentDetail({
           })()}
         </Box>
 
-        {(assigned.length + available.length) > 0 && (
-          <>
-            <Typography
-              variant="subtitle2"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-            >
-              For session:
-            </Typography>
-            <Table
-              ref={tableRef}
-              size="small"
-              sx={{
-                mt: 1,
-                tableLayout: 'fixed',
-                width: 'max-content',
-                '& td, & th': {
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                },
-              }}
-            >
+        <Typography
+          variant="subtitle2"
+          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+        >
+          For session:
+        </Typography>
+        <Table
+          ref={tableRef}
+          size="small"
+          sx={{
+            mt: 1,
+            tableLayout: 'fixed',
+            width: 'max-content',
+            '& td, & th': {
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            },
+            '& th .MuiTableSortLabel-root': {
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            },
+          }}
+        >
           <TableHead>
             <TableRow>
               <TableCell
@@ -772,8 +775,6 @@ export default function PaymentDetail({
             )}
           </TableBody>
         </Table>
-      </>
-        )}
       </Box>
       <Box
         className="dialog-footer"

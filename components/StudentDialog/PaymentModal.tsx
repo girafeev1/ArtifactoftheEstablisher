@@ -76,9 +76,13 @@ export default function PaymentModal({
       timestamp: Timestamp.now(),
       editedBy: getAuth().currentUser?.email || 'system',
     }
-    const id = buildIdentifier(bankCode, accountId)
-    if (!data.identifier || !/^[0-9A-Za-z]+\/[0-9A-Za-z_-]+$/.test(data.identifier)) {
-      if (id) data.identifier = id
+    if (entity === 'ME-ERL') {
+      const id = buildIdentifier(bankCode, accountId)
+      if (id) {
+        data.identifier = id
+        data.bankCode = bankCode
+        data.accountDocId = accountId
+      }
     }
     await addDoc(colRef, data)
     qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
