@@ -1,80 +1,102 @@
 name: PR Diff File
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
-  workflow_dispatch: {}
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 jobs:
-  generate-and-commit:
+  generate-and-comment:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
-    concurrency:
-      group: pr-diff-file-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
+
     steps:
-      - name: Checkout
+      - name: Checkout PR merge ref
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Safe for pull_request_target: the merge ref is created by GitHub
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
-      - name: Compute refs
+      - name: Compute base/head
         id: refs
         run: |
-          echo "NUM=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           echo "BASE=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
           echo "HEAD=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
-          echo "HEAD_REF=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
-          echo "HEAD_REPO=${{ github.event.pull_request.head.repo.full_name }}" >> $GITHUB_OUTPUT
-          echo "THIS_REPO=${{ github.repository }}" >> $GITHUB_OUTPUT
 
-      - name: Generate bundle file
+      - name: Generate diff bundle
         run: |
-          mkdir -p docs/context
-          NUM="${{ steps.refs.outputs.NUM }}"
-          BASE="${{ steps.refs.outputs.BASE }}"
-          HEAD="${{ steps.refs.outputs.HEAD }}"
-          OUT="docs/context/PR-${NUM}.md"
-          {
-            echo "# PR #$NUM – Diff Bundle"
-            echo
-            echo "_Base:_ \`${BASE::7}\`  _Head:_ \`${HEAD::7}\`"
-            echo "_Generated:_ $(date -u '+%Y-%m-%d %H:%M UTC')"
-            echo
-            echo "## Changed Files"
-            echo
-            git diff --name-status "$BASE...$HEAD" | sed 's/^/- /'
-            echo
-            echo "## Compact Diff Hunks"
-            echo
-            echo '```diff'
-            git diff --unified=0 "$BASE...$HEAD" | head -n 4000
-            echo '```'
-          } > "$OUT"
+          set -e
+          echo "# PR Diff" > pr-diff.md
+          echo >> pr-diff.md
+          echo "_PR_: #${{ github.event.pull_request.number }} | _Base_: ${{ steps.refs.outputs.BASE }} | _Head_: ${{ steps.refs.outputs.HEAD }}" >> pr-diff.md
+          echo "_Generated_: $(date -u '+%Y-%m-%d %H:%M UTC')" >> pr-diff.md
+          echo >> pr-diff.md
 
-      - name: Commit file to PR branch (same-repo only)
-        if: ${{ steps.refs.outputs.HEAD_REPO == steps.refs.outputs.THIS_REPO }}
-        env:
-          REF: ${{ steps.refs.outputs.HEAD_REF }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/context/PR-*.md
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
+          echo "### Changed Files" >> pr-diff.md
+          git diff --name-status ${{ steps.refs.outputs.BASE }}...${{ steps.refs.outputs.HEAD }} > files.txt || true
+          if [ -s files.txt ]; then
+            awk '{print "- " $0}' files.txt >> pr-diff.md
+          else
+            echo "_No changes detected._" >> pr-diff.md
           fi
-          git commit -m "chore(context): update PR diff bundle"
-          git push origin "HEAD:$REF"
+          echo >> pr-diff.md
 
-      - name: Upload artifact (fallback for forks)
-        if: ${{ steps.refs.outputs.HEAD_REPO != steps.refs.outputs.THIS_REPO }}
+          echo "### Diff (compact, first 3000 lines)" >> pr-diff.md
+          echo >> pr-diff.md
+          git diff --unified=0 ${{ steps.refs.outputs.BASE }}...${{ steps.refs.outputs.HEAD }} | head -n 3000 > hunks.patch || true
+          if [ -s hunks.patch ]; then
+            {
+              echo '```diff'
+              cat hunks.patch
+              echo '```'
+            } >> pr-diff.md
+          else
+            echo "_(empty)_" >> pr-diff.md
+          fi
+
+      - name: Prepare preview for comment
+        id: preview
+        run: |
+          if [ -s hunks.patch ]; then
+            head -n 200 hunks.patch > preview.txt
+          else
+            echo "(empty)" > preview.txt
+          fi
+          # Escape backticks to keep code fence intact
+          BODY="$(sed 's/`/\\`/g' preview.txt)"
+          {
+            echo "body<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pr-${{ steps.refs.outputs.NUM }}-bundle
-          path: docs/context/PR-${{ steps.refs.outputs.NUM }}.md
-          if-no-files-found: error
+          name: pr-diff-${{ github.event.pull_request.number }}
+          path: |
+            pr-diff.md
+            files.txt
+            hunks.patch
+          if-no-files-found: ignore
+
+      - name: Post / update sticky comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: pr-diff
+          message: |
+            **PR Diff file is ready.**
+            • Download artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            • This comment shows only a compact preview. Open `pr-diff.md` in the artifacts for the full diff.
+
+            ---
+            <details><summary>Compact preview</summary>
+
+            ```diff
+            ${{ steps.preview.outputs.body }}
+            ```
+            </details>
