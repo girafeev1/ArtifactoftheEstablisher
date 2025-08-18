@@ -1,134 +1,80 @@
-name: PR Diff File & Comment
+name: PR Diff File
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch: {}
 
 permissions:
   contents: write
   pull-requests: write
 
-concurrency:
-  group: pr-diff-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
-  generate_and_comment:
+  generate-and-commit:
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
+    concurrency:
+      group: pr-diff-file-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
-      - name: Check PR source
-        id: ownership
-        run: |
-          if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
-            echo "same_repo=true" >> $GITHUB_OUTPUT
-          else
-            echo "same_repo=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Checkout PR HEAD
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Generate diff bundle
-        id: bundle
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.number }}
+      - name: Compute refs
+        id: refs
+        run: |
+          echo "NUM=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          echo "BASE=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
+          echo "HEAD=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          echo "HEAD_REF=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+          echo "HEAD_REPO=${{ github.event.pull_request.head.repo.full_name }}" >> $GITHUB_OUTPUT
+          echo "THIS_REPO=${{ github.repository }}" >> $GITHUB_OUTPUT
+
+      - name: Generate bundle file
         run: |
           mkdir -p docs/context
-          git diff --name-status "$BASE_SHA" "$HEAD_SHA" > /tmp/changed.txt || true
-          git diff --stat "$BASE_SHA" "$HEAD_SHA" > /tmp/stat.txt || true
-          git diff "$BASE_SHA" "$HEAD_SHA" | head -n 4000 > /tmp/diff.patch || true
-
+          NUM="${{ steps.refs.outputs.NUM }}"
+          BASE="${{ steps.refs.outputs.BASE }}"
+          HEAD="${{ steps.refs.outputs.HEAD }}"
+          OUT="docs/context/PR-${NUM}.md"
           {
-            echo "# PR #$PR_NUMBER — Diff Summary"
+            echo "# PR #$NUM – Diff Bundle"
             echo
-            echo "- **Base**: \`$BASE_SHA\`"
-            echo "- **Head**: \`$HEAD_SHA\`"
+            echo "_Base:_ \`${BASE::7}\`  _Head:_ \`${HEAD::7}\`"
+            echo "_Generated:_ $(date -u '+%Y-%m-%d %H:%M UTC')"
             echo
             echo "## Changed Files"
             echo
-            echo '```txt'
-            cat /tmp/changed.txt
-            echo '```'
+            git diff --name-status "$BASE...$HEAD" | sed 's/^/- /'
             echo
-            echo "## Stats"
-            echo
-            echo '```txt'
-            cat /tmp/stat.txt
-            echo '```'
-            echo
-            echo "## Unified Diff (truncated)"
+            echo "## Compact Diff Hunks"
             echo
             echo '```diff'
-            cat /tmp/diff.patch
+            git diff --unified=0 "$BASE...$HEAD" | head -n 4000
             echo '```'
-          } > "docs/context/PR-${PR_NUMBER}.md"
+          } > "$OUT"
 
-          # compatibility with other tools
-          cp "docs/context/PR-${PR_NUMBER}.md" context-bundle.md
-
-          echo "diff_path=docs/context/PR-${PR_NUMBER}.md" >> $GITHUB_OUTPUT
-
-      - name: Commit diff file back to PR branch (same-repo only)
-        if: steps.ownership.outputs.same_repo == 'true'
+      - name: Commit file to PR branch (same-repo only)
+        if: ${{ steps.refs.outputs.HEAD_REPO == steps.refs.outputs.THIS_REPO }}
         env:
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          REF: ${{ steps.refs.outputs.HEAD_REF }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/context/PR-*.md context-bundle.md || true
+          git add docs/context/PR-*.md
           if git diff --cached --quiet; then
             echo "No changes to commit."
-          else
-            git commit -m "docs: update PR diff for #${{ github.event.number }}"
-            git push origin "HEAD:${PR_BRANCH}"
+            exit 0
           fi
+          git commit -m "chore(context): update PR diff bundle"
+          git push origin "HEAD:$REF"
 
-      - name: Compose links
-        id: links
-        env:
-          OWNER_REPO: ${{ github.repository }}
-          BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_NUMBER: ${{ github.event.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          FILE="docs/context/PR-${PR_NUMBER}.md"
-          echo "evergreen=https://github.com/${OWNER_REPO}/blob/${BRANCH}/${FILE}" >> $GITHUB_OUTPUT
-          echo "snapshot=https://raw.githubusercontent.com/${OWNER_REPO}/${HEAD_SHA}/${FILE}" >> $GITHUB_OUTPUT
-
-      - name: Post sticky comment with links
-        uses: actions/github-script@v7
-        env:
-          EVERGREEN: ${{ steps.links.outputs.evergreen }}
-          SNAPSHOT: ${{ steps.links.outputs.snapshot }}
+      - name: Upload artifact (fallback for forks)
+        if: ${{ steps.refs.outputs.HEAD_REPO != steps.refs.outputs.THIS_REPO }}
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            const { context, github } = require('@actions/github');
-            const pr = context.payload.pull_request;
-            const marker = '<!-- pr-diff-file-sticky -->';
-            const body = [
-              '**Diff file generated.**',
-              `- Evergreen: ${process.env.EVERGREEN}`,
-              `- Snapshot: ${process.env.SNAPSHOT}`,
-              '',
-              `_File path:_ docs/context/PR-${pr.number}.md`,
-              marker
-            ].join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr.number
-            });
-
-            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, body });
-            }
+          name: pr-${{ steps.refs.outputs.NUM }}-bundle
+          path: docs/context/PR-${{ steps.refs.outputs.NUM }}.md
+          if-no-files-found: error
