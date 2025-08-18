@@ -13,7 +13,7 @@ import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { fetchBanks } from '../../lib/erlDirectory'
-import { paymentIdentifier } from '../../lib/billing/paymentIdentifier'
+import { buildIdentifier } from '../../lib/payments/format'
 import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
@@ -76,8 +76,10 @@ export default function PaymentModal({
       timestamp: Timestamp.now(),
       editedBy: getAuth().currentUser?.email || 'system',
     }
-    const id = paymentIdentifier(entity, bankCode, accountId)
-    if (id) data.identifier = id
+    const id = buildIdentifier(bankCode, accountId)
+    if (!data.identifier || !/^[0-9A-Za-z]+\/[0-9A-Za-z_-]+$/.test(data.identifier)) {
+      if (id) data.identifier = id
+    }
     await addDoc(colRef, data)
     qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
       if (!prev) return prev
@@ -100,7 +102,7 @@ export default function PaymentModal({
       }}
     >
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Payment</DialogTitle>
-      <DialogContent sx={{ flex: 1, overflow: 'auto' }}>
+      <DialogContent sx={{ flex: 1, overflow: 'auto', pb: '64px' }}>
         <TextField
           label="Payment Amount"
           type="number"
