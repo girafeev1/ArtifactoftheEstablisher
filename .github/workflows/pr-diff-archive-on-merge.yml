@@ -1,4 +1,4 @@
-name: PR Diff Archive on Merge
+name: PR Diff — Archive on Merge
 
 on:
   pull_request:
@@ -6,83 +6,32 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
-
-concurrency:
-  group: pr-diff-archive-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 jobs:
   archive:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout base branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.ref }}
 
-      - name: Fetch PR diff and metadata
-        id: grab
+      - name: Append entry to docs/context/index.md
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
-          mkdir -p docs/context/merged
-          # Get machine-readable metadata
-          curl -sSL -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            "https://api.github.com/repos/${REPO}/pulls/${PR_NUMBER}" > /tmp/meta.json
+          mkdir -p docs/context
+          FILE="docs/context/index.md"
+          SNAPSHOT="https://raw.githubusercontent.com/${{ github.repository }}/${MERGE_SHA}/docs/context/PR-${PR_NUMBER}.md"
+          if [ ! -f "$FILE" ]; then
+            echo "# Context Bundle Index" > "$FILE"
+            echo >> "$FILE"
+          fi
+          echo "- PR #${PR_NUMBER}: ${SNAPSHOT}" >> "$FILE"
 
-          MERGE_SHA=$(jq -r '.merge_commit_sha' /tmp/meta.json)
-          BASE_REF=$(jq -r '.base.ref'           /tmp/meta.json)
-          HEAD_REF=$(jq -r '.head.ref'           /tmp/meta.json)
-          TITLE=$(jq -r '.title'                 /tmp/meta.json)
-          USER=$(jq -r '.user.login'             /tmp/meta.json)
-
-          # Get unified diff as text
-          curl -sSL -H "Accept: application/vnd.github.v3.diff" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            "https://api.github.com/repos/${REPO}/pulls/${PR_NUMBER}" > /tmp/pr.diff
-
-          OUT="docs/context/merged/PR-${PR_NUMBER}-${MERGE_SHA}.md"
-          {
-            echo "# PR #${PR_NUMBER} — Merged Diff"
-            echo
-            echo "- **Title**: ${TITLE}"
-            echo "- **Author**: @${USER}"
-            echo "- **Base branch at merge**: \`${BASE_REF}\`"
-            echo "- **Merge commit**: \`${MERGE_SHA}\`"
-            echo
-            echo "## Unified Diff"
-            echo
-            echo '```diff'
-            cat /tmp/pr.diff
-            echo '```'
-          } > "$OUT"
-
-          echo "out=$OUT" >> $GITHUB_OUTPUT
-
-      - name: Commit archive file
-        run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ${{ steps.grab.outputs.out }}
-          git commit -m "docs(archive): PR #${{ github.event.pull_request.number }} merged diff"
+          git add "$FILE"
+          git commit -m "chore(context): archive PR #${PR_NUMBER}"
           git push
-
-      - name: Comment link on PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const pr = context.payload.pull_request;
-            const path = "${{ steps.grab.outputs.out }}";
-            const url = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${pr.base.ref}/${path}`;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr.number,
-              body: `Final diff snapshot archived: ${url}`
-            });
