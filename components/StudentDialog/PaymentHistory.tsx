@@ -21,6 +21,7 @@ import PaymentModal from './PaymentModal'
 import { useBilling } from '../../lib/billing/useBilling'
 import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
 import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
+import { formatSessions } from '../../lib/billing/formatSessions'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
 import Tooltip from '@mui/material/Tooltip'
@@ -76,6 +77,7 @@ export default function PaymentHistory({
     { key: 'entity', label: 'Entity', width: 160 },
     { key: 'identifier', label: 'Bank Account', width: 160 },
     { key: 'refNumber', label: 'Reference #', width: 160 },
+    { key: 'session', label: 'For Session(s)', width: 180 },
   ] as const
   const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
     'payments',
@@ -85,6 +87,13 @@ export default function PaymentHistory({
   const tableRef = React.useRef<HTMLTableElement>(null)
 
   const minDue = React.useMemo(() => minUnpaidRate(bill?.rows || []), [bill])
+  const sessionMap = React.useMemo(() => {
+    const m: Record<string, number> = {}
+    bill?.rows?.forEach((r: any, i: number) => {
+      m[r.id] = i + 1
+    })
+    return m
+  }, [bill])
 
   useEffect(() => {
     if (active) onTitleChange?.(titleFor('billing', 'payment-history', account))
@@ -168,6 +177,11 @@ export default function PaymentHistory({
                 tableLayout: 'fixed',
                 width: 'max-content',
                 '& td, & th': {
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                },
+                '& th .MuiTableSortLabel-root': {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -380,6 +394,36 @@ export default function PaymentHistory({
                     }}
                   />
                 </TableCell>
+                <TableCell
+                  data-col="session"
+                  data-col-header
+                  title="For Session(s)"
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: widths['session'],
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  For Session(s)
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column For Session(s)"
+                    role="separator"
+                    tabIndex={0}
+                    onMouseDown={(e) => startResize('session', e)}
+                    onDoubleClick={() =>
+                      dblClickResize('session', tableRef.current || undefined)
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowLeft') keyResize('session', 'left')
+                      if (e.key === 'ArrowRight') keyResize('session', 'right')
+                    }}
+                  />
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -389,6 +433,10 @@ export default function PaymentHistory({
                 const remaining = Number(
                   p.remainingAmount ?? (amount - applied),
                 )
+                const ords = (p.assignedSessions || [])
+                  .map((id: string) => sessionMap[id])
+                  .filter((n): n is number => typeof n === 'number')
+                  .sort((a, b) => a - b)
                 return (
                   <TableRow
                     key={p.id}
@@ -480,6 +528,18 @@ export default function PaymentHistory({
                       }}
                     >
                       {p.refNumber || '—'}
+                    </TableCell>
+                    <TableCell
+                      data-col="session"
+                      title={formatSessions(ords)}
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['session'],
+                        minWidth: widths['session'],
+                      }}
+                    >
+                      {formatSessions(ords)}
                     </TableCell>
                   </TableRow>
                 )

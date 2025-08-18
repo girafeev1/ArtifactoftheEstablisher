@@ -4,6 +4,12 @@
 > Convention: ✅ done, ⏳ in progress, 🧭 next / planned.
 
 Latest change summary
+- Payment Detail: Back control inside sticky footer; body padded.
+- Remaining amount uses single blink span; Payment Amount stays static.
+- Session assignment table always visible with zero-state.
+- Add Payment dialog cascades Method→Entity→Bank→Account and writes identifier, ref #, timestamp, editedBy.
+- Payment History: added "For Session(s)" column with 5-item truncation.
+- Table headers ellipsize independently of cell widths.
 - StudentDialog: Back button moved into sticky footer.
 - Payment Detail: only Remaining Amount blinks; Payment Amount is static.
 - Payment Detail: restored session assignment list & flow.
@@ -53,6 +59,21 @@ Tasks T-xxx
   - Session assignment: PASS – list restored and functional.
   - Inline editing (Payment Detail): PASS – fields editable when empty.
   - Inline editing (Base Rate History): PASS – effectiveDate input when empty.
+  - Tests: PASS – unit tests pass; Cypress spec present (skipped in CI).
+- Notes:
+
+### T-082
+- Title: Finish Payment UX, Add Payment cascade, and list-view session truncation (P-026)
+- Branch: codex/finish-payment-ux-and-add-payment-cascade-p026
+- PR: <link to this PR>
+- Status: Completed
+- Outcomes:
+  - Sticky footer: PASS – Back control inside footer with padding.
+  - Remaining blink: PASS – single span; amount static.
+  - Session assignment: PASS – table persists with zero-state.
+  - Add Payment cascade: PASS – writes method, entity, identifier, ref #, timestamp, editedBy.
+  - Payment History sessions: PASS – column added with 5-item ellipsis.
+  - Header ellipsis: PASS – headers truncate independently.
   - Tests: PASS – unit tests pass; Cypress spec present (skipped in CI).
 - Notes:
 
@@ -149,6 +170,7 @@ Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
 |-------|------------------------------------------------------|-------|-------|
+| P-026 | Finish Payment UX, Add Payment cascade, and list-view session truncation | 🧭    | See prompts/p-026.md |
 | P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | 🧭    | See prompts/p-025.md |
 | P-024 | Payment UI polish & data rules | ✅    | See prompts/p-024.md |
 | P-023 | Payments metadata & UI polish (headers, “For Session(s)”, sticky footer, ERL dir)     | 🧭    | See prompts/P-023.md |
