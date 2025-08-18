@@ -4,16 +4,10 @@
 > Convention: ✅ done, ⏳ in progress, 🧭 next / planned.
 
 Latest change summary
-- StudentDialog: Back button moved into sticky footer.
-- Payment Detail: only Remaining Amount blinks; Payment Amount is static.
-- Payment Detail: restored session assignment list & flow.
-- Payment Detail: inline editing for Method/Entity/Identifier/Reference # when empty; read-only after set.
-- Base Rate History: inline effective date when empty; read-only after set.
-- Payment History: headers finalized (Method, Entity, Bank Account, Reference #).
-- Payment Detail: 'For Session(s)' truncates to 5 with expand.
-- StudentDialog: sticky footer across tabs.
-- Identifier normalization on write; safe display with em dash.
-- Unit + e2e tests added.
+- Payment History: headers finalized (`Method`, `Entity`, `Bank Account`, `Reference #`). 
+- Payment Detail: “For Session(s)” truncates to 5 with **View all/Hide**; shows `identifier` and `refNumber` with safe fallback.
+- Payments: `identifier` normalized on write; helpers + unit tests added (format & truncate).
+- Sticky footer scaffolding landed (needs follow-up to anchor **Back** inside footer).
 - Queued P-023: Payments metadata (method/entity/bank), header ellipsis, “For Session(s)” truncation, sticky footer, and ERL directory integration.
 - Enforced append-only Task Log with CI guard.
 - Add continuous Context Bundle for branch pushes (Issue per branch).
@@ -26,36 +20,36 @@ Latest change summary
 - Replaced dayjs timezone dependency with built-in plugin to fix install failures.
 - Queue P-021: loading UX cleanup, due parity, vouchers default, payment blink, base-rate history editing, min-width v3, calendar scan fixes.
 - Queued P-022 to complete P-021 acceptance (payment blink hookup, base-rate info relocation), add scan status/logs, and tidy labels.
-Queued P-022 to complete P-021 acceptance (payment blink hookup, base-rate info relocation), add scan status/logs, and tidy labels.
 
 Tasks T-xxx
 ### T-080
 - Title: Payment UI polish & data rules (P-024)
 - Branch: codex/feat-payment-ui-polish-p024
-- PR: <link to this PR>
+- PR: <link to PR #213>
 - Status: Completed
 - Outcomes:
-  - A) History headers: PASS – headers updated.
-  - B) Sessions truncation: PASS – list truncates with expand.
-  - C) Sticky footer: PASS – footer sticks across tabs.
-  - D) Identifier rule: PASS – normalized and displayed.
-  - E) Tests: PASS – unit tests pass; Cypress spec present (Xvfb missing).
+  - A) History headers: PASS — headers updated.
+  - B) Sessions truncation: PASS — implemented in detail view (list view pending separately).
+  - C) Sticky footer: PARTIAL — footer scaffolding present; “Back” not anchored yet (follow-up).
+  - D) Identifier rule: PASS — normalized and displayed.
+  - E) Tests: PASS — unit tests added; Cypress spec present (CI lacks Xvfb).
 - Notes:
 
 ### T-081
 - Title: Fix Payment Detail/History UX, restore assignment, inline editing (P-025)
 - Branch: codex/fix-payment-ui-and-inline-editing-p025
-- PR: <link to this PR>
-- Status: Completed
+- PR: <link to PR #214>
+- Status: Partially Completed
 - Outcomes:
-  - Sticky Back button: PASS – moved into sticky footer.
-  - Blinking logic: PASS – only Remaining blinks.
-  - Session assignment: PASS – list restored and functional.
-  - Inline editing (Payment Detail): PASS – fields editable when empty.
-  - Inline editing (Base Rate History): PASS – effectiveDate input when empty.
-  - Tests: PASS – unit tests pass; Cypress spec present (skipped in CI).
+  - Sticky Back button: FAIL — still attached to scroller (needs move into sticky footer).
+  - Blinking logic: PARTIAL — Payment Amount static; Remaining still double-rendering in places.
+  - Session assignment: FAIL — list can disappear; needs zero-state & stable render.
+  - Inline editing (Payment Detail): PASS — edit-on-empty then read-only works.
+  - Inline editing (Base Rate History): PASS — effectiveDate inline when empty then read-only.
+  - Tests: PASS — unit tests present; Cypress spec present (skipped in CI).
 - Notes:
 
+---
 ---
 
 Tasks table — add/update:
@@ -63,13 +57,13 @@ Tasks table — add/update:
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
 | T-072 | Header ellipsis & width decouple (header no longer blocks narrow columns)                     | 🧭    | Table headers CSS + autosize guard |
-| T-073 | Payment History “For Session(s)” max 5 then “…”                                                | 🧭    | PaymentHistory formatter |
-| T-074 | Sticky dialog footer (window bottom, not scroller)                                            | 🧭    | FloatingWindow/Dialog layout, CSS |
+| T-073 | Payment History “For Session(s)” max 5 then “…”                                                | 🧭    | PaymentHistory formatter; detail-only; list pending |
+| T-074 | Sticky dialog footer (window bottom, not scroller)                                            | ⏳    | Back button still attached to scroller; move into footer in P-025. |
 | T-075 | Add Payment: Method/Entity/Bank/Account/RefNumber fields + writes (timestamp, editedBy)       | 🧭    | PaymentModal, writes, types |
 | T-076 | ERL directory integration (read banks+accounts from `erl-directory`; graceful fallback)       | 🧭    | lib/erlDirectory.ts, firebase init |
-| T-077 | Payment list: rename columns; add Method & Entity                                             | 🧭    | PaymentHistory.tsx |
-| T-078 | Payment detail: two-column summary layout                                                     | 🧭    | PaymentDetail.tsx, styles |
-| T-079 | Tests: formatters, identifier write guard, sticky footer, Add Payment flow                    | 🧭    | unit + e2e |
+| T-077 | Payment list: rename columns; add Method & Entity                                             | ✅    | PaymentHistory.tsx (Method, Entity, Bank Account, Reference #) |
+| T-078 | Payment detail: two-column summary layout                                                     | ✅    | PaymentDetail.tsx, styles (identifier & ref #; “For Session(s)” View all/Hide) |
+| T-079 | Tests: formatters, identifier write guard, sticky footer, Add Payment flow                    | ✅    | formatters & truncate helpers (Jest); e2e scaffold |
 | T-066 | Payment History/Detail: hook up blink classes (yellow when remaining>0; red when < minRate) | ✅    | PaymentHistory.tsx, PaymentDetail.tsx, CSS,
  reduced-motion |
 | T-067 | Move Base Rate info icon to Billing tab label; remove from Session Detail | 🧭    | BillingTab.tsx, SessionDetail.tsx |
@@ -142,6 +136,11 @@ Tasks table — add/update:
 | T-022 | Surface scan results/log in UI | 🗓️    | Optional log panel |
 | T-023 | Replace slow-blink placeholders with Skeletons | 🧭    | Card metrics |
 | T-024 | Make scrollbar-in-footer consistent across all tables | 🧪    | Quick sweep |
+| T-080 | StudentDialog Back button inside sticky footer                | ⏳    | Move Back into footer bar; ensure body has bottom padding |
+| T-081 | Payment Detail blink logic: only Remaining blinks             | ⏳    | Payment Amount static; Remaining uses blink class only |
+| T-082 | Payment Detail: restore session assignment list & flow        | ⏳    | Keep assignable list visible; selection updates Remaining; persist |
+| T-083 | Payment Detail inline editing (Method/Entity/Identifier/Ref) | ⏳    | Editable when empty; read-only after set; normalize identifier |
+| T-084 | Base Rate History: inline edit `effectiveDate` when empty     | ⏳    | Editable when missing; read-only after set |
 
 ---
 
@@ -163,6 +162,7 @@ Prompts table — update:
 | P-012 | Resizable tables + sticky # + blink polish           | ✅    | Shipped |
 | P-014 | Session totals revert, auto-size, due unification, dialog audit, base-rate history | ✅    | This change |
 | P-022 | Finish P-021 acceptance: payment blink hookup, base-rate icon move, scan status/logs, label tidy | 🧭    | See prompts/P-022.md |
+| P-025 | Fix sticky Back button; blink logic; session assignment; inline editing in Payment Detail & Base Rate History; remove `docs/task-log-vol-1.md`. | 🧭 | See prompts/p-025.md |
 
 
 ### Changes — P-015
