@@ -76,9 +76,13 @@ export default function PaymentModal({
       timestamp: Timestamp.now(),
       editedBy: getAuth().currentUser?.email || 'system',
     }
-    const id = buildIdentifier(bankCode, accountId)
-    if (!data.identifier || !/^[0-9A-Za-z]+\/[0-9A-Za-z_-]+$/.test(data.identifier)) {
-      if (id) data.identifier = id
+    if (entity === 'ME-ERL') {
+      const id = buildIdentifier(bankCode, accountId)
+      if (id) {
+        data.identifier = id
+        data.bankCode = bankCode
+        data.accountDocId = accountId
+      }
     }
     await addDoc(colRef, data)
     qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
@@ -174,11 +178,15 @@ export default function PaymentModal({
               }}
               sx={{ mt: 2 }}
             >
-              {banks.map((b) => (
-                <MenuItem key={b.code} value={b.code}>
-                  {`${b.name} ${b.code}`}
-                </MenuItem>
-              ))}
+              {banks.map((b) => {
+                const fallback = `${b.docId || b.id || ''} ${b.collectionId || ''}`.trim()
+                const label = b.name && b.code ? `${b.name} ${b.code}` : fallback
+                return (
+                  <MenuItem key={b.code} value={b.code}>
+                    {label}
+                  </MenuItem>
+                )
+              })}
             </TextField>
             <TextField
               label="Bank Account"
