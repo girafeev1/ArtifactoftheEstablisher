@@ -20,6 +20,10 @@ Latest change summary
 - Replaced dayjs timezone dependency with built-in plugin to fix install failures.
 - Queue P-021: loading UX cleanup, due parity, vouchers default, payment blink, base-rate history editing, min-width v3, calendar scan fixes.
 - Queued P-022 to complete P-021 acceptance (payment blink hookup, base-rate info relocation), add scan status/logs, and tidy labels.
+- Payment History: headers finalized (Method, Entity, Bank Account, Reference #); two-column detail shows identifier & reference with safe fallbacks.
+- Payment Detail: “For Session(s)” truncation with View all/Hide; inline edit when empty for metadata; added tests & helpers.
+- Sticky footer scaffolding present; Back must be anchored inside footer (queued for P-026).
+- Remaining blink polish & session assignment table robustness queued for P-026.
 
 Tasks T-xxx
 ### T-080
@@ -58,7 +62,7 @@ Tasks table — add/update:
 |-------|------------------------------------------------------|-------|---------------|
 | T-072 | Header ellipsis & width decouple (header no longer blocks narrow columns)                     | 🧭    | Table headers CSS + autosize guard |
 | T-073 | Payment History “For Session(s)” max 5 then “…”                                                | 🧭    | PaymentHistory formatter; detail-only; list pending |
-| T-074 | Sticky dialog footer (window bottom, not scroller)                                            | ⏳    | Back button still attached to scroller; move into footer in P-025. |
+| T-074 | Sticky dialog footer (window bottom, not scroller)                                            | ⏳    | Back lives in scroller; move into footer in P-026. |
 | T-075 | Add Payment: Method/Entity/Bank/Account/RefNumber fields + writes (timestamp, editedBy)       | 🧭    | PaymentModal, writes, types |
 | T-076 | ERL directory integration (read banks+accounts from `erl-directory`; graceful fallback)       | 🧭    | lib/erlDirectory.ts, firebase init |
 | T-077 | Payment list: rename columns; add Method & Entity                                             | ✅    | PaymentHistory.tsx (Method, Entity, Bank Account, Reference #) |
@@ -137,10 +141,11 @@ Tasks table — add/update:
 | T-023 | Replace slow-blink placeholders with Skeletons | 🧭    | Card metrics |
 | T-024 | Make scrollbar-in-footer consistent across all tables | 🧪    | Quick sweep |
 | T-080 | StudentDialog Back button inside sticky footer                | ⏳    | Move Back into footer bar; ensure body has bottom padding |
-| T-081 | Payment Detail blink logic: only Remaining blinks             | ⏳    | Payment Amount static; Remaining uses blink class only |
-| T-082 | Payment Detail: restore session assignment list & flow        | ⏳    | Keep assignable list visible; selection updates Remaining; persist |
-| T-083 | Payment Detail inline editing (Method/Entity/Identifier/Ref) | ⏳    | Editable when empty; read-only after set; normalize identifier |
-| T-084 | Base Rate History: inline edit `effectiveDate` when empty     | ⏳    | Editable when missing; read-only after set |
+| T-081 | Payment Detail blink logic: only Remaining blinks             | ⏳    | Remove duplicate span; Payment Amount static |
+| T-082 | Payment Detail: session assignment visible & robust           | ⏳    | Zero-state; selection updates Remaining; persist |
+| T-083 | Add Payment dialog cascade (Method/Entity/Bank/Account/Ref)   | ⏳    | ERL banks→accounts; identifier build; audit fields |
+| T-084 | Payment History: For Session(s) shows ≤5 then … (list view)   | ⏳    | Detail already truncates; list column to match |
+| T-085 | Column header width decouple (narrow even when header long)   | ⏳    | th ellipsis; table-layout fixed; cell widths OK |
 
 ---
 
@@ -148,7 +153,7 @@ Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
 |-------|------------------------------------------------------|-------|-------|
-| P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | 🧭    | See prompts/p-025.md |
+| P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | ✅    | See prompts/p-025.md |
 | P-024 | Payment UI polish & data rules | ✅    | See prompts/p-024.md |
 | P-023 | Payments metadata & UI polish (headers, “For Session(s)”, sticky footer, ERL dir)     | 🧭    | See prompts/P-023.md |
 | P-021 | Loading UX, due parity, vouchers default, payment blink, base-rate UX/edit, min-width v3, calendar scan reliability | 🧭 | See prompts/P-021.md |
@@ -162,7 +167,8 @@ Prompts table — update:
 | P-012 | Resizable tables + sticky # + blink polish           | ✅    | Shipped |
 | P-014 | Session totals revert, auto-size, due unification, dialog audit, base-rate history | ✅    | This change |
 | P-022 | Finish P-021 acceptance: payment blink hookup, base-rate icon move, scan status/logs, label tidy | 🧭    | See prompts/P-022.md |
-| P-025 | Fix sticky Back button; blink logic; session assignment; inline editing in Payment Detail & Base Rate History; remove `docs/task-log-vol-1.md`. | 🧭 | See prompts/p-025.md |
+| P-025 | Fix sticky Back button; blink logic; session assignment; inline editing in Payment Detail & Base Rate History; remove `docs/task-log-vol-1.md`. | ✅ | See prompts/p-025.md |
+| P-026 | Sticky Back footer, blink polish, session assignment robustness, Add Payment cascade, history truncation, header width decouple | 🧭 | See prompts/p-026.md |
 
 
 ### Changes — P-015
