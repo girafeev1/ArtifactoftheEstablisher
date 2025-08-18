@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase/firestore'
-import { RetainerDoc } from './retainer'
+import { RetainerDoc } from '../retainer'
 
 export interface SessionInfo {
   id: string

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react'
-import LoadingDash from '../LoadingDash'
 import {
   Dialog,
   DialogTitle,
@@ -195,13 +194,15 @@ export default function BaseRateHistoryDialog({
                       {formatDate(r.effectDate)}
                     </span>
                   ) : (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setEditing({ id: r.id, field: 'date' })}
-                    >
-                      <LoadingDash />
-                    </span>
+                    <TextField
+                      type="date"
+                      size="small"
+                      defaultValue={dayjs().tz().format('YYYY-MM-DD')}
+                      onBlur={(e) => saveEffectDate(r.id, e.target.value)}
+                      inputProps={{
+                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                      }}
+                    />
                   )}
                 </TableCell>
               </TableRow>

@@ -21,7 +21,6 @@ import PaymentModal from './PaymentModal'
 import { useBilling } from '../../lib/billing/useBilling'
 import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
 import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
-import { formatSessions } from '../../lib/billing/formatSessions'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
 import Tooltip from '@mui/material/Tooltip'
@@ -71,11 +70,12 @@ export default function PaymentHistory({
   const { data: session } = useSession()
   const userEmail = session?.user?.email || 'anon'
   const columns = [
-    { key: 'paymentMade', label: 'Payment Date', width: 140 },
+    { key: 'paymentMade', label: 'Date', width: 140 },
     { key: 'amount', label: 'Amount', width: 130 },
     { key: 'method', label: 'Method', width: 120 },
     { key: 'entity', label: 'Entity', width: 160 },
-    { key: 'session', label: 'For Session(s)', width: 180 },
+    { key: 'identifier', label: 'Bank Account', width: 160 },
+    { key: 'refNumber', label: 'Reference #', width: 160 },
   ] as const
   const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
     'payments',
@@ -83,14 +83,6 @@ export default function PaymentHistory({
     userEmail,
   )
   const tableRef = React.useRef<HTMLTableElement>(null)
-
-  const sessionMap = React.useMemo(() => {
-    const m: Record<string, number> = {}
-    bill?.rows?.forEach((r: any, i: number) => {
-      m[r.id] = i + 1
-    })
-    return m
-  }, [bill])
 
   const minDue = React.useMemo(() => minUnpaidRate(bill?.rows || []), [bill])
 
@@ -187,7 +179,7 @@ export default function PaymentHistory({
                 <TableCell
                   data-col="paymentMade"
                   data-col-header
-                  title="Payment Date"
+                  title="Date"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
@@ -209,7 +201,7 @@ export default function PaymentHistory({
                       }
                     }}
                   >
-                    Payment Date
+                    Date
                   </TableSortLabel>
                   <Box
                     className="col-resizer"
@@ -329,32 +321,62 @@ export default function PaymentHistory({
                   />
                 </TableCell>
                 <TableCell
-                  data-col="session"
+                  data-col="identifier"
                   data-col-header
-                  title="For Session(s)"
+                  title="Bank Account"
                   sx={{
                     fontFamily: 'Cantata One',
                     fontWeight: 'bold',
                     position: 'relative',
-                    width: widths['session'],
+                    width: widths['identifier'],
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                   }}
                 >
-                  For Session(s)
+                  Bank Account
                   <Box
                     className="col-resizer"
-                    aria-label="Resize column For Session(s)"
+                    aria-label="Resize column Bank Account"
                     role="separator"
                     tabIndex={0}
-                    onMouseDown={(e) => startResize('session', e)}
+                    onMouseDown={(e) => startResize('identifier', e)}
                     onDoubleClick={() =>
-                      dblClickResize('session', tableRef.current || undefined)
+                      dblClickResize('identifier', tableRef.current || undefined)
                     }
                     onKeyDown={(e) => {
-                      if (e.key === 'ArrowLeft') keyResize('session', 'left')
-                      if (e.key === 'ArrowRight') keyResize('session', 'right')
+                      if (e.key === 'ArrowLeft') keyResize('identifier', 'left')
+                      if (e.key === 'ArrowRight') keyResize('identifier', 'right')
+                    }}
+                  />
+                </TableCell>
+                <TableCell
+                  data-col="refNumber"
+                  data-col-header
+                  title="Reference #"
+                  sx={{
+                    fontFamily: 'Cantata One',
+                    fontWeight: 'bold',
+                    position: 'relative',
+                    width: widths['refNumber'],
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  Reference #
+                  <Box
+                    className="col-resizer"
+                    aria-label="Resize column Reference #"
+                    role="separator"
+                    tabIndex={0}
+                    onMouseDown={(e) => startResize('refNumber', e)}
+                    onDoubleClick={() =>
+                      dblClickResize('refNumber', tableRef.current || undefined)
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowLeft') keyResize('refNumber', 'left')
+                      if (e.key === 'ArrowRight') keyResize('refNumber', 'right')
                     }}
                   />
                 </TableCell>
@@ -436,26 +458,28 @@ export default function PaymentHistory({
                         : '—'}
                     </TableCell>
                     <TableCell
-                      data-col="session"
-                      title={(() => {
-                        const ords = (p.assignedSessions || [])
-                          .map((id: string) => sessionMap[id])
-                          .filter(Boolean)
-                        return formatSessions(ords)
-                      })()}
+                      data-col="identifier"
+                      title={p.identifier || '—'}
                       sx={{
                         fontFamily: 'Newsreader',
                         fontWeight: 500,
-                        width: widths['session'],
-                        minWidth: widths['session'],
+                        width: widths['identifier'],
+                        minWidth: widths['identifier'],
                       }}
                     >
-                      {(() => {
-                        const ords = (p.assignedSessions || [])
-                          .map((id: string) => sessionMap[id])
-                          .filter(Boolean)
-                        return formatSessions(ords)
-                      })()}
+                      {p.identifier || '—'}
+                    </TableCell>
+                    <TableCell
+                      data-col="refNumber"
+                      title={p.refNumber || '—'}
+                      sx={{
+                        fontFamily: 'Newsreader',
+                        fontWeight: 500,
+                        width: widths['refNumber'],
+                        minWidth: widths['refNumber'],
+                      }}
+                    >
+                      {p.refNumber || '—'}
                     </TableCell>
                   </TableRow>
                 )
@@ -463,7 +487,7 @@ export default function PaymentHistory({
               {sortedPayments.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={3}
+                    colSpan={6}
                     sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                   >
                     No payments recorded.
