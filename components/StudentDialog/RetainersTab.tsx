@@ -147,13 +147,16 @@ export default function RetainersTab({
           <TableRow>
             <TableCell
               data-col="retainer"
+              data-col-header
               title="Retainer"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
                 position: 'relative',
                 width: widths['retainer'],
-                minWidth: widths['retainer'],
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               <TableSortLabel
@@ -180,13 +183,16 @@ export default function RetainersTab({
             </TableCell>
             <TableCell
               data-col="period"
+              data-col-header
               title="Coverage Period"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
                 position: 'relative',
                 width: widths['period'],
-                minWidth: widths['period'],
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               Coverage Period
@@ -207,13 +213,16 @@ export default function RetainersTab({
             </TableCell>
             <TableCell
               data-col="rate"
+              data-col-header
               title="Rate"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
                 position: 'relative',
                 width: widths['rate'],
-                minWidth: widths['rate'],
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               Rate
@@ -234,13 +243,16 @@ export default function RetainersTab({
             </TableCell>
             <TableCell
               data-col="status"
+              data-col-header
               title="Status"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
                 position: 'relative',
                 width: widths['status'],
-                minWidth: widths['status'],
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               Status
@@ -261,13 +273,16 @@ export default function RetainersTab({
             </TableCell>
             <TableCell
               data-col="actions"
+              data-col-header
               title="Actions"
               sx={{
                 fontFamily: 'Cantata One',
                 fontWeight: 'bold',
                 position: 'relative',
                 width: widths['actions'],
-                minWidth: widths['actions'],
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               Actions

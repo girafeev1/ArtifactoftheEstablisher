@@ -290,54 +290,77 @@ export default function PaymentDetail({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
-          Payment Amount:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
-          <span className={amountClass}>{formatCurrency(amount)}</span>
-        </Typography>
-
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
-          Payment Made On:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'auto 1fr',
+            columnGap: 2,
+            rowGap: 1,
+            mb: 2,
+          }}
         >
           {(() => {
             const d = payment.paymentMade?.toDate
               ? payment.paymentMade.toDate()
               : new Date(payment.paymentMade)
-            return isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d)
+            const fields: { label: string; value: React.ReactNode }[] = [
+              {
+                label: 'Payment Amount',
+                value: (
+                  <span className={amountClass}>{formatCurrency(amount)}</span>
+                ),
+              },
+              {
+                label: 'Payment Date',
+                value: isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d),
+              },
+              { label: 'Method', value: payment.method || '—' },
+              {
+                label: 'Entity',
+                value: payment.entity
+                  ? payment.entity === 'ME-ERL'
+                    ? 'Music Establish (ERL)'
+                    : payment.entity
+                  : '—',
+              },
+            ]
+            if (payment.identifier)
+              fields.push({ label: 'Bank Account', value: payment.identifier })
+            if (payment.refNumber)
+              fields.push({ label: 'Reference Number', value: payment.refNumber })
+            fields.push({
+              label: 'Remaining amount',
+              value: (
+                <>
+                  <span className={amountClass}>{formatCurrency(remaining)}</span>
+                  {totalSelected > 0 && (
+                    <Box component="span" sx={{ color: 'error.main' }}>
+                      ({`-${formatCurrency(totalSelected)} = ${formatCurrency(
+                        remainingAfterSelection,
+                      )}`})
+                    </Box>
+                  )}
+                </>
+              ),
+            })
+            return fields.map((f) => (
+              <React.Fragment key={f.label}>
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+                >
+                  {f.label}:
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{ fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                >
+                  {f.value}
+                </Typography>
+              </React.Fragment>
+            ))
           })()}
-        </Typography>
-
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
-          Remaining amount:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
-          <span className={amountClass}>{formatCurrency(remaining)}</span>{' '}
-          {totalSelected > 0 && (
-            <Box component="span" sx={{ color: 'error.main' }}>
-              ({`-${formatCurrency(totalSelected)} = ${formatCurrency(remainingAfterSelection)}`})
-            </Box>
-          )}
-        </Typography>
+        </Box>
 
         <Typography
           variant="subtitle2"
@@ -363,13 +386,16 @@ export default function PaymentDetail({
             <TableRow>
               <TableCell
                 data-col="ordinal"
+                data-col-header
                 title="Session #"
                 sx={{
                   fontFamily: 'Cantata One',
                   fontWeight: 'bold',
                   position: 'relative',
                   width: widths['ordinal'],
-                  minWidth: widths['ordinal'],
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 <TableSortLabel
@@ -402,13 +428,16 @@ export default function PaymentDetail({
               </TableCell>
               <TableCell
                 data-col="date"
+                data-col-header
                 title="Date"
                 sx={{
                   fontFamily: 'Cantata One',
                   fontWeight: 'bold',
                   position: 'relative',
                   width: widths['date'],
-                  minWidth: widths['date'],
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 <TableSortLabel
@@ -441,13 +470,16 @@ export default function PaymentDetail({
               </TableCell>
               <TableCell
                 data-col="time"
+                data-col-header
                 title="Time"
                 sx={{
                   fontFamily: 'Cantata One',
                   fontWeight: 'bold',
                   position: 'relative',
                   width: widths['time'],
-                  minWidth: widths['time'],
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 <TableSortLabel
@@ -480,13 +512,16 @@ export default function PaymentDetail({
               </TableCell>
               <TableCell
                 data-col="rate"
+                data-col-header
                 title="Rate"
                 sx={{
                   fontFamily: 'Cantata One',
                   fontWeight: 'bold',
                   position: 'relative',
                   width: widths['rate'],
-                  minWidth: widths['rate'],
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 <TableSortLabel
