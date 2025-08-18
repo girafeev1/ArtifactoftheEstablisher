@@ -1,0 +1,161 @@
+name: PR Diff Refresh (on-demand)
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to refresh"
+        required: true
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: pr-diff-refresh-${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  resolve-pr:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      same_repo: ${{ steps.resolve.outputs.same_repo }}
+      head_repo: ${{ steps.resolve.outputs.head_repo }}
+      head_ref:  ${{ steps.resolve.outputs.head_ref }}
+      base_sha:  ${{ steps.resolve.outputs.base_sha }}
+      head_sha:  ${{ steps.resolve.outputs.head_sha }}
+    steps:
+      - name: Resolve PR context (dispatch or /refresh-diff)
+        id: resolve
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runFromDispatch = context.eventName === "workflow_dispatch";
+            let prNumber = runFromDispatch ? Number(core.getInput("pr_number")) : context.payload.issue?.number;
+            if (!prNumber) {
+              core.setFailed("Cannot resolve PR number.");
+              return;
+            }
+
+            // Validate the slash command when triggered by issue_comment
+            if (!runFromDispatch) {
+              const body = context.payload.comment?.body || "";
+              // Only act on a PR, and only when the command is present
+              if (!context.payload.issue?.pull_request || !/^\s*\/refresh-diff\b/i.test(body)) {
+                core.setFailed("No /refresh-diff command or not a PR thread.");
+                return;
+              }
+              const association = context.payload.comment?.author_association || "NONE";
+              const allowed = ["OWNER", "MEMBER", "COLLABORATOR"];
+              if (!allowed.includes(association)) {
+                core.setFailed("User not permitted to run /refresh-diff.");
+                return;
+              }
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            core.setOutput("pr_number", String(pr.number));
+            core.setOutput("same_repo", String(pr.head.repo.full_name === `${context.repo.owner}/${context.repo.repo}`));
+            core.setOutput("head_repo", pr.head.repo.full_name);
+            core.setOutput("head_ref",  pr.head.ref);
+            core.setOutput("base_sha",  pr.base.sha);
+            core.setOutput("head_sha",  pr.head.sha);
+
+  build-and-persist:
+    needs: resolve-pr
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR HEAD
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: ${{ needs.resolve-pr.outputs.head_repo }}
+          ref: ${{ needs.resolve-pr.outputs.head_ref }}
+
+      - name: Generate diff markdown
+        id: diff
+        env:
+          BASE_SHA: ${{ needs.resolve-pr.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.resolve-pr.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.resolve-pr.outputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p docs/context
+          git diff --name-status "$BASE_SHA" "$HEAD_SHA" > /tmp/changed.txt
+          git diff --stat "$BASE_SHA" "$HEAD_SHA" > /tmp/stat.txt
+          git diff "$BASE_SHA" "$HEAD_SHA" | head -n 4000 > /tmp/diff.patch
+
+          {
+            echo "# PR #$PR_NUMBER — Diff Summary (manual refresh)"
+            echo
+            echo "- **Base (target)**: \`$BASE_SHA\`"
+            echo "- **Head (source)**: \`$HEAD_SHA\`"
+            echo "- **Repo**: \`$REPO\`"
+            echo
+            echo "## Changed Files"
+            echo
+            echo '```txt'
+            cat /tmp/changed.txt
+            echo '```'
+            echo
+            echo "## Stats"
+            echo
+            echo '```txt'
+            cat /tmp/stat.txt
+            echo '```'
+            echo
+            echo "## Unified Diff (truncated to first 4000 lines)"
+            echo
+            echo '```diff'
+            cat /tmp/diff.patch
+            echo '```'
+          } > "docs/context/PR-${PR_NUMBER}.md"
+
+          cp "docs/context/PR-${PR_NUMBER}.md" context-bundle.md
+          echo "diff_path=docs/context/PR-${PR_NUMBER}.md" >> $GITHUB_OUTPUT
+
+      - name: Commit update (same-repo PRs only)
+        if: needs.resolve-pr.outputs.same_repo == 'true'
+        env:
+          PR_BRANCH: ${{ needs.resolve-pr.outputs.head_ref }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/context/PR-*.md context-bundle.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "docs: refresh PR diff for #${{ needs.resolve-pr.outputs.pr_number }}"
+            git push origin "HEAD:${PR_BRANCH}"
+          fi
+
+      - name: Post confirmation comment (sticky)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = Number("${{ needs.resolve-pr.outputs.pr_number }}");
+            const marker = "<!-- pr-diff-refresh-sticky -->";
+            const body = `Diff refreshed for PR #${prNumber}. ${marker}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber
+            });
+            const existing = comments.find(c => c.user.type === "Bot" && c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber, body
+              });
+            }
