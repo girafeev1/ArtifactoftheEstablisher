@@ -86,7 +86,9 @@ export function useColumnWidths(
       const measurer = measurerRef.current
       if (!measurer) return
       let max = 0
-      const cells = root.querySelectorAll<HTMLElement>(`[data-col="${key}"]`)
+      const cells = root.querySelectorAll<HTMLElement>(
+        `tbody [data-col="${key}"]`
+      )
       cells.forEach((el) => {
         const style = getComputedStyle(el)
         measurer.style.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -6,10 +6,14 @@ import {
   DialogActions,
   TextField,
   Button,
+  MenuItem,
+  Typography,
 } from '@mui/material'
 import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
+import { fetchBanks } from '../../lib/erlDirectory'
+import { paymentIdentifier } from '../../lib/billing/paymentIdentifier'
 import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
@@ -27,7 +31,32 @@ export default function PaymentModal({
 }) {
   const [amount, setAmount] = useState('')
   const [madeOn, setMadeOn] = useState('')
+  const [method, setMethod] = useState('')
+  const [entity, setEntity] = useState('')
+  const [bankCode, setBankCode] = useState('')
+  const [accountId, setAccountId] = useState('')
+  const [banks, setBanks] = useState<any[]>([])
+  const [accounts, setAccounts] = useState<any[]>([])
+  const [bankError, setBankError] = useState<string | null>(null)
+  const [refNumber, setRefNumber] = useState('')
   const qc = useBillingClient()
+
+  useEffect(() => {
+    if (entity === 'ME-ERL' && banks.length === 0) {
+      fetchBanks()
+        .then((b) => {
+          setBanks(b)
+          setBankError(null)
+        })
+        .catch(() => setBankError('Bank directory unavailable (check permissions)'))
+    }
+  }, [entity, banks.length])
+
+  useEffect(() => {
+    const bank = banks.find((b) => b.code === bankCode)
+    setAccounts(bank ? bank.accounts : [])
+    setAccountId('')
+  }, [bankCode, banks])
 
   const save = async () => {
     const paymentsPath = PATHS.payments(abbr)
@@ -35,15 +64,21 @@ export default function PaymentModal({
     const colRef = collection(db, paymentsPath)
     const today = new Date()
     const date = madeOn ? new Date(madeOn) : today
-    await addDoc(colRef, {
+    const data: any = {
       amount: Number(amount) || 0,
       paymentMade: Timestamp.fromDate(date),
       remainingAmount: Number(amount) || 0,
       assignedSessions: [],
       assignedRetainers: [],
-      timestamp: Timestamp.fromDate(today),
+      method,
+      entity,
+      refNumber,
+      timestamp: Timestamp.now(),
       editedBy: getAuth().currentUser?.email || 'system',
-    })
+    }
+    const id = paymentIdentifier(entity, bankCode, accountId)
+    if (id) data.identifier = id
+    await addDoc(colRef, data)
     qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
       if (!prev) return prev
       return {
@@ -55,9 +90,17 @@ export default function PaymentModal({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="xs"
+      PaperProps={{
+        sx: { display: 'flex', flexDirection: 'column', height: '100%' },
+      }}
+    >
       <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Payment</DialogTitle>
-      <DialogContent>
+      <DialogContent sx={{ flex: 1, overflow: 'auto' }}>
         <TextField
           label="Payment Amount"
           type="number"
@@ -84,19 +127,111 @@ export default function PaymentModal({
           inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
           sx={{ mt: 2 }}
         />
+        <TextField
+          label="Payment Method"
+          select
+          value={method}
+          onChange={(e) => setMethod(e.target.value)}
+          fullWidth
+          InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          sx={{ mt: 2 }}
+        >
+          {['FPS', 'Bank Transfer', 'Cheque'].map((m) => (
+            <MenuItem key={m} value={m}>
+              {m}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          label="Entity"
+          select
+          value={entity}
+          onChange={(e) => setEntity(e.target.value)}
+          fullWidth
+          InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          sx={{ mt: 2 }}
+        >
+          <MenuItem value="ME-ERL">Music Establish (by ERL)</MenuItem>
+          <MenuItem value="Personal">Personal</MenuItem>
+        </TextField>
+        {entity === 'ME-ERL' && (
+          <>
+            <TextField
+              label="Bank"
+              select
+              value={bankCode}
+              onChange={(e) => setBankCode(e.target.value)}
+              fullWidth
+              InputLabelProps={{
+                sx: { fontFamily: 'Newsreader', fontWeight: 200 },
+              }}
+              inputProps={{
+                style: { fontFamily: 'Newsreader', fontWeight: 500 },
+              }}
+              sx={{ mt: 2 }}
+            >
+              {banks.map((b) => (
+                <MenuItem key={b.code} value={b.code}>
+                  {`${b.name} ${b.code}`}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Bank Account"
+              select
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              fullWidth
+              InputLabelProps={{
+                sx: { fontFamily: 'Newsreader', fontWeight: 200 },
+              }}
+              inputProps={{
+                style: { fontFamily: 'Newsreader', fontWeight: 500 },
+              }}
+              sx={{ mt: 2 }}
+            >
+              {accounts.map((a) => (
+                <MenuItem key={a.id} value={a.id}>
+                  {a.accountType}
+                </MenuItem>
+              ))}
+            </TextField>
+            {bankError && (
+              <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                {bankError}
+              </Typography>
+            )}
+          </>
+        )}
+        <TextField
+          label="Reference Number"
+          value={refNumber}
+          onChange={(e) => setRefNumber(e.target.value)}
+          fullWidth
+          InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          sx={{ mt: 2 }}
+        />
       </DialogContent>
-      <DialogActions>
+      <DialogActions className="dialog-footer">
         <Button onClick={onClose}>Cancel</Button>
         <Button
           onClick={async () => {
             await save()
             setAmount('')
             setMadeOn('')
+            setMethod('')
+            setEntity('')
+            setBankCode('')
+            setAccountId('')
+            setRefNumber('')
             onClose()
           }}
-          disabled={!amount || !madeOn}
+          disabled={!amount || !madeOn || !method || !entity || (entity === 'ME-ERL' && (!bankCode || !accountId))}
         >
-          Save
+          Submit
         </Button>
       </DialogActions>
     </Dialog>
