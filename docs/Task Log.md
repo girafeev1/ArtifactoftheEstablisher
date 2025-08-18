@@ -4,10 +4,24 @@
 > Convention: ✅ done, ⏳ in progress, 🧭 next / planned.
 
 Latest change summary
-- Payment History: headers finalized (`Method`, `Entity`, `Bank Account`, `Reference #`). 
-- Payment Detail: “For Session(s)” truncates to 5 with **View all/Hide**; shows `identifier` and `refNumber` with safe fallback.
-- Payments: `identifier` normalized on write; helpers + unit tests added (format & truncate).
-- Sticky footer scaffolding landed (needs follow-up to anchor **Back** inside footer).
+- Bank dropdown labels fall back to doc identifiers when name or code is missing.
+- Logged P-026-03r final payment UX prompt.
+- Back control sits inside sticky footers; dialog bodies pad for footer height.
+- Payment Amount remains static while Remaining uses a single blink span.
+- Session assignment table persists with zero-state and updates Remaining on selection.
+- Add Payment dialog cascades Method→Entity→Bank→Account and writes identifier, ref #, timestamp, editedBy.
+- Payment History lists “For Session(s)” with up to five ordinals then ellipsis.
+- Table headers ellipsize independently of resizable cell widths.
+- StudentDialog: Back button moved into sticky footer.
+- Payment Detail: only Remaining Amount blinks; Payment Amount is static.
+- Payment Detail: restored session assignment list & flow.
+- Payment Detail: inline editing for Method/Entity/Identifier/Reference # when empty; read-only after set.
+- Base Rate History: inline effective date when empty; read-only after set.
+- Payment History: headers finalized (Method, Entity, Bank Account, Reference #).
+- Payment Detail: 'For Session(s)' truncates to 5 with expand.
+- StudentDialog: sticky footer across tabs.
+- Identifier normalization on write; safe display with em dash.
+- Unit + e2e tests added.
 - Queued P-023: Payments metadata (method/entity/bank), header ellipsis, “For Session(s)” truncation, sticky footer, and ERL directory integration.
 - Enforced append-only Task Log with CI guard.
 - Add continuous Context Bundle for branch pushes (Issue per branch).
@@ -20,10 +34,6 @@ Latest change summary
 - Replaced dayjs timezone dependency with built-in plugin to fix install failures.
 - Queue P-021: loading UX cleanup, due parity, vouchers default, payment blink, base-rate history editing, min-width v3, calendar scan fixes.
 - Queued P-022 to complete P-021 acceptance (payment blink hookup, base-rate info relocation), add scan status/logs, and tidy labels.
-- Payment History: headers finalized (Method, Entity, Bank Account, Reference #); two-column detail shows identifier & reference with safe fallbacks.
-- Payment Detail: “For Session(s)” truncation with View all/Hide; inline edit when empty for metadata; added tests & helpers.
-- Sticky footer scaffolding present; Back must be anchored inside footer (queued for P-026).
-- Remaining blink polish & session assignment table robustness queued for P-026.
 
 Tasks T-xxx
 ### T-080
@@ -51,6 +61,47 @@ Tasks T-xxx
   - Inline editing (Payment Detail): PASS — edit-on-empty then read-only works.
   - Inline editing (Base Rate History): PASS — effectiveDate inline when empty then read-only.
   - Tests: PASS — unit tests present; Cypress spec present (skipped in CI).
+- Notes:
+
+### T-082
+- Title: Finish Payment UX, Add Payment cascade, and list-view session truncation (P-026)
+- Branch: codex/finish-payment-ux-and-add-payment-cascade-p026
+- PR: <link to this PR>
+- Status: Completed
+- Outcomes:
+  - Sticky footer: PASS – Back control inside footer with padding.
+  - Remaining blink: PASS – single span; amount static.
+  - Session assignment: PASS – table persists with zero-state.
+  - Add Payment cascade: PASS – writes method, entity, identifier, ref #, timestamp, editedBy.
+  - Payment History sessions: PASS – column added with 5-item ellipsis.
+  - Header ellipsis: PASS – headers truncate independently.
+  - Tests: PASS – unit tests pass; Cypress spec present (skipped in CI).
+- Notes:
+
+### T-083
+- Title: Complete P-026 — sticky Back, single Remaining blink, stable assignment, Add Payment cascade, list “For Session(s)” truncation
+- Branch: codex/finish-p026-followup
+- PR: <link to this PR>
+- Status: Completed
+- Outcomes:
+  - Sticky footer: PASS – Back control inside footer with padding.
+  - Remaining blink: PASS – Payment Amount static; single Remaining span.
+  - Session assignment: PASS – table persists with zero-state and updates Remaining.
+  - Add Payment cascade: PASS – writes method, entity, identifier, ref #, timestamp, editedBy.
+  - Payment History sessions: PASS – column truncates at five ordinals with ellipsis.
+  - Header ellipsis: PASS – headers truncate independently.
+  - Tests: PASS – unit tests pass; Cypress spec present (skipped in CI).
+- Notes:
+
+---
+### T-084
+- Title: Finalize Payment UX and Add Payment cascade (P-026-02r)
+- Branch: codex/finalize-payment-ux-and-functionality-enhancements-02r
+- PR: <link to this PR>
+- Status: Completed
+- Outcomes:
+  - Bank dropdown labels fall back when name/code missing.
+  - Saved P-026-02r prompt.
 - Notes:
 
 ---
@@ -153,7 +204,8 @@ Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
 |-------|------------------------------------------------------|-------|-------|
-| P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | ✅    | See prompts/p-025.md |
+| P-026 | Finish Payment UX, Add Payment cascade, and list-view session truncation | 🧭    | See prompts/p-026.md |
+| P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | 🧭    | See prompts/p-025.md |
 | P-024 | Payment UI polish & data rules | ✅    | See prompts/p-024.md |
 | P-023 | Payments metadata & UI polish (headers, “For Session(s)”, sticky footer, ERL dir)     | 🧭    | See prompts/P-023.md |
 | P-021 | Loading UX, due parity, vouchers default, payment blink, base-rate UX/edit, min-width v3, calendar scan reliability | 🧭 | See prompts/P-021.md |
