@@ -2,13 +2,14 @@ name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch: {}
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -24,8 +25,8 @@ jobs:
       - name: Detect package manager
         id: pm
         run: |
-          if [ -f pnpm-lock.yaml ]; then echo "mgr=pnpm" >> $GITHUB_OUTPUT
-          elif [ -f yarn.lock ]; then echo "mgr=yarn" >> $GITHUB_OUTPUT
+          if [ -f pnpm-lock.yaml ]; then echo "mgr=pnpm" >> $GITHUB_OUTPUT;
+          elif [ -f yarn.lock ]; then echo "mgr=yarn" >> $GITHUB_OUTPUT;
           else echo "mgr=npm" >> $GITHUB_OUTPUT; fi
 
       - name: Set up Node
@@ -36,19 +37,14 @@ jobs:
 
       - name: Install
         run: |
-          if [ "${{ steps.pm.outputs.mgr }}" = "pnpm" ]; then
-            corepack enable pnpm
-            pnpm install --frozen-lockfile
-          elif [ "${{ steps.pm.outputs.mgr }}" = "yarn" ]; then
-            yarn --frozen-lockfile
-          else
-            npm ci
-          fi
+          if [ "${{ steps.pm.outputs.mgr }}" = "pnpm" ]; then corepack enable pnpm && pnpm install --frozen-lockfile;
+          elif [ "${{ steps.pm.outputs.mgr }}" = "yarn" ]; then yarn --frozen-lockfile;
+          else npm ci; fi
 
       - name: Lint
         run: |
           if [ -f package.json ] && jq -e '.scripts.lint' package.json >/dev/null 2>&1; then
-            ${{ steps.pm.outputs.mgr }} run lint || (echo "lint failed" && exit 1)
+            ${{ steps.pm.outputs.mgr }} run lint
           else
             echo "No lint script; skipping."
           fi
@@ -56,7 +52,7 @@ jobs:
       - name: Typecheck
         run: |
           if [ -f tsconfig.json ] && jq -e '.scripts.typecheck' package.json >/dev/null 2>&1; then
-            ${{ steps.pm.outputs.mgr }} run typecheck || (echo "typecheck failed" && exit 1)
+            ${{ steps.pm.outputs.mgr }} run typecheck
           else
             echo "No typecheck script; skipping."
           fi
@@ -64,7 +60,7 @@ jobs:
       - name: Build
         run: |
           if jq -e '.scripts.build' package.json >/dev/null 2>&1; then
-            ${{ steps.pm.outputs.mgr }} run build || (echo "build failed" && exit 1)
+            ${{ steps.pm.outputs.mgr }} run build
           else
             echo "No build script; skipping."
           fi
