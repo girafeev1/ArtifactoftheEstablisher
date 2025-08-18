@@ -20,6 +20,8 @@ import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, useBilling } from '../../lib/billing/useBilling'
 import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
 import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
+import { formatSessions } from '../../lib/billing/formatSessions'
+import { truncateList } from '../../lib/payments/truncate'
 import {
   patchBillingAssignedSessions,
   writeSummaryFromCache,
@@ -68,6 +70,7 @@ export default function PaymentDetail({
     'ordinal',
   )
   const [sortAsc, setSortAsc] = useState(true)
+  const [showAllSessions, setShowAllSessions] = useState(false)
   const qc = useBillingClient()
   const { data: bill } = useBilling(abbr, account)
   const [retainers, setRetainers] = useState<any[]>([])
@@ -130,6 +133,10 @@ export default function PaymentDetail({
   const availableRetainers = retRows.filter((r: any) => !r.paymentId)
   const assigned = [...assignedSessions, ...assignedRetainers]
   const available = [...availableSessions, ...availableRetainers]
+  const sessionOrds = assignedSessions
+    .map((r) => r.ordinal)
+    .filter((n): n is number => typeof n === 'number')
+    .sort((a, b) => a - b)
 
   const sortRows = (rows: any[]) => {
     const val = (r: any) => {
@@ -324,10 +331,39 @@ export default function PaymentDetail({
                   : '—',
               },
             ]
-            if (payment.identifier)
-              fields.push({ label: 'Bank Account', value: payment.identifier })
-            if (payment.refNumber)
-              fields.push({ label: 'Reference Number', value: payment.refNumber })
+            if (sessionOrds.length) {
+              const { visible, hiddenCount } = truncateList(sessionOrds)
+              fields.push({
+                label: 'For Session(s)',
+                value: (
+                  <>
+                    {formatSessions(
+                      showAllSessions ? sessionOrds : visible,
+                    )}
+                    {hiddenCount > 0 && !showAllSessions && (
+                      <> … (+{hiddenCount} more)</>
+                    )}
+                    {hiddenCount > 0 && (
+                      <Button
+                        size="small"
+                        onClick={() => setShowAllSessions((s) => !s)}
+                        sx={{ ml: 1 }}
+                      >
+                        {showAllSessions ? 'Hide' : 'View all'}
+                      </Button>
+                    )}
+                  </>
+                ),
+              })
+            }
+            fields.push({
+              label: 'Bank Account',
+              value: payment.identifier || '—',
+            })
+            fields.push({
+              label: 'Reference #',
+              value: payment.refNumber || '—',
+            })
             fields.push({
               label: 'Remaining amount',
               value: (
@@ -362,26 +398,28 @@ export default function PaymentDetail({
           })()}
         </Box>
 
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
-          For session:
-        </Typography>
-        <Table
-          ref={tableRef}
-          size="small"
-          sx={{
-            mt: 1,
-            tableLayout: 'fixed',
-            width: 'max-content',
-            '& td, & th': {
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            },
-          }}
-        >
+        {showAllSessions && (
+          <>
+            <Typography
+              variant="subtitle2"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+            >
+              For session:
+            </Typography>
+            <Table
+              ref={tableRef}
+              size="small"
+              sx={{
+                mt: 1,
+                tableLayout: 'fixed',
+                width: 'max-content',
+                '& td, & th': {
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                },
+              }}
+            >
           <TableHead>
             <TableRow>
               <TableCell
@@ -652,6 +690,8 @@ export default function PaymentDetail({
             )}
           </TableBody>
         </Table>
+      </>
+        )}
       </Box>
       <Box
         className="dialog-footer"
