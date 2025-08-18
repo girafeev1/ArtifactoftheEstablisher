@@ -4,6 +4,16 @@
 > Convention: ✅ done, ⏳ in progress, 🧭 next / planned.
 
 Latest change summary
+- StudentDialog: Back button moved into sticky footer.
+- Payment Detail: only Remaining Amount blinks; Payment Amount is static.
+- Payment Detail: restored session assignment list & flow.
+- Payment Detail: inline editing for Method/Entity/Identifier/Reference # when empty; read-only after set.
+- Base Rate History: inline effective date when empty; read-only after set.
+- Payment History: headers finalized (Method, Entity, Bank Account, Reference #).
+- Payment Detail: 'For Session(s)' truncates to 5 with expand.
+- StudentDialog: sticky footer across tabs.
+- Identifier normalization on write; safe display with em dash.
+- Unit + e2e tests added.
 - Queued P-023: Payments metadata (method/entity/bank), header ellipsis, “For Session(s)” truncation, sticky footer, and ERL directory integration.
 - Enforced append-only Task Log with CI guard.
 - Add continuous Context Bundle for branch pushes (Issue per branch).
@@ -16,6 +26,35 @@ Latest change summary
 - Replaced dayjs timezone dependency with built-in plugin to fix install failures.
 - Queue P-021: loading UX cleanup, due parity, vouchers default, payment blink, base-rate history editing, min-width v3, calendar scan fixes.
 - Queued P-022 to complete P-021 acceptance (payment blink hookup, base-rate info relocation), add scan status/logs, and tidy labels.
+Queued P-022 to complete P-021 acceptance (payment blink hookup, base-rate info relocation), add scan status/logs, and tidy labels.
+
+Tasks T-xxx
+### T-080
+- Title: Payment UI polish & data rules (P-024)
+- Branch: codex/feat-payment-ui-polish-p024
+- PR: <link to this PR>
+- Status: Completed
+- Outcomes:
+  - A) History headers: PASS – headers updated.
+  - B) Sessions truncation: PASS – list truncates with expand.
+  - C) Sticky footer: PASS – footer sticks across tabs.
+  - D) Identifier rule: PASS – normalized and displayed.
+  - E) Tests: PASS – unit tests pass; Cypress spec present (Xvfb missing).
+- Notes:
+
+### T-081
+- Title: Fix Payment Detail/History UX, restore assignment, inline editing (P-025)
+- Branch: codex/fix-payment-ui-and-inline-editing-p025
+- PR: <link to this PR>
+- Status: Completed
+- Outcomes:
+  - Sticky Back button: PASS – moved into sticky footer.
+  - Blinking logic: PASS – only Remaining blinks.
+  - Session assignment: PASS – list restored and functional.
+  - Inline editing (Payment Detail): PASS – fields editable when empty.
+  - Inline editing (Base Rate History): PASS – effectiveDate input when empty.
+  - Tests: PASS – unit tests pass; Cypress spec present (skipped in CI).
+- Notes:
 
 ---
 
@@ -110,6 +149,8 @@ Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
 |-------|------------------------------------------------------|-------|-------|
+| P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | 🧭    | See prompts/p-025.md |
+| P-024 | Payment UI polish & data rules | ✅    | See prompts/p-024.md |
 | P-023 | Payments metadata & UI polish (headers, “For Session(s)”, sticky footer, ERL dir)     | 🧭    | See prompts/P-023.md |
 | P-021 | Loading UX, due parity, vouchers default, payment blink, base-rate UX/edit, min-width v3, calendar scan reliability | 🧭 | See prompts/P-021.md |
 | P-020 | Base Rate effectDate SSOT, summary naming/hover, card Total, min-width v2, cached.billingSummary, tests |        | Will implement T-045..T-054 |

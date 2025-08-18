@@ -11,6 +11,7 @@ import {
   TableBody,
   TableSortLabel,
   CircularProgress,
+  TextField,
 } from '@mui/material'
 import { doc, setDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
@@ -20,6 +21,9 @@ import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, useBilling } from '../../lib/billing/useBilling'
 import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
 import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
+import { formatSessions } from '../../lib/billing/formatSessions'
+import { truncateList } from '../../lib/payments/truncate'
+import { buildIdentifier } from '../../lib/payments/format'
 import {
   patchBillingAssignedSessions,
   writeSummaryFromCache,
@@ -68,6 +72,11 @@ export default function PaymentDetail({
     'ordinal',
   )
   const [sortAsc, setSortAsc] = useState(true)
+  const [showAllSessions, setShowAllSessions] = useState(false)
+  const [methodVal, setMethodVal] = useState(payment.method || '')
+  const [entityVal, setEntityVal] = useState(payment.entity || '')
+  const [identifierVal, setIdentifierVal] = useState(payment.identifier || '')
+  const [refVal, setRefVal] = useState(payment.refNumber || '')
   const qc = useBillingClient()
   const { data: bill } = useBilling(abbr, account)
   const [retainers, setRetainers] = useState<any[]>([])
@@ -86,7 +95,36 @@ export default function PaymentDetail({
   )
   const tableRef = React.useRef<HTMLTableElement>(null)
   const minDue = React.useMemo(() => minUnpaidRate(bill?.rows || []), [bill])
-  const amountClass = paymentBlinkClass(remaining, minDue)
+  const remainingClass = paymentBlinkClass(remaining, minDue)
+
+  const saveMeta = async (
+    field: 'method' | 'entity' | 'identifier' | 'refNumber',
+    value: string,
+  ) => {
+    const ref = doc(db, PATHS.payments(abbr), payment.id)
+    const patch: any = {}
+    if (field === 'identifier') {
+      let val = value.trim()
+      if (!/^[0-9A-Za-z]+\/[0-9A-Za-z_-]+$/.test(val)) {
+        const built = buildIdentifier(payment.bankCode, payment.accountDocId)
+        if (built) val = built
+      }
+      if (!val) return
+      patch.identifier = val
+      setIdentifierVal(val)
+      payment.identifier = val
+    } else {
+      const val = value.trim()
+      if (!val) return
+      patch[field] = val
+      ;(payment as any)[field] = val
+      if (field === 'method') setMethodVal(val)
+      if (field === 'entity') setEntityVal(val)
+      if (field === 'refNumber') setRefVal(val)
+    }
+    await updateDoc(ref, patch)
+    await writeSummaryFromCache(qc, abbr, account)
+  }
 
   const assignedSet = new Set(assignedSessionIds)
   const allRows = bill
@@ -130,6 +168,10 @@ export default function PaymentDetail({
   const availableRetainers = retRows.filter((r: any) => !r.paymentId)
   const assigned = [...assignedSessions, ...assignedRetainers]
   const available = [...availableSessions, ...availableRetainers]
+  const sessionOrds = assignedSessions
+    .map((r) => r.ordinal)
+    .filter((n): n is number => typeof n === 'number')
+    .sort((a, b) => a - b)
 
   const sortRows = (rows: any[]) => {
     const val = (r: any) => {
@@ -306,33 +348,109 @@ export default function PaymentDetail({
             const fields: { label: string; value: React.ReactNode }[] = [
               {
                 label: 'Payment Amount',
-                value: (
-                  <span className={amountClass}>{formatCurrency(amount)}</span>
-                ),
+                value: formatCurrency(amount),
               },
               {
                 label: 'Payment Date',
                 value: isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d),
               },
-              { label: 'Method', value: payment.method || '—' },
+              {
+                label: 'Method',
+                value: payment.method ? (
+                  payment.method
+                ) : (
+                  <TextField
+                    size="small"
+                    value={methodVal}
+                    onChange={(e) => setMethodVal(e.target.value)}
+                    onBlur={() => saveMeta('method', methodVal)}
+                    inputProps={{
+                      style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                    }}
+                  />
+                ),
+              },
               {
                 label: 'Entity',
                 value: payment.entity
                   ? payment.entity === 'ME-ERL'
                     ? 'Music Establish (ERL)'
                     : payment.entity
-                  : '—',
+                  : (
+                      <TextField
+                        size="small"
+                        value={entityVal}
+                        onChange={(e) => setEntityVal(e.target.value)}
+                        onBlur={() => saveMeta('entity', entityVal)}
+                        inputProps={{
+                          style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                        }}
+                      />
+                    ),
               },
             ]
-            if (payment.identifier)
-              fields.push({ label: 'Bank Account', value: payment.identifier })
-            if (payment.refNumber)
-              fields.push({ label: 'Reference Number', value: payment.refNumber })
+            if (sessionOrds.length) {
+              const { visible, hiddenCount } = truncateList(sessionOrds)
+              fields.push({
+                label: 'For Session(s)',
+                value: (
+                  <>
+                    {formatSessions(
+                      showAllSessions ? sessionOrds : visible,
+                    )}
+                    {hiddenCount > 0 && !showAllSessions && (
+                      <> … (+{hiddenCount} more)</>
+                    )}
+                    {hiddenCount > 0 && (
+                      <Button
+                        size="small"
+                        onClick={() => setShowAllSessions((s) => !s)}
+                        sx={{ ml: 1 }}
+                      >
+                        {showAllSessions ? 'Hide' : 'View all'}
+                      </Button>
+                    )}
+                  </>
+                ),
+              })
+            }
+            fields.push({
+              label: 'Bank Account',
+              value: payment.identifier ? (
+                payment.identifier
+              ) : (
+                <TextField
+                  size="small"
+                  value={identifierVal}
+                  onChange={(e) => setIdentifierVal(e.target.value)}
+                  onBlur={() => saveMeta('identifier', identifierVal)}
+                  inputProps={{
+                    style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                  }}
+                />
+              ),
+            })
+            fields.push({
+              label: 'Reference #',
+              value: payment.refNumber ? (
+                payment.refNumber
+              ) : (
+                <TextField
+                  size="small"
+                  value={refVal}
+                  onChange={(e) => setRefVal(e.target.value)}
+                  onBlur={() => saveMeta('refNumber', refVal)}
+                  inputProps={{
+                    style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                  }}
+                />
+              ),
+            })
             fields.push({
               label: 'Remaining amount',
               value: (
                 <>
-                  <span className={amountClass}>{formatCurrency(remaining)}</span>
+                  <span className={remainingClass}>{formatCurrency(remaining)}</span>
                   {totalSelected > 0 && (
                     <Box component="span" sx={{ color: 'error.main' }}>
                       ({`-${formatCurrency(totalSelected)} = ${formatCurrency(
@@ -362,26 +480,28 @@ export default function PaymentDetail({
           })()}
         </Box>
 
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
-          For session:
-        </Typography>
-        <Table
-          ref={tableRef}
-          size="small"
-          sx={{
-            mt: 1,
-            tableLayout: 'fixed',
-            width: 'max-content',
-            '& td, & th': {
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            },
-          }}
-        >
+        {(assigned.length + available.length) > 0 && (
+          <>
+            <Typography
+              variant="subtitle2"
+              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+            >
+              For session:
+            </Typography>
+            <Table
+              ref={tableRef}
+              size="small"
+              sx={{
+                mt: 1,
+                tableLayout: 'fixed',
+                width: 'max-content',
+                '& td, & th': {
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                },
+              }}
+            >
           <TableHead>
             <TableRow>
               <TableCell
@@ -652,6 +772,8 @@ export default function PaymentDetail({
             )}
           </TableBody>
         </Table>
+      </>
+        )}
       </Box>
       <Box
         className="dialog-footer"
