@@ -5,8 +5,8 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions:
-  contents: write        # commit diff file on same-repo PRs
-  pull-requests: write   # create/update PR comments
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: pr-diff-${{ github.event.pull_request.number }}
@@ -43,12 +43,10 @@ jobs:
         run: |
           mkdir -p docs/context
 
-          # Collect changes
           git diff --name-status "$BASE_SHA" "$HEAD_SHA" > /tmp/changed.txt || true
           git diff --stat "$BASE_SHA" "$HEAD_SHA" > /tmp/stat.txt || true
           git diff "$BASE_SHA" "$HEAD_SHA" | head -n 4000 > /tmp/diff.patch || true
 
-          # Build markdown bundle
           {
             echo "# PR #$PR_NUMBER — Diff Summary"
             echo
