@@ -7,7 +7,9 @@ import { Newsreader, Cantata_One, Nunito } from 'next/font/google';
 import '../styles/studentDialog.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@mui/material/styles';
+import { Box } from '@mui/material';
 import theme from '../lib/theme';
+import { CURRENT_PROMPT_ID } from '../lib/promptId';
 
 if (typeof window !== 'undefined') {
   setupClientLogging();
@@ -28,6 +30,21 @@ function MyApp({ Component, pageProps }: AppProps) {
           <SessionProvider session={pageProps.session}>
             <SnackbarProvider maxSnack={3}>
               <Component {...pageProps} />
+              <Box
+                data-testid="pprompt-badge"
+                sx={{
+                  position: 'fixed',
+                  top: 4,
+                  right: 4,
+                  fontFamily: 'var(--font-nunito)',
+                  fontWeight: 200,
+                  fontSize: '10px',
+                  opacity: 0.6,
+                  pointerEvents: 'none',
+                }}
+              >
+                {CURRENT_PROMPT_ID}
+              </Box>
             </SnackbarProvider>
           </SessionProvider>
         </QueryClientProvider>

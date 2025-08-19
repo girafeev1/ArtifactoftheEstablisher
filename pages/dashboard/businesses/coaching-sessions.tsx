@@ -371,6 +371,16 @@ export default function CoachingSessions() {
             </Typography>
           </Box>
         </Menu>
+        <Box sx={{ position: 'sticky', bottom: 0, pl: 1, pb: 1 }}>
+          <IconButton
+            aria-label="Tools"
+            onClick={openToolsMenu}
+            data-testid="settings-3dots"
+            sx={{ bgcolor: 'background.paper', color: 'text.primary' }}
+          >
+            <MoreVertIcon />
+          </IconButton>
+        </Box>
       </Box>
 
       {selected && (
@@ -410,20 +420,6 @@ export default function CoachingSessions() {
         message={scanMessage}
         autoHideDuration={4000}
       />
-      <IconButton
-        aria-label="Tools"
-        onClick={openToolsMenu}
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          left: 16,
-          bgcolor: 'background.paper',
-          color: 'text.primary',
-          zIndex: 1300,
-        }}
-      >
-        <MoreVertIcon />
-      </IconButton>
       <Button
         variant="contained"
         sx={{

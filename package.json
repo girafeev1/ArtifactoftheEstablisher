@@ -60,6 +60,7 @@
     "eslint-plugin-react-native": "^4.1.0",
     "globals": "^15.15.0",
     "jest": "^29.7.0",
+    "jest-environment-jsdom": "^30.0.5",
     "prettier": "^3.4.2",
     "stream-browserify": "^3.0.0",
     "ts-jest": "^29.4.1",
