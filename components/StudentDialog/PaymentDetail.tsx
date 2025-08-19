@@ -450,7 +450,12 @@ export default function PaymentDetail({
               label: 'Remaining amount',
               value: (
                 <>
-                  <span className={remainingClass}>{formatCurrency(remaining)}</span>
+                  <span
+                    data-testid="remaining-amount"
+                    className={remainingClass}
+                  >
+                    {formatCurrency(remaining)}
+                  </span>
                   {totalSelected > 0 && (
                     <Box component="span" sx={{ color: 'error.main' }}>
                       ({`-${formatCurrency(totalSelected)} = ${formatCurrency(
@@ -766,6 +771,7 @@ export default function PaymentDetail({
                     <TableCell
                       colSpan={4}
                       sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                      data-testid="assignment-zero"
                     >
                       No sessions available.
                     </TableCell>
@@ -778,6 +784,7 @@ export default function PaymentDetail({
       </Box>
       <Box
         className="dialog-footer"
+        data-testid="dialog-footer"
         sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }}
       >
         <Button
@@ -787,6 +794,7 @@ export default function PaymentDetail({
             onTitleChange?.(null)
           }}
           aria-label="back to payments"
+          data-testid="back-button"
         >
           ← Back
         </Button>

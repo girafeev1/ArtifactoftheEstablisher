@@ -1,6 +1,9 @@
-import assert from 'node:assert'
 import { paymentIdentifier } from './paymentIdentifier'
 
-assert.strictEqual(paymentIdentifier('Personal', 'b', 'a'), undefined)
-assert.strictEqual(paymentIdentifier('ME-ERL'), undefined)
-assert.strictEqual(paymentIdentifier('ME-ERL', 'b', 'a'), 'b/a')
+describe('paymentIdentifier', () => {
+  test('computes identifier based on entity', () => {
+    expect(paymentIdentifier('Personal', 'b', 'a')).toBeUndefined()
+    expect(paymentIdentifier('ME-ERL')).toBeUndefined()
+    expect(paymentIdentifier('ME-ERL', 'b', 'a')).toBe('b/a')
+  })
+})
