@@ -12,8 +12,14 @@ import {
 import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
-import { listBanks, listAccounts, buildBankLabel, BankInfo, AccountInfo } from '../../lib/erlDirectory'
-import { buildIdentifier } from '../../lib/payments/format'
+import {
+  listBanks,
+  listAccounts,
+  buildBankLabel,
+  BankInfo,
+  AccountInfo,
+} from '../../lib/erlDirectory'
+import { normalizeIdentifier } from '../../lib/payments/format'
 import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
@@ -38,6 +44,7 @@ export default function PaymentModal({
   const [banks, setBanks] = useState<BankInfo[]>([])
   const [accounts, setAccounts] = useState<AccountInfo[]>([])
   const [bankError, setBankError] = useState<string | null>(null)
+  const [identifier, setIdentifier] = useState('')
   const [refNumber, setRefNumber] = useState('')
   const qc = useBillingClient()
   const isErl = entity === 'Music Establish (ERL)'
@@ -47,6 +54,7 @@ export default function PaymentModal({
       setBankCode('')
       setAccountId('')
       setBankError(null)
+      setIdentifier('')
     }
   }, [isErl])
 
@@ -91,12 +99,10 @@ export default function PaymentModal({
       editedBy: getAuth().currentUser?.email || 'system',
     }
     if (isErl) {
-      const id = normalizeIdentifier(data.identifier, bankCode, accountId)
-      if (id) {
-        data.identifier = id
-        data.bankCode = bankCode
-        data.accountDocId = accountId
-      }
+      const id = normalizeIdentifier(entity, bankCode, accountId, identifier)
+      if (id) data.identifier = id
+      data.bankCode = bankCode
+      data.accountDocId = accountId
     }
     await addDoc(colRef, data)
     qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
@@ -176,6 +182,7 @@ export default function PaymentModal({
             if (val !== 'Music Establish (ERL)') {
               setBankCode('')
               setAccountId('')
+              setIdentifier('')
             }
           }}
           fullWidth
@@ -266,6 +273,7 @@ export default function PaymentModal({
             setEntity('')
             setBankCode('')
             setAccountId('')
+            setIdentifier('')
             setRefNumber('')
             onClose()
           }}

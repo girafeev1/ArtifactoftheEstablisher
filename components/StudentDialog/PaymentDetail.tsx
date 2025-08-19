@@ -95,7 +95,6 @@ export default function PaymentDetail({
   )
   const tableRef = React.useRef<HTMLTableElement>(null)
   const minDue = React.useMemo(() => minUnpaidRate(bill?.rows || []), [bill])
-  const remainingClass = paymentBlinkClass(remaining, minDue)
 
   const saveMeta = async (
     field: 'method' | 'entity' | 'identifier' | 'refNumber',
@@ -271,7 +270,8 @@ export default function PaymentDetail({
     const rate = available.find((s) => s.id === id)?.rate || 0
     return sum + rate
   }, 0)
-  const remainingAfterSelection = Math.max(0, remaining - totalSelected)
+  const pendingRemaining = Math.max(0, remaining - totalSelected)
+  const remainingClass = paymentBlinkClass(pendingRemaining, minDue)
 
   const handleAssign = async () => {
     if (totalSelected > remaining) return
@@ -449,21 +449,12 @@ export default function PaymentDetail({
             fields.push({
               label: 'Remaining amount',
               value: (
-                <>
-                  <span
-                    data-testid="remaining-amount"
-                    className={remainingClass}
-                  >
-                    {formatCurrency(remaining)}
-                  </span>
-                  {totalSelected > 0 && (
-                    <Box component="span" sx={{ color: 'error.main' }}>
-                      ({`-${formatCurrency(totalSelected)} = ${formatCurrency(
-                        remainingAfterSelection,
-                      )}`})
-                    </Box>
-                  )}
-                </>
+                <span
+                  data-testid="remaining-amount"
+                  className={remainingClass}
+                >
+                  {formatCurrency(pendingRemaining)}
+                </span>
               ),
             })
             return fields.map((f) => (
