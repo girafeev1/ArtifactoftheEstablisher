@@ -8,3 +8,13 @@ export function buildIdentifier(
   const id = `${cleanBank}/${cleanAccount}`
   return /^[0-9A-Za-z]+\/[0-9A-Za-z_-]+$/.test(id) ? id : undefined
 }
+
+export function normalizeIdentifier(
+  identifier?: string,
+  bankCode?: string,
+  accountDocId?: string,
+): string | undefined {
+  if (identifier && /^[0-9A-Za-z]+\/[0-9A-Za-z_-]+$/.test(identifier))
+    return identifier
+  return buildIdentifier(bankCode, accountDocId)
+}
