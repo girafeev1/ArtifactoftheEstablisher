@@ -32,6 +32,9 @@ Latest change summary
 - Replaced dayjs timezone dependency with built-in plugin to fix install failures.
 - Queue P-021: loading UX cleanup, due parity, vouchers default, payment blink, base-rate history editing, min-width v3, calendar scan fixes.
 - Queued P-022 to complete P-021 acceptance (payment blink hookup, base-rate info relocation), add scan status/logs, and tidy labels.
+- PaymentDetail: wrapped Remaining in a single element and added zero-state for assignment (foundation for single-blink and persistent shell). [PR #225]
+- ERL directory helpers added/rewritten with tests; identifier normalization improved (recompute from bankCode/accountDocId). [PR #225]
+- Small CSS tweak toward sticky footer. [PR #225]
 
 Tasks T-xxx
 ### T-080
@@ -189,10 +192,10 @@ Tasks table — add/update:
 | T-022 | Surface scan results/log in UI | 🗓️    | Optional log panel |
 | T-023 | Replace slow-blink placeholders with Skeletons | 🧭    | Card metrics |
 | T-024 | Make scrollbar-in-footer consistent across all tables | 🧪    | Quick sweep |
-| T-080 | StudentDialog Back button inside sticky footer                | ⏳    | Move Back into footer bar; ensure body has bottom padding |
-| T-081 | Payment Detail blink logic: only Remaining blinks             | ⏳    | Remove duplicate span; Payment Amount static |
-| T-082 | Payment Detail: session assignment visible & robust           | ⏳    | Zero-state; selection updates Remaining; persist |
-| T-083 | Add Payment dialog cascade (Method/Entity/Bank/Account/Ref)   | ⏳    | ERL banks→accounts; identifier build; audit fields |
+| T-080 | StudentDialog Back button inside sticky footer                | ⏳    | Move Back into footer bar; ensure body has bottom padding; UI not visible yet |
+| T-081 | Payment Detail blink logic: only Remaining blinks             | ⏳    | Remove duplicate span; Payment Amount static; UI not visible yet |
+| T-082 | Payment Detail: session assignment visible & robust           | ⏳    | Zero-state; selection updates Remaining; persist; UI not visible yet |
+| T-083 | Add Payment dialog cascade (Method/Entity/Bank/Account/Ref)   | ⏳    | ERL banks→accounts; identifier build; audit fields; UI not visible yet |
 | T-084 | Payment History: For Session(s) shows ≤5 then … (list view)   | ✅    | Detail already truncates; list column to match |
 | T-085 | Column header width decouple (narrow even when header long)   | ⏳    | th ellipsis; table-layout fixed; cell widths OK |
 
@@ -202,6 +205,8 @@ Prompts table — update:
 
 | ID    | Title                                                | State | Notes |
 |-------|------------------------------------------------------|-------|-------|
+| P-027-03r | Finish Add Payment cascade UI; sticky Back; single Remaining blink; stable assignment; badge; 3-dots placement. | 🧭    | See prompts/p-027-03r.md |
+| P-027-02r | Ship the actual Add Payment cascade UI + sticky Back + single Remaining blink + stable assignment | ⏳    | See prompts/p-027-02r.md |
 | P-026 | Finish Payment UX and Add Payment cascade | ⏳    | See prompts/p-026.md (revisions: p-026-01r, p-026-02r, p-026-03r) |
 | P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | ⏳    | See prompts/p-025.md |
 | P-024 | Payment UI polish & data rules | ✅    | See prompts/p-024.md |
