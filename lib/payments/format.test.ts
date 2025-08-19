@@ -19,15 +19,21 @@ describe('buildIdentifier', () => {
 })
 
 describe('normalizeIdentifier', () => {
-  test('returns existing valid identifier', () => {
-    expect(normalizeIdentifier('ABC/123', 'ZZZ', '999')).toBe('ABC/123')
+  test('returns undefined for Personal entity', () => {
+    expect(
+      normalizeIdentifier('Personal', 'HK', 'acc_1', 'HK/acc_1'),
+    ).toBeUndefined()
   })
 
-  test('recomputes when invalid', () => {
-    expect(normalizeIdentifier('bad id', 'ABC', '123')).toBe('ABC/123')
+  test('keeps valid identifier for ERL', () => {
+    expect(
+      normalizeIdentifier('Music Establish (ERL)', 'HK', 'acc_1', 'HK/acc_1'),
+    ).toBe('HK/acc_1')
   })
 
-  test('returns undefined when cannot build', () => {
-    expect(normalizeIdentifier('bad', 'ABC')).toBeUndefined()
+  test('recomputes invalid identifier', () => {
+    expect(
+      normalizeIdentifier('Music Establish (ERL)', 'HK', 'acc_1', 'bad'),
+    ).toBe('HK/acc_1')
   })
 })

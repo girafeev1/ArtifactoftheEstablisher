@@ -1,6 +1,9 @@
-import assert from 'node:assert'
 import { paymentBlinkClass } from './paymentBlink'
 
-assert.strictEqual(paymentBlinkClass(50, 40), 'blink-amount--warn')
-assert.strictEqual(paymentBlinkClass(30, 40), 'blink-amount--error')
-assert.strictEqual(paymentBlinkClass(0, 40), undefined)
+describe('paymentBlinkClass', () => {
+  test('returns appropriate blink classes', () => {
+    expect(paymentBlinkClass(50, 40)).toBe('blink-remaining blink-amount--warn')
+    expect(paymentBlinkClass(30, 40)).toBe('blink-remaining blink-amount--error')
+    expect(paymentBlinkClass(0, 40)).toBeUndefined()
+  })
+})

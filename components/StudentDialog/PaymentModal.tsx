@@ -12,8 +12,8 @@ import {
 import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
-import { fetchBanks } from '../../lib/erlDirectory'
-import { normalizeIdentifier } from '../../lib/payments/format'
+import { listBanks, listAccounts, buildBankLabel, BankInfo, AccountInfo } from '../../lib/erlDirectory'
+import { buildIdentifier } from '../../lib/payments/format'
 import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
@@ -35,8 +35,8 @@ export default function PaymentModal({
   const [entity, setEntity] = useState('')
   const [bankCode, setBankCode] = useState('')
   const [accountId, setAccountId] = useState('')
-  const [banks, setBanks] = useState<any[]>([])
-  const [accounts, setAccounts] = useState<any[]>([])
+  const [banks, setBanks] = useState<BankInfo[]>([])
+  const [accounts, setAccounts] = useState<AccountInfo[]>([])
   const [bankError, setBankError] = useState<string | null>(null)
   const [refNumber, setRefNumber] = useState('')
   const qc = useBillingClient()
@@ -52,7 +52,7 @@ export default function PaymentModal({
 
   useEffect(() => {
     if (isErl && banks.length === 0) {
-      fetchBanks()
+      listBanks()
         .then((b) => {
           setBanks(b)
           setBankError(null)
@@ -62,10 +62,15 @@ export default function PaymentModal({
   }, [isErl, banks.length])
 
   useEffect(() => {
-    const bank = banks.find((b) => b.code === bankCode)
-    setAccounts(bank ? bank.accounts : [])
+    if (bankCode) {
+      listAccounts(bankCode)
+        .then((a) => setAccounts(a))
+        .catch(() => setAccounts([]))
+    } else {
+      setAccounts([])
+    }
     setAccountId('')
-  }, [bankCode, banks])
+  }, [bankCode])
 
   const save = async () => {
     const paymentsPath = PATHS.payments(abbr)
@@ -149,7 +154,10 @@ export default function PaymentModal({
           onChange={(e) => setMethod(e.target.value)}
           fullWidth
           InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          inputProps={{
+            style: { fontFamily: 'Newsreader', fontWeight: 500 },
+            'data-testid': 'method-select',
+          }}
           sx={{ mt: 2 }}
         >
           {['FPS', 'Bank Transfer', 'Cheque'].map((m) => (
@@ -162,10 +170,20 @@ export default function PaymentModal({
           label="Entity"
           select
           value={entity}
-          onChange={(e) => setEntity(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value
+            setEntity(val)
+            if (val !== 'Music Establish (ERL)') {
+              setBankCode('')
+              setAccountId('')
+            }
+          }}
           fullWidth
           InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          inputProps={{
+            style: { fontFamily: 'Newsreader', fontWeight: 500 },
+            'data-testid': 'entity-select',
+          }}
           sx={{ mt: 2 }}
         >
           <MenuItem value="Music Establish (ERL)">Music Establish (ERL)</MenuItem>
@@ -184,18 +202,15 @@ export default function PaymentModal({
               }}
               inputProps={{
                 style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                'data-testid': 'bank-select',
               }}
               sx={{ mt: 2 }}
             >
-              {banks.map((b) => {
-                const fallback = `${b.docId || b.id || ''} ${b.collectionId || ''}`.trim()
-                const label = b.name && b.code ? `${b.name} ${b.code}` : fallback
-                return (
-                  <MenuItem key={b.code} value={b.code}>
-                    {label}
-                  </MenuItem>
-                )
-              })}
+              {banks.map((b) => (
+                <MenuItem key={b.bankCode} value={b.bankCode}>
+                  {buildBankLabel(b)}
+                </MenuItem>
+              ))}
             </TextField>
             <TextField
               label="Bank Account"
@@ -208,11 +223,12 @@ export default function PaymentModal({
               }}
               inputProps={{
                 style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                'data-testid': 'bank-account-select',
               }}
               sx={{ mt: 2 }}
             >
               {accounts.map((a) => (
-                <MenuItem key={a.id} value={a.id}>
+                <MenuItem key={a.accountDocId} value={a.accountDocId}>
                   {a.accountType}
                 </MenuItem>
               ))}
@@ -230,12 +246,17 @@ export default function PaymentModal({
           onChange={(e) => setRefNumber(e.target.value)}
           fullWidth
           InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          inputProps={{
+            style: { fontFamily: 'Newsreader', fontWeight: 500 },
+            'data-testid': 'ref-input',
+          }}
           sx={{ mt: 2 }}
         />
       </DialogContent>
-      <DialogActions className="dialog-footer">
-        <Button onClick={onClose}>Cancel</Button>
+      <DialogActions className="dialog-footer" data-testid="dialog-footer">
+        <Button onClick={onClose} data-testid="back-button">
+          Back
+        </Button>
         <Button
           onClick={async () => {
             await save()
@@ -248,7 +269,8 @@ export default function PaymentModal({
             setRefNumber('')
             onClose()
           }}
-          disabled={!amount || !madeOn || !method || !entity || (isErl && (!bankCode || !accountId))}
+          disabled={!method || !entity || (isErl && (!bankCode || !accountId))}
+          data-testid="submit-payment"
         >
           Submit
         </Button>

@@ -10,11 +10,13 @@ export function buildIdentifier(
 }
 
 export function normalizeIdentifier(
-  identifier?: string,
+  entity: string,
   bankCode?: string,
   accountDocId?: string,
+  identifier?: string,
 ): string | undefined {
-  if (identifier && /^[0-9A-Za-z]+\/[0-9A-Za-z_-]+$/.test(identifier))
-    return identifier
-  return buildIdentifier(bankCode, accountDocId)
+  if (entity !== 'Music Establish (ERL)' && entity !== 'ME-ERL') return undefined
+  const built = buildIdentifier(bankCode, accountDocId)
+  if (!identifier) return built
+  return /^[0-9A-Za-z]+\/[0-9A-Za-z_-]+$/.test(identifier) ? identifier : built
 }

@@ -110,6 +110,10 @@
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.12);
 }
 
+.blink-remaining {
+  /* marker for tests */
+}
+
 @media (prefers-reduced-motion: reduce) {
   .blink-amount--warn,
   .blink-amount--error {
