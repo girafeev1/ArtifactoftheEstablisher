@@ -40,7 +40,15 @@ export default function PaymentModal({
   const [bankError, setBankError] = useState<string | null>(null)
   const [refNumber, setRefNumber] = useState('')
   const qc = useBillingClient()
-  const isErl = entity === 'Music Establish (ERL)' || entity === 'ME-ERL'
+  const isErl = entity === 'Music Establish (ERL)'
+
+  useEffect(() => {
+    if (!isErl) {
+      setBankCode('')
+      setAccountId('')
+      setBankError(null)
+    }
+  }, [isErl])
 
   useEffect(() => {
     if (isErl && banks.length === 0) {
@@ -83,7 +91,7 @@ export default function PaymentModal({
       editedBy: getAuth().currentUser?.email || 'system',
     }
     if (isErl) {
-      const id = buildIdentifier(bankCode, accountId)
+      const id = normalizeIdentifier(data.identifier, bankCode, accountId)
       if (id) {
         data.identifier = id
         data.bankCode = bankCode

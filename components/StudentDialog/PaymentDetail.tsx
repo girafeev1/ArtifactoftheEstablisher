@@ -23,7 +23,7 @@ import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
 import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
 import { formatSessions } from '../../lib/billing/formatSessions'
 import { truncateList } from '../../lib/payments/truncate'
-import { buildIdentifier } from '../../lib/payments/format'
+import { normalizeIdentifier } from '../../lib/payments/format'
 import {
   patchBillingAssignedSessions,
   writeSummaryFromCache,
@@ -104,11 +104,11 @@ export default function PaymentDetail({
     const ref = doc(db, PATHS.payments(abbr), payment.id)
     const patch: any = {}
     if (field === 'identifier') {
-      let val = value.trim()
-      if (!/^[0-9A-Za-z]+\/[0-9A-Za-z_-]+$/.test(val)) {
-        const built = buildIdentifier(payment.bankCode, payment.accountDocId)
-        if (built) val = built
-      }
+      const val = normalizeIdentifier(
+        value.trim(),
+        payment.bankCode,
+        payment.accountDocId,
+      )
       if (!val) return
       patch.identifier = val
       setIdentifierVal(val)
