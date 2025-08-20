@@ -1,7 +1,16 @@
 // pages/dashboard/businesses/coaching-sessions.tsx
 
 import React, { useEffect, useState } from 'react'
-import { collection, getDocs, query, where, orderBy, limit, onSnapshot, doc } from 'firebase/firestore'
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  onSnapshot,
+  doc,
+} from 'firebase/firestore'
 import SidebarLayout from '../../../components/SidebarLayout'
 import { db } from '../../../lib/firebase'
 import {
@@ -17,6 +26,7 @@ import {
   MenuItem,
   Snackbar,
   CircularProgress,
+  IconButton,
 } from '@mui/material'
 import { PATHS, logPath } from '../../../lib/paths'
 import OverviewTab from '../../../components/StudentDialog/OverviewTab'
@@ -24,11 +34,11 @@ import SessionDetail from '../../../components/StudentDialog/SessionDetail'
 import FloatingWindow from '../../../components/StudentDialog/FloatingWindow'
 import { clearSessionSummaries } from '../../../lib/sessionStats'
 import { computeSessionStart } from '../../../lib/sessions'
-import IconButton from '@mui/material/IconButton'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import { useBilling } from '../../../lib/billing/useBilling'
 import LoadingDash from '../../../components/LoadingDash'
 import { readScanLogs, writeScanLog, ScanLog } from '../../../lib/scanLogs'
+import { usePromptId } from '../../../lib/promptId'
 
 interface StudentMeta {
   abbr: string
@@ -109,6 +119,7 @@ function StudentCard({
 
 export default function CoachingSessions() {
   const [students, setStudents] = useState<StudentDetails[]>([])
+  const promptId = usePromptId()
   const [loading, setLoading] = useState(true)
   const [loadingStatus, setLoadingStatus] = useState('')
   const [selected, setSelected] = useState<StudentDetails | null>(null)
@@ -322,6 +333,21 @@ export default function CoachingSessions() {
       )}
 
       <Box sx={{ position: 'relative', pb: 8 }}>
+        <Box
+          data-testid="pprompt-badge-card"
+          sx={{
+            position: 'absolute',
+            top: 4,
+            right: 8,
+            fontFamily: 'var(--font-nunito)',
+            fontWeight: 200,
+            fontSize: '10px',
+            opacity: 0.6,
+            pointerEvents: 'none',
+          }}
+        >
+          {promptId}
+        </Box>
         <Grid container spacing={2} sx={{ mt: 2 }}>
           {students.map((s) => (
             <StudentCard key={s.abbr} student={s} onSelect={setSelected} />
@@ -371,7 +397,19 @@ export default function CoachingSessions() {
             </Typography>
           </Box>
         </Menu>
-        <Box sx={{ position: 'sticky', bottom: 0, pl: 1, pb: 1 }}>
+        <Box
+          data-testid="card-footer-row"
+          sx={{
+            position: 'sticky',
+            bottom: 0,
+            left: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            p: 1,
+          }}
+        >
           <IconButton
             aria-label="Tools"
             onClick={openToolsMenu}
@@ -380,6 +418,16 @@ export default function CoachingSessions() {
           >
             <MoreVertIcon />
           </IconButton>
+          <Button
+            variant="contained"
+            onClick={() => setServiceMode((m) => !m)}
+            sx={{
+              bgcolor: serviceMode ? 'red' : 'primary.main',
+              animation: serviceMode ? 'blink 1s infinite' : 'none',
+            }}
+          >
+            Service Mode
+          </Button>
         </Box>
       </Box>
 
@@ -420,19 +468,11 @@ export default function CoachingSessions() {
         message={scanMessage}
         autoHideDuration={4000}
       />
-      <Button
-        variant="contained"
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          right: 16,
-          bgcolor: serviceMode ? 'red' : 'primary.main',
-          animation: serviceMode ? 'blink 1s infinite' : 'none',
-        }}
-        onClick={() => setServiceMode((m) => !m)}
-      >
-        Service Mode
-      </Button>
     </SidebarLayout>
   )
+}
+
+export async function getStaticProps() {
+  const { latestPromptIdFromFiles } = await import('../../../lib/promptId')
+  return { props: { promptId: latestPromptIdFromFiles() } }
 }
