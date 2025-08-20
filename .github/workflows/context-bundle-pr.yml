@@ -1,179 +1,83 @@
-name: Context Bundle (PR)
+name: PR Context Bundle
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review, edited]
 
 permissions:
-  contents: write       # needed to push docs/context/PR-<num>.md
+  contents: write
   pull-requests: write
 
 jobs:
   bundle:
-    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    concurrency:
-      group: context-bundle-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
-
     steps:
-      - name: Checkout
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Compute refs
-        id: refs
-        shell: bash
+      # ⬇️ Replace this with your real generator; write to .tmp_new_context.md
+      - name: Generate context (replace this step)
         run: |
-          echo "PR_NUM=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-          echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
-          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
-          echo "BASE_REF=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
-          echo "HEAD_REF=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
-          # Sanitized branch name for artifact naming (no slashes)
-          echo "SANITIZED_HEAD_REF=${GITHUB_HEAD_REF//\//-}" >> $GITHUB_OUTPUT
-
-      - name: Detect package manager
-        id: pm
-        shell: bash
-        run: |
-          if [ -f pnpm-lock.yaml ]; then echo "name=pnpm" >> $GITHUB_OUTPUT; exit 0; fi
-          if [ -f yarn.lock ]; then echo "name=yarn" >> $GITHUB_OUTPUT; exit 0; fi
-          echo "name=npm" >> $GITHUB_OUTPUT
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install deps (best-effort)
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -e
-          PM="${{ steps.pm.outputs.name }}"
-          if [ "$PM" = "pnpm" ]; then
-            corepack enable
-            pnpm i --frozen-lockfile || pnpm i
-          elif [ "$PM" = "yarn" ]; then
-            corepack enable
-            yarn install --frozen-lockfile || yarn install
-          else
-            npm ci || npm i
-          fi
-
-      - name: Generate file change list
-        shell: bash
-        run: |
-          git diff --name-status ${{ steps.refs.outputs.BASE_SHA }}...${{ steps.refs.outputs.HEAD_SHA }} > files.txt || true
-          {
-            echo "# Context Bundle"
-            echo
-            echo "_PR_: #${{ steps.refs.outputs.PR_NUM }}  |  _Base_: ${{ steps.refs.outputs.BASE_REF }}  |  _Head_: ${{ steps.refs.outputs.HEAD_REF }}"
-            echo "_Generated_: $(date -u '+%Y-%m-%d %H:%M UTC')"
-            echo
-            echo "### Changed Files (vs base)"
-            echo
-            if [ -s files.txt ]; then
-              awk '{print "- " $0}' files.txt
-            else
-              echo "_No changes detected._"
-            fi
-            echo
-          } > bundle.md
-
-      - name: Generate compact diff hunks
-        shell: bash
-        run: |
-          echo "### Compact Diff Hunks" >> bundle.md
-          echo >> bundle.md
-          git diff --unified=0 ${{ steps.refs.outputs.BASE_SHA }}...${{ steps.refs.outputs.HEAD_SHA }} | head -n 3000 > hunks.patch || true
-          if [ -s hunks.patch ]; then
-            echo '```diff' >> bundle.md
-            cat hunks.patch >> bundle.md
-            echo '```' >> bundle.md
-          else
-            echo "_(empty)_" >> bundle.md
-          fi
-          echo >> bundle.md
-
-      - name: TypeScript diagnostics (optional)
-        if: ${{ hashFiles('tsconfig.json') != '' }}
-        continue-on-error: true
-        shell: bash
-        run: |
-          npx tsc -p tsconfig.json --noEmit > ts.txt 2>&1 || true
-          echo "### TypeScript Diagnostics" >> bundle.md
-          echo >> bundle.md
-          if [ -s ts.txt ]; then
-            echo '```' >> bundle.md
-            head -n 300 ts.txt >> bundle.md
-            echo '```' >> bundle.md
-          else
-            echo "_No TypeScript errors._" >> bundle.md
-          fi
-          echo >> bundle.md
-
-      - name: ESLint summary (optional)
-        continue-on-error: true
-        shell: bash
-        run: |
-          HAS_ESLINT=0
-          if [ -f .eslintrc ] || [ -f .eslintrc.js ] || [ -f .eslintrc.cjs ] || [ -f .eslintrc.json ]; then HAS_ESLINT=1; fi
-          if grep -q '"eslintConfig"' package.json 2>/dev/null; then HAS_ESLINT=1; fi
-          echo "### ESLint Summary" >> bundle.md
-          echo >> bundle.md
-          if [ "$HAS_ESLINT" = "1" ]; then
-            npx eslint . -f stylish > eslint.txt 2>&1 || true
-            if [ -s eslint.txt ]; then
-              echo '```' >> bundle.md
-              head -n 300 eslint.txt >> bundle.md
-              echo '```' >> bundle.md
-            else
-              echo "_No ESLint output._" >> bundle.md
-            fi
-          else
-            echo "_No ESLint config detected._" >> bundle.md
-          fi
-          echo >> bundle.md
-
-      # ⬇️ Commit AFTER diagnostics so the committed file is complete
-      - name: Commit context bundle into PR branch
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-        env:
-          PR_NUM: ${{ steps.refs.outputs.PR_NUM }}
-          HEAD_REF: ${{ steps.refs.outputs.HEAD_REF }}
-        shell: bash
-        run: |
-          set -e
           mkdir -p docs/context
-          cp bundle.md docs/context/PR-${PR_NUM}.md
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name  "github-actions[bot]"
-          git add docs/context/PR-${PR_NUM}.md
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
+          echo "# Context for PR #${{ github.event.number }}" > .tmp_new_context.md
+          # your generator should append real content to .tmp_new_context.md
+
+      # ✅ Commit ONLY if the file actually changed (Option C)
+      - name: Check if context changed
+        id: ctxdiff
+        run: |
+          set -e
+          file="docs/context/PR-${{ github.event.number }}.md"
+          if [ -f "$file" ]; then
+            if diff -q "$file" .tmp_new_context.md >/dev/null; then
+              echo "changed=false" >> $GITHUB_OUTPUT
+            else
+              mv .tmp_new_context.md "$file"
+              echo "changed=true" >> $GITHUB_OUTPUT
+            fi
           else
-            git commit -m "chore(context): add PR-${PR_NUM} bundle"
-            git push origin HEAD:${HEAD_REF}
+            mv .tmp_new_context.md "$file"
+            echo "changed=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Post sticky PR comment (summary)
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: context-bundle
-          path: bundle.md
+      # 🔁 Write back to the PR branch ONLY (Option B2)
+      - name: Commit context to PR branch
+        if: steps.ctxdiff.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/context/PR-${{ github.event.number }}.md
+          git commit -m "chore(context): update PR #${{ github.event.number }}"
+          git push origin HEAD:${{ github.head_ref }}
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      # 🔗 Upsert a single comment with evergreen & snapshot links
+      - name: Comment links on PR
+        if: always()
+        uses: actions/github-script@v7
         with:
-          name: context-bundle-pr-${{ steps.refs.outputs.SANITIZED_HEAD_REF }}-${{ steps.refs.outputs.PR_NUM }}
-          path: |
-            bundle.md
-            files.txt
-            hunks.patch
-            ts.txt
-            eslint.txt
-          if-no-files-found: ignore
+          script: |
+            const pr = context.payload.pull_request;
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+            const headRef = pr.head.ref;
+            const headSha = pr.head.sha;
+            const n = pr.number;
+            const evergreen = `https://github.com/${owner}/${repo}/blob/${headRef}/docs/context/PR-${n}.md`;
+            const snapshot  = `https://raw.githubusercontent.com/${owner}/${repo}/${headSha}/docs/context/PR-${n}.md`;
+            const body = [
+              `**Diff file generated ✅**`,
+              ``,
+              `Evergreen: ${evergreen}`,
+              `Snapshot: ${snapshot}`,
+              `File path: docs/context/PR-${n}.md`
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number: n });
+            const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('Diff file generated ✅'));
+            if (mine) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: n, body });
+            }
