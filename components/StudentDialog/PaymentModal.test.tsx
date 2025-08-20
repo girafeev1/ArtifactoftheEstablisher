@@ -47,7 +47,9 @@ describe('PaymentModal entity switching', () => {
     fireEvent.change(entitySelect, { target: { value: 'Personal' } })
     await waitFor(() => expect(entitySelect.value).toBe('Personal'))
 
-    expect(getByTestId('entity-select').value).toBe('Personal')
+    expect(
+      (getByTestId('entity-select') as HTMLInputElement).value,
+    ).toBe('Personal')
 
     await waitFor(() => {
       expect(queryByTestId('bank-select')).toBeNull()
