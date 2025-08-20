@@ -33,6 +33,7 @@ import { formatMMMDDYYYY } from '../../lib/date'
 import { PATHS, logPath } from '../../lib/paths'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
+import { sessionsComparator } from '../../lib/sessionsSort'
 import { toHKMidnight } from '../../lib/time'
 
 console.log('=== StudentDialog loaded version 1.1 ===')
@@ -148,36 +149,33 @@ export default function SessionsTab({
   })
   const [hover, setHover] = useState(false)
   const [voucherBalance, setVoucherBalance] = useState<number | null>(null)
-  const [sortBy, setSortBy] = useState<string>('date')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const handleSort = (key: string) => {
-    if (sortBy === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortBy(key)
-      setSortDir('asc')
+  const sortStorageKey = `sessions:sort:${userEmail}`
+  const getInitialSort = () => {
+    if (typeof window === 'undefined') return { by: 'date', dir: 'desc' }
+    try {
+      const raw = localStorage.getItem(sortStorageKey)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed.by && parsed.dir) return parsed
+      }
+    } catch {
+      // ignore
     }
+    return { by: 'date', dir: 'desc' }
   }
-  const sortVal = (s: any, key: string) => {
-    switch (key) {
-      case 'date':
-      case 'time':
-        return s.startMs || 0
-      case 'duration':
-      case 'baseRate':
-        return Number(s[key]) || 0
-      case 'rateCharged':
-        return Number(s.rateSort) || 0
-      case 'payOn':
-        return s.payOnMs || 0
-      case 'paymentStatus':
-      case 'sessionType':
-      case 'billingType':
-      case 'voucherBalance':
-        return Number(s[key]) || 0
-      default:
-        return 0
+  const [{ by: sortBy, dir: sortDir }, setSort] = useState(getInitialSort)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(
+        sortStorageKey,
+        JSON.stringify({ by: sortBy, dir: sortDir }),
+      )
     }
+  }, [sortBy, sortDir, sortStorageKey])
+  const handleSort = (key: string) => {
+    setSort((prev) =>
+      prev.by === key ? { by: key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { by: key, dir: 'asc' },
+    )
   }
 
   useEffect(() => {
@@ -750,6 +748,13 @@ export default function SessionsTab({
                       data-col={c.key}
                       data-col-header
                       title={c.label}
+                      aria-sort={
+                        sortBy === c.key
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      }
                       sx={{
                         typography: 'body2',
                         fontFamily: 'Cantata One',
@@ -802,13 +807,7 @@ export default function SessionsTab({
                   const since = Date.now() - days * 24 * 60 * 60 * 1000
                   return s.startMs >= since
                 })
-                .sort((a, b) => {
-                  const av = sortVal(a, sortBy)
-                  const bv = sortVal(b, sortBy)
-                  if (av < bv) return sortDir === 'asc' ? -1 : 1
-                  if (av > bv) return sortDir === 'asc' ? 1 : -1
-                  return 0
-                })
+                .sort(sessionsComparator(sortBy, sortDir))
                 .map((s, i) => (
                   <TableRow
                     key={i}
