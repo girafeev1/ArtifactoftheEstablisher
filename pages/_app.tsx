@@ -7,9 +7,8 @@ import { Newsreader, Cantata_One, Nunito } from 'next/font/google';
 import '../styles/studentDialog.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@mui/material/styles';
-import { Box } from '@mui/material';
 import theme from '../lib/theme';
-import { CURRENT_PROMPT_ID } from '../lib/promptId';
+import { PromptIdProvider } from '../lib/promptId';
 
 if (typeof window !== 'undefined') {
   setupClientLogging();
@@ -22,30 +21,17 @@ const cantata = Cantata_One({ subsets: ['latin'], weight: '400' });
 const nunito = Nunito({ subsets: ['latin'], weight: ['400', '700'], variable: '--font-nunito' });
 const queryClient = new QueryClient();
 
-function MyApp({ Component, pageProps }: AppProps) {
+function MyApp({ Component, pageProps }: AppProps<{ promptId?: string; session?: any }>) {
   return (
     <div className={`${newsreader.className} ${cantata.className} ${nunito.variable}`}>
       <ThemeProvider theme={theme}>
         <QueryClientProvider client={queryClient}>
           <SessionProvider session={pageProps.session}>
-            <SnackbarProvider maxSnack={3}>
-              <Component {...pageProps} />
-              <Box
-                data-testid="pprompt-badge"
-                sx={{
-                  position: 'fixed',
-                  top: 4,
-                  right: 4,
-                  fontFamily: 'var(--font-nunito)',
-                  fontWeight: 200,
-                  fontSize: '10px',
-                  opacity: 0.6,
-                  pointerEvents: 'none',
-                }}
-              >
-                {CURRENT_PROMPT_ID}
-              </Box>
-            </SnackbarProvider>
+            <PromptIdProvider value={pageProps.promptId ?? ''}>
+              <SnackbarProvider maxSnack={3}>
+                <Component {...pageProps} />
+              </SnackbarProvider>
+            </PromptIdProvider>
           </SessionProvider>
         </QueryClientProvider>
       </ThemeProvider>
