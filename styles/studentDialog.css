@@ -133,7 +133,7 @@
   z-index: 10;
   border-top: 1px solid var(--mui-palette-divider);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
-  background: var(--mui-palette-background-paper);
+  background-color: var(--mui-palette-background-paper);
 }
 
 .student-dialog-modal .MuiDialog-paper,
