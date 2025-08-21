@@ -66,14 +66,19 @@ describe('PaymentModal ERL cascade', () => {
       rawCodeSegment: '(001)',
     })
     fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
+    fireEvent.change(getByTestId('ref-input'), { target: { value: 'R1' } })
 
+    expect(require('firebase/firestore').addDoc).not.toHaveBeenCalled()
     fireEvent.click(getByTestId('submit-payment'))
     await waitFor(() => expect(require('firebase/firestore').addDoc).toHaveBeenCalled())
     const data = (require('firebase/firestore').addDoc as jest.Mock).mock.calls[0][1]
-    expect(data.identifier).toBe('001/a1')
-    expect(data.bankCode).toBe('001')
-    expect(data.accountDocId).toBe('a1')
+    expect(data.identifier).toBe('a1')
+    expect(data.bankCode).toBeUndefined()
+    expect(data.accountDocId).toBeUndefined()
+    expect(data.method).toBe('FPS')
+    expect(data.entity).toBeUndefined()
     expect(data.editedBy).toBe('tester@example.com')
     expect(data.timestamp).toBe('now')
+    expect(data.refNumber).toBe('R1')
   })
 })

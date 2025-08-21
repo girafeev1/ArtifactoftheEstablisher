@@ -181,33 +181,33 @@ export default function PaymentHistory({
             <Box
               sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}
             >
-              <Typography
-                variant="subtitle1"
-                sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-              >
-                Payment History
-              </Typography>
               <Box>
+                <Typography
+                  variant="subtitle1"
+                  sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+                >
+                  Payment History
+                </Typography>
                 <Tooltip title="Filter Columns">
                   <IconButton
                     aria-label="Filter Columns"
                     data-testid="filter-columns"
                     onClick={(e) => setFilterAnchor(e.currentTarget)}
-                    sx={{ mr: 1 }}
+                    sx={{ mt: 0.5 }}
                   >
                     <FilterListIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
-                <Tooltip title="Create Payment">
-                  <IconButton
-                    color="primary"
-                    onClick={() => setModalOpen(true)}
-                    aria-label="Create Payment"
-                  >
-                    <CreateIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
               </Box>
+              <Tooltip title="Create Payment">
+                <IconButton
+                  color="primary"
+                  onClick={() => setModalOpen(true)}
+                  aria-label="Create Payment"
+                >
+                  <CreateIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </Box>
             <Popover
               open={Boolean(filterAnchor)}
