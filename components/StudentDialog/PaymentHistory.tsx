@@ -20,7 +20,7 @@ import { db } from '../../lib/firebase'
 import PaymentDetail from './PaymentDetail'
 import { titleFor } from './title'
 import { PATHS, logPath } from '../../lib/paths'
-import { WriteIcon } from './icons'
+import { CreateIcon } from './icons'
 import PaymentModal from './PaymentModal'
 import { useBilling } from '../../lib/billing/useBilling'
 import { formatSessions } from '../../lib/billing/formatSessions'
@@ -198,13 +198,13 @@ export default function PaymentHistory({
                     <FilterListIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
-                <Tooltip title="Add Payment">
+                <Tooltip title="Create Payment">
                   <IconButton
                     color="primary"
                     onClick={() => setModalOpen(true)}
-                    aria-label="Add Payment"
+                    aria-label="Create Payment"
                   >
-                    <WriteIcon fontSize="small" />
+                    <CreateIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </Box>

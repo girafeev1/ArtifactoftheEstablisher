@@ -1,3 +1,3 @@
-import EditNoteIcon from '@mui/icons-material/EditNote'
+import NoteAddRoundedIcon from '@mui/icons-material/NoteAddRounded'
 
-export const WriteIcon = EditNoteIcon
+export const CreateIcon = NoteAddRoundedIcon
