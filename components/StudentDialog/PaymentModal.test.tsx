@@ -8,7 +8,11 @@ import PaymentModal from './PaymentModal'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 jest.mock('../../lib/erlDirectory', () => ({
-  listBanks: jest.fn().mockResolvedValue([{ bankCode: '001', bankName: 'Bank' }]),
+  listBanks: jest
+    .fn()
+    .mockResolvedValue([
+      { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
+    ]),
   listAccounts: jest.fn().mockResolvedValue([
     { accountDocId: 'a1', accountType: 'Savings' },
   ]),
@@ -54,7 +58,13 @@ describe('PaymentModal ERL cascade', () => {
     const accountSelect = getByTestId('bank-account-select') as HTMLInputElement
     fireEvent.change(accountSelect, { target: { value: 'a1' } })
     expect(require('../../lib/erlDirectory').listBanks).toHaveBeenCalled()
-    expect(require('../../lib/erlDirectory').listAccounts).toHaveBeenCalledWith('001')
+    expect(
+      require('../../lib/erlDirectory').listAccounts,
+    ).toHaveBeenCalledWith({
+      bankCode: '001',
+      bankName: 'Bank',
+      rawCodeSegment: '(001)',
+    })
     fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
 
     fireEvent.click(getByTestId('submit-payment'))

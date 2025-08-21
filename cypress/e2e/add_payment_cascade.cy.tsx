@@ -40,7 +40,7 @@ describe('Add Payment cascade', () => {
     process.env.NEXT_PUBLIC_FIREBASE_APP_ID = 'x'
 
     ;(cy as any).stub(erlDir, 'listBanks').resolves([
-      { bankCode: '001', bankName: 'Bank' },
+      { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
     ])
     ;(cy as any).stub(erlDir, 'listAccounts').resolves([
       { accountDocId: 'a1', accountType: 'Savings' },
@@ -73,7 +73,7 @@ describe('Add Payment cascade', () => {
     const addDocStub = (cy as any).stub(firestore, 'addDoc').resolves()
     ;(cy as any).stub(firestore, 'collection').returns({})
     ;(cy as any).stub(erlDir, 'listBanks').resolves([
-      { bankCode: '001', bankName: 'Bank' },
+      { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
     ])
     ;(cy as any).stub(erlDir, 'listAccounts').resolves([
       { accountDocId: 'a1', accountType: 'Savings' },
@@ -120,7 +120,7 @@ describe('Add Payment cascade', () => {
     const addDocStub = (cy as any).stub(firestore, 'addDoc').resolves()
     ;(cy as any).stub(firestore, 'collection').returns({})
     ;(cy as any).stub(erlDir, 'listBanks').resolves([
-      { bankCode: '001', bankName: 'Bank' },
+      { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
     ])
     ;(cy as any).stub(erlDir, 'listAccounts').resolves([
       { accountDocId: 'a1', accountType: 'Savings' },

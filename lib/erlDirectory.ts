@@ -2,16 +2,14 @@ import {
   initializeFirestore,
   getFirestore,
   collection,
-  collectionGroup,
   getDocs,
 } from 'firebase/firestore'
 import { app } from './firebase'
 
 export interface BankInfo {
   bankCode: string
-  bankName?: string
-  docId?: string
-  collectionId?: string
+  bankName: string
+  rawCodeSegment: string
 }
 
 export interface AccountInfo {
@@ -28,16 +26,23 @@ export const dbDirectory = (() => {
   }
 })()
 
+export function normalizeCode(code: string | number): { code: string; raw: string } {
+  const digits = typeof code === 'number' ? String(code) : String(code)
+  const num = digits.replace(/[^0-9]/g, '')
+  const normalized = num.padStart(3, '0')
+  return { code: normalized, raw: `(${normalized})` }
+}
+
 export async function listBanks(): Promise<BankInfo[]> {
   try {
     const snap = await getDocs(collection(dbDirectory, 'banks'))
     const banks = snap.docs.map((d) => {
       const data = d.data() as any
+      const { code, raw } = normalizeCode(d.id)
       return {
-        bankCode: data.code || d.id,
-        bankName: data.name,
-        docId: d.id,
-        collectionId: 'banks',
+        bankCode: code,
+        bankName: data.name || '',
+        rawCodeSegment: raw,
       } as BankInfo
     })
     if (banks.length) return banks
@@ -45,38 +50,52 @@ export async function listBanks(): Promise<BankInfo[]> {
   } catch (e) {
     console.warn('preferred bank directory failed', e)
     const snap = await getDocs(collection(dbDirectory, 'bankAccount'))
-    const banks = snap.docs.map((d) => {
+    const banks: BankInfo[] = []
+    snap.docs.forEach((d) => {
       const data = d.data() as any
-      if (typeof data.code !== 'string')
+      if (!Array.isArray(data.code))
         throw new Error(`missing code for bank ${d.id}`)
-      return {
-        bankCode: data.code,
-        bankName: d.id,
-        docId: d.id,
-        collectionId: 'bankAccount',
-      } as BankInfo
+      ;[...new Set(data.code)].forEach((c: any) => {
+        const { code, raw } = normalizeCode(c)
+        banks.push({ bankCode: code, bankName: d.id, rawCodeSegment: raw })
+      })
     })
     if (!banks.length) throw new Error('empty bankAccount directory')
     return banks
   }
 }
 
-export async function listAccounts(bankCode: string): Promise<AccountInfo[]> {
+export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
+  const res: Record<string, AccountInfo> = {}
   try {
-    const snap = await getDocs(collection(dbDirectory, 'banks', bankCode, 'accounts'))
-    if (!snap.empty)
-      return snap.docs.map((d) => ({ accountDocId: d.id, ...(d.data() as any) }))
+    const snap = await getDocs(
+      collection(dbDirectory, 'banks', bank.bankCode, 'accounts'),
+    )
+    snap.docs.forEach((d) => {
+      res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
+    })
   } catch (e) {
     console.warn('preferred accounts failed', e)
   }
-  const snap = await getDocs(collectionGroup(dbDirectory, bankCode))
-  return snap.docs
-    .filter((d) => d.ref.path.includes('/bankAccount/'))
-    .map((d) => ({ accountDocId: d.id, ...(d.data() as any) }))
+  try {
+    const snap = await getDocs(
+      collection(
+        dbDirectory,
+        'bankAccount',
+        bank.bankName,
+        bank.rawCodeSegment,
+      ),
+    )
+    snap.docs.forEach((d) => {
+      if (!res[d.id]) res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
+    })
+  } catch (e) {
+    console.warn('legacy accounts failed', e)
+  }
+  return Object.values(res)
 }
 
 export function buildBankLabel(b: BankInfo): string {
   if (b.bankName && b.bankCode) return `${b.bankName} ${b.bankCode}`
-  const fallback = `${b.docId ?? ''} ${b.collectionId ?? ''}`.trim()
-  return fallback || b.bankCode
+  return b.bankCode
 }

@@ -42,6 +42,7 @@ export default function PaymentModal({
   const [method, setMethod] = useState('')
   const [entity, setEntity] = useState('')
   const [bankCode, setBankCode] = useState('')
+  const [selectedBank, setSelectedBank] = useState<BankInfo | null>(null)
   const [accountId, setAccountId] = useState('')
   const [banks, setBanks] = useState<BankInfo[]>([])
   const [accounts, setAccounts] = useState<AccountInfo[]>([])
@@ -51,11 +52,13 @@ export default function PaymentModal({
   const qc = useBillingClient()
   const isErl = entity === 'Music Establish (ERL)'
   const { enqueueSnackbar } = useSnackbar()
-  const bankMsg = "Bank directory unavailable or missing 'code' on bank docs"
+  const bankMsg =
+    'Bank directory unavailable (check rules on the erl-directory database).'
 
   useEffect(() => {
     if (!isErl) {
       setBankCode('')
+      setSelectedBank(null)
       setAccountId('')
       setBankError(null)
       setIdentifier('')
@@ -82,15 +85,16 @@ export default function PaymentModal({
   }, [isErl, banks.length])
 
   useEffect(() => {
-    if (bankCode) {
-      listAccounts(bankCode)
+    if (selectedBank) {
+      listAccounts(selectedBank)
         .then((a) => setAccounts(a))
         .catch(() => setAccounts([]))
+      setBankCode(selectedBank.bankCode)
     } else {
       setAccounts([])
     }
     setAccountId('')
-  }, [bankCode])
+  }, [selectedBank])
 
   const save = async () => {
     const paymentsPath = PATHS.payments(abbr)
@@ -215,8 +219,11 @@ export default function PaymentModal({
                 <TextField
                   label="Bank"
                   select
-                  value={bankCode}
-                  onChange={(e) => setBankCode(e.target.value)}
+                  value={selectedBank ? selectedBank.bankCode : ''}
+                  onChange={(e) => {
+                    const b = banks.find((bk) => bk.bankCode === e.target.value)
+                    setSelectedBank(b || null)
+                  }}
                   fullWidth
                   InputLabelProps={{
                     sx: { fontFamily: 'Newsreader', fontWeight: 200 },
@@ -227,7 +234,7 @@ export default function PaymentModal({
                   }}
                 >
                   {banks.map((b) => (
-                    <MenuItem key={b.bankCode} value={b.bankCode}>
+                    <MenuItem key={`${b.bankName}-${b.bankCode}`} value={b.bankCode}>
                       {buildBankLabel(b)}
                     </MenuItem>
                   ))}
@@ -288,6 +295,7 @@ export default function PaymentModal({
             setMethod('')
             setEntity('')
             setBankCode('')
+            setSelectedBank(null)
             setAccountId('')
             setIdentifier('')
             setRefNumber('')

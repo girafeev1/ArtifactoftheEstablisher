@@ -94,6 +94,7 @@ export default function PaymentDetail({
   const [entityVal, setEntityVal] = useState(payment.entity || '')
   const [refVal, setRefVal] = useState(payment.refNumber || '')
   const [bankCodeVal, setBankCodeVal] = useState(payment.bankCode || '')
+  const [selectedBank, setSelectedBank] = useState<BankInfo | null>(null)
   const [accountIdVal, setAccountIdVal] = useState(payment.accountDocId || '')
   const [banks, setBanks] = useState<BankInfo[]>([])
   const [accounts, setAccounts] = useState<AccountInfo[]>([])
@@ -117,7 +118,8 @@ export default function PaymentDetail({
   const minDue = React.useMemo(() => minUnpaidRate(bill?.rows || []), [bill])
   const isErl =
     entityVal === 'Music Establish (ERL)' || entityVal === 'ME-ERL'
-  const bankMsg = "Bank directory unavailable or missing 'code' on bank docs"
+  const bankMsg =
+    'Bank directory unavailable (check rules on the erl-directory database).'
   const [bankError, setBankError] = useState<string | null>(null)
   const { enqueueSnackbar } = useSnackbar()
   useEffect(() => {
@@ -125,6 +127,8 @@ export default function PaymentDetail({
       listBanks()
         .then((b) => {
           setBanks(b)
+          const match = b.find((bk) => bk.bankCode === bankCodeVal)
+          if (match) setSelectedBank(match)
           if (b.length === 0) {
             setBankError(bankMsg)
             enqueueSnackbar(bankMsg, { variant: 'error' })
@@ -138,24 +142,26 @@ export default function PaymentDetail({
           enqueueSnackbar(bankMsg, { variant: 'error' })
         })
     }
-  }, [isErl, banks.length])
+  }, [isErl, banks.length, bankCodeVal])
   useEffect(() => {
     if (!isErl) {
       setBankCodeVal('')
+      setSelectedBank(null)
       setAccountIdVal('')
       setBankError(null)
     }
   }, [isErl])
   useEffect(() => {
-    if (isErl && bankCodeVal) {
-      listAccounts(bankCodeVal)
+    if (isErl && selectedBank) {
+      listAccounts(selectedBank)
         .then((a) => setAccounts(a))
         .catch(() => setAccounts([]))
+      setBankCodeVal(selectedBank.bankCode)
     } else {
       setAccounts([])
       setAccountIdVal('')
     }
-  }, [isErl, bankCodeVal])
+  }, [isErl, selectedBank])
 
 
   const assignedSet = new Set(assignedSessionIds)
@@ -503,15 +509,23 @@ export default function PaymentDetail({
                     <TextField
                       select
                       size="small"
-                      value={bankCodeVal}
-                      onChange={(e) => setBankCodeVal(e.target.value)}
+                      value={selectedBank ? selectedBank.bankCode : ''}
+                      onChange={(e) => {
+                        const b = banks.find(
+                          (bk) => bk.bankCode === e.target.value,
+                        )
+                        setSelectedBank(b || null)
+                      }}
                       inputProps={{
                         'data-testid': 'detail-bank-select',
                         style: { fontFamily: 'Newsreader', fontWeight: 500 },
                       }}
                     >
                       {banks.map((b) => (
-                        <MenuItem key={b.bankCode} value={b.bankCode}>
+                        <MenuItem
+                          key={`${b.bankName}-${b.bankCode}`}
+                          value={b.bankCode}
+                        >
                           {buildBankLabel(b)}
                         </MenuItem>
                       ))}
@@ -557,7 +571,9 @@ export default function PaymentDetail({
                   label: 'Bank',
                   value: buildBankLabel({
                     bankCode: payment.bankCode,
-                    bankName: banks.find((b) => b.bankCode === payment.bankCode)?.bankName,
+                    bankName:
+                      banks.find((b) => b.bankCode === payment.bankCode)?.bankName || '',
+                    rawCodeSegment: '',
                   }),
                 })
                 fields.push({
