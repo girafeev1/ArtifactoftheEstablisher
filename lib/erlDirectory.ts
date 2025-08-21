@@ -48,7 +48,9 @@ export async function listBanks(): Promise<BankInfo[]> {
     if (banks.length) return banks
     throw new Error('empty banks collection')
   } catch (e) {
-    console.warn('preferred bank directory failed', e)
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('preferred bank directory failed', e)
+    }
     const snap = await getDocs(collection(dbDirectory, 'bankAccount'))
     const banks: BankInfo[] = []
     snap.docs.forEach((d) => {
@@ -75,7 +77,9 @@ export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
       res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
     })
   } catch (e) {
-    console.warn('preferred accounts failed', e)
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('preferred accounts failed', e)
+    }
   }
   try {
     const snap = await getDocs(
@@ -90,12 +94,14 @@ export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
       if (!res[d.id]) res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
     })
   } catch (e) {
-    console.warn('legacy accounts failed', e)
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('legacy accounts failed', e)
+    }
   }
   return Object.values(res)
 }
 
 export function buildBankLabel(b: BankInfo): string {
-  if (b.bankName && b.bankCode) return `${b.bankName} ${b.bankCode}`
+  if (b.bankName && b.bankCode) return `${b.bankName} (${b.bankCode})`
   return b.bankCode
 }

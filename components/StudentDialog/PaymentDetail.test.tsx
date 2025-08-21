@@ -36,7 +36,7 @@ jest.mock('../../lib/erlDirectory', () => ({
   listAccounts: jest
     .fn()
     .mockResolvedValue([{ accountDocId: 'A1', accountType: 'Savings' }]),
-  buildBankLabel: (b: any) => `${b.bankName || ''} ${b.bankCode}`.trim(),
+  buildBankLabel: (b: any) => `${b.bankName || ''} (${b.bankCode})`.trim(),
 }))
 
 describe('PaymentDetail', () => {
