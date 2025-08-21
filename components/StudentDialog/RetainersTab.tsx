@@ -15,7 +15,7 @@ import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { RetainerDoc, getRetainerStatus, RetainerStatusColor } from '../../lib/retainer'
 import RetainerModal from './RetainerModal'
-import { WriteIcon } from './icons'
+import { CreateIcon } from './icons'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
 import IconButton from '@mui/material/IconButton'
@@ -113,10 +113,10 @@ export default function RetainersTab({
           >
             Retainers
           </Typography>
-          <Tooltip title="Add Retainer">
+          <Tooltip title="Create Retainer">
             <IconButton
               color="primary"
-              aria-label="Add Retainer"
+              aria-label="Create Retainer"
               onClick={() =>
                 setModal({
                   open: true,
@@ -126,7 +126,7 @@ export default function RetainersTab({
                 })
               }
             >
-              <WriteIcon fontSize="small" />
+              <CreateIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>

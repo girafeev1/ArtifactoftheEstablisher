@@ -13,7 +13,7 @@ import {
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
-import { WriteIcon } from './icons'
+import { CreateIcon } from './icons'
 import VoucherModal from './VoucherModal'
 
 const formatDate = (v: any) => {
@@ -78,9 +78,9 @@ export default function VouchersTab({ abbr, account }: { abbr: string; account: 
         >
           Session Vouchers
         </Typography>
-        <Tooltip title="Add Voucher">
+        <Tooltip title="Create Voucher">
           <IconButton color="primary" onClick={() => setModalOpen(true)}>
-            <WriteIcon fontSize="small" />
+            <CreateIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       </Box>
