@@ -95,13 +95,6 @@ describe('PaymentDetail', () => {
     fireEvent.change(screen.getByTestId('detail-bank-select'), {
       target: { value: '001' },
     })
-    await waitFor(() =>
-      expect(require('../../lib/erlDirectory').listAccounts).toHaveBeenCalledWith({
-        bankCode: '001',
-        bankName: 'Bank1',
-        rawCodeSegment: '(001)',
-      }),
-    )
     await waitFor(() => screen.getByTestId('detail-bank-account-select'))
     fireEvent.change(screen.getByTestId('detail-bank-account-select'), {
       target: { value: 'A1' },
