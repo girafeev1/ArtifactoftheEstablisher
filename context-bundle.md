@@ -1,7 +1,7 @@
-# PR #239 — Diff Summary
+# PR #242 — Diff Summary
 
-- **Base (target)**: `8d50046ab297e5ab96c9c27774f299917a3a2503`
-- **Head (source)**: `20a9f99ce178b4fa8005ba206a888e560c2317c3`
+- **Base (target)**: `a2c9af8091631737b8a15a9f15ed29f3f058d195`
+- **Head (source)**: `f14f3a51604bc82d6c98c104748f38cd62875ba0`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -9,1314 +9,1128 @@
 ```txt
 M	components/StudentDialog/PaymentDetail.test.tsx
 M	components/StudentDialog/PaymentDetail.tsx
-A	components/StudentDialog/PaymentHistory.test.tsx
 M	components/StudentDialog/PaymentHistory.tsx
 M	components/StudentDialog/PaymentModal.test.tsx
 M	components/StudentDialog/PaymentModal.tsx
-M	cypress/e2e/add_payment_cascade.cy.tsx
-A	lib/columnPrefs.ts
 M	lib/erlDirectory.test.ts
 M	lib/erlDirectory.ts
-M	lib/paths.ts
-M	pages/dashboard/businesses/coaching-sessions.tsx
+A	lib/payments/submit.test.ts
+A	lib/payments/submit.ts
+A	prompts/p-028-02r.md
 M	styles/studentDialog.css
 ```
 
 ## Stats
 
 ```txt
- components/StudentDialog/PaymentDetail.test.tsx  |   2 +-
- components/StudentDialog/PaymentDetail.tsx       |   6 +
- components/StudentDialog/PaymentHistory.test.tsx |  66 ++
- components/StudentDialog/PaymentHistory.tsx      | 751 +++++++++++++----------
- components/StudentDialog/PaymentModal.test.tsx   |   2 +-
- components/StudentDialog/PaymentModal.tsx        |   6 +
- cypress/e2e/add_payment_cascade.cy.tsx           |   6 +-
- lib/columnPrefs.ts                               |  25 +
- lib/erlDirectory.test.ts                         | 144 +----
- lib/erlDirectory.ts                              |  14 +-
- lib/paths.ts                                     |   7 +-
- pages/dashboard/businesses/coaching-sessions.tsx |   6 +-
- styles/studentDialog.css                         |   4 +-
- 13 files changed, 559 insertions(+), 480 deletions(-)
+ components/StudentDialog/PaymentDetail.test.tsx |  46 ++-
+ components/StudentDialog/PaymentDetail.tsx      | 468 +++++++++++++-----------
+ components/StudentDialog/PaymentHistory.tsx     |  32 +-
+ components/StudentDialog/PaymentModal.test.tsx  |  11 +-
+ components/StudentDialog/PaymentModal.tsx       |  30 +-
+ lib/erlDirectory.test.ts                        |  36 +-
+ lib/erlDirectory.ts                             |  84 +++--
+ lib/payments/submit.test.ts                     |  22 ++
+ lib/payments/submit.ts                          |  13 +
+ prompts/p-028-02r.md                            |   1 +
+ styles/studentDialog.css                        |   2 +-
+ 11 files changed, 424 insertions(+), 321 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
 
 ```diff
 diff --git a/components/StudentDialog/PaymentDetail.test.tsx b/components/StudentDialog/PaymentDetail.test.tsx
-index 1dd6aa0..52a9655 100644
+index 52a9655..d9aa04e 100644
 --- a/components/StudentDialog/PaymentDetail.test.tsx
 +++ b/components/StudentDialog/PaymentDetail.test.tsx
-@@ -36,7 +36,7 @@ jest.mock('../../lib/erlDirectory', () => ({
-   listAccounts: jest
+@@ -29,6 +29,7 @@ jest.mock('firebase/firestore', () => ({
+   collection: jest.fn(),
+   Timestamp: { now: () => ({ seconds: 0 }) },
+   deleteField: () => 'DELETED',
++  getDoc: jest.fn(() => Promise.resolve({ data: () => ({ firstName: 'First', lastName: 'Last' }) })),
+ }))
+ jest.mock('../../lib/erlDirectory', () => ({
+   listBanks: () =>
+@@ -37,6 +38,14 @@ jest.mock('../../lib/erlDirectory', () => ({
      .fn()
      .mockResolvedValue([{ accountDocId: 'A1', accountType: 'Savings' }]),
--  buildBankLabel: (b: any) => `${b.bankName || ''} ${b.bankCode}`.trim(),
-+  buildBankLabel: (b: any) => `${b.bankName || ''} (${b.bankCode})`.trim(),
+   buildBankLabel: (b: any) => `${b.bankName || ''} (${b.bankCode})`.trim(),
++  lookupAccount: jest.fn(() =>
++    Promise.resolve({
++      bankName: 'Bank1',
++      bankCode: '001',
++      accountType: 'Savings',
++      accountNumber: '1234',
++    }),
++  ),
  }))
  
  describe('PaymentDetail', () => {
-diff --git a/components/StudentDialog/PaymentDetail.tsx b/components/StudentDialog/PaymentDetail.tsx
-index ea043f6..a582681 100644
---- a/components/StudentDialog/PaymentDetail.tsx
-+++ b/components/StudentDialog/PaymentDetail.tsx
-@@ -163,6 +163,12 @@ export default function PaymentDetail({
-     }
-   }, [isErl, selectedBank])
- 
-+  useEffect(() => {
-+    if (accountIdVal && process.env.NODE_ENV !== 'production') {
-+      console.debug('[edit-payment] account selected', accountIdVal)
-+    }
-+  }, [accountIdVal])
-+
- 
-   const assignedSet = new Set(assignedSessionIds)
-   const allRows = bill
-diff --git a/components/StudentDialog/PaymentHistory.test.tsx b/components/StudentDialog/PaymentHistory.test.tsx
-new file mode 100644
-index 0000000..e850e7a
---- /dev/null
-+++ b/components/StudentDialog/PaymentHistory.test.tsx
-@@ -0,0 +1,66 @@
-+/**
-+ * @jest-environment jsdom
-+ */
-+import React from 'react'
-+import '@testing-library/jest-dom'
-+import { render, screen, waitFor } from '@testing-library/react'
-+import PaymentHistory from './PaymentHistory'
-+
-+jest.mock('./PaymentModal', () => () => <div />)
-+
-+jest.mock('firebase/firestore', () => ({
-+  collection: jest.fn(),
-+  orderBy: jest.fn(),
-+  query: jest.fn(),
-+  onSnapshot: (q: any, next: any) => {
-+    next({ docs: [] })
-+    return jest.fn()
-+  },
-+  initializeFirestore: jest.fn(),
-+  getFirestore: jest.fn(),
-+}))
-+
-+jest.mock('../../lib/firebase', () => ({ db: {} }))
-+jest.mock('../../lib/billing/useBilling', () => ({ useBilling: () => ({}) }))
-+jest.mock('next-auth/react', () => ({
-+  useSession: () => ({ data: { user: { email: 'tester@example.com' } } }),
-+}))
-+jest.mock('../../lib/paths', () => ({ PATHS: { payments: () => 'p' }, logPath: jest.fn() }))
-+jest.mock('../../lib/useColumnWidths', () => ({
-+  useColumnWidths: () => ({
-+    widths: {
-+      paymentMade: 140,
-+      amount: 130,
-+      method: 120,
-+      entity: 160,
-+      identifier: 160,
-+      refNumber: 160,
-+      session: 180,
-+    },
-+    startResize: jest.fn(),
-+    dblClickResize: jest.fn(),
-+    keyResize: jest.fn(),
-+  }),
-+}))
-+
-+test('shows default columns', async () => {
-+  window.localStorage.clear()
-+  render(
-+    <PaymentHistory
-+      abbr="A"
-+      account="B"
-+      active
-+      onTitleChange={() => {}}
-+    />,
-+  )
-+  await waitFor(() =>
-+    expect(screen.getByText('No payments recorded.')).toBeInTheDocument(),
-+  )
-+  expect(screen.getByText('Date')).toBeInTheDocument()
-+  expect(screen.getByText('Amount')).toBeInTheDocument()
-+  expect(screen.getByText('For Session(s)')).toBeInTheDocument()
-+  expect(screen.queryByText('Method')).not.toBeInTheDocument()
-+  expect(screen.queryByText('Entity')).not.toBeInTheDocument()
-+  expect(screen.queryByText('Bank Account')).not.toBeInTheDocument()
-+  expect(screen.queryByText('Reference #')).not.toBeInTheDocument()
-+})
-diff --git a/components/StudentDialog/PaymentHistory.tsx b/components/StudentDialog/PaymentHistory.tsx
-index 8d2993f..fdd95d5 100644
---- a/components/StudentDialog/PaymentHistory.tsx
-+++ b/components/StudentDialog/PaymentHistory.tsx
-@@ -10,6 +10,10 @@ import {
-   Typography,
-   TableSortLabel,
-   Button,
-+  Popover,
-+  Checkbox,
-+  FormGroup,
-+  FormControlLabel,
- } from '@mui/material'
- import { collection, orderBy, query, onSnapshot } from 'firebase/firestore'
- import { db } from '../../lib/firebase'
-@@ -25,6 +29,8 @@ import { useSession } from 'next-auth/react'
- import { useColumnWidths } from '../../lib/useColumnWidths'
- import Tooltip from '@mui/material/Tooltip'
- import IconButton from '@mui/material/IconButton'
-+import FilterListIcon from '@mui/icons-material/FilterList'
-+import { readColumnPrefs, writeColumnPrefs } from '../../lib/columnPrefs'
- 
- const formatCurrency = (n: number) =>
-   new Intl.NumberFormat(undefined, {
-@@ -78,6 +84,23 @@ export default function PaymentHistory({
-     { key: 'refNumber', label: 'Reference #', width: 160 },
-     { key: 'session', label: 'For Session(s)', width: 180 },
-   ] as const
-+  const defaultVisible = columns.reduce((acc, c) => {
-+    acc[c.key] = ['paymentMade', 'amount', 'session'].includes(c.key)
-+    return acc
-+  }, {} as Record<string, boolean>)
-+  const prefsKey = `pms:ph:cols:${userEmail}`
-+  const [visible, setVisible] = useState<Record<string, boolean>>(() =>
-+    readColumnPrefs(prefsKey, defaultVisible),
-+  )
-+  useEffect(() => {
-+    setVisible(readColumnPrefs(prefsKey, defaultVisible))
-+  }, [prefsKey])
-+  const toggleCol = (k: string) => {
-+    const next = { ...visible, [k]: !visible[k] }
-+    setVisible(next)
-+    writeColumnPrefs(prefsKey, next)
-+  }
-+  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null)
-   const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
-     'payments',
-     columns,
-@@ -130,6 +153,11 @@ export default function PaymentHistory({
-     return sortAsc ? av - bv : bv - av
+@@ -75,7 +84,7 @@ describe('PaymentDetail', () => {
+     expect(blinkEls[0]).toBe(screen.getByTestId('remaining-amount'))
    })
  
-+  const visibleCount = columns.reduce(
-+    (acc, c) => acc + (visible[c.key] ? 1 : 0),
-+    0,
-+  )
-+
-   if (detail)
-     return (
-       <Box sx={{ height: '100%' }}>
-@@ -150,23 +178,58 @@ export default function PaymentHistory({
-           <CircularProgress />
-         ) : (
-           <>
--            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-+            <Box
-+              sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}
-+            >
-               <Typography
-                 variant="subtitle1"
-                 sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-               >
-                 Payment History
-               </Typography>
--              <Tooltip title="Add Payment">
--                <IconButton
--                  color="primary"
--                  onClick={() => setModalOpen(true)}
--                  aria-label="Add Payment"
--                >
--                  <WriteIcon fontSize="small" />
--                </IconButton>
--              </Tooltip>
-+              <Box>
-+                <Tooltip title="Filter Columns">
-+                  <IconButton
-+                    aria-label="Filter Columns"
-+                    data-testid="filter-columns"
-+                    onClick={(e) => setFilterAnchor(e.currentTarget)}
-+                    sx={{ mr: 1 }}
-+                  >
-+                    <FilterListIcon fontSize="small" />
-+                  </IconButton>
-+                </Tooltip>
-+                <Tooltip title="Add Payment">
-+                  <IconButton
-+                    color="primary"
-+                    onClick={() => setModalOpen(true)}
-+                    aria-label="Add Payment"
-+                  >
-+                    <WriteIcon fontSize="small" />
-+                  </IconButton>
-+                </Tooltip>
-+              </Box>
-             </Box>
-+            <Popover
-+              open={Boolean(filterAnchor)}
-+              anchorEl={filterAnchor}
-+              onClose={() => setFilterAnchor(null)}
-+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-+            >
-+              <FormGroup sx={{ p: 2 }}>
-+                {columns.map((c) => (
-+                  <FormControlLabel
-+                    key={c.key}
-+                    control={
-+                      <Checkbox
-+                        checked={visible[c.key]}
-+                        onChange={() => toggleCol(c.key)}
-+                      />
-+                    }
-+                    label={c.label}
-+                  />
-+                ))}
-+              </FormGroup>
-+            </Popover>
-             <Table
-               ref={tableRef}
-               size="small"
-@@ -186,242 +249,256 @@ export default function PaymentHistory({
-                 },
-               }}
-             >
--              <TableHead>
--                <TableRow>
--                <TableCell
--                  data-col="paymentMade"
--                  data-col-header
--                  title="Date"
--                  sx={{
--                    fontFamily: 'Cantata One',
--                    fontWeight: 'bold',
--                    position: 'relative',
--                    width: widths['paymentMade'],
--                    whiteSpace: 'nowrap',
--                    overflow: 'hidden',
--                    textOverflow: 'ellipsis',
--                  }}
--                >
--                  <TableSortLabel
--                    active={sortField === 'paymentMade'}
--                    direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
--                    onClick={() => {
--                      if (sortField === 'paymentMade') setSortAsc((s) => !s)
--                      else {
--                        setSortField('paymentMade')
--                        setSortAsc(false)
--                      }
-+            <TableHead>
-+              <TableRow>
-+                {visible['paymentMade'] && (
-+                  <TableCell
-+                    data-col="paymentMade"
-+                    data-col-header
-+                    title="Date"
-+                    sx={{
-+                      fontFamily: 'Cantata One',
-+                      fontWeight: 'bold',
-+                      position: 'relative',
-+                      width: widths['paymentMade'],
-+                      whiteSpace: 'nowrap',
-+                      overflow: 'hidden',
-+                      textOverflow: 'ellipsis',
-                     }}
-                   >
--                    Date
--                  </TableSortLabel>
--                  <Box
--                    className="col-resizer"
--                    aria-label="Resize column Payment Date"
--                    role="separator"
--                    tabIndex={0}
--                    onMouseDown={(e) => startResize('paymentMade', e)}
--                    onDoubleClick={() =>
--                      dblClickResize('paymentMade', tableRef.current || undefined)
--                    }
--                    onKeyDown={(e) => {
--                      if (e.key === 'ArrowLeft') keyResize('paymentMade', 'left')
--                      if (e.key === 'ArrowRight') keyResize('paymentMade', 'right')
--                    }}
--                  />
--                </TableCell>
--                <TableCell
--                  data-col="amount"
--                  data-col-header
--                  title="Amount"
--                  sx={{
--                    fontFamily: 'Cantata One',
--                    fontWeight: 'bold',
--                    position: 'relative',
--                    width: widths['amount'],
--                    whiteSpace: 'nowrap',
--                    overflow: 'hidden',
--                    textOverflow: 'ellipsis',
--                  }}
--                >
--                  <TableSortLabel
--                    active={sortField === 'amount'}
--                    direction={sortField === 'amount' && sortAsc ? 'asc' : 'desc'}
--                    onClick={() => {
--                      if (sortField === 'amount') setSortAsc((s) => !s)
--                      else {
--                        setSortField('amount')
--                        setSortAsc(false)
-+                    <TableSortLabel
-+                      active={sortField === 'paymentMade'}
-+                      direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
-+                      onClick={() => {
-+                        if (sortField === 'paymentMade') setSortAsc((s) => !s)
-+                        else {
-+                          setSortField('paymentMade')
-+                          setSortAsc(false)
-+                        }
-+                      }}
-+                    >
-+                      Date
-+                    </TableSortLabel>
-+                    <Box
-+                      className="col-resizer"
-+                      aria-label="Resize column Payment Date"
-+                      role="separator"
-+                      tabIndex={0}
-+                      onMouseDown={(e) => startResize('paymentMade', e)}
-+                      onDoubleClick={() =>
-+                        dblClickResize('paymentMade', tableRef.current || undefined)
-                       }
-+                      onKeyDown={(e) => {
-+                        if (e.key === 'ArrowLeft') keyResize('paymentMade', 'left')
-+                        if (e.key === 'ArrowRight') keyResize('paymentMade', 'right')
-+                      }}
-+                    />
-+                  </TableCell>
-+                )}
-+                {visible['amount'] && (
-+                  <TableCell
-+                    data-col="amount"
-+                    data-col-header
-+                    title="Amount"
-+                    sx={{
-+                      fontFamily: 'Cantata One',
-+                      fontWeight: 'bold',
-+                      position: 'relative',
-+                      width: widths['amount'],
-+                      whiteSpace: 'nowrap',
-+                      overflow: 'hidden',
-+                      textOverflow: 'ellipsis',
-                     }}
-                   >
--                    Amount
--                  </TableSortLabel>
--                  <Box
--                    className="col-resizer"
--                    aria-label="Resize column Amount"
--                    role="separator"
--                    tabIndex={0}
--                    onMouseDown={(e) => startResize('amount', e)}
--                    onDoubleClick={() =>
--                      dblClickResize('amount', tableRef.current || undefined)
--                    }
--                    onKeyDown={(e) => {
--                      if (e.key === 'ArrowLeft') keyResize('amount', 'left')
--                      if (e.key === 'ArrowRight') keyResize('amount', 'right')
--                    }}
--                  />
--                </TableCell>
--                <TableCell
--                  data-col="method"
--                  data-col-header
--                  title="Method"
--                  sx={{
--                    fontFamily: 'Cantata One',
--                    fontWeight: 'bold',
--                    position: 'relative',
--                    width: widths['method'],
--                    whiteSpace: 'nowrap',
--                    overflow: 'hidden',
--                    textOverflow: 'ellipsis',
--                  }}
--                >
--                  Method
--                  <Box
--                    className="col-resizer"
--                    aria-label="Resize column Method"
--                    role="separator"
--                    tabIndex={0}
--                    onMouseDown={(e) => startResize('method', e)}
--                    onDoubleClick={() =>
--                      dblClickResize('method', tableRef.current || undefined)
--                    }
--                    onKeyDown={(e) => {
--                      if (e.key === 'ArrowLeft') keyResize('method', 'left')
--                      if (e.key === 'ArrowRight') keyResize('method', 'right')
-+                    <TableSortLabel
-+                      active={sortField === 'amount'}
-+                      direction={sortField === 'amount' && sortAsc ? 'asc' : 'desc'}
-+                      onClick={() => {
-+                        if (sortField === 'amount') setSortAsc((s) => !s)
-+                        else {
-+                          setSortField('amount')
-+                          setSortAsc(false)
-+                        }
-+                      }}
-+                    >
-+                      Amount
-+                    </TableSortLabel>
-+                    <Box
-+                      className="col-resizer"
-+                      aria-label="Resize column Amount"
-+                      role="separator"
-+                      tabIndex={0}
-+                      onMouseDown={(e) => startResize('amount', e)}
-+                      onDoubleClick={() =>
-+                        dblClickResize('amount', tableRef.current || undefined)
-+                      }
-+                      onKeyDown={(e) => {
-+                        if (e.key === 'ArrowLeft') keyResize('amount', 'left')
-+                        if (e.key === 'ArrowRight') keyResize('amount', 'right')
-+                      }}
-+                    />
-+                  </TableCell>
-+                )}
-+                {visible['method'] && (
-+                  <TableCell
-+                    data-col="method"
-+                    data-col-header
-+                    title="Method"
-+                    sx={{
-+                      fontFamily: 'Cantata One',
-+                      fontWeight: 'bold',
-+                      position: 'relative',
-+                      width: widths['method'],
-+                      whiteSpace: 'nowrap',
-+                      overflow: 'hidden',
-+                      textOverflow: 'ellipsis',
-                     }}
--                  />
--                </TableCell>
--                <TableCell
--                  data-col="entity"
--                  data-col-header
--                  title="Entity"
--                  sx={{
--                    fontFamily: 'Cantata One',
--                    fontWeight: 'bold',
--                    position: 'relative',
--                    width: widths['entity'],
--                    whiteSpace: 'nowrap',
--                    overflow: 'hidden',
--                    textOverflow: 'ellipsis',
--                  }}
--                >
--                  Entity
--                  <Box
--                    className="col-resizer"
--                    aria-label="Resize column Entity"
--                    role="separator"
--                    tabIndex={0}
--                    onMouseDown={(e) => startResize('entity', e)}
--                    onDoubleClick={() =>
--                      dblClickResize('entity', tableRef.current || undefined)
--                    }
--                    onKeyDown={(e) => {
--                      if (e.key === 'ArrowLeft') keyResize('entity', 'left')
--                      if (e.key === 'ArrowRight') keyResize('entity', 'right')
-+                  >
-+                    Method
-+                    <Box
-+                      className="col-resizer"
-+                      aria-label="Resize column Method"
-+                      role="separator"
-+                      tabIndex={0}
-+                      onMouseDown={(e) => startResize('method', e)}
-+                      onDoubleClick={() =>
-+                        dblClickResize('method', tableRef.current || undefined)
-+                      }
-+                      onKeyDown={(e) => {
-+                        if (e.key === 'ArrowLeft') keyResize('method', 'left')
-+                        if (e.key === 'ArrowRight') keyResize('method', 'right')
-+                      }}
-+                    />
-+                  </TableCell>
-+                )}
-+                {visible['entity'] && (
-+                  <TableCell
-+                    data-col="entity"
-+                    data-col-header
-+                    title="Entity"
-+                    sx={{
-+                      fontFamily: 'Cantata One',
-+                      fontWeight: 'bold',
-+                      position: 'relative',
-+                      width: widths['entity'],
-+                      whiteSpace: 'nowrap',
-+                      overflow: 'hidden',
-+                      textOverflow: 'ellipsis',
-                     }}
--                  />
--                </TableCell>
--                <TableCell
--                  data-col="identifier"
--                  data-col-header
--                  title="Bank Account"
--                  sx={{
--                    fontFamily: 'Cantata One',
--                    fontWeight: 'bold',
--                    position: 'relative',
--                    width: widths['identifier'],
--                    whiteSpace: 'nowrap',
--                    overflow: 'hidden',
--                    textOverflow: 'ellipsis',
--                  }}
--                >
--                  Bank Account
--                  <Box
--                    className="col-resizer"
--                    aria-label="Resize column Bank Account"
--                    role="separator"
--                    tabIndex={0}
--                    onMouseDown={(e) => startResize('identifier', e)}
--                    onDoubleClick={() =>
--                      dblClickResize('identifier', tableRef.current || undefined)
--                    }
--                    onKeyDown={(e) => {
--                      if (e.key === 'ArrowLeft') keyResize('identifier', 'left')
--                      if (e.key === 'ArrowRight') keyResize('identifier', 'right')
-+                  >
-+                    Entity
-+                    <Box
-+                      className="col-resizer"
-+                      aria-label="Resize column Entity"
-+                      role="separator"
-+                      tabIndex={0}
-+                      onMouseDown={(e) => startResize('entity', e)}
-+                      onDoubleClick={() =>
-+                        dblClickResize('entity', tableRef.current || undefined)
-+                      }
-+                      onKeyDown={(e) => {
-+                        if (e.key === 'ArrowLeft') keyResize('entity', 'left')
-+                        if (e.key === 'ArrowRight') keyResize('entity', 'right')
-+                      }}
-+                    />
-+                  </TableCell>
-+                )}
-+                {visible['identifier'] && (
-+                  <TableCell
-+                    data-col="identifier"
-+                    data-col-header
-+                    title="Bank Account"
-+                    sx={{
-+                      fontFamily: 'Cantata One',
-+                      fontWeight: 'bold',
-+                      position: 'relative',
-+                      width: widths['identifier'],
-+                      whiteSpace: 'nowrap',
-+                      overflow: 'hidden',
-+                      textOverflow: 'ellipsis',
-                     }}
--                  />
--                </TableCell>
--                <TableCell
--                  data-col="refNumber"
--                  data-col-header
--                  title="Reference #"
--                  sx={{
--                    fontFamily: 'Cantata One',
--                    fontWeight: 'bold',
--                    position: 'relative',
--                    width: widths['refNumber'],
--                    whiteSpace: 'nowrap',
--                    overflow: 'hidden',
--                    textOverflow: 'ellipsis',
--                  }}
--                >
--                  Reference #
--                  <Box
--                    className="col-resizer"
--                    aria-label="Resize column Reference #"
--                    role="separator"
--                    tabIndex={0}
--                    onMouseDown={(e) => startResize('refNumber', e)}
--                    onDoubleClick={() =>
--                      dblClickResize('refNumber', tableRef.current || undefined)
--                    }
--                    onKeyDown={(e) => {
--                      if (e.key === 'ArrowLeft') keyResize('refNumber', 'left')
--                      if (e.key === 'ArrowRight') keyResize('refNumber', 'right')
-+                  >
-+                    Bank Account
-+                    <Box
-+                      className="col-resizer"
-+                      aria-label="Resize column Bank Account"
-+                      role="separator"
-+                      tabIndex={0}
-+                      onMouseDown={(e) => startResize('identifier', e)}
-+                      onDoubleClick={() =>
-+                        dblClickResize('identifier', tableRef.current || undefined)
-+                      }
-+                      onKeyDown={(e) => {
-+                        if (e.key === 'ArrowLeft') keyResize('identifier', 'left')
-+                        if (e.key === 'ArrowRight') keyResize('identifier', 'right')
-+                      }}
-+                    />
-+                  </TableCell>
-+                )}
-+                {visible['refNumber'] && (
-+                  <TableCell
-+                    data-col="refNumber"
-+                    data-col-header
-+                    title="Reference #"
-+                    sx={{
-+                      fontFamily: 'Cantata One',
-+                      fontWeight: 'bold',
-+                      position: 'relative',
-+                      width: widths['refNumber'],
-+                      whiteSpace: 'nowrap',
-+                      overflow: 'hidden',
-+                      textOverflow: 'ellipsis',
-                     }}
--                  />
--                </TableCell>
--                <TableCell
--                  data-col="session"
--                  data-col-header
--                  title="For Session(s)"
--                  sx={{
--                    fontFamily: 'Cantata One',
--                    fontWeight: 'bold',
--                    position: 'relative',
--                    width: widths['session'],
--                    whiteSpace: 'nowrap',
--                    overflow: 'hidden',
--                    textOverflow: 'ellipsis',
--                  }}
--                >
--                  For Session(s)
--                  <Box
--                    className="col-resizer"
--                    aria-label="Resize column For Session(s)"
--                    role="separator"
--                    tabIndex={0}
--                    onMouseDown={(e) => startResize('session', e)}
--                    onDoubleClick={() =>
--                      dblClickResize('session', tableRef.current || undefined)
--                    }
--                    onKeyDown={(e) => {
--                      if (e.key === 'ArrowLeft') keyResize('session', 'left')
--                      if (e.key === 'ArrowRight') keyResize('session', 'right')
-+                  >
-+                    Reference #
-+                    <Box
-+                      className="col-resizer"
-+                      aria-label="Resize column Reference #"
-+                      role="separator"
-+                      tabIndex={0}
-+                      onMouseDown={(e) => startResize('refNumber', e)}
-+                      onDoubleClick={() =>
-+                        dblClickResize('refNumber', tableRef.current || undefined)
-+                      }
-+                      onKeyDown={(e) => {
-+                        if (e.key === 'ArrowLeft') keyResize('refNumber', 'left')
-+                        if (e.key === 'ArrowRight') keyResize('refNumber', 'right')
-+                      }}
-+                    />
-+                  </TableCell>
-+                )}
-+                {visible['session'] && (
-+                  <TableCell
-+                    data-col="session"
-+                    data-col-header
-+                    title="For Session(s)"
-+                    sx={{
-+                      fontFamily: 'Cantata One',
-+                      fontWeight: 'bold',
-+                      position: 'relative',
-+                      width: widths['session'],
-+                      whiteSpace: 'nowrap',
-+                      overflow: 'hidden',
-+                      textOverflow: 'ellipsis',
-                     }}
--                  />
--                </TableCell>
-+                  >
-+                    For Session(s)
-+                    <Box
-+                      className="col-resizer"
-+                      aria-label="Resize column For Session(s)"
-+                      role="separator"
-+                      tabIndex={0}
-+                      onMouseDown={(e) => startResize('session', e)}
-+                      onDoubleClick={() =>
-+                        dblClickResize('session', tableRef.current || undefined)
-+                      }
-+                      onKeyDown={(e) => {
-+                        if (e.key === 'ArrowLeft') keyResize('session', 'left')
-+                        if (e.key === 'ArrowRight') keyResize('session', 'right')
-+                      }}
-+                    />
-+                  </TableCell>
-+                )}
-               </TableRow>
-             </TableHead>
-             <TableBody>
-@@ -431,7 +508,7 @@ export default function PaymentHistory({
-                   .map((id: string) => sessionMap[id])
-                   .filter((n): n is number => typeof n === 'number')
-                   .sort((a, b) => a - b)
--                const { visible, hiddenCount } = truncateList<number>(ords)
-+                const { visible: ordVisible, hiddenCount } = truncateList<number>(ords)
-                 return (
-                   <TableRow
-                     key={p.id}
-@@ -447,102 +524,122 @@ export default function PaymentHistory({
-                     }}
-                     sx={{ cursor: 'pointer', py: 1 }}
-                   >
--                    <TableCell
--                      data-col="paymentMade"
--                      title={formatDate(p.paymentMade)}
--                      sx={{
--                        fontFamily: 'Newsreader',
--                        fontWeight: 500,
--                        width: widths['paymentMade'],
--                        minWidth: widths['paymentMade'],
--                      }}
--                    >
--                      {formatDate(p.paymentMade)}
--                    </TableCell>
--                    <TableCell
--                      data-col="amount"
--                      title={formatCurrency(amount)}
--                      sx={{
--                        fontFamily: 'Newsreader',
--                        fontWeight: 500,
--                        width: widths['amount'],
--                        minWidth: widths['amount'],
--                      }}
--                    >
--                      {formatCurrency(amount)}
--                    </TableCell>
--                    <TableCell
--                      data-col="method"
--                      title={p.method || '—'}
--                      sx={{
--                        fontFamily: 'Newsreader',
--                        fontWeight: 500,
--                        width: widths['method'],
--                        minWidth: widths['method'],
--                      }}
--                    >
--                      {p.method || '—'}
--                    </TableCell>
--                    <TableCell
--                      data-col="entity"
--                      title={p.entity ? (p.entity === 'ME-ERL' ? 'Music Establish (ERL)' : p.entity) : '—'}
--                      sx={{
--                        fontFamily: 'Newsreader',
--                        fontWeight: 500,
--                        width: widths['entity'],
--                        minWidth: widths['entity'],
--                      }}
--                    >
--                      {p.entity
--                        ? p.entity === 'ME-ERL'
--                          ? 'Music Establish (ERL)'
--                          : p.entity
--                        : '—'}
--                    </TableCell>
--                    <TableCell
--                      data-col="identifier"
--                      title={p.identifier || '—'}
--                      sx={{
--                        fontFamily: 'Newsreader',
--                        fontWeight: 500,
--                        width: widths['identifier'],
--                        minWidth: widths['identifier'],
--                      }}
--                    >
--                      {p.identifier || '—'}
--                    </TableCell>
--                    <TableCell
--                      data-col="refNumber"
--                      title={p.refNumber || '—'}
--                      sx={{
--                        fontFamily: 'Newsreader',
--                        fontWeight: 500,
--                        width: widths['refNumber'],
--                        minWidth: widths['refNumber'],
--                      }}
--                    >
--                      {p.refNumber || '—'}
--                    </TableCell>
--                    <TableCell
--                      data-col="session"
--                      title={formatSessions(ords)}
--                      sx={{
--                        fontFamily: 'Newsreader',
--                        fontWeight: 500,
--                        width: widths['session'],
--                        minWidth: widths['session'],
--                      }}
--                    >
--                      {formatSessions(visible)}
--                      {hiddenCount > 0 && ' …'}
--                    </TableCell>
-+                    {visible['paymentMade'] && (
-+                      <TableCell
-+                        data-col="paymentMade"
-+                        title={formatDate(p.paymentMade)}
-+                        sx={{
-+                          fontFamily: 'Newsreader',
-+                          fontWeight: 500,
-+                          width: widths['paymentMade'],
-+                          minWidth: widths['paymentMade'],
-+                        }}
-+                      >
-+                        {formatDate(p.paymentMade)}
-+                      </TableCell>
-+                    )}
-+                    {visible['amount'] && (
-+                      <TableCell
-+                        data-col="amount"
-+                        title={formatCurrency(amount)}
-+                        sx={{
-+                          fontFamily: 'Newsreader',
-+                          fontWeight: 500,
-+                          width: widths['amount'],
-+                          minWidth: widths['amount'],
-+                        }}
-+                      >
-+                        {formatCurrency(amount)}
-+                      </TableCell>
-+                    )}
-+                    {visible['method'] && (
-+                      <TableCell
-+                        data-col="method"
-+                        title={p.method || '—'}
-+                        sx={{
-+                          fontFamily: 'Newsreader',
-+                          fontWeight: 500,
-+                          width: widths['method'],
-+                          minWidth: widths['method'],
-+                        }}
-+                      >
-+                        {p.method || '—'}
-+                      </TableCell>
-+                    )}
-+                    {visible['entity'] && (
-+                      <TableCell
-+                        data-col="entity"
-+                        title={
-+                          p.entity
-+                            ? p.entity === 'ME-ERL'
-+                              ? 'Music Establish (ERL)'
-+                              : p.entity
-+                            : '—'
-+                        }
-+                        sx={{
-+                          fontFamily: 'Newsreader',
-+                          fontWeight: 500,
-+                          width: widths['entity'],
-+                          minWidth: widths['entity'],
-+                        }}
-+                      >
-+                        {p.entity
-+                          ? p.entity === 'ME-ERL'
-+                            ? 'Music Establish (ERL)'
-+                            : p.entity
-+                          : '—'}
-+                      </TableCell>
-+                    )}
-+                    {visible['identifier'] && (
-+                      <TableCell
-+                        data-col="identifier"
-+                        title={p.identifier || '—'}
-+                        sx={{
-+                          fontFamily: 'Newsreader',
-+                          fontWeight: 500,
-+                          width: widths['identifier'],
-+                          minWidth: widths['identifier'],
-+                        }}
-+                      >
-+                        {p.identifier || '—'}
-+                      </TableCell>
-+                    )}
-+                    {visible['refNumber'] && (
-+                      <TableCell
-+                        data-col="refNumber"
-+                        title={p.refNumber || '—'}
-+                        sx={{
-+                          fontFamily: 'Newsreader',
-+                          fontWeight: 500,
-+                          width: widths['refNumber'],
-+                          minWidth: widths['refNumber'],
-+                        }}
-+                      >
-+                        {p.refNumber || '—'}
-+                      </TableCell>
-+                    )}
-+                    {visible['session'] && (
-+                      <TableCell
-+                        data-col="session"
-+                        title={formatSessions(ords)}
-+                        sx={{
-+                          fontFamily: 'Newsreader',
-+                          fontWeight: 500,
-+                          width: widths['session'],
-+                          minWidth: widths['session'],
-+                        }}
-+                      >
-+                        {formatSessions(ordVisible)}
-+                        {hiddenCount > 0 && ' …'}
-+                      </TableCell>
-+                    )}
-                   </TableRow>
-                 )
-               })}
-               {sortedPayments.length === 0 && (
-                 <TableRow>
-                   <TableCell
--                    colSpan={7}
-+                    colSpan={visibleCount}
-                     sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                   >
-                     No payments recorded.
-diff --git a/components/StudentDialog/PaymentModal.test.tsx b/components/StudentDialog/PaymentModal.test.tsx
-index 236e81e..3bc7f17 100644
---- a/components/StudentDialog/PaymentModal.test.tsx
-+++ b/components/StudentDialog/PaymentModal.test.tsx
-@@ -16,7 +16,7 @@ jest.mock('../../lib/erlDirectory', () => ({
-   listAccounts: jest.fn().mockResolvedValue([
-     { accountDocId: 'a1', accountType: 'Savings' },
-   ]),
--  buildBankLabel: jest.fn((b) => `${b.bankName} ${b.bankCode}`),
-+  buildBankLabel: jest.fn((b) => `${b.bankName} (${b.bankCode})`),
- }))
- 
- jest.mock('firebase/firestore', () => ({
-diff --git a/components/StudentDialog/PaymentModal.tsx b/components/StudentDialog/PaymentModal.tsx
-index 98b4232..138e0cd 100644
---- a/components/StudentDialog/PaymentModal.tsx
-+++ b/components/StudentDialog/PaymentModal.tsx
-@@ -96,6 +96,12 @@ export default function PaymentModal({
-     setAccountId('')
-   }, [selectedBank])
- 
-+  useEffect(() => {
-+    if (accountId && process.env.NODE_ENV !== 'production') {
-+      console.debug('[add-payment] account selected', accountId)
-+    }
-+  }, [accountId])
-+
-   const save = async () => {
-     const paymentsPath = PATHS.payments(abbr)
-     logPath('addPayment', paymentsPath)
-diff --git a/cypress/e2e/add_payment_cascade.cy.tsx b/cypress/e2e/add_payment_cascade.cy.tsx
-index 8107ab6..83606c4 100644
---- a/cypress/e2e/add_payment_cascade.cy.tsx
-+++ b/cypress/e2e/add_payment_cascade.cy.tsx
-@@ -58,7 +58,7 @@ describe('Add Payment cascade', () => {
-     cy.contains('li', 'Music Establish (ERL)').click()
-     cy.get('[data-testid="bank-select"]').should('be.visible')
-     cy.get('[data-testid="bank-select"]').parent().click()
--    cy.contains('li', 'Bank 001').click()
-+    cy.contains('li', 'Bank (001)').click()
-     cy.get('[data-testid="bank-account-select"]').should('be.visible')
-   })
- 
-@@ -88,7 +88,7 @@ describe('Add Payment cascade', () => {
-     cy.get('[data-testid="entity-select"]').parent().click()
-     cy.contains('li', 'Music Establish (ERL)').click()
-     cy.get('[data-testid="bank-select"]').parent().click()
--    cy.contains('li', 'Bank 001').click()
-+    cy.contains('li', 'Bank (001)').click()
-     cy.get('[data-testid="bank-account-select"]').parent().click()
-     cy.contains('li', 'Savings').click()
-     cy.get('[data-testid="ref-input"]').type('123')
-@@ -135,7 +135,7 @@ describe('Add Payment cascade', () => {
-     cy.get('[data-testid="entity-select"]').parent().click()
-     cy.contains('li', 'Music Establish (ERL)').click()
-     cy.get('[data-testid="bank-select"]').parent().click()
--    cy.contains('li', 'Bank 001').click()
-+    cy.contains('li', 'Bank (001)').click()
-     cy.get('[data-testid="bank-account-select"]').parent().click()
-     cy.contains('li', 'Savings').click()
-     cy.get('[data-testid="entity-select"]').parent().click()
-diff --git a/lib/columnPrefs.ts b/lib/columnPrefs.ts
-new file mode 100644
-index 0000000..f5aa984
---- /dev/null
-+++ b/lib/columnPrefs.ts
-@@ -0,0 +1,25 @@
-+export function readColumnPrefs(
-+  key: string,
-+  defaults: Record<string, boolean>,
-+): Record<string, boolean> {
-+  if (typeof window === 'undefined') return { ...defaults }
-+  try {
-+    const raw = window.localStorage.getItem(key)
-+    if (raw) return { ...defaults, ...JSON.parse(raw) }
-+  } catch {
-+    // ignore
-+  }
-+  return { ...defaults }
-+}
-+
-+export function writeColumnPrefs(
-+  key: string,
-+  prefs: Record<string, boolean>,
-+): void {
-+  if (typeof window === 'undefined') return
-+  try {
-+    window.localStorage.setItem(key, JSON.stringify(prefs))
-+  } catch {
-+    // ignore
-+  }
-+}
-diff --git a/lib/erlDirectory.test.ts b/lib/erlDirectory.test.ts
-index 1d841d2..ab4b9ac 100644
---- a/lib/erlDirectory.test.ts
-+++ b/lib/erlDirectory.test.ts
-@@ -1,141 +1,7 @@
--import {
--  buildBankLabel,
--  listBanks,
--  listAccounts,
--  normalizeCode,
--} from './erlDirectory'
--import { collection, getDocs } from 'firebase/firestore'
-+import { normalizeCode, buildBankLabel } from './erlDirectory'
- 
--jest.mock('./firebase', () => ({ app: {} }))
--
--jest.mock('firebase/firestore', () => ({
--  getFirestore: jest.fn(() => ({})),
--  initializeFirestore: jest.fn(() => ({})),
--  collection: jest.fn((_: any, ...parts: string[]) => parts.join('/')),
--  getDocs: jest.fn(),
--}))
--
--describe('buildBankLabel', () => {
--  test('uses name and code when available', () => {
--    expect(
--      buildBankLabel({ bankName: 'HK Bank', bankCode: '012', rawCodeSegment: '(012)' }),
--    ).toBe('HK Bank 012')
--  })
--
--  test('falls back to code when name missing', () => {
--    expect(buildBankLabel({ bankCode: '012', bankName: '', rawCodeSegment: '(012)' })).toBe(
--      '012',
--    )
--  })
--})
--
--describe('normalizeCode', () => {
--  test('normalizes various inputs', () => {
--    expect(normalizeCode(40)).toEqual({ code: '040', raw: '(040)' })
--    expect(normalizeCode('040')).toEqual({ code: '040', raw: '(040)' })
--    expect(normalizeCode('(040)')).toEqual({ code: '040', raw: '(040)' })
--  })
--})
--
--describe('listBanks', () => {
--  beforeEach(() => {
--    ;(getDocs as jest.Mock).mockReset()
--    ;(collection as jest.Mock).mockClear()
--  })
--
--  test('returns banks collection when present', async () => {
--    ;(getDocs as jest.Mock).mockResolvedValueOnce({
--      docs: [{ id: '001', data: () => ({ name: 'Bank1' }) }],
--    })
--    const res = await listBanks()
--    expect(collection).toHaveBeenCalledWith(expect.anything(), 'banks')
--    expect(res).toEqual([
--      {
+-  it('allows editing empty metadata and saves', async () => {
++  it('allows editing empty metadata and saves identifier only', async () => {
+     const payment: any = { ...basePayment }
+     render(
+       <PaymentDetail
+@@ -95,13 +104,6 @@ describe('PaymentDetail', () => {
+     fireEvent.change(screen.getByTestId('detail-bank-select'), {
+       target: { value: '001' },
+     })
+-    await waitFor(() =>
+-      expect(require('../../lib/erlDirectory').listAccounts).toHaveBeenCalledWith({
 -        bankCode: '001',
 -        bankName: 'Bank1',
 -        rawCodeSegment: '(001)',
--      },
--    ])
--  })
--
--  test('falls back to bankAccount collection using code field', async () => {
--    ;(getDocs as jest.Mock)
--      .mockResolvedValueOnce({ docs: [] })
--      .mockResolvedValueOnce({
--        docs: [
--          { id: 'Dah Sing Bank', data: () => ({ code: [40, 12, 40] }) },
--        ],
--      })
--    const res = await listBanks()
--    expect(collection).toHaveBeenCalledWith(expect.anything(), 'bankAccount')
--    expect(res).toEqual([
--      { bankCode: '040', bankName: 'Dah Sing Bank', rawCodeSegment: '(040)' },
--      { bankCode: '012', bankName: 'Dah Sing Bank', rawCodeSegment: '(012)' },
--    ])
--  })
--})
--
--describe('listAccounts', () => {
--  beforeEach(() => {
--    ;(getDocs as jest.Mock).mockReset()
--    ;(collection as jest.Mock).mockClear()
--  })
--
--  test('returns accounts under banks/{code} when present', async () => {
--    ;(getDocs as jest.Mock)
--      .mockResolvedValueOnce({
--        docs: [{ id: 'a1', data: () => ({ accountType: 'chk' }) }],
--      })
--      .mockResolvedValueOnce({ docs: [] })
--    const res = await listAccounts({
--      bankCode: '001',
--      bankName: 'Bank',
--      rawCodeSegment: '(001)',
--    })
--    expect(collection).toHaveBeenNthCalledWith(
--      1,
--      expect.anything(),
--      'banks',
--      '001',
--      'accounts',
+-      }),
 -    )
--    expect(collection).toHaveBeenNthCalledWith(
--      2,
--      expect.anything(),
--      'bankAccount',
--      'Bank',
--      '(001)',
+     await waitFor(() => screen.getByTestId('detail-bank-account-select'))
+     fireEvent.change(screen.getByTestId('detail-bank-account-select'), {
+       target: { value: 'A1' },
+@@ -113,16 +115,32 @@ describe('PaymentDetail', () => {
+       expect(screen.getByTestId('detail-save')).not.toBeDisabled(),
+     )
+     fireEvent.click(screen.getByTestId('detail-save'))
+-    await waitFor(() =>
+-      expect(payment.entity).toBe('Music Establish (ERL)'),
 -    )
--    expect(res).toEqual([{ accountDocId: 'a1', accountType: 'chk' }])
--  })
--
--  test('merges legacy accounts when new schema empty', async () => {
--    ;(getDocs as jest.Mock)
--      .mockResolvedValueOnce({ docs: [] })
--      .mockResolvedValueOnce({
--        docs: [
--          { id: 'acc1', data: () => ({ accountType: 'sv' }) },
--        ],
--      })
--    const res = await listAccounts({
--      bankCode: '040',
--      bankName: 'DSB',
--      rawCodeSegment: '(040)',
--    })
--    expect(collection).toHaveBeenNthCalledWith(
--      1,
--      expect.anything(),
--      'banks',
--      '040',
--      'accounts',
--    )
--    expect(collection).toHaveBeenNthCalledWith(
--      2,
--      expect.anything(),
--      'bankAccount',
--      'DSB',
--      '(040)',
--    )
--    expect(res).toEqual([{ accountDocId: 'acc1', accountType: 'sv' }])
--  })
-+test('normalizeCode and buildBankLabel', () => {
-+  expect(normalizeCode(40)).toEqual({ code: '040', raw: '(040)' })
-+  expect(normalizeCode('040')).toEqual({ code: '040', raw: '(040)' })
-+  expect(buildBankLabel({ bankCode: '040', bankName: 'Bank', rawCodeSegment: '(040)' })).toBe('Bank (040)')
++    await waitFor(() => expect(payment.identifier).toBe('A1'))
+     expect(payment.method).toBe('FPS')
+-    expect(payment.bankCode).toBe('001')
+-    expect(payment.accountDocId).toBe('A1')
+-    expect(payment.identifier).toBe('001/A1')
++    expect(payment.bankCode).toBeUndefined()
++    expect(payment.accountDocId).toBeUndefined()
+     expect(payment.refNumber).toBe('REF1')
++    expect(payment.entity).toBeUndefined()
+     expect(screen.queryByTestId('detail-method-select')).toBeNull()
+     expect(screen.queryByTestId('detail-entity-select')).toBeNull()
++    expect(screen.getByTestId('payment-summary-block')).toBeInTheDocument()
++  })
++
++  it('renders summary block when identifier present', async () => {
++    const payment: any = { ...basePayment, identifier: 'A1', method: 'FPS', refNumber: 'R1' }
++    render(
++      <PaymentDetail
++        abbr="A"
++        account="acct"
++        payment={payment}
++        onBack={() => {}}
++      />,
++    )
++    await waitFor(() =>
++      expect(screen.getByTestId('payment-summary-block')).toBeInTheDocument(),
++    )
++    expect(screen.queryByTestId('detail-method-select')).toBeNull()
++    expect(screen.getByText(/Bank1 \(001\)/)).toBeInTheDocument()
+   })
  })
+ 
+diff --git a/components/StudentDialog/PaymentDetail.tsx b/components/StudentDialog/PaymentDetail.tsx
+index a582681..586cd54 100644
+--- a/components/StudentDialog/PaymentDetail.tsx
++++ b/components/StudentDialog/PaymentDetail.tsx
+@@ -22,6 +22,7 @@ import {
+   collection,
+   Timestamp,
+   deleteField,
++  getDoc,
+ } from 'firebase/firestore'
+ import { db } from '../../lib/firebase'
+ import { formatMMMDDYYYY } from '../../lib/date'
+@@ -32,7 +33,6 @@ import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
+ import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
+ import { formatSessions } from '../../lib/billing/formatSessions'
+ import { truncateList } from '../../lib/payments/truncate'
+-import { normalizeIdentifier } from '../../lib/payments/format'
+ import {
+   patchBillingAssignedSessions,
+   writeSummaryFromCache,
+@@ -47,6 +47,7 @@ import {
+   buildBankLabel,
+   BankInfo,
+   AccountInfo,
++  lookupAccount,
+ } from '../../lib/erlDirectory'
+ import { useSnackbar } from 'notistack'
+ 
+@@ -98,6 +99,19 @@ export default function PaymentDetail({
+   const [accountIdVal, setAccountIdVal] = useState(payment.accountDocId || '')
+   const [banks, setBanks] = useState<BankInfo[]>([])
+   const [accounts, setAccounts] = useState<AccountInfo[]>([])
++  const [studentName, setStudentName] = useState<{ first: string; last: string }>({
++    first: '',
++    last: '',
++  })
++  const [acctInfo, setAcctInfo] = useState<
++    | {
++        bankName: string
++        bankCode: string
++        accountType?: string
++        accountNumber?: string
++      }
++    | null
++  >(null)
+   const qc = useBillingClient()
+   const { data: bill } = useBilling(abbr, account)
+   const [retainers, setRetainers] = useState<any[]>([])
+@@ -162,13 +176,24 @@ export default function PaymentDetail({
+       setAccountIdVal('')
+     }
+   }, [isErl, selectedBank])
++  useEffect(() => {
++    getDoc(doc(db, PATHS.student(abbr)))
++      .then((snap) => {
++        const data = snap.data() as any
++        setStudentName({ first: data?.firstName || '', last: data?.lastName || '' })
++      })
++      .catch(() => setStudentName({ first: '', last: '' }))
++  }, [abbr])
+ 
+   useEffect(() => {
+-    if (accountIdVal && process.env.NODE_ENV !== 'production') {
+-      console.debug('[edit-payment] account selected', accountIdVal)
++    if (!payment.identifier) {
++      setAcctInfo(null)
++      return
+     }
+-  }, [accountIdVal])
+-
++    lookupAccount(payment.identifier)
++      .then((info) => setAcctInfo(info))
++      .catch(() => setAcctInfo(null))
++  }, [payment.identifier])
+ 
+   const assignedSet = new Set(assignedSessionIds)
+   const allRows = bill
+@@ -236,23 +261,13 @@ export default function PaymentDetail({
+     )
+   }
+ 
+-  const needsCascadeInitial =
+-    !payment.method ||
+-    !payment.entity ||
+-    ((payment.entity === 'Music Establish (ERL)' || payment.entity === 'ME-ERL') &&
+-      (!payment.bankCode || !payment.accountDocId))
+-  const [metaComplete, setMetaComplete] = useState(!needsCascadeInitial)
++  const [metaComplete, setMetaComplete] = useState(!!payment.identifier)
+   const needsCascade = !metaComplete
+ 
+   const needsMeta = needsCascade || !payment.refNumber
+ 
+   useEffect(() => {
+-    const init =
+-      !payment.method ||
+-      !payment.entity ||
+-      ((payment.entity === 'Music Establish (ERL)' || payment.entity === 'ME-ERL') &&
+-        (!payment.bankCode || !payment.accountDocId))
+-    setMetaComplete(!init)
++    setMetaComplete(!!payment.identifier)
+     setMethodVal(payment.method || '')
+     setEntityVal(payment.entity || '')
+     setBankCodeVal(payment.bankCode || '')
+@@ -263,43 +278,29 @@ export default function PaymentDetail({
+   const saveMetaDetails = async () => {
+     const patch: any = {
+       method: methodVal,
+-      entity: entityVal,
+       refNumber: refVal,
+       timestamp: Timestamp.now(),
+       editedBy: userEmail,
++      entity: deleteField(),
++      bankCode: deleteField(),
++      accountDocId: deleteField(),
+     }
+     if (isErl) {
+-      if (!bankCodeVal || !accountIdVal) return
+-      patch.bankCode = bankCodeVal
+-      patch.accountDocId = accountIdVal
+-      const id = normalizeIdentifier(
+-        entityVal,
+-        bankCodeVal,
+-        accountIdVal,
+-        payment.identifier,
+-      )
+-      if (id) patch.identifier = id
+-    } else {
+-      patch.bankCode = deleteField()
+-      patch.accountDocId = deleteField()
++      if (!accountIdVal) return
++      patch.identifier = accountIdVal
++    } else if (payment.identifier) {
+       patch.identifier = deleteField()
+-      delete payment.bankCode
+-      delete payment.accountDocId
+-      delete payment.identifier
+     }
+     await updateDoc(doc(db, PATHS.payments(abbr), payment.id), patch)
+     Object.assign(payment, {
+       method: methodVal,
+-      entity: entityVal,
+       refNumber: refVal,
++      identifier: isErl ? accountIdVal : undefined,
+     })
+-    if (isErl) {
+-      Object.assign(payment, {
+-        bankCode: bankCodeVal,
+-        accountDocId: accountIdVal,
+-        identifier: patch.identifier,
+-      })
+-    }
++    delete payment.bankCode
++    delete payment.accountDocId
++    delete payment.entity
++    if (!isErl) delete payment.identifier
+     await writeSummaryFromCache(qc, abbr, account)
+     setMetaComplete(true)
+   }
+@@ -445,69 +446,66 @@ export default function PaymentDetail({
+   return (
+     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
+-        <Box
+-          sx={{
+-            display: 'grid',
+-            gridTemplateColumns: 'auto 1fr',
+-            columnGap: 2,
+-            rowGap: 1,
+-            mb: 2,
+-          }}
+-        >
+-          {(() => {
+-            const d = payment.paymentMade?.toDate
+-              ? payment.paymentMade.toDate()
+-              : new Date(payment.paymentMade)
+-            const fields: { label: string; value: React.ReactNode }[] = [
+-              {
+-                label: 'Payment Amount',
+-                value: formatCurrency(amount),
+-              },
+-              {
+-                label: 'Payment Date',
+-                value: isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d),
+-              },
+-            ]
+-            if (needsCascade) {
+-              fields.push({
+-                label: 'Method',
+-                value: (
+-                  <TextField
+-                    select
+-                    size="small"
+-                    value={methodVal}
+-                    onChange={(e) => setMethodVal(e.target.value)}
+-                    inputProps={{
+-                      'data-testid': 'detail-method-select',
+-                      style: { fontFamily: 'Newsreader', fontWeight: 500 },
+-                    }}
+-                  >
+-                    {['FPS', 'Bank Transfer', 'Cheque'].map((m) => (
+-                      <MenuItem key={m} value={m}>
+-                        {m}
+-                      </MenuItem>
+-                    ))}
+-                  </TextField>
+-                ),
+-              })
+-              fields.push({
+-                label: 'Entity',
+-                value: (
+-                  <TextField
+-                    select
+-                    size="small"
+-                    value={entityVal}
+-                    onChange={(e) => setEntityVal(e.target.value)}
+-                    inputProps={{
+-                      'data-testid': 'detail-entity-select',
+-                      style: { fontFamily: 'Newsreader', fontWeight: 500 },
+-                    }}
+-                  >
+-                    <MenuItem value="Music Establish (ERL)">Music Establish (ERL)</MenuItem>
+-                    <MenuItem value="Personal">Personal</MenuItem>
+-                  </TextField>
+-                ),
+-              })
++        {needsCascade ? (
++          <Box
++            sx={{
++              display: 'grid',
++              gridTemplateColumns: 'auto 1fr',
++              columnGap: 2,
++              rowGap: 1,
++              mb: 2,
++            }}
++          >
++            {(() => {
++              const d = payment.paymentMade?.toDate
++                ? payment.paymentMade.toDate()
++                : new Date(payment.paymentMade)
++              const fields: { label: string; value: React.ReactNode }[] = [
++                { label: 'Payment Amount', value: formatCurrency(amount) },
++                {
++                  label: 'Payment Date',
++                  value: isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d),
++                },
++                {
++                  label: 'Method',
++                  value: (
++                    <TextField
++                      select
++                      size="small"
++                      value={methodVal}
++                      onChange={(e) => setMethodVal(e.target.value)}
++                      inputProps={{
++                        'data-testid': 'detail-method-select',
++                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
++                      }}
++                    >
++                      {['FPS', 'Bank Transfer', 'Cheque'].map((m) => (
++                        <MenuItem key={m} value={m}>
++                          {m}
++                        </MenuItem>
++                      ))}
++                    </TextField>
++                  ),
++                },
++                {
++                  label: 'Entity',
++                  value: (
++                    <TextField
++                      select
++                      size="small"
++                      value={entityVal}
++                      onChange={(e) => setEntityVal(e.target.value)}
++                      inputProps={{
++                        'data-testid': 'detail-entity-select',
++                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
++                      }}
++                    >
++                      <MenuItem value="Music Establish (ERL)">Music Establish (ERL)</MenuItem>
++                      <MenuItem value="Personal">Personal</MenuItem>
++                    </TextField>
++                  ),
++                },
++              ]
+               if (entityVal === 'Music Establish (ERL)') {
+                 fields.push({
+                   label: 'Bank',
+@@ -517,9 +515,7 @@ export default function PaymentDetail({
+                       size="small"
+                       value={selectedBank ? selectedBank.bankCode : ''}
+                       onChange={(e) => {
+-                        const b = banks.find(
+-                          (bk) => bk.bankCode === e.target.value,
+-                        )
++                        const b = banks.find((bk) => bk.bankCode === e.target.value)
+                         setSelectedBank(b || null)
+                       }}
+                       inputProps={{
+@@ -528,10 +524,7 @@ export default function PaymentDetail({
+                       }}
+                     >
+                       {banks.map((b) => (
+-                        <MenuItem
+-                          key={`${b.bankName}-${b.bankCode}`}
+-                          value={b.bankCode}
+-                        >
++                        <MenuItem key={`${b.bankName}-${b.bankCode}`} value={b.bankCode}>
+                           {buildBankLabel(b)}
+                         </MenuItem>
+                       ))}
+@@ -560,113 +553,162 @@ export default function PaymentDetail({
+                   ),
+                 })
+               }
+-            } else {
+-              fields.push({ label: 'Method', value: payment.method || 'N/A' })
+-              fields.push({
+-                label: 'Entity',
+-                value:
+-                  payment.entity === 'ME-ERL'
+-                    ? 'Music Establish (ERL)'
+-                    : payment.entity || 'N/A',
+-              })
+-              if (
+-                payment.entity === 'ME-ERL' ||
+-                payment.entity === 'Music Establish (ERL)'
+-              ) {
++              if (sessionOrds.length) {
++                const { visible, hiddenCount } = truncateList(sessionOrds)
+                 fields.push({
+-                  label: 'Bank',
+-                  value: buildBankLabel({
+-                    bankCode: payment.bankCode,
+-                    bankName:
+-                      banks.find((b) => b.bankCode === payment.bankCode)?.bankName || '',
+-                    rawCodeSegment: '',
+-                  }),
+-                })
+-                fields.push({
+-                  label: 'Bank Account',
+-                  value: payment.accountDocId || 'N/A',
++                  label: 'For Session(s)',
++                  value: (
++                    <>
++                      {formatSessions(showAllSessions ? sessionOrds : visible)}
++                      {hiddenCount > 0 && !showAllSessions && <> … (+{hiddenCount} more)</>}
++                      {hiddenCount > 0 && (
++                        <Button
++                          size="small"
++                          onClick={() => setShowAllSessions((s) => !s)}
++                          sx={{ ml: 1 }}
++                        >
++                          {showAllSessions ? 'Hide' : 'View all'}
++                        </Button>
++                      )}
++                    </>
++                  ),
+                 })
+               }
+-            }
+-            if (sessionOrds.length) {
+-              const { visible, hiddenCount } = truncateList(sessionOrds)
+               fields.push({
+-                label: 'For Session(s)',
++                label: 'Reference #',
+                 value: (
+-                  <>
+-                    {formatSessions(
+-                      showAllSessions ? sessionOrds : visible,
+-                    )}
+-                    {hiddenCount > 0 && !showAllSessions && (
+-                      <> … (+{hiddenCount} more)</>
+-                    )}
+-                    {hiddenCount > 0 && (
+-                      <Button
+-                        size="small"
+-                        onClick={() => setShowAllSessions((s) => !s)}
+-                        sx={{ ml: 1 }}
+-                      >
+-                        {showAllSessions ? 'Hide' : 'View all'}
+-                      </Button>
+-                    )}
+-                  </>
++                  <TextField
++                    size="small"
++                    value={refVal}
++                    onChange={(e) => setRefVal(e.target.value)}
++                    inputProps={{
++                      'data-testid': 'detail-ref-input',
++                      style: { fontFamily: 'Newsreader', fontWeight: 500 },
++                    }}
++                  />
+                 ),
+               })
+-            }
+-            fields.push({
+-              label: 'Reference #',
+-              value: payment.refNumber ? (
+-                payment.refNumber
+-              ) : (
+-                <TextField
+-                  size="small"
+-                  value={refVal}
+-                  onChange={(e) => setRefVal(e.target.value)}
+-                  inputProps={{
+-                    'data-testid': 'detail-ref-input',
+-                    style: { fontFamily: 'Newsreader', fontWeight: 500 },
+-                  }}
+-                />
+-              ),
+-            })
+-            fields.push({
+-              label: 'Remaining amount',
+-              value: (
+-                <span
+-                  data-testid="remaining-amount"
+-                  className={remainingClass}
+-                >
+-                  {formatCurrency(pendingRemaining)}
+-                </span>
+-              ),
+-            })
+-            return fields.map((f) => (
+-              <React.Fragment key={f.label}>
+-                <Typography
+-                  variant="subtitle2"
+-                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+-                >
+-                  {f.label}:
+-                </Typography>
+-                <Typography
+-                  variant="h6"
+-                  sx={{ fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}
+-                >
+-                  {f.value}
+-                </Typography>
+-              </React.Fragment>
+-            ))
+-          })()}
+-          {bankError && (
+-            <Typography
+-              variant="body2"
+-              color="error"
+-              sx={{ gridColumn: '1 / span 2', mt: 1 }}
++              fields.push({
++                label: 'Remaining amount',
++                value: (
++                  <span data-testid="remaining-amount" className={remainingClass}>
++                    {formatCurrency(pendingRemaining)}
++                  </span>
++                ),
++              })
++              return fields.map((f) => (
++                <React.Fragment key={f.label}>
++                  <Typography
++                    variant="subtitle2"
++                    sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
++                  >
++                    {f.label}:
++                  </Typography>
++                  <Typography
++                    variant="h6"
++                    sx={{ fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}
++                  >
++                    {f.value}
++                  </Typography>
++                </React.Fragment>
++              ))
++            })()}
++            {bankError && (
++              <Typography
++                variant="body2"
++                color="error"
++                sx={{ gridColumn: '1 / span 2', mt: 1 }}
++              >
++                {bankError}
++              </Typography>
++            )}
++          </Box>
++        ) : (
++          <>
++            <Box data-testid="payment-summary-block" sx={{ mb: 2 }}>
++              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                Payment made by –
++              </Typography>
++              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                {(studentName.first || 'N/A')}, {(studentName.last || 'N/A')}
++              </Typography>
++              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                on {(() => { const d = payment.paymentMade?.toDate ? payment.paymentMade.toDate() : new Date(payment.paymentMade); return isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d) })()} thru {payment.method || 'N/A'}
++              </Typography>
++              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                to Establish Records Limited:
++              </Typography>
++              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                {(acctInfo?.bankName || 'N/A')} ({acctInfo?.bankCode || 'N/A'})
++              </Typography>
++              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                {acctInfo?.accountType || 'N/A'}
++              </Typography>
++              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                {acctInfo?.accountNumber || 'N/A'}
++              </Typography>
++              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                for
++              </Typography>
++              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                {formatCurrency(amount)}
++              </Typography>
++            </Box>
++            <Box
++              sx={{
++                display: 'grid',
++                gridTemplateColumns: 'auto 1fr',
++                columnGap: 2,
++                rowGap: 1,
++                mb: 2,
++              }}
+             >
+-              {bankError}
+-            </Typography>
+-          )}
+-        </Box>
++              {(() => {
++                const fields: { label: string; value: React.ReactNode }[] = []
++                fields.push({
++                  label: 'Reference #',
++                  value: payment.refNumber ? (
++                    payment.refNumber
++                  ) : (
++                    <TextField
++                      size="small"
++                      value={refVal}
++                      onChange={(e) => setRefVal(e.target.value)}
++                      inputProps={{
++                        'data-testid': 'detail-ref-input',
++                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
++                      }}
++                    />
++                  ),
++                })
++                fields.push({
++                  label: 'Remaining amount',
++                  value: (
++                    <span data-testid="remaining-amount" className={remainingClass}>
++                      {formatCurrency(pendingRemaining)}
++                    </span>
++                  ),
++                })
++                return fields.map((f) => (
++                  <React.Fragment key={f.label}>
++                    <Typography
++                      variant="subtitle2"
++                      sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
++                    >
++                      {f.label}:
++                    </Typography>
++                    <Typography
++                      variant="h6"
++                      sx={{ fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}
++                    >
++                      {f.value}
++                    </Typography>
++                  </React.Fragment>
++                ))
++              })()}
++            </Box>
++          </>
++        )}
+ 
+         <Typography
+           variant="subtitle2"
+@@ -986,9 +1028,7 @@ export default function PaymentDetail({
+             <Button
+               variant="contained"
+               onClick={saveMetaDetails}
+-              disabled={
+-                !entityVal || (isErl && (!bankCodeVal || !accountIdVal))
+-              }
++              disabled={!methodVal || !entityVal || (isErl && !accountIdVal)}
+               data-testid="detail-save"
+             >
+               Save
+diff --git a/components/StudentDialog/PaymentHistory.tsx b/components/StudentDialog/PaymentHistory.tsx
+index 9a315c4..f5e30da 100644
+--- a/components/StudentDialog/PaymentHistory.tsx
++++ b/components/StudentDialog/PaymentHistory.tsx
+@@ -181,33 +181,33 @@ export default function PaymentHistory({
+             <Box
+               sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}
+             >
+-              <Typography
+-                variant="subtitle1"
+-                sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
+-              >
+-                Payment History
+-              </Typography>
+               <Box>
++                <Typography
++                  variant="subtitle1"
++                  sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
++                >
++                  Payment History
++                </Typography>
+                 <Tooltip title="Filter Columns">
+                   <IconButton
+                     aria-label="Filter Columns"
+                     data-testid="filter-columns"
+                     onClick={(e) => setFilterAnchor(e.currentTarget)}
+-                    sx={{ mr: 1 }}
++                    sx={{ mt: 0.5 }}
+                   >
+                     <FilterListIcon fontSize="small" />
+                   </IconButton>
+                 </Tooltip>
+-                <Tooltip title="Create Payment">
+-                  <IconButton
+-                    color="primary"
+-                    onClick={() => setModalOpen(true)}
+-                    aria-label="Create Payment"
+-                  >
+-                    <CreateIcon fontSize="small" />
+-                  </IconButton>
+-                </Tooltip>
+               </Box>
++              <Tooltip title="Create Payment">
++                <IconButton
++                  color="primary"
++                  onClick={() => setModalOpen(true)}
++                  aria-label="Create Payment"
++                >
++                  <CreateIcon fontSize="small" />
++                </IconButton>
++              </Tooltip>
+             </Box>
+             <Popover
+               open={Boolean(filterAnchor)}
+diff --git a/components/StudentDialog/PaymentModal.test.tsx b/components/StudentDialog/PaymentModal.test.tsx
+index 3bc7f17..6916cd5 100644
+--- a/components/StudentDialog/PaymentModal.test.tsx
++++ b/components/StudentDialog/PaymentModal.test.tsx
+@@ -66,14 +66,19 @@ describe('PaymentModal ERL cascade', () => {
+       rawCodeSegment: '(001)',
+     })
+     fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
++    fireEvent.change(getByTestId('ref-input'), { target: { value: 'R1' } })
+ 
++    expect(require('firebase/firestore').addDoc).not.toHaveBeenCalled()
+     fireEvent.click(getByTestId('submit-payment'))
+     await waitFor(() => expect(require('firebase/firestore').addDoc).toHaveBeenCalled())
+     const data = (require('firebase/firestore').addDoc as jest.Mock).mock.calls[0][1]
+-    expect(data.identifier).toBe('001/a1')
+-    expect(data.bankCode).toBe('001')
+-    expect(data.accountDocId).toBe('a1')
++    expect(data.identifier).toBe('a1')
++    expect(data.bankCode).toBeUndefined()
++    expect(data.accountDocId).toBeUndefined()
++    expect(data.method).toBe('FPS')
++    expect(data.entity).toBeUndefined()
+     expect(data.editedBy).toBe('tester@example.com')
+     expect(data.timestamp).toBe('now')
++    expect(data.refNumber).toBe('R1')
+   })
+ })
+diff --git a/components/StudentDialog/PaymentModal.tsx b/components/StudentDialog/PaymentModal.tsx
+index 138e0cd..35729f8 100644
+--- a/components/StudentDialog/PaymentModal.tsx
++++ b/components/StudentDialog/PaymentModal.tsx
+@@ -20,7 +20,7 @@ import {
+   BankInfo,
+   AccountInfo,
+ } from '../../lib/erlDirectory'
+-import { normalizeIdentifier } from '../../lib/payments/format'
++import { reducePaymentPayload } from '../../lib/payments/submit'
+ import { PATHS, logPath } from '../../lib/paths'
+ import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
+ import { writeSummaryFromCache } from '../../lib/liveRefresh'
+@@ -41,13 +41,11 @@ export default function PaymentModal({
+   const [madeOn, setMadeOn] = useState('')
+   const [method, setMethod] = useState('')
+   const [entity, setEntity] = useState('')
+-  const [bankCode, setBankCode] = useState('')
+   const [selectedBank, setSelectedBank] = useState<BankInfo | null>(null)
+   const [accountId, setAccountId] = useState('')
+   const [banks, setBanks] = useState<BankInfo[]>([])
+   const [accounts, setAccounts] = useState<AccountInfo[]>([])
+   const [bankError, setBankError] = useState<string | null>(null)
+-  const [identifier, setIdentifier] = useState('')
+   const [refNumber, setRefNumber] = useState('')
+   const qc = useBillingClient()
+   const isErl = entity === 'Music Establish (ERL)'
+@@ -57,11 +55,9 @@ export default function PaymentModal({
+ 
+   useEffect(() => {
+     if (!isErl) {
+-      setBankCode('')
+       setSelectedBank(null)
+       setAccountId('')
+       setBankError(null)
+-      setIdentifier('')
+     }
+   }, [isErl])
+ 
+@@ -89,43 +85,31 @@ export default function PaymentModal({
+       listAccounts(selectedBank)
+         .then((a) => setAccounts(a))
+         .catch(() => setAccounts([]))
+-      setBankCode(selectedBank.bankCode)
+     } else {
+       setAccounts([])
+     }
+     setAccountId('')
+   }, [selectedBank])
+ 
+-  useEffect(() => {
+-    if (accountId && process.env.NODE_ENV !== 'production') {
+-      console.debug('[add-payment] account selected', accountId)
+-    }
+-  }, [accountId])
+-
+   const save = async () => {
+     const paymentsPath = PATHS.payments(abbr)
+     logPath('addPayment', paymentsPath)
+     const colRef = collection(db, paymentsPath)
+     const today = new Date()
+     const date = madeOn ? new Date(madeOn) : today
+-    const data: any = {
++    const draft: any = {
+       amount: Number(amount) || 0,
+       paymentMade: Timestamp.fromDate(date),
+       remainingAmount: Number(amount) || 0,
+       assignedSessions: [],
+       assignedRetainers: [],
+       method,
+-      entity,
+       refNumber,
+       timestamp: Timestamp.now(),
+       editedBy: getAuth().currentUser?.email || 'system',
++      accountDocId: isErl ? accountId : undefined,
+     }
+-    if (isErl) {
+-      const id = normalizeIdentifier(entity, bankCode, accountId, identifier)
+-      if (id) data.identifier = id
+-      data.bankCode = bankCode
+-      data.accountDocId = accountId
+-    }
++    const data = reducePaymentPayload(draft)
+     await addDoc(colRef, data)
+     qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
+       if (!prev) return prev
+@@ -202,9 +186,7 @@ export default function PaymentModal({
+             const val = e.target.value
+             setEntity(val)
+             if (val !== 'Music Establish (ERL)') {
+-              setBankCode('')
+               setAccountId('')
+-              setIdentifier('')
+             }
+           }}
+           fullWidth
+@@ -300,14 +282,12 @@ export default function PaymentModal({
+             setMadeOn('')
+             setMethod('')
+             setEntity('')
+-            setBankCode('')
+             setSelectedBank(null)
+             setAccountId('')
+-            setIdentifier('')
+             setRefNumber('')
+             onClose()
+           }}
+-          disabled={!method || !entity || (isErl && (!bankCode || !accountId))}
++          disabled={!method || !entity || (isErl && !accountId)}
+           data-testid="submit-payment"
+         >
+           Submit
+diff --git a/lib/erlDirectory.test.ts b/lib/erlDirectory.test.ts
+index ab4b9ac..b70d4a6 100644
+--- a/lib/erlDirectory.test.ts
++++ b/lib/erlDirectory.test.ts
+@@ -1,7 +1,33 @@
+-import { normalizeCode, buildBankLabel } from './erlDirectory'
++import { buildAccountsPath, buildBankLabel, listBanks } from './erlDirectory'
++import { getDocs } from 'firebase/firestore'
+ 
+-test('normalizeCode and buildBankLabel', () => {
+-  expect(normalizeCode(40)).toEqual({ code: '040', raw: '(040)' })
+-  expect(normalizeCode('040')).toEqual({ code: '040', raw: '(040)' })
+-  expect(buildBankLabel({ bankCode: '040', bankName: 'Bank', rawCodeSegment: '(040)' })).toBe('Bank (040)')
++jest.mock('firebase/firestore', () => ({
++  initializeFirestore: jest.fn(),
++  getFirestore: jest.fn(),
++  collection: jest.fn(),
++  getDocs: jest.fn(),
++}))
++
++test('buildAccountsPath formats code with parentheses', () => {
++  expect(buildAccountsPath(40)).toEqual(['bankAccount', '(040)', 'accounts'])
++})
++
++test('buildBankLabel formats bank name and code', () => {
++  expect(
++    buildBankLabel({ bankName: 'Dah Sing Bank', bankCode: '040', rawCodeSegment: '(040)' }),
++  ).toBe('Dah Sing Bank (040)')
+ })
++
++test('listBanks expands multiple codes', async () => {
++  ;(getDocs as jest.Mock).mockResolvedValueOnce({
++    docs: [
++      { id: 'b1', data: () => ({ name: 'Bank1', code: [40, 152] }) },
++    ],
++  })
++  const banks = await listBanks()
++  expect(banks).toEqual([
++    { bankCode: '040', bankName: 'Bank1', rawCodeSegment: '(040)' },
++    { bankCode: '152', bankName: 'Bank1', rawCodeSegment: '(152)' },
++  ])
++})
++
 diff --git a/lib/erlDirectory.ts b/lib/erlDirectory.ts
-index 8994cf9..2e29205 100644
+index 2e29205..f3ffabb 100644
 --- a/lib/erlDirectory.ts
 +++ b/lib/erlDirectory.ts
-@@ -48,7 +48,9 @@ export async function listBanks(): Promise<BankInfo[]> {
-     if (banks.length) return banks
-     throw new Error('empty banks collection')
-   } catch (e) {
--    console.warn('preferred bank directory failed', e)
-+    if (process.env.NODE_ENV !== 'production') {
-+      console.warn('preferred bank directory failed', e)
-+    }
+@@ -33,72 +33,70 @@ export function normalizeCode(code: string | number): { code: string; raw: strin
+   return { code: normalized, raw: `(${normalized})` }
+ }
+ 
++export function buildAccountsPath(code: string | number): string[] {
++  const { raw } = normalizeCode(code)
++  return ['bankAccount', raw, 'accounts']
++}
++
+ export async function listBanks(): Promise<BankInfo[]> {
+   try {
+-    const snap = await getDocs(collection(dbDirectory, 'banks'))
+-    const banks = snap.docs.map((d) => {
+-      const data = d.data() as any
+-      const { code, raw } = normalizeCode(d.id)
+-      return {
+-        bankCode: code,
+-        bankName: data.name || '',
+-        rawCodeSegment: raw,
+-      } as BankInfo
+-    })
+-    if (banks.length) return banks
+-    throw new Error('empty banks collection')
+-  } catch (e) {
+-    if (process.env.NODE_ENV !== 'production') {
+-      console.warn('preferred bank directory failed', e)
+-    }
      const snap = await getDocs(collection(dbDirectory, 'bankAccount'))
      const banks: BankInfo[] = []
      snap.docs.forEach((d) => {
-@@ -75,7 +77,9 @@ export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
-       res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
+       const data = d.data() as any
+-      if (!Array.isArray(data.code))
+-        throw new Error(`missing code for bank ${d.id}`)
+-      ;[...new Set(data.code)].forEach((c: any) => {
++      if (!Array.isArray(data.code)) return
++      data.code.forEach((c: any) => {
+         const { code, raw } = normalizeCode(c)
+-        banks.push({ bankCode: code, bankName: d.id, rawCodeSegment: raw })
++        banks.push({ bankCode: code, bankName: data.name || d.id, rawCodeSegment: raw })
+       })
      })
-   } catch (e) {
--    console.warn('preferred accounts failed', e)
+-    if (!banks.length) throw new Error('empty bankAccount directory')
+     return banks
++  } catch (e) {
 +    if (process.env.NODE_ENV !== 'production') {
-+      console.warn('preferred accounts failed', e)
++      console.warn('bank directory failed', e)
 +    }
++    return []
    }
+ }
+ 
+ export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
+-  const res: Record<string, AccountInfo> = {}
    try {
      const snap = await getDocs(
-@@ -90,12 +94,14 @@ export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
-       if (!res[d.id]) res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
-     })
+-      collection(dbDirectory, 'banks', bank.bankCode, 'accounts'),
++      collection(dbDirectory, ...buildAccountsPath(bank.bankCode)),
+     )
+-    snap.docs.forEach((d) => {
+-      res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
+-    })
++    return snap.docs.map((d) => ({ accountDocId: d.id, ...(d.data() as any) }))
    } catch (e) {
--    console.warn('legacy accounts failed', e)
-+    if (process.env.NODE_ENV !== 'production') {
-+      console.warn('legacy accounts failed', e)
-+    }
+     if (process.env.NODE_ENV !== 'production') {
+-      console.warn('preferred accounts failed', e)
++      console.warn('accounts load failed', e)
+     }
++    return []
    }
-   return Object.values(res)
+-  try {
+-    const snap = await getDocs(
+-      collection(
+-        dbDirectory,
+-        'bankAccount',
+-        bank.bankName,
+-        bank.rawCodeSegment,
+-      ),
+-    )
+-    snap.docs.forEach((d) => {
+-      if (!res[d.id]) res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
+-    })
+-  } catch (e) {
+-    if (process.env.NODE_ENV !== 'production') {
+-      console.warn('legacy accounts failed', e)
++}
++
++export async function lookupAccount(
++  id: string,
++): Promise<
++  | {
++      bankName: string
++      bankCode: string
++      accountType?: string
++      accountNumber?: string
+     }
++  | null
++> {
++  const banks = await listBanks()
++  for (const b of banks) {
++    const accounts = await listAccounts(b)
++    const match = accounts.find((a) => a.accountDocId === id)
++    if (match)
++      return {
++        bankName: b.bankName,
++        bankCode: b.bankCode,
++        accountType: match.accountType,
++        accountNumber: match.accountNumber,
++      }
+   }
+-  return Object.values(res)
++  return null
  }
  
  export function buildBankLabel(b: BankInfo): string {
--  if (b.bankName && b.bankCode) return `${b.bankName} ${b.bankCode}`
-+  if (b.bankName && b.bankCode) return `${b.bankName} (${b.bankCode})`
-   return b.bankCode
- }
-diff --git a/lib/paths.ts b/lib/paths.ts
-index 06b9be9..d650689 100644
---- a/lib/paths.ts
-+++ b/lib/paths.ts
-@@ -12,5 +12,8 @@ export const PATHS = {
-   sessionHistory: (sessionId: string) => `Sessions/${sessionId}/appointmentHistory`,
-   sessionVoucher: (sessionId: string) => `Sessions/${sessionId}/sessionVoucher`,
- }
--export const logPath = (label: string, path: string) =>
--  console.debug(`[paths] ${label}: ${path}`)
-+export const logPath = (label: string, path: string) => {
-+  if (process.env.NODE_ENV !== 'production') {
-+    console.debug(`[paths] ${label}: ${path}`)
+diff --git a/lib/payments/submit.test.ts b/lib/payments/submit.test.ts
+new file mode 100644
+index 0000000..9a2b0b8
+--- /dev/null
++++ b/lib/payments/submit.test.ts
+@@ -0,0 +1,22 @@
++import { reducePaymentPayload } from './submit'
++
++test('reducePaymentPayload strips helper fields and maps identifier', () => {
++  const input = {
++    amount: 100,
++    accountDocId: 'acc1',
++    method: 'FPS',
++    entity: 'ERL',
++    bankCode: '001',
++    refNumber: 'r1',
 +  }
++  const out = reducePaymentPayload(input)
++  expect(out).toEqual({
++    amount: 100,
++    refNumber: 'r1',
++    identifier: 'acc1',
++    method: 'FPS',
++  })
++  expect(out.entity).toBeUndefined()
++  expect(out.bankCode).toBeUndefined()
++  expect(out.accountDocId).toBeUndefined()
++})
+diff --git a/lib/payments/submit.ts b/lib/payments/submit.ts
+new file mode 100644
+index 0000000..2ad76bc
+--- /dev/null
++++ b/lib/payments/submit.ts
+@@ -0,0 +1,13 @@
++export interface PaymentDraft {
++  accountDocId?: string
++  entity?: string
++  bankCode?: string
++  [key: string]: any
 +}
-diff --git a/pages/dashboard/businesses/coaching-sessions.tsx b/pages/dashboard/businesses/coaching-sessions.tsx
-index 889c100..f256b80 100644
---- a/pages/dashboard/businesses/coaching-sessions.tsx
-+++ b/pages/dashboard/businesses/coaching-sessions.tsx
-@@ -400,14 +400,18 @@ export default function CoachingSessions() {
-         <Box
-           data-testid="card-footer-row"
-           sx={{
--            position: 'sticky',
-+            position: 'fixed',
-             bottom: 0,
-             left: 0,
-+            right: 0,
-             display: 'flex',
-             alignItems: 'center',
-             justifyContent: 'space-between',
-             gap: '12px',
-             p: 1,
-+            bgcolor: 'background.paper',
-+            boxShadow: '0 -2px 8px rgba(0,0,0,0.1)',
-+            zIndex: 1200,
-           }}
-         >
-           <IconButton
++
++export function reducePaymentPayload(draft: PaymentDraft) {
++  const { accountDocId, entity, bankCode, ...rest } = draft
++  const payload: any = { ...rest }
++  if (accountDocId) payload.identifier = accountDocId
++  return payload
++}
+diff --git a/prompts/p-028-02r.md b/prompts/p-028-02r.md
+new file mode 100644
+index 0000000..a38318d
+--- /dev/null
++++ b/prompts/p-028-02r.md
+@@ -0,0 +1 @@
++# P-028-02r — Helper-only cascade (store only identifier), Bank (Code) labels, one-block “result” summary, opaque footer
 diff --git a/styles/studentDialog.css b/styles/studentDialog.css
-index 68715fa..51986b5 100644
+index 51986b5..1c299a5 100644
 --- a/styles/studentDialog.css
 +++ b/styles/studentDialog.css
-@@ -132,8 +132,8 @@
-   bottom: 0;
+@@ -133,7 +133,7 @@
    z-index: 10;
    border-top: 1px solid var(--mui-palette-divider);
--  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
--  background: inherit;
-+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
-+  background: var(--mui-palette-background-paper);
+   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+-  background: var(--mui-palette-background-paper);
++  background-color: var(--mui-palette-background-paper);
  }
  
  .student-dialog-modal .MuiDialog-paper,
