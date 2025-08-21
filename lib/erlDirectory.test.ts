@@ -2,8 +2,9 @@ import {
   buildBankLabel,
   listBanks,
   listAccounts,
+  normalizeCode,
 } from './erlDirectory'
-import { collection, collectionGroup, getDocs } from 'firebase/firestore'
+import { collection, getDocs } from 'firebase/firestore'
 
 jest.mock('./firebase', () => ({ app: {} }))
 
@@ -11,21 +12,28 @@ jest.mock('firebase/firestore', () => ({
   getFirestore: jest.fn(() => ({})),
   initializeFirestore: jest.fn(() => ({})),
   collection: jest.fn((_: any, ...parts: string[]) => parts.join('/')),
-  collectionGroup: jest.fn((_: any, id: string) => `group:${id}`),
   getDocs: jest.fn(),
 }))
 
 describe('buildBankLabel', () => {
   test('uses name and code when available', () => {
-    expect(buildBankLabel({ bankName: 'HK Bank', bankCode: '012' })).toBe(
-      'HK Bank 012',
-    )
+    expect(
+      buildBankLabel({ bankName: 'HK Bank', bankCode: '012', rawCodeSegment: '(012)' }),
+    ).toBe('HK Bank 012')
   })
 
-  test('falls back to docId and collectionId', () => {
-    expect(
-      buildBankLabel({ bankCode: '012', docId: 'd1', collectionId: 'banks' }),
-    ).toBe('d1 banks')
+  test('falls back to code when name missing', () => {
+    expect(buildBankLabel({ bankCode: '012', bankName: '', rawCodeSegment: '(012)' })).toBe(
+      '012',
+    )
+  })
+})
+
+describe('normalizeCode', () => {
+  test('normalizes various inputs', () => {
+    expect(normalizeCode(40)).toEqual({ code: '040', raw: '(040)' })
+    expect(normalizeCode('040')).toEqual({ code: '040', raw: '(040)' })
+    expect(normalizeCode('(040)')).toEqual({ code: '040', raw: '(040)' })
   })
 })
 
@@ -37,9 +45,7 @@ describe('listBanks', () => {
 
   test('returns banks collection when present', async () => {
     ;(getDocs as jest.Mock).mockResolvedValueOnce({
-      docs: [
-        { id: 'b1', data: () => ({ code: '001', name: 'Bank1' }) },
-      ],
+      docs: [{ id: '001', data: () => ({ name: 'Bank1' }) }],
     })
     const res = await listBanks()
     expect(collection).toHaveBeenCalledWith(expect.anything(), 'banks')
@@ -47,8 +53,7 @@ describe('listBanks', () => {
       {
         bankCode: '001',
         bankName: 'Bank1',
-        docId: 'b1',
-        collectionId: 'banks',
+        rawCodeSegment: '(001)',
       },
     ])
   })
@@ -58,18 +63,14 @@ describe('listBanks', () => {
       .mockResolvedValueOnce({ docs: [] })
       .mockResolvedValueOnce({
         docs: [
-          { id: 'Dah Sing Bank', data: () => ({ code: '(040)' }) },
+          { id: 'Dah Sing Bank', data: () => ({ code: [40, 12, 40] }) },
         ],
       })
     const res = await listBanks()
     expect(collection).toHaveBeenCalledWith(expect.anything(), 'bankAccount')
     expect(res).toEqual([
-      {
-        bankCode: '(040)',
-        bankName: 'Dah Sing Bank',
-        docId: 'Dah Sing Bank',
-        collectionId: 'bankAccount',
-      },
+      { bankCode: '040', bankName: 'Dah Sing Bank', rawCodeSegment: '(040)' },
+      { bankCode: '012', bankName: 'Dah Sing Bank', rawCodeSegment: '(012)' },
     ])
   })
 })
@@ -78,38 +79,63 @@ describe('listAccounts', () => {
   beforeEach(() => {
     ;(getDocs as jest.Mock).mockReset()
     ;(collection as jest.Mock).mockClear()
-    ;(collectionGroup as jest.Mock).mockClear()
   })
 
   test('returns accounts under banks/{code} when present', async () => {
-    ;(getDocs as jest.Mock).mockResolvedValueOnce({
-      empty: false,
-      docs: [{ id: 'a1', data: () => ({ accountType: 'chk' }) }],
+    ;(getDocs as jest.Mock)
+      .mockResolvedValueOnce({
+        docs: [{ id: 'a1', data: () => ({ accountType: 'chk' }) }],
+      })
+      .mockResolvedValueOnce({ docs: [] })
+    const res = await listAccounts({
+      bankCode: '001',
+      bankName: 'Bank',
+      rawCodeSegment: '(001)',
     })
-    const res = await listAccounts('001')
-    expect(collection).toHaveBeenCalledWith(
+    expect(collection).toHaveBeenNthCalledWith(
+      1,
       expect.anything(),
       'banks',
       '001',
       'accounts',
     )
+    expect(collection).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'bankAccount',
+      'Bank',
+      '(001)',
+    )
     expect(res).toEqual([{ accountDocId: 'a1', accountType: 'chk' }])
   })
 
-  test('falls back to collection group on code', async () => {
+  test('merges legacy accounts when new schema empty', async () => {
     ;(getDocs as jest.Mock)
-      .mockResolvedValueOnce({ empty: true, docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
       .mockResolvedValueOnce({
         docs: [
-          {
-            id: 'acc1',
-            data: () => ({ accountType: 'sv' }),
-            ref: { path: '/bankAccount/DSB/(040)/acc1' },
-          },
+          { id: 'acc1', data: () => ({ accountType: 'sv' }) },
         ],
       })
-    const res = await listAccounts('(040)')
-    expect(collectionGroup).toHaveBeenCalledWith(expect.anything(), '(040)')
+    const res = await listAccounts({
+      bankCode: '040',
+      bankName: 'DSB',
+      rawCodeSegment: '(040)',
+    })
+    expect(collection).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      'banks',
+      '040',
+      'accounts',
+    )
+    expect(collection).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'bankAccount',
+      'DSB',
+      '(040)',
+    )
     expect(res).toEqual([{ accountDocId: 'acc1', accountType: 'sv' }])
   })
 })

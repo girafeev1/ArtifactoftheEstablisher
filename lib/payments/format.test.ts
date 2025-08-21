@@ -33,7 +33,7 @@ describe('normalizeIdentifier', () => {
 
   test('recomputes invalid identifier', () => {
     expect(
-      normalizeIdentifier('Music Establish (ERL)', 'HK', 'acc_1', 'bad'),
-    ).toBe('HK/acc_1')
+      normalizeIdentifier('Music Establish (ERL)', '040', 'accountDocId', 'bad'),
+    ).toBe('040/accountDocId')
   })
 })
