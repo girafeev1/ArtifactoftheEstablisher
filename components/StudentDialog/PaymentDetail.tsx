@@ -48,6 +48,7 @@ import {
   BankInfo,
   AccountInfo,
 } from '../../lib/erlDirectory'
+import { useSnackbar } from 'notistack'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -116,17 +117,33 @@ export default function PaymentDetail({
   const minDue = React.useMemo(() => minUnpaidRate(bill?.rows || []), [bill])
   const isErl =
     entityVal === 'Music Establish (ERL)' || entityVal === 'ME-ERL'
+  const bankMsg = "Bank directory unavailable or missing 'code' on bank docs"
+  const [bankError, setBankError] = useState<string | null>(null)
+  const { enqueueSnackbar } = useSnackbar()
   useEffect(() => {
     if (isErl && banks.length === 0) {
       listBanks()
-        .then((b) => setBanks(b))
-        .catch(() => setBanks([]))
+        .then((b) => {
+          setBanks(b)
+          if (b.length === 0) {
+            setBankError(bankMsg)
+            enqueueSnackbar(bankMsg, { variant: 'error' })
+          } else {
+            setBankError(null)
+          }
+        })
+        .catch(() => {
+          setBanks([])
+          setBankError(bankMsg)
+          enqueueSnackbar(bankMsg, { variant: 'error' })
+        })
     }
   }, [isErl, banks.length])
   useEffect(() => {
     if (!isErl) {
       setBankCodeVal('')
       setAccountIdVal('')
+      setBankError(null)
     }
   }, [isErl])
   useEffect(() => {
@@ -140,33 +157,6 @@ export default function PaymentDetail({
     }
   }, [isErl, bankCodeVal])
 
-  const saveMeta = async (
-    field: 'method' | 'entity' | 'identifier' | 'refNumber',
-    value: string,
-  ) => {
-    const ref = doc(db, PATHS.payments(abbr), payment.id)
-    const patch: any = {}
-    if (field === 'identifier') {
-      const val = normalizeIdentifier(
-        value.trim(),
-        payment.bankCode,
-        payment.accountDocId,
-      )
-      if (!val) return
-      patch.identifier = val
-      payment.identifier = val
-    } else {
-      const val = value.trim()
-      if (!val) return
-      patch[field] = val
-      ;(payment as any)[field] = val
-      if (field === 'method') setMethodVal(val)
-      if (field === 'entity') setEntityVal(val)
-      if (field === 'refNumber') setRefVal(val)
-    }
-    await updateDoc(ref, patch)
-    await writeSummaryFromCache(qc, abbr, account)
-  }
 
   const assignedSet = new Set(assignedSessionIds)
   const allRows = bill
@@ -234,14 +224,33 @@ export default function PaymentDetail({
     )
   }
 
-  const needsMeta =
+  const needsCascadeInitial =
+    !payment.method ||
     !payment.entity ||
     ((payment.entity === 'Music Establish (ERL)' || payment.entity === 'ME-ERL') &&
-      (!payment.bankCode || !payment.accountDocId)) ||
-    !payment.refNumber
+      (!payment.bankCode || !payment.accountDocId))
+  const [metaComplete, setMetaComplete] = useState(!needsCascadeInitial)
+  const needsCascade = !metaComplete
+
+  const needsMeta = needsCascade || !payment.refNumber
+
+  useEffect(() => {
+    const init =
+      !payment.method ||
+      !payment.entity ||
+      ((payment.entity === 'Music Establish (ERL)' || payment.entity === 'ME-ERL') &&
+        (!payment.bankCode || !payment.accountDocId))
+    setMetaComplete(!init)
+    setMethodVal(payment.method || '')
+    setEntityVal(payment.entity || '')
+    setBankCodeVal(payment.bankCode || '')
+    setAccountIdVal(payment.accountDocId || '')
+    setRefVal(payment.refNumber || '')
+  }, [payment])
 
   const saveMetaDetails = async () => {
     const patch: any = {
+      method: methodVal,
       entity: entityVal,
       refNumber: refVal,
       timestamp: Timestamp.now(),
@@ -267,18 +276,20 @@ export default function PaymentDetail({
       delete payment.identifier
     }
     await updateDoc(doc(db, PATHS.payments(abbr), payment.id), patch)
+    Object.assign(payment, {
+      method: methodVal,
+      entity: entityVal,
+      refNumber: refVal,
+    })
     if (isErl) {
       Object.assign(payment, {
-        entity: entityVal,
-        refNumber: refVal,
         bankCode: bankCodeVal,
         accountDocId: accountIdVal,
         identifier: patch.identifier,
       })
-    } else {
-      Object.assign(payment, { entity: entityVal, refNumber: refVal })
     }
     await writeSummaryFromCache(qc, abbr, account)
+    setMetaComplete(true)
   }
 
   useEffect(() => {
@@ -444,101 +455,116 @@ export default function PaymentDetail({
                 label: 'Payment Date',
                 value: isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d),
               },
-              {
+            ]
+            if (needsCascade) {
+              fields.push({
                 label: 'Method',
-                value: payment.method ? (
-                  payment.method
-                ) : (
+                value: (
                   <TextField
+                    select
                     size="small"
                     value={methodVal}
                     onChange={(e) => setMethodVal(e.target.value)}
-                    onBlur={() => saveMeta('method', methodVal)}
                     inputProps={{
+                      'data-testid': 'detail-method-select',
                       style: { fontFamily: 'Newsreader', fontWeight: 500 },
                     }}
-                  />
+                  >
+                    {['FPS', 'Bank Transfer', 'Cheque'].map((m) => (
+                      <MenuItem key={m} value={m}>
+                        {m}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 ),
-              },
-              {
+              })
+              fields.push({
                 label: 'Entity',
-                value: payment.entity
-                  ? payment.entity === 'ME-ERL'
-                    ? 'Music Establish (ERL)'
-                    : payment.entity
-                  : (
-                      <TextField
-                        select
-                        size="small"
-                        value={entityVal}
-                        onChange={(e) => setEntityVal(e.target.value)}
-                        inputProps={{
-                          'data-testid': 'detail-entity-select',
-                          style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                        }}
-                      >
-                        <MenuItem value="Music Establish (ERL)">
-                          Music Establish (ERL)
+                value: (
+                  <TextField
+                    select
+                    size="small"
+                    value={entityVal}
+                    onChange={(e) => setEntityVal(e.target.value)}
+                    inputProps={{
+                      'data-testid': 'detail-entity-select',
+                      style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                    }}
+                  >
+                    <MenuItem value="Music Establish (ERL)">Music Establish (ERL)</MenuItem>
+                    <MenuItem value="Personal">Personal</MenuItem>
+                  </TextField>
+                ),
+              })
+              if (entityVal === 'Music Establish (ERL)') {
+                fields.push({
+                  label: 'Bank',
+                  value: (
+                    <TextField
+                      select
+                      size="small"
+                      value={bankCodeVal}
+                      onChange={(e) => setBankCodeVal(e.target.value)}
+                      inputProps={{
+                        'data-testid': 'detail-bank-select',
+                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                      }}
+                    >
+                      {banks.map((b) => (
+                        <MenuItem key={b.bankCode} value={b.bankCode}>
+                          {buildBankLabel(b)}
                         </MenuItem>
-                        <MenuItem value="Personal">Personal</MenuItem>
-                      </TextField>
-                    ),
-              },
-            ]
-            const showBank =
-              payment.entity === 'ME-ERL' ||
-              payment.entity === 'Music Establish (ERL)' ||
-              (!payment.entity && entityVal === 'Music Establish (ERL)')
-            if (showBank) {
+                      ))}
+                    </TextField>
+                  ),
+                })
+                fields.push({
+                  label: 'Bank Account',
+                  value: (
+                    <TextField
+                      select
+                      size="small"
+                      value={accountIdVal}
+                      onChange={(e) => setAccountIdVal(e.target.value)}
+                      inputProps={{
+                        'data-testid': 'detail-bank-account-select',
+                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                      }}
+                    >
+                      {accounts.map((a) => (
+                        <MenuItem key={a.accountDocId} value={a.accountDocId}>
+                          {a.accountType}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  ),
+                })
+              }
+            } else {
+              fields.push({ label: 'Method', value: payment.method || 'N/A' })
               fields.push({
-                label: 'Bank',
-                value: payment.bankCode
-                  ? buildBankLabel({
-                      bankCode: payment.bankCode,
-                      bankName: banks.find((b) => b.bankCode === payment.bankCode)?.bankName,
-                    })
-                  : (
-                      <TextField
-                        select
-                        size="small"
-                        value={bankCodeVal}
-                        onChange={(e) => setBankCodeVal(e.target.value)}
-                        inputProps={{
-                          'data-testid': 'detail-bank-select',
-                          style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                        }}
-                      >
-                        {banks.map((b) => (
-                          <MenuItem key={b.bankCode} value={b.bankCode}>
-                            {buildBankLabel(b)}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    ),
+                label: 'Entity',
+                value:
+                  payment.entity === 'ME-ERL'
+                    ? 'Music Establish (ERL)'
+                    : payment.entity || 'N/A',
               })
-              fields.push({
-                label: 'Bank Account',
-                value: payment.accountDocId
-                  ? payment.accountDocId
-                  : (
-                      <TextField
-                        select
-                        size="small"
-                        value={accountIdVal}
-                        onChange={(e) => setAccountIdVal(e.target.value)}
-                        inputProps={{
-                          'data-testid': 'detail-bank-account-select',
-                          style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                        }}
-                      >
-                        {accounts.map((a) => (
-                          <MenuItem key={a.accountDocId} value={a.accountDocId}>
-                            {a.accountType}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    ),
-              })
+              if (
+                payment.entity === 'ME-ERL' ||
+                payment.entity === 'Music Establish (ERL)'
+              ) {
+                fields.push({
+                  label: 'Bank',
+                  value: buildBankLabel({
+                    bankCode: payment.bankCode,
+                    bankName: banks.find((b) => b.bankCode === payment.bankCode)?.bankName,
+                  }),
+                })
+                fields.push({
+                  label: 'Bank Account',
+                  value: payment.accountDocId || 'N/A',
+                })
+              }
             }
             if (sessionOrds.length) {
               const { visible, hiddenCount } = truncateList(sessionOrds)
@@ -609,6 +635,15 @@ export default function PaymentDetail({
               </React.Fragment>
             ))
           })()}
+          {bankError && (
+            <Typography
+              variant="body2"
+              color="error"
+              sx={{ gridColumn: '1 / span 2', mt: 1 }}
+            >
+              {bankError}
+            </Typography>
+          )}
         </Box>
 
         <Typography

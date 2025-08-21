@@ -2,58 +2,68 @@
  * @jest-environment jsdom
  */
 import React from 'react'
+import '@testing-library/jest-dom'
 import { render, fireEvent, waitFor } from '@testing-library/react'
 import PaymentModal from './PaymentModal'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 jest.mock('../../lib/erlDirectory', () => ({
-  listBanks: jest.fn().mockResolvedValue([
-    { bankCode: '001', bankName: 'Bank' },
-  ]),
+  listBanks: jest.fn().mockResolvedValue([{ bankCode: '001', bankName: 'Bank' }]),
   listAccounts: jest.fn().mockResolvedValue([
     { accountDocId: 'a1', accountType: 'Savings' },
   ]),
   buildBankLabel: jest.fn((b) => `${b.bankName} ${b.bankCode}`),
 }))
 
+jest.mock('firebase/firestore', () => ({
+  collection: jest.fn(),
+  addDoc: jest.fn(),
+  Timestamp: { fromDate: jest.fn(() => 'date'), now: jest.fn(() => 'now') },
+}))
+
+jest.mock('firebase/auth', () => ({
+  getAuth: () => ({ currentUser: { email: 'tester@example.com' } }),
+}))
+
+jest.mock('../../lib/firebase', () => ({ db: {} }))
+jest.mock('../../lib/paths', () => ({ PATHS: { payments: () => 'p' }, logPath: jest.fn() }))
+jest.mock('../../lib/billing/useBilling', () => ({
+  useBillingClient: () => ({ setQueryData: jest.fn() }),
+  billingKey: () => 'key',
+}))
+jest.mock('../../lib/liveRefresh', () => ({ writeSummaryFromCache: jest.fn() }))
+
 const noop = () => {}
 
-describe('PaymentModal entity switching', () => {
-  test('clears bank fields when switching to Personal', async () => {
+describe('PaymentModal ERL cascade', () => {
+  test('populates banks/accounts and submits identifier with audit fields', async () => {
     const qc = new QueryClient()
-    const { getByTestId, queryByTestId } = render(
-      React.createElement(QueryClientProvider, { client: qc },
-        React.createElement(PaymentModal, {
-          abbr: 'A',
-          account: 'B',
-          open: true,
-          onClose: noop,
-        }),
-      ),
+    const { getByTestId } = render(
+      <QueryClientProvider client={qc}>
+        <PaymentModal abbr="A" account="B" open onClose={noop} />
+      </QueryClientProvider>,
     )
 
-    const entitySelect = getByTestId('entity-select') as HTMLInputElement
-    fireEvent.change(entitySelect, { target: { value: 'Music Establish (ERL)' } })
-    await waitFor(() => expect(entitySelect.value).toBe('Music Establish (ERL)'))
-
-    let bankSelect = getByTestId('bank-select') as HTMLInputElement
-    fireEvent.change(bankSelect, { target: { value: '001' } })
-    await waitFor(() => expect(bankSelect.value).toBe('001'))
-
-    let accountSelect = getByTestId('bank-account-select') as HTMLInputElement
-    fireEvent.change(accountSelect, { target: { value: 'a1' } })
-    await waitFor(() => expect(accountSelect.value).toBe('a1'))
-
-    fireEvent.change(entitySelect, { target: { value: 'Personal' } })
-    await waitFor(() => expect(entitySelect.value).toBe('Personal'))
-
-    expect(
-      (getByTestId('entity-select') as HTMLInputElement).value,
-    ).toBe('Personal')
-
-    await waitFor(() => {
-      expect(queryByTestId('bank-select')).toBeNull()
-      expect(queryByTestId('bank-account-select')).toBeNull()
+    fireEvent.change(getByTestId('entity-select'), {
+      target: { value: 'Music Establish (ERL)' },
     })
+    await waitFor(() => getByTestId('bank-select'))
+    const bankSelect = getByTestId('bank-select') as HTMLInputElement
+    fireEvent.change(bankSelect, { target: { value: '001' } })
+    await waitFor(() => getByTestId('bank-account-select'))
+    const accountSelect = getByTestId('bank-account-select') as HTMLInputElement
+    fireEvent.change(accountSelect, { target: { value: 'a1' } })
+    expect(require('../../lib/erlDirectory').listBanks).toHaveBeenCalled()
+    expect(require('../../lib/erlDirectory').listAccounts).toHaveBeenCalledWith('001')
+    fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
+
+    fireEvent.click(getByTestId('submit-payment'))
+    await waitFor(() => expect(require('firebase/firestore').addDoc).toHaveBeenCalled())
+    const data = (require('firebase/firestore').addDoc as jest.Mock).mock.calls[0][1]
+    expect(data.identifier).toBe('001/a1')
+    expect(data.bankCode).toBe('001')
+    expect(data.accountDocId).toBe('a1')
+    expect(data.editedBy).toBe('tester@example.com')
+    expect(data.timestamp).toBe('now')
   })
 })
