@@ -1,4 +1,10 @@
-import { initializeFirestore, getFirestore, collection, getDocs } from 'firebase/firestore'
+import {
+  initializeFirestore,
+  getFirestore,
+  collection,
+  collectionGroup,
+  getDocs,
+} from 'firebase/firestore'
 import { app } from './firebase'
 
 export interface BankInfo {
@@ -39,12 +45,19 @@ export async function listBanks(): Promise<BankInfo[]> {
   } catch (e) {
     console.warn('preferred bank directory failed', e)
     const snap = await getDocs(collection(dbDirectory, 'bankAccount'))
-    return snap.docs.map((d) => ({
-      bankCode: d.id,
-      bankName: (d.data() as any)?.name,
-      docId: d.id,
-      collectionId: 'bankAccount',
-    }))
+    const banks = snap.docs.map((d) => {
+      const data = d.data() as any
+      if (typeof data.code !== 'string')
+        throw new Error(`missing code for bank ${d.id}`)
+      return {
+        bankCode: data.code,
+        bankName: d.id,
+        docId: d.id,
+        collectionId: 'bankAccount',
+      } as BankInfo
+    })
+    if (!banks.length) throw new Error('empty bankAccount directory')
+    return banks
   }
 }
 
@@ -56,8 +69,10 @@ export async function listAccounts(bankCode: string): Promise<AccountInfo[]> {
   } catch (e) {
     console.warn('preferred accounts failed', e)
   }
-  const snap = await getDocs(collection(dbDirectory, 'bankAccount', bankCode, 'accounts'))
-  return snap.docs.map((d) => ({ accountDocId: d.id, ...(d.data() as any) }))
+  const snap = await getDocs(collectionGroup(dbDirectory, bankCode))
+  return snap.docs
+    .filter((d) => d.ref.path.includes('/bankAccount/'))
+    .map((d) => ({ accountDocId: d.id, ...(d.data() as any) }))
 }
 
 export function buildBankLabel(b: BankInfo): string {

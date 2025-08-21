@@ -83,6 +83,9 @@ describe('PaymentDetail', () => {
         onBack={() => {}}
       />,
     )
+    fireEvent.change(screen.getByTestId('detail-method-select'), {
+      target: { value: 'FPS' },
+    })
     fireEvent.change(screen.getByTestId('detail-entity-select'), {
       target: { value: 'Music Establish (ERL)' },
     })
@@ -104,10 +107,13 @@ describe('PaymentDetail', () => {
     await waitFor(() =>
       expect(payment.entity).toBe('Music Establish (ERL)'),
     )
+    expect(payment.method).toBe('FPS')
     expect(payment.bankCode).toBe('001')
     expect(payment.accountDocId).toBe('A1')
     expect(payment.identifier).toBe('001/A1')
     expect(payment.refNumber).toBe('REF1')
+    expect(screen.queryByTestId('detail-method-select')).toBeNull()
+    expect(screen.queryByTestId('detail-entity-select')).toBeNull()
   })
 })
 

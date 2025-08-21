@@ -430,6 +430,7 @@ export default function CoachingSessions() {
             sx={{
               bgcolor: serviceMode ? 'red' : 'primary.main',
               animation: serviceMode ? 'blink 1s infinite' : 'none',
+              height: 36,
             }}
           >
             Service Mode

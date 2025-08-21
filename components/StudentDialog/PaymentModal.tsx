@@ -8,6 +8,7 @@ import {
   Button,
   MenuItem,
   Typography,
+  Grid,
 } from '@mui/material'
 import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
@@ -23,6 +24,7 @@ import { normalizeIdentifier } from '../../lib/payments/format'
 import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
+import { useSnackbar } from 'notistack'
 
 export default function PaymentModal({
   abbr,
@@ -48,6 +50,8 @@ export default function PaymentModal({
   const [refNumber, setRefNumber] = useState('')
   const qc = useBillingClient()
   const isErl = entity === 'Music Establish (ERL)'
+  const { enqueueSnackbar } = useSnackbar()
+  const bankMsg = "Bank directory unavailable or missing 'code' on bank docs"
 
   useEffect(() => {
     if (!isErl) {
@@ -63,9 +67,17 @@ export default function PaymentModal({
       listBanks()
         .then((b) => {
           setBanks(b)
-          setBankError(null)
+          if (b.length === 0) {
+            setBankError(bankMsg)
+            enqueueSnackbar(bankMsg, { variant: 'error' })
+          } else {
+            setBankError(null)
+          }
         })
-        .catch(() => setBankError('Bank directory unavailable (check permissions)'))
+        .catch(() => {
+          setBankError(bankMsg)
+          enqueueSnackbar(bankMsg, { variant: 'error' })
+        })
     }
   }, [isErl, banks.length])
 
@@ -198,48 +210,52 @@ export default function PaymentModal({
         </TextField>
         {isErl && (
           <>
-            <TextField
-              label="Bank"
-              select
-              value={bankCode}
-              onChange={(e) => setBankCode(e.target.value)}
-              fullWidth
-              InputLabelProps={{
-                sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-              }}
-              inputProps={{
-                style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                'data-testid': 'bank-select',
-              }}
-              sx={{ mt: 2 }}
-            >
-              {banks.map((b) => (
-                <MenuItem key={b.bankCode} value={b.bankCode}>
-                  {buildBankLabel(b)}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Bank Account"
-              select
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              fullWidth
-              InputLabelProps={{
-                sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-              }}
-              inputProps={{
-                style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                'data-testid': 'bank-account-select',
-              }}
-              sx={{ mt: 2 }}
-            >
-              {accounts.map((a) => (
-                <MenuItem key={a.accountDocId} value={a.accountDocId}>
-                  {a.accountType}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Grid container spacing={2} sx={{ mt: 2 }}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Bank"
+                  select
+                  value={bankCode}
+                  onChange={(e) => setBankCode(e.target.value)}
+                  fullWidth
+                  InputLabelProps={{
+                    sx: { fontFamily: 'Newsreader', fontWeight: 200 },
+                  }}
+                  inputProps={{
+                    style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                    'data-testid': 'bank-select',
+                  }}
+                >
+                  {banks.map((b) => (
+                    <MenuItem key={b.bankCode} value={b.bankCode}>
+                      {buildBankLabel(b)}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Bank Account"
+                  select
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  fullWidth
+                  InputLabelProps={{
+                    sx: { fontFamily: 'Newsreader', fontWeight: 200 },
+                  }}
+                  inputProps={{
+                    style: { fontFamily: 'Newsreader', fontWeight: 500 },
+                    'data-testid': 'bank-account-select',
+                  }}
+                >
+                  {accounts.map((a) => (
+                    <MenuItem key={a.accountDocId} value={a.accountDocId}>
+                      {a.accountType}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+            </Grid>
             {bankError && (
               <Typography variant="body2" color="error" sx={{ mt: 1 }}>
                 {bankError}
