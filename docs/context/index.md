@@ -13,3 +13,4 @@
 - PR #229: https://raw.githubusercontent.com/girafeev1/ArtifactoftheEstablisher/3237e2f8c561f13a63dfff69e3d61014d236b5cd/docs/context/PR-229.md
 - PR #234: https://raw.githubusercontent.com/girafeev1/ArtifactoftheEstablisher/dba26ce4197e35bcf08972b2b695dcfd263f5aa2/docs/context/PR-234.md
 - PR #235: https://raw.githubusercontent.com/girafeev1/ArtifactoftheEstablisher/8b54a1468b0b44f4428dca49705e9de747452b4e/docs/context/PR-235.md
+- PR #236: https://raw.githubusercontent.com/girafeev1/ArtifactoftheEstablisher/1c2bdcd8a530a9e06c3fbc8b20fd7f8cd970aa18/docs/context/PR-236.md
