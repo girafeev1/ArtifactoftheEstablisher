@@ -163,6 +163,12 @@ export default function PaymentDetail({
     }
   }, [isErl, selectedBank])
 
+  useEffect(() => {
+    if (accountIdVal && process.env.NODE_ENV !== 'production') {
+      console.debug('[edit-payment] account selected', accountIdVal)
+    }
+  }, [accountIdVal])
+
 
   const assignedSet = new Set(assignedSessionIds)
   const allRows = bill

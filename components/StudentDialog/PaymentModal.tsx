@@ -96,6 +96,12 @@ export default function PaymentModal({
     setAccountId('')
   }, [selectedBank])
 
+  useEffect(() => {
+    if (accountId && process.env.NODE_ENV !== 'production') {
+      console.debug('[add-payment] account selected', accountId)
+    }
+  }, [accountId])
+
   const save = async () => {
     const paymentsPath = PATHS.payments(abbr)
     logPath('addPayment', paymentsPath)

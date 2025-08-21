@@ -10,6 +10,10 @@ import {
   Typography,
   TableSortLabel,
   Button,
+  Popover,
+  Checkbox,
+  FormGroup,
+  FormControlLabel,
 } from '@mui/material'
 import { collection, orderBy, query, onSnapshot } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
@@ -25,6 +29,8 @@ import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
 import Tooltip from '@mui/material/Tooltip'
 import IconButton from '@mui/material/IconButton'
+import FilterListIcon from '@mui/icons-material/FilterList'
+import { readColumnPrefs, writeColumnPrefs } from '../../lib/columnPrefs'
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -78,6 +84,23 @@ export default function PaymentHistory({
     { key: 'refNumber', label: 'Reference #', width: 160 },
     { key: 'session', label: 'For Session(s)', width: 180 },
   ] as const
+  const defaultVisible = columns.reduce((acc, c) => {
+    acc[c.key] = ['paymentMade', 'amount', 'session'].includes(c.key)
+    return acc
+  }, {} as Record<string, boolean>)
+  const prefsKey = `pms:ph:cols:${userEmail}`
+  const [visible, setVisible] = useState<Record<string, boolean>>(() =>
+    readColumnPrefs(prefsKey, defaultVisible),
+  )
+  useEffect(() => {
+    setVisible(readColumnPrefs(prefsKey, defaultVisible))
+  }, [prefsKey])
+  const toggleCol = (k: string) => {
+    const next = { ...visible, [k]: !visible[k] }
+    setVisible(next)
+    writeColumnPrefs(prefsKey, next)
+  }
+  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null)
   const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
     'payments',
     columns,
@@ -130,6 +153,11 @@ export default function PaymentHistory({
     return sortAsc ? av - bv : bv - av
   })
 
+  const visibleCount = columns.reduce(
+    (acc, c) => acc + (visible[c.key] ? 1 : 0),
+    0,
+  )
+
   if (detail)
     return (
       <Box sx={{ height: '100%' }}>
@@ -150,23 +178,58 @@ export default function PaymentHistory({
           <CircularProgress />
         ) : (
           <>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+            <Box
+              sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}
+            >
               <Typography
                 variant="subtitle1"
                 sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
               >
                 Payment History
               </Typography>
-              <Tooltip title="Add Payment">
-                <IconButton
-                  color="primary"
-                  onClick={() => setModalOpen(true)}
-                  aria-label="Add Payment"
-                >
-                  <WriteIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              <Box>
+                <Tooltip title="Filter Columns">
+                  <IconButton
+                    aria-label="Filter Columns"
+                    data-testid="filter-columns"
+                    onClick={(e) => setFilterAnchor(e.currentTarget)}
+                    sx={{ mr: 1 }}
+                  >
+                    <FilterListIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Add Payment">
+                  <IconButton
+                    color="primary"
+                    onClick={() => setModalOpen(true)}
+                    aria-label="Add Payment"
+                  >
+                    <WriteIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
+            <Popover
+              open={Boolean(filterAnchor)}
+              anchorEl={filterAnchor}
+              onClose={() => setFilterAnchor(null)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            >
+              <FormGroup sx={{ p: 2 }}>
+                {columns.map((c) => (
+                  <FormControlLabel
+                    key={c.key}
+                    control={
+                      <Checkbox
+                        checked={visible[c.key]}
+                        onChange={() => toggleCol(c.key)}
+                      />
+                    }
+                    label={c.label}
+                  />
+                ))}
+              </FormGroup>
+            </Popover>
             <Table
               ref={tableRef}
               size="small"
@@ -186,242 +249,256 @@ export default function PaymentHistory({
                 },
               }}
             >
-              <TableHead>
-                <TableRow>
-                <TableCell
-                  data-col="paymentMade"
-                  data-col-header
-                  title="Date"
-                  sx={{
-                    fontFamily: 'Cantata One',
-                    fontWeight: 'bold',
-                    position: 'relative',
-                    width: widths['paymentMade'],
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  <TableSortLabel
-                    active={sortField === 'paymentMade'}
-                    direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
-                    onClick={() => {
-                      if (sortField === 'paymentMade') setSortAsc((s) => !s)
-                      else {
-                        setSortField('paymentMade')
-                        setSortAsc(false)
-                      }
+            <TableHead>
+              <TableRow>
+                {visible['paymentMade'] && (
+                  <TableCell
+                    data-col="paymentMade"
+                    data-col-header
+                    title="Date"
+                    sx={{
+                      fontFamily: 'Cantata One',
+                      fontWeight: 'bold',
+                      position: 'relative',
+                      width: widths['paymentMade'],
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
                   >
-                    Date
-                  </TableSortLabel>
-                  <Box
-                    className="col-resizer"
-                    aria-label="Resize column Payment Date"
-                    role="separator"
-                    tabIndex={0}
-                    onMouseDown={(e) => startResize('paymentMade', e)}
-                    onDoubleClick={() =>
-                      dblClickResize('paymentMade', tableRef.current || undefined)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowLeft') keyResize('paymentMade', 'left')
-                      if (e.key === 'ArrowRight') keyResize('paymentMade', 'right')
-                    }}
-                  />
-                </TableCell>
-                <TableCell
-                  data-col="amount"
-                  data-col-header
-                  title="Amount"
-                  sx={{
-                    fontFamily: 'Cantata One',
-                    fontWeight: 'bold',
-                    position: 'relative',
-                    width: widths['amount'],
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  <TableSortLabel
-                    active={sortField === 'amount'}
-                    direction={sortField === 'amount' && sortAsc ? 'asc' : 'desc'}
-                    onClick={() => {
-                      if (sortField === 'amount') setSortAsc((s) => !s)
-                      else {
-                        setSortField('amount')
-                        setSortAsc(false)
+                    <TableSortLabel
+                      active={sortField === 'paymentMade'}
+                      direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
+                      onClick={() => {
+                        if (sortField === 'paymentMade') setSortAsc((s) => !s)
+                        else {
+                          setSortField('paymentMade')
+                          setSortAsc(false)
+                        }
+                      }}
+                    >
+                      Date
+                    </TableSortLabel>
+                    <Box
+                      className="col-resizer"
+                      aria-label="Resize column Payment Date"
+                      role="separator"
+                      tabIndex={0}
+                      onMouseDown={(e) => startResize('paymentMade', e)}
+                      onDoubleClick={() =>
+                        dblClickResize('paymentMade', tableRef.current || undefined)
                       }
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowLeft') keyResize('paymentMade', 'left')
+                        if (e.key === 'ArrowRight') keyResize('paymentMade', 'right')
+                      }}
+                    />
+                  </TableCell>
+                )}
+                {visible['amount'] && (
+                  <TableCell
+                    data-col="amount"
+                    data-col-header
+                    title="Amount"
+                    sx={{
+                      fontFamily: 'Cantata One',
+                      fontWeight: 'bold',
+                      position: 'relative',
+                      width: widths['amount'],
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
                   >
-                    Amount
-                  </TableSortLabel>
-                  <Box
-                    className="col-resizer"
-                    aria-label="Resize column Amount"
-                    role="separator"
-                    tabIndex={0}
-                    onMouseDown={(e) => startResize('amount', e)}
-                    onDoubleClick={() =>
-                      dblClickResize('amount', tableRef.current || undefined)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowLeft') keyResize('amount', 'left')
-                      if (e.key === 'ArrowRight') keyResize('amount', 'right')
+                    <TableSortLabel
+                      active={sortField === 'amount'}
+                      direction={sortField === 'amount' && sortAsc ? 'asc' : 'desc'}
+                      onClick={() => {
+                        if (sortField === 'amount') setSortAsc((s) => !s)
+                        else {
+                          setSortField('amount')
+                          setSortAsc(false)
+                        }
+                      }}
+                    >
+                      Amount
+                    </TableSortLabel>
+                    <Box
+                      className="col-resizer"
+                      aria-label="Resize column Amount"
+                      role="separator"
+                      tabIndex={0}
+                      onMouseDown={(e) => startResize('amount', e)}
+                      onDoubleClick={() =>
+                        dblClickResize('amount', tableRef.current || undefined)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowLeft') keyResize('amount', 'left')
+                        if (e.key === 'ArrowRight') keyResize('amount', 'right')
+                      }}
+                    />
+                  </TableCell>
+                )}
+                {visible['method'] && (
+                  <TableCell
+                    data-col="method"
+                    data-col-header
+                    title="Method"
+                    sx={{
+                      fontFamily: 'Cantata One',
+                      fontWeight: 'bold',
+                      position: 'relative',
+                      width: widths['method'],
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
-                  />
-                </TableCell>
-                <TableCell
-                  data-col="method"
-                  data-col-header
-                  title="Method"
-                  sx={{
-                    fontFamily: 'Cantata One',
-                    fontWeight: 'bold',
-                    position: 'relative',
-                    width: widths['method'],
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  Method
-                  <Box
-                    className="col-resizer"
-                    aria-label="Resize column Method"
-                    role="separator"
-                    tabIndex={0}
-                    onMouseDown={(e) => startResize('method', e)}
-                    onDoubleClick={() =>
-                      dblClickResize('method', tableRef.current || undefined)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowLeft') keyResize('method', 'left')
-                      if (e.key === 'ArrowRight') keyResize('method', 'right')
+                  >
+                    Method
+                    <Box
+                      className="col-resizer"
+                      aria-label="Resize column Method"
+                      role="separator"
+                      tabIndex={0}
+                      onMouseDown={(e) => startResize('method', e)}
+                      onDoubleClick={() =>
+                        dblClickResize('method', tableRef.current || undefined)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowLeft') keyResize('method', 'left')
+                        if (e.key === 'ArrowRight') keyResize('method', 'right')
+                      }}
+                    />
+                  </TableCell>
+                )}
+                {visible['entity'] && (
+                  <TableCell
+                    data-col="entity"
+                    data-col-header
+                    title="Entity"
+                    sx={{
+                      fontFamily: 'Cantata One',
+                      fontWeight: 'bold',
+                      position: 'relative',
+                      width: widths['entity'],
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
-                  />
-                </TableCell>
-                <TableCell
-                  data-col="entity"
-                  data-col-header
-                  title="Entity"
-                  sx={{
-                    fontFamily: 'Cantata One',
-                    fontWeight: 'bold',
-                    position: 'relative',
-                    width: widths['entity'],
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  Entity
-                  <Box
-                    className="col-resizer"
-                    aria-label="Resize column Entity"
-                    role="separator"
-                    tabIndex={0}
-                    onMouseDown={(e) => startResize('entity', e)}
-                    onDoubleClick={() =>
-                      dblClickResize('entity', tableRef.current || undefined)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowLeft') keyResize('entity', 'left')
-                      if (e.key === 'ArrowRight') keyResize('entity', 'right')
+                  >
+                    Entity
+                    <Box
+                      className="col-resizer"
+                      aria-label="Resize column Entity"
+                      role="separator"
+                      tabIndex={0}
+                      onMouseDown={(e) => startResize('entity', e)}
+                      onDoubleClick={() =>
+                        dblClickResize('entity', tableRef.current || undefined)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowLeft') keyResize('entity', 'left')
+                        if (e.key === 'ArrowRight') keyResize('entity', 'right')
+                      }}
+                    />
+                  </TableCell>
+                )}
+                {visible['identifier'] && (
+                  <TableCell
+                    data-col="identifier"
+                    data-col-header
+                    title="Bank Account"
+                    sx={{
+                      fontFamily: 'Cantata One',
+                      fontWeight: 'bold',
+                      position: 'relative',
+                      width: widths['identifier'],
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
-                  />
-                </TableCell>
-                <TableCell
-                  data-col="identifier"
-                  data-col-header
-                  title="Bank Account"
-                  sx={{
-                    fontFamily: 'Cantata One',
-                    fontWeight: 'bold',
-                    position: 'relative',
-                    width: widths['identifier'],
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  Bank Account
-                  <Box
-                    className="col-resizer"
-                    aria-label="Resize column Bank Account"
-                    role="separator"
-                    tabIndex={0}
-                    onMouseDown={(e) => startResize('identifier', e)}
-                    onDoubleClick={() =>
-                      dblClickResize('identifier', tableRef.current || undefined)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowLeft') keyResize('identifier', 'left')
-                      if (e.key === 'ArrowRight') keyResize('identifier', 'right')
+                  >
+                    Bank Account
+                    <Box
+                      className="col-resizer"
+                      aria-label="Resize column Bank Account"
+                      role="separator"
+                      tabIndex={0}
+                      onMouseDown={(e) => startResize('identifier', e)}
+                      onDoubleClick={() =>
+                        dblClickResize('identifier', tableRef.current || undefined)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowLeft') keyResize('identifier', 'left')
+                        if (e.key === 'ArrowRight') keyResize('identifier', 'right')
+                      }}
+                    />
+                  </TableCell>
+                )}
+                {visible['refNumber'] && (
+                  <TableCell
+                    data-col="refNumber"
+                    data-col-header
+                    title="Reference #"
+                    sx={{
+                      fontFamily: 'Cantata One',
+                      fontWeight: 'bold',
+                      position: 'relative',
+                      width: widths['refNumber'],
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
-                  />
-                </TableCell>
-                <TableCell
-                  data-col="refNumber"
-                  data-col-header
-                  title="Reference #"
-                  sx={{
-                    fontFamily: 'Cantata One',
-                    fontWeight: 'bold',
-                    position: 'relative',
-                    width: widths['refNumber'],
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  Reference #
-                  <Box
-                    className="col-resizer"
-                    aria-label="Resize column Reference #"
-                    role="separator"
-                    tabIndex={0}
-                    onMouseDown={(e) => startResize('refNumber', e)}
-                    onDoubleClick={() =>
-                      dblClickResize('refNumber', tableRef.current || undefined)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowLeft') keyResize('refNumber', 'left')
-                      if (e.key === 'ArrowRight') keyResize('refNumber', 'right')
+                  >
+                    Reference #
+                    <Box
+                      className="col-resizer"
+                      aria-label="Resize column Reference #"
+                      role="separator"
+                      tabIndex={0}
+                      onMouseDown={(e) => startResize('refNumber', e)}
+                      onDoubleClick={() =>
+                        dblClickResize('refNumber', tableRef.current || undefined)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowLeft') keyResize('refNumber', 'left')
+                        if (e.key === 'ArrowRight') keyResize('refNumber', 'right')
+                      }}
+                    />
+                  </TableCell>
+                )}
+                {visible['session'] && (
+                  <TableCell
+                    data-col="session"
+                    data-col-header
+                    title="For Session(s)"
+                    sx={{
+                      fontFamily: 'Cantata One',
+                      fontWeight: 'bold',
+                      position: 'relative',
+                      width: widths['session'],
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
-                  />
-                </TableCell>
-                <TableCell
-                  data-col="session"
-                  data-col-header
-                  title="For Session(s)"
-                  sx={{
-                    fontFamily: 'Cantata One',
-                    fontWeight: 'bold',
-                    position: 'relative',
-                    width: widths['session'],
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  For Session(s)
-                  <Box
-                    className="col-resizer"
-                    aria-label="Resize column For Session(s)"
-                    role="separator"
-                    tabIndex={0}
-                    onMouseDown={(e) => startResize('session', e)}
-                    onDoubleClick={() =>
-                      dblClickResize('session', tableRef.current || undefined)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowLeft') keyResize('session', 'left')
-                      if (e.key === 'ArrowRight') keyResize('session', 'right')
-                    }}
-                  />
-                </TableCell>
+                  >
+                    For Session(s)
+                    <Box
+                      className="col-resizer"
+                      aria-label="Resize column For Session(s)"
+                      role="separator"
+                      tabIndex={0}
+                      onMouseDown={(e) => startResize('session', e)}
+                      onDoubleClick={() =>
+                        dblClickResize('session', tableRef.current || undefined)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowLeft') keyResize('session', 'left')
+                        if (e.key === 'ArrowRight') keyResize('session', 'right')
+                      }}
+                    />
+                  </TableCell>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -431,7 +508,7 @@ export default function PaymentHistory({
                   .map((id: string) => sessionMap[id])
                   .filter((n): n is number => typeof n === 'number')
                   .sort((a, b) => a - b)
-                const { visible, hiddenCount } = truncateList<number>(ords)
+                const { visible: ordVisible, hiddenCount } = truncateList<number>(ords)
                 return (
                   <TableRow
                     key={p.id}
@@ -447,102 +524,122 @@ export default function PaymentHistory({
                     }}
                     sx={{ cursor: 'pointer', py: 1 }}
                   >
-                    <TableCell
-                      data-col="paymentMade"
-                      title={formatDate(p.paymentMade)}
-                      sx={{
-                        fontFamily: 'Newsreader',
-                        fontWeight: 500,
-                        width: widths['paymentMade'],
-                        minWidth: widths['paymentMade'],
-                      }}
-                    >
-                      {formatDate(p.paymentMade)}
-                    </TableCell>
-                    <TableCell
-                      data-col="amount"
-                      title={formatCurrency(amount)}
-                      sx={{
-                        fontFamily: 'Newsreader',
-                        fontWeight: 500,
-                        width: widths['amount'],
-                        minWidth: widths['amount'],
-                      }}
-                    >
-                      {formatCurrency(amount)}
-                    </TableCell>
-                    <TableCell
-                      data-col="method"
-                      title={p.method || '—'}
-                      sx={{
-                        fontFamily: 'Newsreader',
-                        fontWeight: 500,
-                        width: widths['method'],
-                        minWidth: widths['method'],
-                      }}
-                    >
-                      {p.method || '—'}
-                    </TableCell>
-                    <TableCell
-                      data-col="entity"
-                      title={p.entity ? (p.entity === 'ME-ERL' ? 'Music Establish (ERL)' : p.entity) : '—'}
-                      sx={{
-                        fontFamily: 'Newsreader',
-                        fontWeight: 500,
-                        width: widths['entity'],
-                        minWidth: widths['entity'],
-                      }}
-                    >
-                      {p.entity
-                        ? p.entity === 'ME-ERL'
-                          ? 'Music Establish (ERL)'
-                          : p.entity
-                        : '—'}
-                    </TableCell>
-                    <TableCell
-                      data-col="identifier"
-                      title={p.identifier || '—'}
-                      sx={{
-                        fontFamily: 'Newsreader',
-                        fontWeight: 500,
-                        width: widths['identifier'],
-                        minWidth: widths['identifier'],
-                      }}
-                    >
-                      {p.identifier || '—'}
-                    </TableCell>
-                    <TableCell
-                      data-col="refNumber"
-                      title={p.refNumber || '—'}
-                      sx={{
-                        fontFamily: 'Newsreader',
-                        fontWeight: 500,
-                        width: widths['refNumber'],
-                        minWidth: widths['refNumber'],
-                      }}
-                    >
-                      {p.refNumber || '—'}
-                    </TableCell>
-                    <TableCell
-                      data-col="session"
-                      title={formatSessions(ords)}
-                      sx={{
-                        fontFamily: 'Newsreader',
-                        fontWeight: 500,
-                        width: widths['session'],
-                        minWidth: widths['session'],
-                      }}
-                    >
-                      {formatSessions(visible)}
-                      {hiddenCount > 0 && ' …'}
-                    </TableCell>
+                    {visible['paymentMade'] && (
+                      <TableCell
+                        data-col="paymentMade"
+                        title={formatDate(p.paymentMade)}
+                        sx={{
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: widths['paymentMade'],
+                          minWidth: widths['paymentMade'],
+                        }}
+                      >
+                        {formatDate(p.paymentMade)}
+                      </TableCell>
+                    )}
+                    {visible['amount'] && (
+                      <TableCell
+                        data-col="amount"
+                        title={formatCurrency(amount)}
+                        sx={{
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: widths['amount'],
+                          minWidth: widths['amount'],
+                        }}
+                      >
+                        {formatCurrency(amount)}
+                      </TableCell>
+                    )}
+                    {visible['method'] && (
+                      <TableCell
+                        data-col="method"
+                        title={p.method || '—'}
+                        sx={{
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: widths['method'],
+                          minWidth: widths['method'],
+                        }}
+                      >
+                        {p.method || '—'}
+                      </TableCell>
+                    )}
+                    {visible['entity'] && (
+                      <TableCell
+                        data-col="entity"
+                        title={
+                          p.entity
+                            ? p.entity === 'ME-ERL'
+                              ? 'Music Establish (ERL)'
+                              : p.entity
+                            : '—'
+                        }
+                        sx={{
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: widths['entity'],
+                          minWidth: widths['entity'],
+                        }}
+                      >
+                        {p.entity
+                          ? p.entity === 'ME-ERL'
+                            ? 'Music Establish (ERL)'
+                            : p.entity
+                          : '—'}
+                      </TableCell>
+                    )}
+                    {visible['identifier'] && (
+                      <TableCell
+                        data-col="identifier"
+                        title={p.identifier || '—'}
+                        sx={{
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: widths['identifier'],
+                          minWidth: widths['identifier'],
+                        }}
+                      >
+                        {p.identifier || '—'}
+                      </TableCell>
+                    )}
+                    {visible['refNumber'] && (
+                      <TableCell
+                        data-col="refNumber"
+                        title={p.refNumber || '—'}
+                        sx={{
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: widths['refNumber'],
+                          minWidth: widths['refNumber'],
+                        }}
+                      >
+                        {p.refNumber || '—'}
+                      </TableCell>
+                    )}
+                    {visible['session'] && (
+                      <TableCell
+                        data-col="session"
+                        title={formatSessions(ords)}
+                        sx={{
+                          fontFamily: 'Newsreader',
+                          fontWeight: 500,
+                          width: widths['session'],
+                          minWidth: widths['session'],
+                        }}
+                      >
+                        {formatSessions(ordVisible)}
+                        {hiddenCount > 0 && ' …'}
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })}
               {sortedPayments.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={visibleCount}
                     sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
                   >
                     No payments recorded.

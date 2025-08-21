@@ -16,7 +16,7 @@ jest.mock('../../lib/erlDirectory', () => ({
   listAccounts: jest.fn().mockResolvedValue([
     { accountDocId: 'a1', accountType: 'Savings' },
   ]),
-  buildBankLabel: jest.fn((b) => `${b.bankName} ${b.bankCode}`),
+  buildBankLabel: jest.fn((b) => `${b.bankName} (${b.bankCode})`),
 }))
 
 jest.mock('firebase/firestore', () => ({

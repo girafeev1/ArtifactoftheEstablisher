@@ -12,5 +12,8 @@ export const PATHS = {
   sessionHistory: (sessionId: string) => `Sessions/${sessionId}/appointmentHistory`,
   sessionVoucher: (sessionId: string) => `Sessions/${sessionId}/sessionVoucher`,
 }
-export const logPath = (label: string, path: string) =>
-  console.debug(`[paths] ${label}: ${path}`)
+export const logPath = (label: string, path: string) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug(`[paths] ${label}: ${path}`)
+  }
+}

@@ -400,14 +400,18 @@ export default function CoachingSessions() {
         <Box
           data-testid="card-footer-row"
           sx={{
-            position: 'sticky',
+            position: 'fixed',
             bottom: 0,
             left: 0,
+            right: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '12px',
             p: 1,
+            bgcolor: 'background.paper',
+            boxShadow: '0 -2px 8px rgba(0,0,0,0.1)',
+            zIndex: 1200,
           }}
         >
           <IconButton
