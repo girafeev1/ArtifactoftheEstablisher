@@ -29,14 +29,32 @@ jest.mock('firebase/firestore', () => ({
   collection: jest.fn(),
   Timestamp: { now: () => ({ seconds: 0 }) },
   deleteField: () => 'DELETED',
+  getDoc: jest.fn(() => Promise.resolve({ data: () => ({ firstName: 'First', lastName: 'Last' }) })),
 }))
 jest.mock('../../lib/erlDirectory', () => ({
   listBanks: () =>
     Promise.resolve([{ bankCode: '001', bankName: 'Bank1', rawCodeSegment: '(001)' }]),
   listAccounts: jest
     .fn()
-    .mockResolvedValue([{ accountDocId: 'A1', accountType: 'Savings' }]),
+    .mockResolvedValue([
+      {
+        accountDocId: 'A1',
+        accountType: 'Corporate',
+        accountNumber: '12345678',
+      },
+    ]),
   buildBankLabel: (b: any) => `${b.bankName || ''} (${b.bankCode})`.trim(),
+  buildAccountLabel: (a: any) =>
+    `${a.accountType} · \u2022\u2022\u2022\u2022${String(a.accountNumber).slice(-4)}`,
+  maskAccountNumber: (n: string) => `\u2022\u2022\u2022\u2022${String(n).slice(-4)}`,
+  lookupAccount: jest.fn(() =>
+    Promise.resolve({
+      bankName: 'Bank1',
+      bankCode: '001',
+      accountType: 'Corporate',
+      accountNumber: '12345678',
+    }),
+  ),
 }))
 
 describe('PaymentDetail', () => {
@@ -75,7 +93,7 @@ describe('PaymentDetail', () => {
     expect(blinkEls[0]).toBe(screen.getByTestId('remaining-amount'))
   })
 
-  it('allows editing empty metadata and saves', async () => {
+  it('allows editing empty metadata and saves identifier only', async () => {
     const payment: any = { ...basePayment }
     render(
       <PaymentDetail
@@ -93,15 +111,8 @@ describe('PaymentDetail', () => {
     })
     await waitFor(() => screen.getByTestId('detail-bank-select'))
     fireEvent.change(screen.getByTestId('detail-bank-select'), {
-      target: { value: '001' },
+      target: { value: '(001)' },
     })
-    await waitFor(() =>
-      expect(require('../../lib/erlDirectory').listAccounts).toHaveBeenCalledWith({
-        bankCode: '001',
-        bankName: 'Bank1',
-        rawCodeSegment: '(001)',
-      }),
-    )
     await waitFor(() => screen.getByTestId('detail-bank-account-select'))
     fireEvent.change(screen.getByTestId('detail-bank-account-select'), {
       target: { value: 'A1' },
@@ -113,16 +124,42 @@ describe('PaymentDetail', () => {
       expect(screen.getByTestId('detail-save')).not.toBeDisabled(),
     )
     fireEvent.click(screen.getByTestId('detail-save'))
-    await waitFor(() =>
-      expect(payment.entity).toBe('Music Establish (ERL)'),
-    )
+    await waitFor(() => expect(payment.identifier).toBe('A1'))
     expect(payment.method).toBe('FPS')
-    expect(payment.bankCode).toBe('001')
-    expect(payment.accountDocId).toBe('A1')
-    expect(payment.identifier).toBe('001/A1')
+    expect(payment.bankCode).toBeUndefined()
+    expect(payment.accountDocId).toBeUndefined()
     expect(payment.refNumber).toBe('REF1')
+    expect(payment.entity).toBeUndefined()
     expect(screen.queryByTestId('detail-method-select')).toBeNull()
     expect(screen.queryByTestId('detail-entity-select')).toBeNull()
+    await waitFor(() =>
+      expect(screen.getByTestId('payment-summary-block')).toBeInTheDocument(),
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('payment-summary-block')).toHaveTextContent(
+        '••••5678',
+      ),
+    )
+  })
+
+  it('renders summary block when identifier present', async () => {
+    const payment: any = { ...basePayment, identifier: 'A1', method: 'FPS', refNumber: 'R1' }
+    render(
+      <PaymentDetail
+        abbr="A"
+        account="acct"
+        payment={payment}
+        onBack={() => {}}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('payment-summary-block')).toBeInTheDocument(),
+    )
+    expect(screen.queryByTestId('detail-method-select')).toBeNull()
+    expect(screen.getByText(/Bank1 \(001\)/)).toBeInTheDocument()
+    expect(screen.getByTestId('payment-summary-block')).toHaveTextContent(
+      '••••5678',
+    )
   })
 })
 
