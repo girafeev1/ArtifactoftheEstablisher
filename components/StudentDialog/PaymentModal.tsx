@@ -17,10 +17,11 @@ import {
   listBanks,
   listAccounts,
   buildBankLabel,
+  buildAccountLabel,
   BankInfo,
   AccountInfo,
 } from '../../lib/erlDirectory'
-import { normalizeIdentifier } from '../../lib/payments/format'
+import { reducePaymentPayload } from '../../lib/payments/submit'
 import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
@@ -41,27 +42,24 @@ export default function PaymentModal({
   const [madeOn, setMadeOn] = useState('')
   const [method, setMethod] = useState('')
   const [entity, setEntity] = useState('')
-  const [bankCode, setBankCode] = useState('')
   const [selectedBank, setSelectedBank] = useState<BankInfo | null>(null)
   const [accountId, setAccountId] = useState('')
   const [banks, setBanks] = useState<BankInfo[]>([])
   const [accounts, setAccounts] = useState<AccountInfo[]>([])
   const [bankError, setBankError] = useState<string | null>(null)
-  const [identifier, setIdentifier] = useState('')
+  const [acctError, setAcctError] = useState<string | null>(null)
+  const [acctEmpty, setAcctEmpty] = useState(false)
   const [refNumber, setRefNumber] = useState('')
   const qc = useBillingClient()
   const isErl = entity === 'Music Establish (ERL)'
   const { enqueueSnackbar } = useSnackbar()
-  const bankMsg =
-    'Bank directory unavailable (check rules on the erl-directory database).'
+  const bankMsg = "Can't read ERL directory. Check erl-directory rules."
 
   useEffect(() => {
     if (!isErl) {
-      setBankCode('')
       setSelectedBank(null)
       setAccountId('')
       setBankError(null)
-      setIdentifier('')
     }
   }, [isErl])
 
@@ -85,22 +83,44 @@ export default function PaymentModal({
   }, [isErl, banks.length])
 
   useEffect(() => {
-    if (selectedBank) {
-      listAccounts(selectedBank)
-        .then((a) => setAccounts(a))
-        .catch(() => setAccounts([]))
-      setBankCode(selectedBank.bankCode)
-    } else {
-      setAccounts([])
+    const load = () => {
+      if (selectedBank) {
+        listAccounts(selectedBank)
+          .then((a) => {
+            setAccounts(a)
+            setAcctEmpty(a.length === 0)
+            setAcctError(null)
+          })
+          .catch(() => {
+            setAccounts([])
+            setAcctEmpty(false)
+            setAcctError(bankMsg)
+          })
+      } else {
+        setAccounts([])
+        setAcctEmpty(false)
+        setAcctError(null)
+      }
+      setAccountId('')
     }
-    setAccountId('')
+    load()
   }, [selectedBank])
 
-  useEffect(() => {
-    if (accountId && process.env.NODE_ENV !== 'production') {
-      console.debug('[add-payment] account selected', accountId)
+  const retryAccounts = () => {
+    if (selectedBank) {
+      listAccounts(selectedBank)
+        .then((a) => {
+          setAccounts(a)
+          setAcctEmpty(a.length === 0)
+          setAcctError(null)
+        })
+        .catch(() => {
+          setAccounts([])
+          setAcctEmpty(false)
+          setAcctError(bankMsg)
+        })
     }
-  }, [accountId])
+  }
 
   const save = async () => {
     const paymentsPath = PATHS.payments(abbr)
@@ -108,24 +128,19 @@ export default function PaymentModal({
     const colRef = collection(db, paymentsPath)
     const today = new Date()
     const date = madeOn ? new Date(madeOn) : today
-    const data: any = {
+    const draft: any = {
       amount: Number(amount) || 0,
       paymentMade: Timestamp.fromDate(date),
       remainingAmount: Number(amount) || 0,
       assignedSessions: [],
       assignedRetainers: [],
       method,
-      entity,
       refNumber,
       timestamp: Timestamp.now(),
       editedBy: getAuth().currentUser?.email || 'system',
+      accountDocId: isErl ? accountId : undefined,
     }
-    if (isErl) {
-      const id = normalizeIdentifier(entity, bankCode, accountId, identifier)
-      if (id) data.identifier = id
-      data.bankCode = bankCode
-      data.accountDocId = accountId
-    }
+    const data = reducePaymentPayload(draft)
     await addDoc(colRef, data)
     qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
       if (!prev) return prev
@@ -202,9 +217,7 @@ export default function PaymentModal({
             const val = e.target.value
             setEntity(val)
             if (val !== 'Music Establish (ERL)') {
-              setBankCode('')
               setAccountId('')
-              setIdentifier('')
             }
           }}
           fullWidth
@@ -225,9 +238,11 @@ export default function PaymentModal({
                 <TextField
                   label="Bank"
                   select
-                  value={selectedBank ? selectedBank.bankCode : ''}
+                  value={selectedBank ? selectedBank.rawCodeSegment : ''}
                   onChange={(e) => {
-                    const b = banks.find((bk) => bk.bankCode === e.target.value)
+                    const b = banks.find(
+                      (bk) => bk.rawCodeSegment === e.target.value,
+                    )
                     setSelectedBank(b || null)
                   }}
                   fullWidth
@@ -240,7 +255,10 @@ export default function PaymentModal({
                   }}
                 >
                   {banks.map((b) => (
-                    <MenuItem key={`${b.bankName}-${b.bankCode}`} value={b.bankCode}>
+                    <MenuItem
+                      key={`${b.bankName}-${b.rawCodeSegment}`}
+                      value={b.rawCodeSegment}
+                    >
                       {buildBankLabel(b)}
                     </MenuItem>
                   ))}
@@ -263,7 +281,7 @@ export default function PaymentModal({
                 >
                   {accounts.map((a) => (
                     <MenuItem key={a.accountDocId} value={a.accountDocId}>
-                      {a.accountType}
+                      {buildAccountLabel(a)}
                     </MenuItem>
                   ))}
                 </TextField>
@@ -272,6 +290,19 @@ export default function PaymentModal({
             {bankError && (
               <Typography variant="body2" color="error" sx={{ mt: 1 }}>
                 {bankError}
+              </Typography>
+            )}
+            {acctError && !bankError && (
+              <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                {acctError}
+              </Typography>
+            )}
+            {acctEmpty && !acctError && (
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                No accounts found.{' '}
+                <Button size="small" onClick={retryAccounts}>
+                  Retry
+                </Button>
               </Typography>
             )}
           </>
@@ -300,14 +331,12 @@ export default function PaymentModal({
             setMadeOn('')
             setMethod('')
             setEntity('')
-            setBankCode('')
             setSelectedBank(null)
             setAccountId('')
-            setIdentifier('')
             setRefNumber('')
             onClose()
           }}
-          disabled={!method || !entity || (isErl && (!bankCode || !accountId))}
+          disabled={!method || !entity || (isErl && !accountId)}
           data-testid="submit-payment"
         >
           Submit
