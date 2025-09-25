@@ -17,13 +17,19 @@ Object.entries(firebaseConfig).forEach(([k, v]) => {
   console.log(`   ${k}: ${v}`)
 })
 
-const databaseId = 'mel-sessions'
-console.log('📚 Firestore database ID:', databaseId)
+const DEFAULT_DATABASE_ID = 'mel-sessions'
+const PROJECTS_DATABASE_ID = 'epl-projects'
+
+console.log('📚 Firestore database ID:', DEFAULT_DATABASE_ID)
+console.log('📚 Firestore projects database ID:', PROJECTS_DATABASE_ID)
 
 export const app = !getApps().length
   ? initializeApp(firebaseConfig)
   : getApp()
-export const db = getFirestore(app, databaseId)
+export const db = getFirestore(app, DEFAULT_DATABASE_ID)
+export const projectsDb = getFirestore(app, PROJECTS_DATABASE_ID)
+export const PROJECTS_FIRESTORE_DATABASE_ID = PROJECTS_DATABASE_ID
+export const getFirestoreForDatabase = (databaseId: string) => getFirestore(app, databaseId)
 // after you create/export `db`...
 if (typeof window !== 'undefined') {
   // @ts-expect-error attach for debugging
