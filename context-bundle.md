@@ -1,1463 +1,520 @@
-# PR #244 — Diff Summary
+# PR #245 — Diff Summary
 
-- **Base (target)**: `a2c9af8091631737b8a15a9f15ed29f3f058d195`
-- **Head (source)**: `a1c73f3cdc9721850adff666c86cd1949eff15c7`
+- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
+- **Head (source)**: `0daac341ee0faa93de3bd13e5f999c3d79f97043`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
 
 ```txt
-M	components/StudentDialog/PaymentDetail.test.tsx
-M	components/StudentDialog/PaymentDetail.tsx
-M	components/StudentDialog/PaymentHistory.tsx
-M	components/StudentDialog/PaymentModal.test.tsx
-M	components/StudentDialog/PaymentModal.tsx
-M	lib/erlDirectory.test.ts
-M	lib/erlDirectory.ts
-A	lib/payments/submit.test.ts
-A	lib/payments/submit.ts
-A	prompts/p-028-02r.md
-M	styles/studentDialog.css
+M	components/SidebarLayout.tsx
+A	lib/projectsDatabase.ts
+A	pages/dashboard/businesses/projects-database.tsx
 ```
 
 ## Stats
 
 ```txt
- components/StudentDialog/PaymentDetail.test.tsx |  69 ++-
- components/StudentDialog/PaymentDetail.tsx      | 536 ++++++++++++++----------
- components/StudentDialog/PaymentHistory.tsx     |  32 +-
- components/StudentDialog/PaymentModal.test.tsx  |  32 +-
- components/StudentDialog/PaymentModal.tsx       | 101 +++--
- lib/erlDirectory.test.ts                        |  63 ++-
- lib/erlDirectory.ts                             | 110 +++--
- lib/payments/submit.test.ts                     |  22 +
- lib/payments/submit.ts                          |  13 +
- prompts/p-028-02r.md                            |   1 +
- styles/studentDialog.css                        |   2 +-
- 11 files changed, 638 insertions(+), 343 deletions(-)
+ components/SidebarLayout.tsx                     |  11 +
+ lib/projectsDatabase.ts                          | 172 ++++++++++++++
+ pages/dashboard/businesses/projects-database.tsx | 287 +++++++++++++++++++++++
+ 3 files changed, 470 insertions(+)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
 
 ```diff
-diff --git a/components/StudentDialog/PaymentDetail.test.tsx b/components/StudentDialog/PaymentDetail.test.tsx
-index 52a9655..630561e 100644
---- a/components/StudentDialog/PaymentDetail.test.tsx
-+++ b/components/StudentDialog/PaymentDetail.test.tsx
-@@ -29,14 +29,32 @@ jest.mock('firebase/firestore', () => ({
-   collection: jest.fn(),
-   Timestamp: { now: () => ({ seconds: 0 }) },
-   deleteField: () => 'DELETED',
-+  getDoc: jest.fn(() => Promise.resolve({ data: () => ({ firstName: 'First', lastName: 'Last' }) })),
- }))
- jest.mock('../../lib/erlDirectory', () => ({
-   listBanks: () =>
-     Promise.resolve([{ bankCode: '001', bankName: 'Bank1', rawCodeSegment: '(001)' }]),
-   listAccounts: jest
-     .fn()
--    .mockResolvedValue([{ accountDocId: 'A1', accountType: 'Savings' }]),
-+    .mockResolvedValue([
-+      {
-+        accountDocId: 'A1',
-+        accountType: 'Corporate',
-+        accountNumber: '12345678',
-+      },
-+    ]),
-   buildBankLabel: (b: any) => `${b.bankName || ''} (${b.bankCode})`.trim(),
-+  buildAccountLabel: (a: any) =>
-+    `${a.accountType} · \u2022\u2022\u2022\u2022${String(a.accountNumber).slice(-4)}`,
-+  maskAccountNumber: (n: string) => `\u2022\u2022\u2022\u2022${String(n).slice(-4)}`,
-+  lookupAccount: jest.fn(() =>
-+    Promise.resolve({
-+      bankName: 'Bank1',
-+      bankCode: '001',
-+      accountType: 'Corporate',
-+      accountNumber: '12345678',
-+    }),
-+  ),
- }))
- 
- describe('PaymentDetail', () => {
-@@ -75,7 +93,7 @@ describe('PaymentDetail', () => {
-     expect(blinkEls[0]).toBe(screen.getByTestId('remaining-amount'))
-   })
- 
--  it('allows editing empty metadata and saves', async () => {
-+  it('allows editing empty metadata and saves identifier only', async () => {
-     const payment: any = { ...basePayment }
-     render(
-       <PaymentDetail
-@@ -93,15 +111,8 @@ describe('PaymentDetail', () => {
-     })
-     await waitFor(() => screen.getByTestId('detail-bank-select'))
-     fireEvent.change(screen.getByTestId('detail-bank-select'), {
--      target: { value: '001' },
-+      target: { value: '(001)' },
-     })
--    await waitFor(() =>
--      expect(require('../../lib/erlDirectory').listAccounts).toHaveBeenCalledWith({
--        bankCode: '001',
--        bankName: 'Bank1',
--        rawCodeSegment: '(001)',
--      }),
--    )
-     await waitFor(() => screen.getByTestId('detail-bank-account-select'))
-     fireEvent.change(screen.getByTestId('detail-bank-account-select'), {
-       target: { value: 'A1' },
-@@ -113,16 +124,42 @@ describe('PaymentDetail', () => {
-       expect(screen.getByTestId('detail-save')).not.toBeDisabled(),
-     )
-     fireEvent.click(screen.getByTestId('detail-save'))
--    await waitFor(() =>
--      expect(payment.entity).toBe('Music Establish (ERL)'),
--    )
-+    await waitFor(() => expect(payment.identifier).toBe('A1'))
-     expect(payment.method).toBe('FPS')
--    expect(payment.bankCode).toBe('001')
--    expect(payment.accountDocId).toBe('A1')
--    expect(payment.identifier).toBe('001/A1')
-+    expect(payment.bankCode).toBeUndefined()
-+    expect(payment.accountDocId).toBeUndefined()
-     expect(payment.refNumber).toBe('REF1')
-+    expect(payment.entity).toBeUndefined()
-     expect(screen.queryByTestId('detail-method-select')).toBeNull()
-     expect(screen.queryByTestId('detail-entity-select')).toBeNull()
-+    await waitFor(() =>
-+      expect(screen.getByTestId('payment-summary-block')).toBeInTheDocument(),
-+    )
-+    await waitFor(() =>
-+      expect(screen.getByTestId('payment-summary-block')).toHaveTextContent(
-+        '••••5678',
-+      ),
-+    )
-+  })
+diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
+index 9b9a192..c97b165 100644
+--- a/components/SidebarLayout.tsx
++++ b/components/SidebarLayout.tsx
+@@ -62,6 +62,17 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
+                 </Button>
+               </Link>
+             </MenuItem>
++            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
++              <Link
++                href="/dashboard/businesses/projects-database"
++                passHref
++                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
++              >
++                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
++                  Projects (Database)
++                </Button>
++              </Link>
++            </MenuItem>
+             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
+               <Link href="/dashboard/businesses/coaching-sessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+diff --git a/lib/projectsDatabase.ts b/lib/projectsDatabase.ts
+new file mode 100644
+index 0000000..6d230ee
+--- /dev/null
++++ b/lib/projectsDatabase.ts
+@@ -0,0 +1,172 @@
++// lib/projectsDatabase.ts
 +
-+  it('renders summary block when identifier present', async () => {
-+    const payment: any = { ...basePayment, identifier: 'A1', method: 'FPS', refNumber: 'R1' }
-+    render(
-+      <PaymentDetail
-+        abbr="A"
-+        account="acct"
-+        payment={payment}
-+        onBack={() => {}}
-+      />,
-+    )
-+    await waitFor(() =>
-+      expect(screen.getByTestId('payment-summary-block')).toBeInTheDocument(),
-+    )
-+    expect(screen.queryByTestId('detail-method-select')).toBeNull()
-+    expect(screen.getByText(/Bank1 \(001\)/)).toBeInTheDocument()
-+    expect(screen.getByTestId('payment-summary-block')).toHaveTextContent(
-+      '••••5678',
-+    )
-   })
- })
- 
-diff --git a/components/StudentDialog/PaymentDetail.tsx b/components/StudentDialog/PaymentDetail.tsx
-index a582681..468b5ad 100644
---- a/components/StudentDialog/PaymentDetail.tsx
-+++ b/components/StudentDialog/PaymentDetail.tsx
-@@ -22,6 +22,7 @@ import {
-   collection,
-   Timestamp,
-   deleteField,
++import {
++  collection,
++  doc,
 +  getDoc,
- } from 'firebase/firestore'
- import { db } from '../../lib/firebase'
- import { formatMMMDDYYYY } from '../../lib/date'
-@@ -32,7 +33,6 @@ import { minUnpaidRate } from '../../lib/billing/minUnpaidRate'
- import { paymentBlinkClass } from '../../lib/billing/paymentBlink'
- import { formatSessions } from '../../lib/billing/formatSessions'
- import { truncateList } from '../../lib/payments/truncate'
--import { normalizeIdentifier } from '../../lib/payments/format'
- import {
-   patchBillingAssignedSessions,
-   writeSummaryFromCache,
-@@ -45,8 +45,11 @@ import {
-   listBanks,
-   listAccounts,
-   buildBankLabel,
-+  buildAccountLabel,
-+  maskAccountNumber,
-   BankInfo,
-   AccountInfo,
-+  lookupAccount,
- } from '../../lib/erlDirectory'
- import { useSnackbar } from 'notistack'
- 
-@@ -98,6 +101,21 @@ export default function PaymentDetail({
-   const [accountIdVal, setAccountIdVal] = useState(payment.accountDocId || '')
-   const [banks, setBanks] = useState<BankInfo[]>([])
-   const [accounts, setAccounts] = useState<AccountInfo[]>([])
-+  const [acctError, setAcctError] = useState<string | null>(null)
-+  const [acctEmpty, setAcctEmpty] = useState(false)
-+  const [studentName, setStudentName] = useState<{ first: string; last: string }>({
-+    first: '',
-+    last: '',
++  getDocs,
++  getFirestore,
++  initializeFirestore,
++  QueryDocumentSnapshot,
++  Timestamp,
++} from 'firebase/firestore'
++import { app } from './firebase'
++
++const PROJECTS_DATABASE_ID = 'epl-projects'
++
++export const dbProjects = (() => {
++  try {
++    return getFirestore(app, PROJECTS_DATABASE_ID)
++  } catch {
++    return initializeFirestore(app, {}, PROJECTS_DATABASE_ID)
++  }
++})()
++
++const FALLBACK_YEARS = (process.env.NEXT_PUBLIC_PROJECT_YEARS || '')
++  .split(',')
++  .map((value) => value.trim())
++  .filter(Boolean)
++
++export interface FirestoreProjectRecord {
++  id: string
++  year: string
++  projectNumber: string
++  projectTitle: string
++  clientCompany: string
++  projectNature: string
++  presenterWorkType: string
++  subsidiary: string
++  amount: number | null
++  invoice: string
++  paid: boolean | null
++  paidTo: string
++  projectDate: Date | null
++  onDate: Date | null
++  invoiceCompany?: string
++}
++
++function parseTimestamp(value: unknown): Date | null {
++  if (!value) return null
++  if (value instanceof Timestamp) {
++    return value.toDate()
++  }
++  if (value instanceof Date) {
++    return value
++  }
++  if (
++    typeof value === 'object' &&
++    value !== null &&
++    'seconds' in value &&
++    'nanoseconds' in value
++  ) {
++    const seconds = (value as { seconds: number; nanoseconds: number }).seconds
++    const nanoseconds = (value as { seconds: number; nanoseconds: number }).nanoseconds
++    return Timestamp.fromMillis(seconds * 1000 + Math.floor(nanoseconds / 1_000_000)).toDate()
++  }
++  if (typeof value === 'string') {
++    const parsed = new Date(value)
++    if (!Number.isNaN(parsed.getTime())) {
++      return parsed
++    }
++  }
++  return null
++}
++
++function parseBoolean(value: unknown): boolean | null {
++  if (typeof value === 'boolean') return value
++  if (typeof value === 'string') {
++    if (value.toLowerCase() === 'true') return true
++    if (value.toLowerCase() === 'false') return false
++  }
++  return null
++}
++
++function parseAmount(value: unknown): number | null {
++  if (typeof value === 'number') return value
++  if (typeof value === 'string') {
++    const numeric = Number(value.replace(/[^\d.-]+/g, ''))
++    return Number.isFinite(numeric) ? numeric : null
++  }
++  return null
++}
++
++function parseProjectDocument(
++  year: string,
++  snapshot: QueryDocumentSnapshot,
++): FirestoreProjectRecord {
++  const data = snapshot.data() as Record<string, unknown>
++
++  return {
++    id: snapshot.id,
++    year,
++    projectNumber: typeof data.projectNumber === 'string' ? data.projectNumber : snapshot.id,
++    projectTitle: typeof data.projectTitle === 'string' ? data.projectTitle : '',
++    clientCompany: typeof data.clientCompany === 'string' ? data.clientCompany : '',
++    projectNature: typeof data.projectNature === 'string' ? data.projectNature : '',
++    presenterWorkType:
++      typeof data.presenterWorkType === 'string' ? data.presenterWorkType : '',
++    subsidiary: typeof data.subsidiary === 'string' ? data.subsidiary : '',
++    amount: parseAmount(data.amount),
++    invoice: typeof data.invoice === 'string' ? data.invoice : '',
++    paid: parseBoolean(data.paid),
++    paidTo: typeof data.paidTo === 'string' ? data.paidTo : '',
++    projectDate: parseTimestamp(data.projectDate),
++    onDate: parseTimestamp(data.onDate),
++    invoiceCompany:
++      typeof data.invoiceCompany === 'string' ? data.invoiceCompany : undefined,
++  }
++}
++
++async function loadYearCollection(year: string) {
++  const directSnapshot = await getDocs(collection(dbProjects, year))
++  if (!directSnapshot.empty) {
++    return directSnapshot
++  }
++  return getDocs(collection(dbProjects, 'data', year))
++}
++
++async function loadYearsFromMetadata(): Promise<string[]> {
++  try {
++    const metaDoc = await getDoc(doc(dbProjects, '__meta__', 'years'))
++    if (!metaDoc.exists()) return []
++    const data = metaDoc.data() as Record<string, unknown>
++    const candidates = Array.isArray(data.list)
++      ? data.list
++      : Array.isArray(data.years)
++        ? data.years
++        : Array.isArray(data.values)
++          ? data.values
++          : []
++    return candidates
++      .map((value) => String(value).trim())
++      .filter(Boolean)
++  } catch (error) {
++    if (process.env.NODE_ENV !== 'production') {
++      console.warn('Unable to load project years metadata:', error)
++    }
++    return []
++  }
++}
++
++export async function fetchProjectYears(): Promise<string[]> {
++  const fromMetadata = await loadYearsFromMetadata()
++  const combined = new Set<string>([...fromMetadata, ...FALLBACK_YEARS])
++
++  if (combined.size === 0) {
++    combined.add('2025')
++  }
++
++  return Array.from(combined).sort((a, b) =>
++    b.localeCompare(a, undefined, { numeric: true }),
++  )
++}
++
++export async function fetchProjectsForYear(
++  year: string,
++): Promise<FirestoreProjectRecord[]> {
++  const snapshot = await loadYearCollection(year)
++  return snapshot.docs
++    .map((docSnapshot) => parseProjectDocument(year, docSnapshot))
++    .sort((a, b) => a.projectNumber.localeCompare(b.projectNumber, undefined, { numeric: true }))
++}
++
+diff --git a/pages/dashboard/businesses/projects-database.tsx b/pages/dashboard/businesses/projects-database.tsx
+new file mode 100644
+index 0000000..bcf4c81
+--- /dev/null
++++ b/pages/dashboard/businesses/projects-database.tsx
+@@ -0,0 +1,287 @@
++// pages/dashboard/businesses/projects-database.tsx
++
++import { useEffect, useMemo, useState } from 'react'
++import SidebarLayout from '../../../components/SidebarLayout'
++import {
++  Box,
++  Button,
++  CircularProgress,
++  FormControl,
++  InputLabel,
++  MenuItem,
++  Paper,
++  Select,
++  SelectChangeEvent,
++  Table,
++  TableBody,
++  TableCell,
++  TableContainer,
++  TableHead,
++  TableRow,
++  Typography,
++  Alert,
++} from '@mui/material'
++import {
++  fetchProjectYears,
++  fetchProjectsForYear,
++  FirestoreProjectRecord,
++} from '../../../lib/projectsDatabase'
++import { useRouter } from 'next/router'
++
++interface YearLoadResult {
++  year: string
++  projects: FirestoreProjectRecord[]
++  error?: string
++}
++
++function formatCurrency(value: number | null): string {
++  if (value === null || Number.isNaN(value)) return '-'
++  return new Intl.NumberFormat('en-US', {
++    style: 'currency',
++    currency: 'HKD',
++    maximumFractionDigits: 2,
++    minimumFractionDigits: 2,
++  }).format(value)
++}
++
++function formatText(value: string | undefined | null): string {
++  if (value === null || value === undefined || value === '') {
++    return 'N/A'
++  }
++  return value
++}
++
++function formatBoolean(value: boolean | null): string {
++  if (value === null) {
++    return 'N/A'
++  }
++  return value ? 'Yes' : 'No'
++}
++
++function formatDate(value: Date | null): string {
++  if (!value) return '-'
++  if (Number.isNaN(value.getTime())) return '-'
++  return value.toLocaleDateString('en-US', {
++    month: 'short',
++    day: '2-digit',
++    year: 'numeric',
 +  })
-+  const [acctInfo, setAcctInfo] = useState<
-+    | {
-+        bankName: string
-+        bankCode: string
-+        accountType?: string
-+        accountNumber?: string
-+      }
-+    | null
-+  >(null)
-   const qc = useBillingClient()
-   const { data: bill } = useBilling(abbr, account)
-   const [retainers, setRetainers] = useState<any[]>([])
-@@ -118,8 +136,7 @@ export default function PaymentDetail({
-   const minDue = React.useMemo(() => minUnpaidRate(bill?.rows || []), [bill])
-   const isErl =
-     entityVal === 'Music Establish (ERL)' || entityVal === 'ME-ERL'
--  const bankMsg =
--    'Bank directory unavailable (check rules on the erl-directory database).'
-+  const bankMsg = "Can't read ERL directory. Check erl-directory rules."
-   const [bankError, setBankError] = useState<string | null>(null)
-   const { enqueueSnackbar } = useSnackbar()
-   useEffect(() => {
-@@ -152,23 +169,63 @@ export default function PaymentDetail({
-     }
-   }, [isErl])
-   useEffect(() => {
-+    const load = () => {
-+      if (isErl && selectedBank) {
-+        listAccounts(selectedBank)
-+          .then((a) => {
-+            setAccounts(a)
-+            setAcctEmpty(a.length === 0)
-+            setAcctError(null)
-+          })
-+          .catch(() => {
-+            setAccounts([])
-+            setAcctEmpty(false)
-+            setAcctError(bankMsg)
-+          })
-+        setBankCodeVal(selectedBank.bankCode)
-+      } else {
-+        setAccounts([])
-+        setAccountIdVal('')
-+        setAcctEmpty(false)
-+        setAcctError(null)
++}
++
++export default function ProjectsDatabasePage() {
++  const router = useRouter()
++  const [isLoading, setIsLoading] = useState(true)
++  const [generalError, setGeneralError] = useState<string | null>(null)
++  const [years, setYears] = useState<string[]>([])
++  const [selectedYear, setSelectedYear] = useState('')
++  const [projectsByYear, setProjectsByYear] = useState<Record<string, FirestoreProjectRecord[]>>({})
++  const [yearErrors, setYearErrors] = useState<Record<string, string>>({})
++
++  useEffect(() => {
++    let cancelled = false
++
++    const load = async () => {
++      setIsLoading(true)
++      setGeneralError(null)
++      try {
++        const availableYears = await fetchProjectYears()
++        if (cancelled) return
++
++        setYears(availableYears)
++        setSelectedYear((current) =>
++          current && availableYears.includes(current) ? current : availableYears[0] || '',
++        )
++
++        if (availableYears.length === 0) {
++          setProjectsByYear({})
++          setYearErrors({})
++          return
++        }
++
++        const results = await Promise.all(
++          availableYears.map(async (year) => {
++            try {
++              const projects = await fetchProjectsForYear(year)
++              return { year, projects } satisfies YearLoadResult
++            } catch (error) {
++              const message =
++                error instanceof Error ? error.message : 'Unable to load project data.'
++              return { year, projects: [], error: message } satisfies YearLoadResult
++            }
++          }),
++        )
++
++        if (cancelled) return
++
++        const nextProjects: Record<string, FirestoreProjectRecord[]> = {}
++        const nextErrors: Record<string, string> = {}
++
++        results.forEach(({ year, projects, error }) => {
++          nextProjects[year] = projects
++          if (error) {
++            nextErrors[year] = error
++          }
++        })
++
++        setProjectsByYear(nextProjects)
++        setYearErrors(nextErrors)
++      } catch (error) {
++        if (!cancelled) {
++          const message =
++            error instanceof Error ? error.message : 'Failed to load project data.'
++          setGeneralError(message)
++        }
++      } finally {
++        if (!cancelled) {
++          setIsLoading(false)
++        }
 +      }
 +    }
-+    load()
-+  }, [isErl, selectedBank])
 +
-+  const retryAccounts = () => {
-     if (isErl && selectedBank) {
-       listAccounts(selectedBank)
--        .then((a) => setAccounts(a))
--        .catch(() => setAccounts([]))
--      setBankCodeVal(selectedBank.bankCode)
--    } else {
--      setAccounts([])
--      setAccountIdVal('')
-+        .then((a) => {
-+          setAccounts(a)
-+          setAcctEmpty(a.length === 0)
-+          setAcctError(null)
-+        })
-+        .catch(() => {
-+          setAccounts([])
-+          setAcctEmpty(false)
-+          setAcctError(bankMsg)
-+        })
-     }
--  }, [isErl, selectedBank])
++    load()
++
++    return () => {
++      cancelled = true
++    }
++  }, [])
++
++  const selectedProjects = useMemo(() => {
++    if (!selectedYear) return []
++    return projectsByYear[selectedYear] || []
++  }, [projectsByYear, selectedYear])
++
++  const selectedYearError = selectedYear ? yearErrors[selectedYear] : undefined
++
++  const handleYearChange = (event: SelectChangeEvent<string>) => {
++    const value = event.target.value
++    setSelectedYear(value)
 +  }
-+  useEffect(() => {
-+    getDoc(doc(db, PATHS.student(abbr)))
-+      .then((snap) => {
-+        const data = snap.data() as any
-+        setStudentName({ first: data?.firstName || '', last: data?.lastName || '' })
-+      })
-+      .catch(() => setStudentName({ first: '', last: '' }))
-+  }, [abbr])
- 
-   useEffect(() => {
--    if (accountIdVal && process.env.NODE_ENV !== 'production') {
--      console.debug('[edit-payment] account selected', accountIdVal)
-+    if (!payment.identifier) {
-+      setAcctInfo(null)
-+      return
-     }
--  }, [accountIdVal])
--
-+    lookupAccount(payment.identifier)
-+      .then((info) => setAcctInfo(info))
-+      .catch(() => setAcctInfo(null))
-+  }, [payment.identifier])
- 
-   const assignedSet = new Set(assignedSessionIds)
-   const allRows = bill
-@@ -236,23 +293,13 @@ export default function PaymentDetail({
-     )
-   }
- 
--  const needsCascadeInitial =
--    !payment.method ||
--    !payment.entity ||
--    ((payment.entity === 'Music Establish (ERL)' || payment.entity === 'ME-ERL') &&
--      (!payment.bankCode || !payment.accountDocId))
--  const [metaComplete, setMetaComplete] = useState(!needsCascadeInitial)
-+  const [metaComplete, setMetaComplete] = useState(!!payment.identifier)
-   const needsCascade = !metaComplete
- 
-   const needsMeta = needsCascade || !payment.refNumber
- 
-   useEffect(() => {
--    const init =
--      !payment.method ||
--      !payment.entity ||
--      ((payment.entity === 'Music Establish (ERL)' || payment.entity === 'ME-ERL') &&
--        (!payment.bankCode || !payment.accountDocId))
--    setMetaComplete(!init)
-+    setMetaComplete(!!payment.identifier)
-     setMethodVal(payment.method || '')
-     setEntityVal(payment.entity || '')
-     setBankCodeVal(payment.bankCode || '')
-@@ -263,43 +310,29 @@ export default function PaymentDetail({
-   const saveMetaDetails = async () => {
-     const patch: any = {
-       method: methodVal,
--      entity: entityVal,
-       refNumber: refVal,
-       timestamp: Timestamp.now(),
-       editedBy: userEmail,
-+      entity: deleteField(),
-+      bankCode: deleteField(),
-+      accountDocId: deleteField(),
-     }
-     if (isErl) {
--      if (!bankCodeVal || !accountIdVal) return
--      patch.bankCode = bankCodeVal
--      patch.accountDocId = accountIdVal
--      const id = normalizeIdentifier(
--        entityVal,
--        bankCodeVal,
--        accountIdVal,
--        payment.identifier,
--      )
--      if (id) patch.identifier = id
--    } else {
--      patch.bankCode = deleteField()
--      patch.accountDocId = deleteField()
-+      if (!accountIdVal) return
-+      patch.identifier = accountIdVal
-+    } else if (payment.identifier) {
-       patch.identifier = deleteField()
--      delete payment.bankCode
--      delete payment.accountDocId
--      delete payment.identifier
-     }
-     await updateDoc(doc(db, PATHS.payments(abbr), payment.id), patch)
-     Object.assign(payment, {
-       method: methodVal,
--      entity: entityVal,
-       refNumber: refVal,
-+      identifier: isErl ? accountIdVal : undefined,
-     })
--    if (isErl) {
--      Object.assign(payment, {
--        bankCode: bankCodeVal,
--        accountDocId: accountIdVal,
--        identifier: patch.identifier,
--      })
--    }
-+    delete payment.bankCode
-+    delete payment.accountDocId
-+    delete payment.entity
-+    if (!isErl) delete payment.identifier
-     await writeSummaryFromCache(qc, abbr, account)
-     setMetaComplete(true)
-   }
-@@ -445,69 +478,66 @@ export default function PaymentDetail({
-   return (
-     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
--        <Box
--          sx={{
--            display: 'grid',
--            gridTemplateColumns: 'auto 1fr',
--            columnGap: 2,
--            rowGap: 1,
--            mb: 2,
--          }}
--        >
--          {(() => {
--            const d = payment.paymentMade?.toDate
--              ? payment.paymentMade.toDate()
--              : new Date(payment.paymentMade)
--            const fields: { label: string; value: React.ReactNode }[] = [
--              {
--                label: 'Payment Amount',
--                value: formatCurrency(amount),
--              },
--              {
--                label: 'Payment Date',
--                value: isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d),
--              },
--            ]
--            if (needsCascade) {
--              fields.push({
--                label: 'Method',
--                value: (
--                  <TextField
--                    select
--                    size="small"
--                    value={methodVal}
--                    onChange={(e) => setMethodVal(e.target.value)}
--                    inputProps={{
--                      'data-testid': 'detail-method-select',
--                      style: { fontFamily: 'Newsreader', fontWeight: 500 },
--                    }}
--                  >
--                    {['FPS', 'Bank Transfer', 'Cheque'].map((m) => (
--                      <MenuItem key={m} value={m}>
--                        {m}
--                      </MenuItem>
--                    ))}
--                  </TextField>
--                ),
--              })
--              fields.push({
--                label: 'Entity',
--                value: (
--                  <TextField
--                    select
--                    size="small"
--                    value={entityVal}
--                    onChange={(e) => setEntityVal(e.target.value)}
--                    inputProps={{
--                      'data-testid': 'detail-entity-select',
--                      style: { fontFamily: 'Newsreader', fontWeight: 500 },
--                    }}
--                  >
--                    <MenuItem value="Music Establish (ERL)">Music Establish (ERL)</MenuItem>
--                    <MenuItem value="Personal">Personal</MenuItem>
--                  </TextField>
--                ),
--              })
-+        {needsCascade ? (
-+          <Box
-+            sx={{
-+              display: 'grid',
-+              gridTemplateColumns: 'auto 1fr',
-+              columnGap: 2,
-+              rowGap: 1,
-+              mb: 2,
-+            }}
-+          >
-+            {(() => {
-+              const d = payment.paymentMade?.toDate
-+                ? payment.paymentMade.toDate()
-+                : new Date(payment.paymentMade)
-+              const fields: { label: string; value: React.ReactNode }[] = [
-+                { label: 'Payment Amount', value: formatCurrency(amount) },
-+                {
-+                  label: 'Payment Date',
-+                  value: isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d),
-+                },
-+                {
-+                  label: 'Method',
-+                  value: (
-+                    <TextField
-+                      select
-+                      size="small"
-+                      value={methodVal}
-+                      onChange={(e) => setMethodVal(e.target.value)}
-+                      inputProps={{
-+                        'data-testid': 'detail-method-select',
-+                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
-+                      }}
-+                    >
-+                      {['FPS', 'Bank Transfer', 'Cheque'].map((m) => (
-+                        <MenuItem key={m} value={m}>
-+                          {m}
-+                        </MenuItem>
-+                      ))}
-+                    </TextField>
-+                  ),
-+                },
-+                {
-+                  label: 'Entity',
-+                  value: (
-+                    <TextField
-+                      select
-+                      size="small"
-+                      value={entityVal}
-+                      onChange={(e) => setEntityVal(e.target.value)}
-+                      inputProps={{
-+                        'data-testid': 'detail-entity-select',
-+                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
-+                      }}
-+                    >
-+                      <MenuItem value="Music Establish (ERL)">Music Establish (ERL)</MenuItem>
-+                      <MenuItem value="Personal">Personal</MenuItem>
-+                    </TextField>
-+                  ),
-+                },
-+              ]
-               if (entityVal === 'Music Establish (ERL)') {
-                 fields.push({
-                   label: 'Bank',
-@@ -515,10 +545,10 @@ export default function PaymentDetail({
-                     <TextField
-                       select
-                       size="small"
--                      value={selectedBank ? selectedBank.bankCode : ''}
-+                      value={selectedBank ? selectedBank.rawCodeSegment : ''}
-                       onChange={(e) => {
-                         const b = banks.find(
--                          (bk) => bk.bankCode === e.target.value,
-+                          (bk) => bk.rawCodeSegment === e.target.value,
-                         )
-                         setSelectedBank(b || null)
-                       }}
-@@ -529,8 +559,8 @@ export default function PaymentDetail({
-                     >
-                       {banks.map((b) => (
-                         <MenuItem
--                          key={`${b.bankName}-${b.bankCode}`}
--                          value={b.bankCode}
-+                          key={`${b.bankName}-${b.rawCodeSegment}`}
-+                          value={b.rawCodeSegment}
-                         >
-                           {buildBankLabel(b)}
-                         </MenuItem>
-@@ -553,120 +583,186 @@ export default function PaymentDetail({
-                     >
-                       {accounts.map((a) => (
-                         <MenuItem key={a.accountDocId} value={a.accountDocId}>
--                          {a.accountType}
-+                          {buildAccountLabel(a)}
-                         </MenuItem>
-                       ))}
-                     </TextField>
-                   ),
-                 })
-               }
--            } else {
--              fields.push({ label: 'Method', value: payment.method || 'N/A' })
--              fields.push({
--                label: 'Entity',
--                value:
--                  payment.entity === 'ME-ERL'
--                    ? 'Music Establish (ERL)'
--                    : payment.entity || 'N/A',
--              })
--              if (
--                payment.entity === 'ME-ERL' ||
--                payment.entity === 'Music Establish (ERL)'
--              ) {
-+              if (sessionOrds.length) {
-+                const { visible, hiddenCount } = truncateList(sessionOrds)
-                 fields.push({
--                  label: 'Bank',
--                  value: buildBankLabel({
--                    bankCode: payment.bankCode,
--                    bankName:
--                      banks.find((b) => b.bankCode === payment.bankCode)?.bankName || '',
--                    rawCodeSegment: '',
--                  }),
--                })
--                fields.push({
--                  label: 'Bank Account',
--                  value: payment.accountDocId || 'N/A',
-+                  label: 'For Session(s)',
-+                  value: (
-+                    <>
-+                      {formatSessions(showAllSessions ? sessionOrds : visible)}
-+                      {hiddenCount > 0 && !showAllSessions && <> … (+{hiddenCount} more)</>}
-+                      {hiddenCount > 0 && (
-+                        <Button
-+                          size="small"
-+                          onClick={() => setShowAllSessions((s) => !s)}
-+                          sx={{ ml: 1 }}
-+                        >
-+                          {showAllSessions ? 'Hide' : 'View all'}
-+                        </Button>
-+                      )}
-+                    </>
-+                  ),
-                 })
-               }
--            }
--            if (sessionOrds.length) {
--              const { visible, hiddenCount } = truncateList(sessionOrds)
-               fields.push({
--                label: 'For Session(s)',
-+                label: 'Reference #',
-                 value: (
--                  <>
--                    {formatSessions(
--                      showAllSessions ? sessionOrds : visible,
--                    )}
--                    {hiddenCount > 0 && !showAllSessions && (
--                      <> … (+{hiddenCount} more)</>
--                    )}
--                    {hiddenCount > 0 && (
--                      <Button
--                        size="small"
--                        onClick={() => setShowAllSessions((s) => !s)}
--                        sx={{ ml: 1 }}
--                      >
--                        {showAllSessions ? 'Hide' : 'View all'}
--                      </Button>
--                    )}
--                  </>
-+                  <TextField
-+                    size="small"
-+                    value={refVal}
-+                    onChange={(e) => setRefVal(e.target.value)}
-+                    inputProps={{
-+                      'data-testid': 'detail-ref-input',
-+                      style: { fontFamily: 'Newsreader', fontWeight: 500 },
-+                    }}
-+                  />
-                 ),
-               })
--            }
--            fields.push({
--              label: 'Reference #',
--              value: payment.refNumber ? (
--                payment.refNumber
--              ) : (
--                <TextField
--                  size="small"
--                  value={refVal}
--                  onChange={(e) => setRefVal(e.target.value)}
--                  inputProps={{
--                    'data-testid': 'detail-ref-input',
--                    style: { fontFamily: 'Newsreader', fontWeight: 500 },
--                  }}
--                />
--              ),
--            })
--            fields.push({
--              label: 'Remaining amount',
--              value: (
--                <span
--                  data-testid="remaining-amount"
--                  className={remainingClass}
--                >
--                  {formatCurrency(pendingRemaining)}
--                </span>
--              ),
--            })
--            return fields.map((f) => (
--              <React.Fragment key={f.label}>
--                <Typography
--                  variant="subtitle2"
--                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
--                >
--                  {f.label}:
--                </Typography>
--                <Typography
--                  variant="h6"
--                  sx={{ fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}
--                >
--                  {f.value}
--                </Typography>
--              </React.Fragment>
--            ))
--          })()}
--          {bankError && (
--            <Typography
--              variant="body2"
--              color="error"
--              sx={{ gridColumn: '1 / span 2', mt: 1 }}
-+              fields.push({
-+                label: 'Remaining amount',
-+                value: (
-+                  <span data-testid="remaining-amount" className={remainingClass}>
-+                    {formatCurrency(pendingRemaining)}
-+                  </span>
-+                ),
-+              })
-+              return fields.map((f) => (
-+                <React.Fragment key={f.label}>
-+                  <Typography
-+                    variant="subtitle2"
-+                    sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-+                  >
-+                    {f.label}:
-+                  </Typography>
-+                  <Typography
-+                    variant="h6"
-+                    sx={{ fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}
-+                  >
-+                    {f.value}
-+                  </Typography>
-+                </React.Fragment>
-+              ))
-+            })()}
-+            {bankError && (
-+              <Typography
-+                variant="body2"
-+                color="error"
-+                sx={{ gridColumn: '1 / span 2', mt: 1 }}
-+              >
-+                {bankError}
-+              </Typography>
-+            )}
-+            {acctError && !bankError && (
-+              <Typography
-+                variant="body2"
-+                color="error"
-+                sx={{ gridColumn: '1 / span 2', mt: 1 }}
-+              >
-+                {acctError}
-+              </Typography>
-+            )}
-+            {acctEmpty && !acctError && (
-+              <Typography variant="body2" sx={{ gridColumn: '1 / span 2', mt: 1 }}>
-+                No accounts found.{' '}
-+                <Button size="small" onClick={retryAccounts}>
-+                  Retry
-+                </Button>
-+              </Typography>
-+            )}
++
++  return (
++    <SidebarLayout>
++      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
++        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
++          <Typography variant="h4" sx={{ fontFamily: 'Cantata One' }}>
++            Projects (Database)
++          </Typography>
++          <Button variant="contained" onClick={() => router.push('/dashboard/businesses/new')}>
++            New Project
++          </Button>
++        </Box>
++
++        {generalError && (
++          <Alert severity="error" sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++            {generalError}
++          </Alert>
++        )}
++
++        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
++          <FormControl sx={{ minWidth: 160 }}>
++            <InputLabel id="projects-database-year-label" sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}>
++              Year
++            </InputLabel>
++            <Select
++              labelId="projects-database-year-label"
++              value={selectedYear}
++              label="Year"
++              onChange={handleYearChange}
++              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
++            >
++              {years.map((year) => (
++                <MenuItem key={year} value={year} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                  {year}
++                </MenuItem>
++              ))}
++            </Select>
++          </FormControl>
++        </Box>
++
++        {isLoading ? (
++          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
++            <CircularProgress />
 +          </Box>
 +        ) : (
-+          <>
-+            <Box data-testid="payment-summary-block" sx={{ mb: 2 }}>
-+              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-+                Payment made by –
-+              </Typography>
-+              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-+                {(studentName.first || 'N/A')}, {(studentName.last || 'N/A')}
-+              </Typography>
-+              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-+                on {(() => { const d = payment.paymentMade?.toDate ? payment.paymentMade.toDate() : new Date(payment.paymentMade); return isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d) })()} thru {payment.method || 'N/A'}
-+              </Typography>
-+              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-+                to Establish Records Limited:
-+              </Typography>
-+              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-+                {(acctInfo?.bankName || 'N/A')} ({acctInfo?.bankCode || 'N/A'})
-+              </Typography>
-+              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-+                {acctInfo?.accountType || 'N/A'}
-+              </Typography>
-+              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-+                {maskAccountNumber(acctInfo?.accountNumber) || 'N/A'}
-+              </Typography>
-+              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-+                for
-+              </Typography>
-+              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-+                {formatCurrency(amount)}
-+              </Typography>
-+            </Box>
-+            <Box
-+              sx={{
-+                display: 'grid',
-+                gridTemplateColumns: 'auto 1fr',
-+                columnGap: 2,
-+                rowGap: 1,
-+                mb: 2,
-+              }}
-             >
--              {bankError}
--            </Typography>
--          )}
--        </Box>
-+              {(() => {
-+                const fields: { label: string; value: React.ReactNode }[] = []
-+                fields.push({
-+                  label: 'Reference #',
-+                  value: payment.refNumber ? (
-+                    payment.refNumber
-+                  ) : (
-+                    <TextField
-+                      size="small"
-+                      value={refVal}
-+                      onChange={(e) => setRefVal(e.target.value)}
-+                      inputProps={{
-+                        'data-testid': 'detail-ref-input',
-+                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
-+                      }}
-+                    />
-+                  ),
-+                })
-+                fields.push({
-+                  label: 'Remaining amount',
-+                  value: (
-+                    <span data-testid="remaining-amount" className={remainingClass}>
-+                      {formatCurrency(pendingRemaining)}
-+                    </span>
-+                  ),
-+                })
-+                return fields.map((f) => (
-+                  <React.Fragment key={f.label}>
-+                    <Typography
-+                      variant="subtitle2"
-+                      sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
++          <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
++            <Table>
++              <TableHead>
++                <TableRow>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Project #</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Title</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Client</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Nature</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Presenter Work Type</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Subsidiary</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Amount</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Invoice #</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Invoice Company</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Paid</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Paid To</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>Project Date</TableCell>
++                  <TableCell sx={{ fontFamily: 'Cantata One' }}>On Date</TableCell>
++                </TableRow>
++              </TableHead>
++              <TableBody>
++                {selectedProjects.length === 0 ? (
++                  <TableRow>
++                    <TableCell
++                      colSpan={13}
++                      align="center"
++                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
 +                    >
-+                      {f.label}:
-+                    </Typography>
-+                    <Typography
-+                      variant="h6"
-+                      sx={{ fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}
-+                    >
-+                      {f.value}
-+                    </Typography>
-+                  </React.Fragment>
-+                ))
-+              })()}
-+            </Box>
-+          </>
++                      {selectedYearError ? `Error: ${selectedYearError}` : 'No projects found for this year.'}
++                    </TableCell>
++                  </TableRow>
++                ) : (
++                  selectedProjects.map((project) => (
++                    <TableRow key={`${project.year}-${project.id}`} hover>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatText(project.projectNumber)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatText(project.projectTitle)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatText(project.clientCompany)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatText(project.projectNature)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatText(project.presenterWorkType)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatText(project.subsidiary)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatCurrency(project.amount)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatText(project.invoice)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatText(project.invoiceCompany ?? null)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatBoolean(project.paid)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatText(project.paidTo)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatDate(project.projectDate)}
++                      </TableCell>
++                      <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
++                        {formatDate(project.onDate)}
++                      </TableCell>
++                    </TableRow>
++                  ))
++                )}
++              </TableBody>
++            </Table>
++          </TableContainer>
 +        )}
- 
-         <Typography
-           variant="subtitle2"
-@@ -986,9 +1082,7 @@ export default function PaymentDetail({
-             <Button
-               variant="contained"
-               onClick={saveMetaDetails}
--              disabled={
--                !entityVal || (isErl && (!bankCodeVal || !accountIdVal))
--              }
-+              disabled={!methodVal || !entityVal || (isErl && !accountIdVal)}
-               data-testid="detail-save"
-             >
-               Save
-diff --git a/components/StudentDialog/PaymentHistory.tsx b/components/StudentDialog/PaymentHistory.tsx
-index 9a315c4..f5e30da 100644
---- a/components/StudentDialog/PaymentHistory.tsx
-+++ b/components/StudentDialog/PaymentHistory.tsx
-@@ -181,33 +181,33 @@ export default function PaymentHistory({
-             <Box
-               sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}
-             >
--              <Typography
--                variant="subtitle1"
--                sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
--              >
--                Payment History
--              </Typography>
-               <Box>
-+                <Typography
-+                  variant="subtitle1"
-+                  sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-+                >
-+                  Payment History
-+                </Typography>
-                 <Tooltip title="Filter Columns">
-                   <IconButton
-                     aria-label="Filter Columns"
-                     data-testid="filter-columns"
-                     onClick={(e) => setFilterAnchor(e.currentTarget)}
--                    sx={{ mr: 1 }}
-+                    sx={{ mt: 0.5 }}
-                   >
-                     <FilterListIcon fontSize="small" />
-                   </IconButton>
-                 </Tooltip>
--                <Tooltip title="Create Payment">
--                  <IconButton
--                    color="primary"
--                    onClick={() => setModalOpen(true)}
--                    aria-label="Create Payment"
--                  >
--                    <CreateIcon fontSize="small" />
--                  </IconButton>
--                </Tooltip>
-               </Box>
-+              <Tooltip title="Create Payment">
-+                <IconButton
-+                  color="primary"
-+                  onClick={() => setModalOpen(true)}
-+                  aria-label="Create Payment"
-+                >
-+                  <CreateIcon fontSize="small" />
-+                </IconButton>
-+              </Tooltip>
-             </Box>
-             <Popover
-               open={Boolean(filterAnchor)}
-diff --git a/components/StudentDialog/PaymentModal.test.tsx b/components/StudentDialog/PaymentModal.test.tsx
-index 3bc7f17..3d4b44f 100644
---- a/components/StudentDialog/PaymentModal.test.tsx
-+++ b/components/StudentDialog/PaymentModal.test.tsx
-@@ -3,7 +3,7 @@
-  */
- import React from 'react'
- import '@testing-library/jest-dom'
--import { render, fireEvent, waitFor } from '@testing-library/react'
-+import { render, fireEvent, waitFor, screen } from '@testing-library/react'
- import PaymentModal from './PaymentModal'
- import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
- 
-@@ -14,9 +14,16 @@ jest.mock('../../lib/erlDirectory', () => ({
-       { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
-     ]),
-   listAccounts: jest.fn().mockResolvedValue([
--    { accountDocId: 'a1', accountType: 'Savings' },
-+    {
-+      accountDocId: 'a1',
-+      accountType: 'Corporate',
-+      accountNumber: '12345678',
-+    },
-   ]),
-   buildBankLabel: jest.fn((b) => `${b.bankName} (${b.bankCode})`),
-+  buildAccountLabel: jest.fn(
-+    (a) => `${a.accountType} · ••••${String(a.accountNumber).slice(-4)}`,
-+  ),
- }))
- 
- jest.mock('firebase/firestore', () => ({
-@@ -53,10 +60,15 @@ describe('PaymentModal ERL cascade', () => {
-     })
-     await waitFor(() => getByTestId('bank-select'))
-     const bankSelect = getByTestId('bank-select') as HTMLInputElement
--    fireEvent.change(bankSelect, { target: { value: '001' } })
-+    fireEvent.change(bankSelect, { target: { value: '(001)' } })
-     await waitFor(() => getByTestId('bank-account-select'))
-     const accountSelect = getByTestId('bank-account-select') as HTMLInputElement
-     fireEvent.change(accountSelect, { target: { value: 'a1' } })
-+    await waitFor(() =>
-+      expect(
-+        require('../../lib/erlDirectory').buildAccountLabel,
-+      ).toHaveBeenCalled(),
-+    )
-     expect(require('../../lib/erlDirectory').listBanks).toHaveBeenCalled()
-     expect(
-       require('../../lib/erlDirectory').listAccounts,
-@@ -65,15 +77,23 @@ describe('PaymentModal ERL cascade', () => {
-       bankName: 'Bank',
-       rawCodeSegment: '(001)',
-     })
-+    await waitFor(() =>
-+      expect(screen.getByText('Corporate · ••••5678')).toBeInTheDocument(),
-+    )
-     fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
-+    fireEvent.change(getByTestId('ref-input'), { target: { value: 'R1' } })
- 
-+    expect(require('firebase/firestore').addDoc).not.toHaveBeenCalled()
-     fireEvent.click(getByTestId('submit-payment'))
-     await waitFor(() => expect(require('firebase/firestore').addDoc).toHaveBeenCalled())
-     const data = (require('firebase/firestore').addDoc as jest.Mock).mock.calls[0][1]
--    expect(data.identifier).toBe('001/a1')
--    expect(data.bankCode).toBe('001')
--    expect(data.accountDocId).toBe('a1')
-+    expect(data.identifier).toBe('a1')
-+    expect(data.bankCode).toBeUndefined()
-+    expect(data.accountDocId).toBeUndefined()
-+    expect(data.method).toBe('FPS')
-+    expect(data.entity).toBeUndefined()
-     expect(data.editedBy).toBe('tester@example.com')
-     expect(data.timestamp).toBe('now')
-+    expect(data.refNumber).toBe('R1')
-   })
- })
-diff --git a/components/StudentDialog/PaymentModal.tsx b/components/StudentDialog/PaymentModal.tsx
-index 138e0cd..05b7497 100644
---- a/components/StudentDialog/PaymentModal.tsx
-+++ b/components/StudentDialog/PaymentModal.tsx
-@@ -17,10 +17,11 @@ import {
-   listBanks,
-   listAccounts,
-   buildBankLabel,
-+  buildAccountLabel,
-   BankInfo,
-   AccountInfo,
- } from '../../lib/erlDirectory'
--import { normalizeIdentifier } from '../../lib/payments/format'
-+import { reducePaymentPayload } from '../../lib/payments/submit'
- import { PATHS, logPath } from '../../lib/paths'
- import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
- import { writeSummaryFromCache } from '../../lib/liveRefresh'
-@@ -41,27 +42,24 @@ export default function PaymentModal({
-   const [madeOn, setMadeOn] = useState('')
-   const [method, setMethod] = useState('')
-   const [entity, setEntity] = useState('')
--  const [bankCode, setBankCode] = useState('')
-   const [selectedBank, setSelectedBank] = useState<BankInfo | null>(null)
-   const [accountId, setAccountId] = useState('')
-   const [banks, setBanks] = useState<BankInfo[]>([])
-   const [accounts, setAccounts] = useState<AccountInfo[]>([])
-   const [bankError, setBankError] = useState<string | null>(null)
--  const [identifier, setIdentifier] = useState('')
-+  const [acctError, setAcctError] = useState<string | null>(null)
-+  const [acctEmpty, setAcctEmpty] = useState(false)
-   const [refNumber, setRefNumber] = useState('')
-   const qc = useBillingClient()
-   const isErl = entity === 'Music Establish (ERL)'
-   const { enqueueSnackbar } = useSnackbar()
--  const bankMsg =
--    'Bank directory unavailable (check rules on the erl-directory database).'
-+  const bankMsg = "Can't read ERL directory. Check erl-directory rules."
- 
-   useEffect(() => {
-     if (!isErl) {
--      setBankCode('')
-       setSelectedBank(null)
-       setAccountId('')
-       setBankError(null)
--      setIdentifier('')
-     }
-   }, [isErl])
- 
-@@ -85,22 +83,44 @@ export default function PaymentModal({
-   }, [isErl, banks.length])
- 
-   useEffect(() => {
--    if (selectedBank) {
--      listAccounts(selectedBank)
--        .then((a) => setAccounts(a))
--        .catch(() => setAccounts([]))
--      setBankCode(selectedBank.bankCode)
--    } else {
--      setAccounts([])
-+    const load = () => {
-+      if (selectedBank) {
-+        listAccounts(selectedBank)
-+          .then((a) => {
-+            setAccounts(a)
-+            setAcctEmpty(a.length === 0)
-+            setAcctError(null)
-+          })
-+          .catch(() => {
-+            setAccounts([])
-+            setAcctEmpty(false)
-+            setAcctError(bankMsg)
-+          })
-+      } else {
-+        setAccounts([])
-+        setAcctEmpty(false)
-+        setAcctError(null)
-+      }
-+      setAccountId('')
-     }
--    setAccountId('')
-+    load()
-   }, [selectedBank])
- 
--  useEffect(() => {
--    if (accountId && process.env.NODE_ENV !== 'production') {
--      console.debug('[add-payment] account selected', accountId)
-+  const retryAccounts = () => {
-+    if (selectedBank) {
-+      listAccounts(selectedBank)
-+        .then((a) => {
-+          setAccounts(a)
-+          setAcctEmpty(a.length === 0)
-+          setAcctError(null)
-+        })
-+        .catch(() => {
-+          setAccounts([])
-+          setAcctEmpty(false)
-+          setAcctError(bankMsg)
-+        })
-     }
--  }, [accountId])
-+  }
- 
-   const save = async () => {
-     const paymentsPath = PATHS.payments(abbr)
-@@ -108,24 +128,19 @@ export default function PaymentModal({
-     const colRef = collection(db, paymentsPath)
-     const today = new Date()
-     const date = madeOn ? new Date(madeOn) : today
--    const data: any = {
-+    const draft: any = {
-       amount: Number(amount) || 0,
-       paymentMade: Timestamp.fromDate(date),
-       remainingAmount: Number(amount) || 0,
-       assignedSessions: [],
-       assignedRetainers: [],
-       method,
--      entity,
-       refNumber,
-       timestamp: Timestamp.now(),
-       editedBy: getAuth().currentUser?.email || 'system',
-+      accountDocId: isErl ? accountId : undefined,
-     }
--    if (isErl) {
--      const id = normalizeIdentifier(entity, bankCode, accountId, identifier)
--      if (id) data.identifier = id
--      data.bankCode = bankCode
--      data.accountDocId = accountId
--    }
-+    const data = reducePaymentPayload(draft)
-     await addDoc(colRef, data)
-     qc.setQueryData(billingKey(abbr, account), (prev?: any) => {
-       if (!prev) return prev
-@@ -202,9 +217,7 @@ export default function PaymentModal({
-             const val = e.target.value
-             setEntity(val)
-             if (val !== 'Music Establish (ERL)') {
--              setBankCode('')
-               setAccountId('')
--              setIdentifier('')
-             }
-           }}
-           fullWidth
-@@ -225,9 +238,11 @@ export default function PaymentModal({
-                 <TextField
-                   label="Bank"
-                   select
--                  value={selectedBank ? selectedBank.bankCode : ''}
-+                  value={selectedBank ? selectedBank.rawCodeSegment : ''}
-                   onChange={(e) => {
--                    const b = banks.find((bk) => bk.bankCode === e.target.value)
-+                    const b = banks.find(
-+                      (bk) => bk.rawCodeSegment === e.target.value,
-+                    )
-                     setSelectedBank(b || null)
-                   }}
-                   fullWidth
-@@ -240,7 +255,10 @@ export default function PaymentModal({
-                   }}
-                 >
-                   {banks.map((b) => (
--                    <MenuItem key={`${b.bankName}-${b.bankCode}`} value={b.bankCode}>
-+                    <MenuItem
-+                      key={`${b.bankName}-${b.rawCodeSegment}`}
-+                      value={b.rawCodeSegment}
-+                    >
-                       {buildBankLabel(b)}
-                     </MenuItem>
-                   ))}
-@@ -263,7 +281,7 @@ export default function PaymentModal({
-                 >
-                   {accounts.map((a) => (
-                     <MenuItem key={a.accountDocId} value={a.accountDocId}>
--                      {a.accountType}
-+                      {buildAccountLabel(a)}
-                     </MenuItem>
-                   ))}
-                 </TextField>
-@@ -274,6 +292,19 @@ export default function PaymentModal({
-                 {bankError}
-               </Typography>
-             )}
-+            {acctError && !bankError && (
-+              <Typography variant="body2" color="error" sx={{ mt: 1 }}>
-+                {acctError}
-+              </Typography>
-+            )}
-+            {acctEmpty && !acctError && (
-+              <Typography variant="body2" sx={{ mt: 1 }}>
-+                No accounts found.{' '}
-+                <Button size="small" onClick={retryAccounts}>
-+                  Retry
-+                </Button>
-+              </Typography>
-+            )}
-           </>
-         )}
-         <TextField
-@@ -300,14 +331,12 @@ export default function PaymentModal({
-             setMadeOn('')
-             setMethod('')
-             setEntity('')
--            setBankCode('')
-             setSelectedBank(null)
-             setAccountId('')
--            setIdentifier('')
-             setRefNumber('')
-             onClose()
-           }}
--          disabled={!method || !entity || (isErl && (!bankCode || !accountId))}
-+          disabled={!method || !entity || (isErl && !accountId)}
-           data-testid="submit-payment"
-         >
-           Submit
-diff --git a/lib/erlDirectory.test.ts b/lib/erlDirectory.test.ts
-index ab4b9ac..bb36046 100644
---- a/lib/erlDirectory.test.ts
-+++ b/lib/erlDirectory.test.ts
-@@ -1,7 +1,60 @@
--import { normalizeCode, buildBankLabel } from './erlDirectory'
-+import {
-+  buildAccountsPath,
-+  buildBankLabel,
-+  buildAccountLabel,
-+  listBanks,
-+} from './erlDirectory'
-+import { getDocs } from 'firebase/firestore'
- 
--test('normalizeCode and buildBankLabel', () => {
--  expect(normalizeCode(40)).toEqual({ code: '040', raw: '(040)' })
--  expect(normalizeCode('040')).toEqual({ code: '040', raw: '(040)' })
--  expect(buildBankLabel({ bankCode: '040', bankName: 'Bank', rawCodeSegment: '(040)' })).toBe('Bank (040)')
-+jest.mock('firebase/firestore', () => ({
-+  initializeFirestore: jest.fn(),
-+  getFirestore: jest.fn(),
-+  collection: jest.fn(),
-+  getDocs: jest.fn(),
-+}))
-+
-+test('buildAccountsPath formats code with parentheses', () => {
-+  expect(buildAccountsPath(40)).toEqual(['bankAccount', '(040)', 'accounts'])
-+})
-+
-+test('buildAccountsPath normalizes string codes', () => {
-+  expect(buildAccountsPath('040')).toEqual(['bankAccount', '(040)', 'accounts'])
-+  expect(buildAccountsPath('(040)')).toEqual(['bankAccount', '(040)', 'accounts'])
-+})
-+
-+test('buildBankLabel formats bank name and code', () => {
-+  expect(
-+    buildBankLabel({ bankName: 'Dah Sing Bank', bankCode: '040', rawCodeSegment: '(040)' }),
-+  ).toBe('Dah Sing Bank (040)')
- })
-+
-+test('listBanks expands multiple codes', async () => {
-+  ;(getDocs as jest.Mock).mockResolvedValueOnce({
-+    docs: [
-+      { id: 'b1', data: () => ({ name: 'Bank1', code: [40, 152] }) },
-+    ],
-+  })
-+  const banks = await listBanks()
-+  expect(banks).toEqual([
-+    { bankCode: '040', bankName: 'Bank1', rawCodeSegment: '(040)' },
-+    { bankCode: '152', bankName: 'Bank1', rawCodeSegment: '(152)' },
-+  ])
-+})
-+
-+test('buildAccountLabel masks and falls back', () => {
-+  expect(
-+    buildAccountLabel({
-+      accountDocId: 'a1',
-+      accountType: 'Corporate',
-+      accountNumber: '12345678',
-+    }),
-+  ).toBe('Corporate · ••••5678')
-+  expect(
-+    buildAccountLabel({
-+      accountDocId: 'a2',
-+      accountType: 'Savings',
-+      accountNo: '87654321',
-+    }),
-+  ).toBe('Savings · ••••4321')
-+})
-+
-diff --git a/lib/erlDirectory.ts b/lib/erlDirectory.ts
-index 2e29205..faf8967 100644
---- a/lib/erlDirectory.ts
-+++ b/lib/erlDirectory.ts
-@@ -15,6 +15,10 @@ export interface BankInfo {
- export interface AccountInfo {
-   accountDocId: string
-   accountType?: string
-+  accountNumber?: string
-+  accountNo?: string
-+  acctNumber?: string
-+  number?: string
-   [key: string]: any
- }
- 
-@@ -33,75 +37,97 @@ export function normalizeCode(code: string | number): { code: string; raw: strin
-   return { code: normalized, raw: `(${normalized})` }
- }
- 
-+export function buildAccountsPath(code: string | number): [string, string, string] {
-+  const { raw } = normalizeCode(code)
-+  return ['bankAccount', raw, 'accounts']
++      </Box>
++    </SidebarLayout>
++  )
 +}
 +
- export async function listBanks(): Promise<BankInfo[]> {
-   try {
--    const snap = await getDocs(collection(dbDirectory, 'banks'))
--    const banks = snap.docs.map((d) => {
--      const data = d.data() as any
--      const { code, raw } = normalizeCode(d.id)
--      return {
--        bankCode: code,
--        bankName: data.name || '',
--        rawCodeSegment: raw,
--      } as BankInfo
--    })
--    if (banks.length) return banks
--    throw new Error('empty banks collection')
--  } catch (e) {
--    if (process.env.NODE_ENV !== 'production') {
--      console.warn('preferred bank directory failed', e)
--    }
-     const snap = await getDocs(collection(dbDirectory, 'bankAccount'))
-     const banks: BankInfo[] = []
-     snap.docs.forEach((d) => {
-       const data = d.data() as any
--      if (!Array.isArray(data.code))
--        throw new Error(`missing code for bank ${d.id}`)
--      ;[...new Set(data.code)].forEach((c: any) => {
-+      if (!Array.isArray(data.code)) return
-+      data.code.forEach((c: any) => {
-         const { code, raw } = normalizeCode(c)
--        banks.push({ bankCode: code, bankName: d.id, rawCodeSegment: raw })
-+        banks.push({ bankCode: code, bankName: data.name || d.id, rawCodeSegment: raw })
-       })
-     })
--    if (!banks.length) throw new Error('empty bankAccount directory')
-     return banks
-+  } catch (e) {
-+    if (process.env.NODE_ENV !== 'production') {
-+      console.warn('bank directory failed', e)
-+    }
-+    return []
-   }
- }
- 
- export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
--  const res: Record<string, AccountInfo> = {}
-   try {
-     const snap = await getDocs(
--      collection(dbDirectory, 'banks', bank.bankCode, 'accounts'),
-+      collection(dbDirectory, ...buildAccountsPath(bank.rawCodeSegment)),
-     )
--    snap.docs.forEach((d) => {
--      res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
-+    return snap.docs.map((d) => {
-+      const data = d.data() as any
-+      const number =
-+        data.accountNumber || data.accountNo || data.acctNumber || data.number
-+      return { accountDocId: d.id, accountType: data.accountType, accountNumber: number }
-     })
-   } catch (e) {
-     if (process.env.NODE_ENV !== 'production') {
--      console.warn('preferred accounts failed', e)
-+      console.warn('accounts load failed', e)
-     }
-+    return []
-   }
--  try {
--    const snap = await getDocs(
--      collection(
--        dbDirectory,
--        'bankAccount',
--        bank.bankName,
--        bank.rawCodeSegment,
--      ),
--    )
--    snap.docs.forEach((d) => {
--      if (!res[d.id]) res[d.id] = { accountDocId: d.id, ...(d.data() as any) }
--    })
--  } catch (e) {
--    if (process.env.NODE_ENV !== 'production') {
--      console.warn('legacy accounts failed', e)
-+}
-+
-+export async function lookupAccount(
-+  id: string,
-+): Promise<
-+  | {
-+      bankName: string
-+      bankCode: string
-+      accountType?: string
-+      accountNumber?: string
-     }
-+  | null
-+> {
-+  const banks = await listBanks()
-+  for (const b of banks) {
-+    const accounts = await listAccounts(b)
-+    const match = accounts.find((a) => a.accountDocId === id)
-+    if (match)
-+      return {
-+        bankName: b.bankName,
-+        bankCode: b.bankCode,
-+        accountType: match.accountType,
-+        accountNumber:
-+          match.accountNumber ||
-+          match.accountNo ||
-+          match.acctNumber ||
-+          match.number,
-+      }
-   }
--  return Object.values(res)
-+  return null
- }
- 
- export function buildBankLabel(b: BankInfo): string {
-   if (b.bankName && b.bankCode) return `${b.bankName} (${b.bankCode})`
-   return b.bankCode
- }
-+
-+export function maskAccountNumber(num?: string): string | undefined {
-+  if (!num) return undefined
-+  const digits = String(num).replace(/[^0-9]/g, '')
-+  if (!digits) return undefined
-+  return `\u2022\u2022\u2022\u2022${digits.slice(-4)}`
-+}
-+
-+export function buildAccountLabel(a: AccountInfo): string {
-+  const num =
-+    a.accountNumber || a.accountNo || a.acctNumber || a.number || undefined
-+  const masked = maskAccountNumber(num)
-+  const type = a.accountType || 'N/A'
-+  return masked ? `${type} · ${masked}` : type
-+}
-diff --git a/lib/payments/submit.test.ts b/lib/payments/submit.test.ts
-new file mode 100644
-index 0000000..9a2b0b8
---- /dev/null
-+++ b/lib/payments/submit.test.ts
-@@ -0,0 +1,22 @@
-+import { reducePaymentPayload } from './submit'
-+
-+test('reducePaymentPayload strips helper fields and maps identifier', () => {
-+  const input = {
-+    amount: 100,
-+    accountDocId: 'acc1',
-+    method: 'FPS',
-+    entity: 'ERL',
-+    bankCode: '001',
-+    refNumber: 'r1',
-+  }
-+  const out = reducePaymentPayload(input)
-+  expect(out).toEqual({
-+    amount: 100,
-+    refNumber: 'r1',
-+    identifier: 'acc1',
-+    method: 'FPS',
-+  })
-+  expect(out.entity).toBeUndefined()
-+  expect(out.bankCode).toBeUndefined()
-+  expect(out.accountDocId).toBeUndefined()
-+})
-diff --git a/lib/payments/submit.ts b/lib/payments/submit.ts
-new file mode 100644
-index 0000000..2ad76bc
---- /dev/null
-+++ b/lib/payments/submit.ts
-@@ -0,0 +1,13 @@
-+export interface PaymentDraft {
-+  accountDocId?: string
-+  entity?: string
-+  bankCode?: string
-+  [key: string]: any
-+}
-+
-+export function reducePaymentPayload(draft: PaymentDraft) {
-+  const { accountDocId, entity, bankCode, ...rest } = draft
-+  const payload: any = { ...rest }
-+  if (accountDocId) payload.identifier = accountDocId
-+  return payload
-+}
-diff --git a/prompts/p-028-02r.md b/prompts/p-028-02r.md
-new file mode 100644
-index 0000000..a38318d
---- /dev/null
-+++ b/prompts/p-028-02r.md
-@@ -0,0 +1 @@
-+# P-028-02r — Helper-only cascade (store only identifier), Bank (Code) labels, one-block “result” summary, opaque footer
-diff --git a/styles/studentDialog.css b/styles/studentDialog.css
-index 51986b5..1c299a5 100644
---- a/styles/studentDialog.css
-+++ b/styles/studentDialog.css
-@@ -133,7 +133,7 @@
-   z-index: 10;
-   border-top: 1px solid var(--mui-palette-divider);
-   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
--  background: var(--mui-palette-background-paper);
-+  background-color: var(--mui-palette-background-paper);
- }
- 
- .student-dialog-modal .MuiDialog-paper,
 ```
