@@ -2,7 +2,7 @@ name: Deploy to Vercel Production
 
 on:
   pull_request:
-    types: [closed]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -14,7 +14,9 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event.pull_request.merged == true
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
