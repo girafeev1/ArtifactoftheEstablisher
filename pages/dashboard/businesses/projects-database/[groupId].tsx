@@ -8,6 +8,12 @@ import {
   fetchProjectsFromDatabase,
   ProjectRecord,
 } from '../../../../lib/projectsDatabase'
+import {
+  decodeSelectionId,
+  encodeSelectionId,
+  ProjectsSortMethod,
+  SelectionDescriptor,
+} from '../../../../lib/projectsDatabaseSelection'
 
 import {
   Box,
@@ -33,44 +39,16 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 const headingSx = { fontFamily: 'Cantata One' }
 
-type SortMethod = 'year' | 'subsidiary'
+type SortMethod = ProjectsSortMethod
 
 type Mode = 'select' | 'detail'
-
-interface DetailSelection {
-  type: SortMethod
-  year: string
-}
 
 interface ProjectsDatabasePageProps {
   mode: Mode
   years: string[]
   error?: string
-  detailSelection?: DetailSelection
+  detailSelection?: SelectionDescriptor
   projects?: ProjectRecord[]
-}
-
-const encodeSelectionId = (type: SortMethod, year: string) => {
-  const yearPart = encodeURIComponent(year)
-  return `${type}--${yearPart}`
-}
-
-export const decodeSelectionId = (value: string): DetailSelection | null => {
-  const [typePart, yearPart] = value.split('--')
-  if (!typePart || !yearPart) {
-    return null
-  }
-
-  if (typePart !== 'year' && typePart !== 'subsidiary') {
-    return null
-  }
-
-  try {
-    return { type: typePart, year: decodeURIComponent(yearPart) }
-  } catch (err) {
-    console.warn('[projects-database] Failed to decode selection id', err)
-    return null
-  }
 }
 
 const stringOrNA = (value: string | null | undefined) =>
@@ -148,10 +126,9 @@ export default function ProjectsDatabasePage({
   }
 
   const handleProjectClick = (project: ProjectRecord) => {
-    const url = `/dashboard/businesses/projects-database/window/${encodeSelectionId(
-      'year',
-      project.year
-    )}/${encodeURIComponent(project.id)}`
+    const url = `/dashboard/businesses/projects-database/window?group=${encodeURIComponent(
+      encodeSelectionId('year', project.year)
+    )}&project=${encodeURIComponent(project.id)}`
     if (typeof window !== 'undefined') {
       const features = 'noopener,noreferrer,width=1200,height=800,resizable=yes,scrollbars=yes'
       window.open(url, '_blank', features)
