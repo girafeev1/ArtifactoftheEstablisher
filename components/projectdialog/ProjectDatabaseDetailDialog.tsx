@@ -20,6 +20,7 @@ interface ProjectDatabaseDetailDialogProps {
   open: boolean
   onClose: () => void
   project: ProjectRecord | null
+  onEdit?: () => void
 }
 
 const textOrNA = (value: string | null | undefined) =>
@@ -39,6 +40,7 @@ export default function ProjectDatabaseDetailDialog({
   open,
   onClose,
   project,
+  onEdit,
 }: ProjectDatabaseDetailDialogProps) {
   if (!project) {
     return null
@@ -106,8 +108,12 @@ export default function ProjectDatabaseDetailDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
+        {onEdit && (
+          <Button variant="contained" onClick={onEdit}>
+            Edit
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   )
 }
-

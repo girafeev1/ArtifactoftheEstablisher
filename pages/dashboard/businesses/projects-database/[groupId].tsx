@@ -30,6 +30,7 @@ import {
 import type { SelectChangeEvent } from '@mui/material/Select'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ProjectDatabaseDetailDialog from '../../../../components/projectdialog/ProjectDatabaseDetailDialog'
+import ProjectDatabaseEditDialog from '../../../../components/projectdialog/ProjectDatabaseEditDialog'
 
 const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 const headingSx = { fontFamily: 'Cantata One' }
@@ -125,6 +126,8 @@ export default function ProjectsDatabasePage({
   const [selectedProject, setSelectedProject] = useState<ProjectRecord | null>(
     null
   )
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [projectForEdit, setProjectForEdit] = useState<ProjectRecord | null>(null)
 
   const handleYearChange = (event: SelectChangeEvent<string>) => {
     setSelectedYear(event.target.value)
@@ -161,6 +164,30 @@ export default function ProjectsDatabasePage({
   const handleCloseDialog = () => {
     setDialogOpen(false)
     setSelectedProject(null)
+  }
+
+  const handleStartEdit = () => {
+    if (!selectedProject) {
+      return
+    }
+    setProjectForEdit(selectedProject)
+    setDialogOpen(false)
+    setEditDialogOpen(true)
+  }
+
+  const handleCloseEditDialog = () => {
+    setEditDialogOpen(false)
+    setProjectForEdit(null)
+    if (selectedProject) {
+      setDialogOpen(true)
+    }
+  }
+
+  const handleEditSaved = async () => {
+    setEditDialogOpen(false)
+    setProjectForEdit(null)
+    setSelectedProject(null)
+    await router.replace(router.asPath)
   }
 
   if (mode === 'select') {
@@ -345,6 +372,13 @@ export default function ProjectsDatabasePage({
         open={dialogOpen}
         onClose={handleCloseDialog}
         project={selectedProject}
+        onEdit={handleStartEdit}
+      />
+      <ProjectDatabaseEditDialog
+        open={editDialogOpen}
+        project={projectForEdit}
+        onClose={handleCloseEditDialog}
+        onSaved={handleEditSaved}
       />
     </SidebarLayout>
   )
