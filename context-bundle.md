@@ -1,16 +1,21 @@
 # PR #251 — Diff Summary
 
 - **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-- **Head (source)**: `f58be5bab3da26cdff1f3110210e2cf0db007701`
+- **Head (source)**: `3716fdfd4cf6df579a5a9dc312527f3806b20420`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
 
 ```txt
+M	.github/workflows/context-bundle-pr.yml
+M	.github/workflows/deploy-to-vercel-prod.yml
+M	.github/workflows/pr-diff-file.yml
+M	.github/workflows/pr-diff-refresh.yml
 M	__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
 M	components/StudentDialog/PaymentHistory.test.tsx
 M	components/StudentDialog/PaymentModal.test.tsx
 A	components/projectdialog/ProjectDatabaseDetailDialog.tsx
+A	components/projectdialog/ProjectDatabaseEditDialog.tsx
 M	context-bundle.md
 M	cypress/e2e/add_payment_cascade.cy.tsx
 A	docs/context/PR-251.md
@@ -24,24 +29,293 @@ M	pages/dashboard/businesses/projects-database/[groupId].tsx
 ## Stats
 
 ```txt
+ .github/workflows/context-bundle-pr.yml            |   36 +-
+ .github/workflows/deploy-to-vercel-prod.yml        |   33 +-
+ .github/workflows/pr-diff-file.yml                 |   51 -
+ .github/workflows/pr-diff-refresh.yml              |   73 +-
  .../businesses/coaching-sessions.test.tsx          |   35 +-
  components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
  components/StudentDialog/PaymentModal.test.tsx     |   21 +-
- .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  113 +
- context-bundle.md                                  | 4729 ++++++++++++++++----
+ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  119 +
+ .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
+ context-bundle.md                                  | 4733 ++++++++++++++++----
  cypress/e2e/add_payment_cascade.cy.tsx             |   95 +-
- docs/context/PR-251.md                             |    1 +
+ docs/context/PR-251.md                             | 4045 +++++++++++++++++
  jest.config.cjs                                    |    2 +
  lib/erlDirectory.test.ts                           |    4 +-
  lib/projectsDatabase.ts                            |  109 +-
  pages/api/projects-database/[year]/[projectId].ts  |   63 +
- .../businesses/projects-database/[groupId].tsx     |   29 +-
- 12 files changed, 4392 insertions(+), 817 deletions(-)
+ .../businesses/projects-database/[groupId].tsx     |   63 +-
+ 17 files changed, 8796 insertions(+), 989 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
 
 ```diff
+diff --git a/.github/workflows/context-bundle-pr.yml b/.github/workflows/context-bundle-pr.yml
+index eae6a8a..73f53ce 100644
+--- a/.github/workflows/context-bundle-pr.yml
++++ b/.github/workflows/context-bundle-pr.yml
+@@ -53,31 +53,11 @@ jobs:
+           git commit -m "chore(context): update PR #${{ github.event.number }}"
+           git push origin HEAD:${{ github.head_ref }}
+ 
+-      # 🔗 Upsert a single comment with evergreen & snapshot links
+-      - name: Comment links on PR
+-        if: always()
+-        uses: actions/github-script@v7
+-        with:
+-          script: |
+-            const pr = context.payload.pull_request;
+-            const owner = context.repo.owner;
+-            const repo  = context.repo.repo;
+-            const headRef = pr.head.ref;
+-            const headSha = pr.head.sha;
+-            const n = pr.number;
+-            const evergreen = `https://github.com/${owner}/${repo}/blob/${headRef}/docs/context/PR-${n}.md`;
+-            const snapshot  = `https://raw.githubusercontent.com/${owner}/${repo}/${headSha}/docs/context/PR-${n}.md`;
+-            const body = [
+-              `**Diff file generated ✅**`,
+-              ``,
+-              `Evergreen: ${evergreen}`,
+-              `Snapshot: ${snapshot}`,
+-              `File path: docs/context/PR-${n}.md`
+-            ].join('\n');
+-            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number: n });
+-            const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('Diff file generated ✅'));
+-            if (mine) {
+-              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+-            } else {
+-              await github.rest.issues.createComment({ owner, repo, issue_number: n, body });
+-            }
++      - name: Log context bundle update
++        if: steps.ctxdiff.outputs.changed == 'true'
++        run: |
++          {
++            echo "## Context bundle updated"
++            echo "- PR: #${{ github.event.number }}"
++            echo "- File: docs/context/PR-${{ github.event.number }}.md"
++          } >> "$GITHUB_STEP_SUMMARY"
+diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
+index 542388b..193c3aa 100644
+--- a/.github/workflows/deploy-to-vercel-prod.yml
++++ b/.github/workflows/deploy-to-vercel-prod.yml
+@@ -1,36 +1,20 @@
+-name: Deploy Codex PR to Vercel Production
++name: Deploy to Vercel Production
+ 
+ on:
+-  push:
+-    branches:
+-      - main
+-      - shwdtf-*          # your Codex PRs
+-      - codex/*           # additional Codex-style branches
+-    # BLACKLIST ONLY: if a push changes ONLY these paths, the job won't run
+-    paths-ignore:
+-      - 'docs/**'
+-      - 'prompts/**'
+-      - '.github/**'      # editing workflows should NOT deploy your app
+-      - '**/*.md'         # any markdown-only change (README, etc.)
+-
+-  # keep manual runs available (optional)
+-  workflow_dispatch: {}
++  pull_request:
++    types: [closed]
+ 
+ permissions:
+   contents: read
+   deployments: write
+ 
+ concurrency:
+-  group: vercel-prod-${{ github.ref }}
++  group: vercel-prod-${{ github.event.pull_request.number }}
+   cancel-in-progress: true
+ 
+ jobs:
+   deploy:
+-      if: |
+-      !contains(github.event.head_commit.message, 'chore(context)') &&
+-      !contains(github.event.head_commit.message, 'archive PR')
+-    runs-on: ubuntu-latest
+-    steps:
++    if: github.event.pull_request.merged == true
+     runs-on: ubuntu-latest
+     steps:
+       - uses: actions/checkout@v4
+@@ -39,27 +23,24 @@ jobs:
+         with:
+           node-version: 20
+ 
+-      - name: Install deps
++      - name: Install dependencies
+         run: npm ci
+ 
+       - name: Install Vercel CLI
+         run: npm i -g vercel@latest
+ 
+-      # Pull environment (Production)
+-      - name: Link Vercel project (prod)
++      - name: Pull production environment
+         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+         env:
+           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+ 
+-      # Build locally using Vercel build (produces .vercel/output)
+       - name: Build
+         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+         env:
+           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+ 
+-      # Deploy the prebuilt output as Production
+       - name: Deploy to Production
+         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+         env:
+diff --git a/.github/workflows/pr-diff-file.yml b/.github/workflows/pr-diff-file.yml
+index e341d18..c7b5809 100644
+--- a/.github/workflows/pr-diff-file.yml
++++ b/.github/workflows/pr-diff-file.yml
+@@ -99,54 +99,3 @@ jobs:
+           fi
+           # Capture post-commit SHA so Snapshot points to the commit that actually contains the file
+           echo "post_commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+-
+-      - name: Compose links
+-        id: links
+-        shell: bash
+-        env:
+-          OWNER_REPO: ${{ github.repository }}
+-          BRANCH: ${{ github.event.pull_request.head.ref }}
+-          PR_NUMBER: ${{ github.event.number }}
+-          HEAD_SHA: ${{ steps.diff.outputs.head_sha }}          # pre-commit head
+-          POST_SHA: ${{ steps.commit.outputs.post_commit_sha }} # post-commit head (if same-repo)
+-        run: |
+-          FILE="docs/context/PR-${PR_NUMBER}.md"
+-          echo "evergreen=https://github.com/${OWNER_REPO}/blob/${BRANCH}/${FILE}" >> "$GITHUB_OUTPUT"
+-          SNAP="${POST_SHA:-$HEAD_SHA}"
+-          echo "snapshot=https://raw.githubusercontent.com/${OWNER_REPO}/${SNAP}/${FILE}" >> "$GITHUB_OUTPUT"
+-
+-      - name: Post sticky comment with links (or inline preview for forks)
+-        uses: actions/github-script@v7
+-        env:
+-          EVERGREEN: ${{ steps.links.outputs.evergreen }}
+-          SNAPSHOT: ${{ steps.links.outputs.snapshot }}
+-          FROM_SAME_REPO: ${{ steps.ownership.outputs.same_repo }}
+-        with:
+-          script: |
+-            const pr = context.payload.pull_request;
+-            const sameRepo = process.env.FROM_SAME_REPO === 'true';
+-
+-            // Small inline preview (first 250 lines)
+-            const fs = require('fs');
+-            let inline = '';
+-            try {
+-              const preview = fs.readFileSync(`docs/context/PR-${pr.number}.md`, 'utf8')
+-                .split('\n').slice(0, 250).join('\n');
+-              inline = `\n<details><summary>Preview (first 250 lines)</summary>\n\n\`\`\`md\n${preview}\n\`\`\`\n\n</details>\n`;
+-            } catch {}
+-
+-            const marker = '<!-- pr-diff-file-sticky -->';
+-            const body = sameRepo
+-              ? `**Diff file generated** ✅\n\n- **Evergreen:** ${process.env.EVERGREEN}\n- **Snapshot:** ${process.env.SNAPSHOT}\n\n_File path:_ \`docs/context/PR-${pr.number}.md\`${inline}\n${marker}`
+-              : `**Diff generated (fork PR)** ⚠️\nWorkflows cannot push files back to fork branches.\n${inline}\n${marker}`;
+-
+-            const { data: comments } = await github.rest.issues.listComments({
+-              ...context.repo, issue_number: pr.number, per_page: 100
+-            });
+-
+-            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
+-            if (existing) {
+-              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+-            } else {
+-              await github.rest.issues.createComment({ ...context.repo, issue_number: pr.number, body });
+-            }
+diff --git a/.github/workflows/pr-diff-refresh.yml b/.github/workflows/pr-diff-refresh.yml
+index b45ba7a..e33b1cb 100644
+--- a/.github/workflows/pr-diff-refresh.yml
++++ b/.github/workflows/pr-diff-refresh.yml
+@@ -158,74 +158,13 @@ jobs:
+             /tmp/diff.patch
+           if-no-files-found: ignore
+ 
+-      - name: Compose links
+-        id: links
+-        env:
+-          OWNER_REPO: ${{ github.repository }}
+-          BRANCH: ${{ needs.resolve.outputs.head_ref }}
+-          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+-          # Prefer the new commit SHA if we made one, else the original head SHA
+-          HEAD_SHA: ${{ steps.commit.outputs.head_after || needs.resolve.outputs.head_sha }}
++      - name: Log diff refresh location
+         run: |
+-          FILE="docs/context/PR-${PR_NUMBER}.md"
+-          echo "evergreen=https://github.com/${OWNER_REPO}/blob/${BRANCH}/${FILE}" >> "$GITHUB_OUTPUT"
+-          echo "snapshot=https://raw.githubusercontent.com/${OWNER_REPO}/${HEAD_SHA}/${FILE}" >> "$GITHUB_OUTPUT"
+-          echo "run_url=https://github.com/${OWNER_REPO}/actions/runs/${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+-
+-      - name: Post sticky comment
+-        uses: actions/github-script@v7
+-        env:
+-          EVERGREEN: ${{ steps.links.outputs.evergreen }}
+-          SNAPSHOT:  ${{ steps.links.outputs.snapshot }}
+-          RUN_URL:   ${{ steps.links.outputs.run_url }}
+-          IS_SAME:   ${{ needs.resolve.outputs.same_repo }}
+-        with:
+-          script: |
+-            const prNumber = Number("${{ needs.resolve.outputs.pr_number }}");
+-            const marker = "<!-- pr-diff-refresh-sticky -->";
+-
+-            let body;
+-            if (process.env.IS_SAME === 'true') {
+-              body = [
+-                `**Diff file refreshed** ✅`,
+-                ``,
+-                `- Evergreen: ${process.env.EVERGREEN}`,
+-                `- Snapshot: ${process.env.SNAPSHOT}`,
+-                ``,
+-                `_File path:_ docs/context/PR-${prNumber}.md`,
+-                marker
+-              ].join('\n');
+-            } else {
+-              body = [
+-                `**Diff refreshed (fork PR)** ⚠️`,
+-                `Artifacts (download): ${process.env.RUN_URL}`,
+-                ``,
+-                `_Note:_ Workflows cannot push files back to fork branches.`,
+-                marker
+-              ].join('\n');
+-            }
+-
+-            const { data: comments } = await github.rest.issues.listComments({
+-              owner: context.repo.owner,
+-              repo: context.repo.repo,
+-              issue_number: prNumber
+-            });
+-            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
+-            if (existing) {
+-              await github.rest.issues.updateComment({
+-                owner: context.repo.owner,
+-                repo: context.repo.repo,
+-                comment_id: existing.id,
+-                body
+-              });
+-            } else {
+-              await github.rest.issues.createComment({
+-                owner: context.repo.owner,
+-                repo: context.repo.repo,
+-                issue_number: prNumber,
+-                body
+-              });
+-            }
++          {
++            echo "## Diff refreshed"
++            echo "- PR: #${{ needs.resolve.outputs.pr_number }}"
++            echo "- File: docs/context/PR-${{ needs.resolve.outputs.pr_number }}.md"
++          } >> "$GITHUB_STEP_SUMMARY"
+ 
+       - name: Inline preview (append to comment when possible)
+         if: always()
 diff --git a/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx b/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
 index 75ef22c..8ec8b9e 100644
 --- a/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
@@ -171,10 +445,10 @@ index 3d4b44f..ac1f927 100644
      expect(data.accountDocId).toBeUndefined()
 diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
 new file mode 100644
-index 0000000..3bc18b4
+index 0000000..1157469
 --- /dev/null
 +++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,119 @@
 +// components/projectdialog/ProjectDatabaseDetailDialog.tsx
 +
 +import React from 'react'
@@ -197,6 +471,7 @@ index 0000000..3bc18b4
 +  open: boolean
 +  onClose: () => void
 +  project: ProjectRecord | null
++  onEdit?: () => void
 +}
 +
 +const textOrNA = (value: string | null | undefined) =>
@@ -216,6 +491,7 @@ index 0000000..3bc18b4
 +  open,
 +  onClose,
 +  project,
++  onEdit,
 +}: ProjectDatabaseDetailDialogProps) {
 +  if (!project) {
 +    return null
@@ -283,23 +559,328 @@ index 0000000..3bc18b4
 +      </DialogContent>
 +      <DialogActions>
 +        <Button onClick={onClose}>Close</Button>
++        {onEdit && (
++          <Button variant="contained" onClick={onEdit}>
++            Edit
++          </Button>
++        )}
 +      </DialogActions>
 +    </Dialog>
 +  )
 +}
+diff --git a/components/projectdialog/ProjectDatabaseEditDialog.tsx b/components/projectdialog/ProjectDatabaseEditDialog.tsx
+new file mode 100644
+index 0000000..a13c7f7
+--- /dev/null
++++ b/components/projectdialog/ProjectDatabaseEditDialog.tsx
+@@ -0,0 +1,295 @@
++import { useEffect, useMemo, useState } from 'react'
 +
++import {
++  Alert,
++  Box,
++  Button,
++  Dialog,
++  DialogActions,
++  DialogContent,
++  DialogTitle,
++  FormControlLabel,
++  Grid,
++  Switch,
++  TextField,
++  Typography,
++} from '@mui/material'
++import { Timestamp } from 'firebase/firestore'
++
++import type { ProjectRecord } from '../../lib/projectsDatabase'
++
++interface ProjectDatabaseEditDialogProps {
++  open: boolean
++  project: ProjectRecord | null
++  onClose: () => void
++  onSaved: () => void
++}
++
++interface FormState {
++  projectNumber: string
++  projectTitle: string
++  projectNature: string
++  clientCompany: string
++  amount: string
++  paid: boolean
++  paidTo: string
++  invoice: string
++  presenterWorkType: string
++  subsidiary: string
++  projectDate: string
++  onDate: string
++}
++
++const toDateInputValue = (value: string | null) => {
++  if (!value) return ''
++  const parsed = new Date(value)
++  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().split('T')[0]
++}
++
++const toTimestampOrNull = (value: string) =>
++  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
++
++const sanitizeText = (value: string) => {
++  const trimmed = value.trim()
++  return trimmed.length === 0 ? null : trimmed
++}
++
++export default function ProjectDatabaseEditDialog({
++  open,
++  project,
++  onClose,
++  onSaved,
++}: ProjectDatabaseEditDialogProps) {
++  const [form, setForm] = useState<FormState | null>(null)
++  const [saving, setSaving] = useState(false)
++  const [error, setError] = useState<string | null>(null)
++
++  useEffect(() => {
++    if (!project) {
++      setForm(null)
++      return
++    }
++
++    setForm({
++      projectNumber: project.projectNumber ?? '',
++      projectTitle: project.projectTitle ?? '',
++      projectNature: project.projectNature ?? '',
++      clientCompany: project.clientCompany ?? '',
++      amount:
++        project.amount !== null && project.amount !== undefined
++          ? String(project.amount)
++          : '',
++      paid: Boolean(project.paid),
++      paidTo: project.paidTo ?? '',
++      invoice: project.invoice ?? '',
++      presenterWorkType: project.presenterWorkType ?? '',
++      subsidiary: project.subsidiary ?? '',
++      projectDate: toDateInputValue(project.projectDateIso),
++      onDate: toDateInputValue(project.onDateIso),
++    })
++    setError(null)
++  }, [project])
++
++  const disabled = useMemo(() => saving || !form || !project, [saving, form, project])
++
++  const handleChange = (field: keyof FormState) =>
++    (event: React.ChangeEvent<HTMLInputElement>) => {
++      if (!form) return
++      setForm({ ...form, [field]: event.target.value })
++    }
++
++  const handleTogglePaid = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
++    if (!form) return
++    setForm({ ...form, paid: checked })
++  }
++
++  const handleSubmit = async () => {
++    if (!project || !form) return
++
++    setSaving(true)
++    setError(null)
++
++    const amountValue = form.amount.trim()
++    const parsedAmount = amountValue.length > 0 ? Number(amountValue) : null
++    if (amountValue.length > 0 && Number.isNaN(parsedAmount)) {
++      setError('Amount must be a number')
++      setSaving(false)
++      return
++    }
++
++    const updates: Record<string, unknown> = {
++      projectNumber: sanitizeText(form.projectNumber),
++      projectTitle: sanitizeText(form.projectTitle),
++      projectNature: sanitizeText(form.projectNature),
++      clientCompany: sanitizeText(form.clientCompany),
++      presenterWorkType: sanitizeText(form.presenterWorkType),
++      subsidiary: sanitizeText(form.subsidiary),
++      invoice: sanitizeText(form.invoice),
++      paidTo: sanitizeText(form.paidTo),
++      paid: form.paid,
++    }
++
++    if (form.amount.trim().length === 0) {
++      updates.amount = null
++    } else if (parsedAmount !== null) {
++      updates.amount = parsedAmount
++    }
++
++    updates.projectDate = toTimestampOrNull(form.projectDate)
++    updates.onDate = toTimestampOrNull(form.onDate)
++
++    try {
++      const response = await fetch(
++        `/api/projects-database/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
++        {
++          method: 'PATCH',
++          headers: { 'Content-Type': 'application/json' },
++          body: JSON.stringify({ updates }),
++        }
++      )
++
++      if (!response.ok) {
++        const payload = await response.json().catch(() => ({}))
++        throw new Error(payload.error || 'Failed to update project')
++      }
++
++      onSaved()
++    } catch (err) {
++      const message = err instanceof Error ? err.message : 'Failed to update project'
++      setError(message)
++    } finally {
++      setSaving(false)
++    }
++  }
++
++  if (!project || !form) {
++    return null
++  }
++
++  return (
++    <Dialog open={open} onClose={disabled ? undefined : onClose} fullWidth maxWidth="sm">
++      <DialogTitle>Edit Project</DialogTitle>
++      <DialogContent dividers>
++        <Typography variant="subtitle1" sx={{ mb: 2 }}>
++          {project.projectNumber} — {project.projectTitle ?? 'Untitled'}
++        </Typography>
++        {error && (
++          <Alert severity="error" sx={{ mb: 2 }}>
++            {error}
++          </Alert>
++        )}
++        <Grid container spacing={2}>
++          <Grid item xs={12} sm={6}>
++            <TextField
++              label="Project Number"
++              value={form.projectNumber}
++              onChange={handleChange('projectNumber')}
++              fullWidth
++            />
++          </Grid>
++          <Grid item xs={12} sm={6}>
++            <TextField
++              label="Client Company"
++              value={form.clientCompany}
++              onChange={handleChange('clientCompany')}
++              fullWidth
++            />
++          </Grid>
++          <Grid item xs={12}>
++            <TextField
++              label="Project Title"
++              value={form.projectTitle}
++              onChange={handleChange('projectTitle')}
++              fullWidth
++            />
++          </Grid>
++          <Grid item xs={12}>
++            <TextField
++              label="Project Nature"
++              value={form.projectNature}
++              onChange={handleChange('projectNature')}
++              fullWidth
++            />
++          </Grid>
++          <Grid item xs={12} sm={6}>
++            <TextField
++              label="Project Date"
++              type="date"
++              value={form.projectDate}
++              onChange={handleChange('projectDate')}
++              fullWidth
++              InputLabelProps={{ shrink: true }}
++            />
++          </Grid>
++          <Grid item xs={12} sm={6}>
++            <TextField
++              label="Paid On"
++              type="date"
++              value={form.onDate}
++              onChange={handleChange('onDate')}
++              fullWidth
++              InputLabelProps={{ shrink: true }}
++            />
++          </Grid>
++          <Grid item xs={12} sm={6}>
++            <TextField
++              label="Amount (HKD)"
++              value={form.amount}
++              onChange={handleChange('amount')}
++              fullWidth
++              inputMode="decimal"
++            />
++          </Grid>
++          <Grid item xs={12} sm={6}>
++            <TextField
++              label="Paid To"
++              value={form.paidTo}
++              onChange={handleChange('paidTo')}
++              fullWidth
++            />
++          </Grid>
++          <Grid item xs={12} sm={6}>
++            <TextField
++              label="Invoice"
++              value={form.invoice}
++              onChange={handleChange('invoice')}
++              fullWidth
++            />
++          </Grid>
++          <Grid item xs={12} sm={6}>
++            <TextField
++              label="Presenter Work Type"
++              value={form.presenterWorkType}
++              onChange={handleChange('presenterWorkType')}
++              fullWidth
++            />
++          </Grid>
++          <Grid item xs={12}>
++            <TextField
++              label="Subsidiary"
++              value={form.subsidiary}
++              onChange={handleChange('subsidiary')}
++              fullWidth
++            />
++          </Grid>
++          <Grid item xs={12}>
++            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
++              <FormControlLabel
++                control={<Switch checked={form.paid} onChange={handleTogglePaid} />}
++                label="Paid"
++              />
++            </Box>
++          </Grid>
++        </Grid>
++      </DialogContent>
++      <DialogActions>
++        <Button onClick={onClose} disabled={disabled}>
++          Cancel
++        </Button>
++        <Button onClick={handleSubmit} variant="contained" disabled={disabled}>
++          {saving ? 'Saving…' : 'Save Changes'}
++        </Button>
++      </DialogActions>
++    </Dialog>
++  )
++}
 diff --git a/context-bundle.md b/context-bundle.md
-index 8756e36..c17db3e 100644
+index 8756e36..edcaecd 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
-@@ -1,810 +1,4041 @@
+@@ -1,810 +1,4045 @@
 -# PR #249 — Diff Summary
 +# PR #251 — Diff Summary
  
 -- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 -- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 +- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-+- **Head (source)**: `ffa7e29a65d0d09c556bec361c2bae241ba82b14`
++- **Head (source)**: `f58be5bab3da26cdff1f3110210e2cf0db007701`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -320,6 +901,8 @@ index 8756e36..c17db3e 100644
 +A	docs/context/PR-251.md
 +M	jest.config.cjs
 +M	lib/erlDirectory.test.ts
++M	lib/projectsDatabase.ts
++A	pages/api/projects-database/[year]/[projectId].ts
 +M	pages/dashboard/businesses/projects-database/[groupId].tsx
  ```
  
@@ -337,13 +920,15 @@ index 8756e36..c17db3e 100644
 + components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
 + components/StudentDialog/PaymentModal.test.tsx     |   21 +-
 + .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  113 +
-+ context-bundle.md                                  | 4411 ++++++++++++++++----
++ context-bundle.md                                  | 4729 ++++++++++++++++----
 + cypress/e2e/add_payment_cascade.cy.tsx             |   95 +-
-+ docs/context/PR-251.md                             | 3735 +++++++++++++++++
++ docs/context/PR-251.md                             |    1 +
 + jest.config.cjs                                    |    2 +
 + lib/erlDirectory.test.ts                           |    4 +-
++ lib/projectsDatabase.ts                            |  109 +-
++ pages/api/projects-database/[year]/[projectId].ts  |   63 +
 + .../businesses/projects-database/[groupId].tsx     |   29 +-
-+ 10 files changed, 7643 insertions(+), 810 deletions(-)
++ 12 files changed, 4392 insertions(+), 817 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1329,17 +1914,17 @@ index 8756e36..c17db3e 100644
 -+
 -+export default ProjectsDatabaseIndex
 +diff --git a/context-bundle.md b/context-bundle.md
-+index 8756e36..25ebbf9 100644
++index 8756e36..c17db3e 100644
 +--- a/context-bundle.md
 ++++ b/context-bundle.md
-+@@ -1,810 +1,3735 @@
++@@ -1,810 +1,4041 @@
 +-# PR #249 — Diff Summary
 ++# PR #251 — Diff Summary
 + 
 +-- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 +-- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 ++- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-++- **Head (source)**: `938f8f077b94101f947bf2e4a14aaf1757a07223`
+++- **Head (source)**: `ffa7e29a65d0d09c556bec361c2bae241ba82b14`
 + - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 + 
 + ## Changed Files
@@ -1377,13 +1962,13 @@ index 8756e36..c17db3e 100644
 ++ components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
 ++ components/StudentDialog/PaymentModal.test.tsx     |   21 +-
 ++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  113 +
-++ context-bundle.md                                  | 3101 +++++++++++++++-----
-++ cypress/e2e/add_payment_cascade.cy.tsx             |   72 +-
-++ docs/context/PR-251.md                             |    1 +
+++ context-bundle.md                                  | 4411 ++++++++++++++++----
+++ cypress/e2e/add_payment_cascade.cy.tsx             |   95 +-
+++ docs/context/PR-251.md                             | 3735 +++++++++++++++++
 ++ jest.config.cjs                                    |    2 +
 ++ lib/erlDirectory.test.ts                           |    4 +-
 ++ .../businesses/projects-database/[groupId].tsx     |   29 +-
-++ 10 files changed, 2581 insertions(+), 805 deletions(-)
+++ 10 files changed, 7643 insertions(+), 810 deletions(-)
 + ```
 + 
 + ## Unified Diff (truncated to first 4000 lines)
@@ -1734,7 +2319,10 @@ index 8756e36..c17db3e 100644
 +- import { useRouter } from 'next/router';
 +- import { Box, Typography, List, ListItemButton, ListItemText, Button } from '@mui/material';
 +--import { drive_v3 } from 'googleapis';
-+- 
++++  PaymentModalMock.displayName = 'PaymentModalMock'
++++  return PaymentModalMock
++++})
++  
 +--interface BusinessFile {
 +--  companyIdentifier: string;
 +--  fullCompanyName: string;
@@ -1743,14 +2331,6 @@ index 8756e36..c17db3e 100644
 +-+  title: string;
 +-+  description: string;
 +-+  href: string;
-+- }
-+++  PaymentModalMock.displayName = 'PaymentModalMock'
-+++  return PaymentModalMock
-+++})
-+  
-+- interface BusinessesPageProps {
-+--  projectsByCategory: Record<string, BusinessFile[]>;
-+-+  businessLinks: BusinessLink[];
 +- }
 ++ jest.mock('firebase/firestore', () => ({
 ++   collection: jest.fn(),
@@ -1765,10 +2345,19 @@ index 8756e36..c17db3e 100644
 +++import * as firestore from 'firebase/firestore'
 +++import * as erlDirectory from '../../lib/erlDirectory'
 +  
++- interface BusinessesPageProps {
++--  projectsByCategory: Record<string, BusinessFile[]>;
++-+  businessLinks: BusinessLink[];
++- }
+++ jest.mock('../../lib/erlDirectory', () => ({
+++   listBanks: jest
+++@@ -46,6 +48,9 @@ jest.mock('../../lib/liveRefresh', () => ({ writeSummaryFromCache: jest.fn() }))
++  
 +--export default function BusinessesPage({ projectsByCategory }: BusinessesPageProps) {
 +-+export default function BusinessesPage({ businessLinks }: BusinessesPageProps) {
 +-   const router = useRouter();
-+- 
+++ const noop = () => {}
++  
 +--  // Flatten the grouped projects into a single array.
 +--  // (The original code grouped them by subsidiary code; now we sort them alphabetically by fullCompanyName.)
 +--  const files: BusinessFile[] = [];
@@ -1817,12 +2406,6 @@ index 8756e36..c17db3e 100644
 +-   };
 +- };
 +-diff --git a/pages/dashboard/businesses/projects-database/[groupId].tsx b/pages/dashboard/businesses/projects-database/[groupId].tsx
-++ jest.mock('../../lib/erlDirectory', () => ({
-++   listBanks: jest
-++@@ -46,6 +48,9 @@ jest.mock('../../lib/liveRefresh', () => ({ writeSummaryFromCache: jest.fn() }))
-++ 
-++ const noop = () => {}
-++ 
 +++const mockedErlDirectory = jest.mocked(erlDirectory, true)
 +++const mockedFirestore = jest.mocked(firestore, true)
 +++
@@ -1908,14 +2491,15 @@ index 8756e36..c17db3e 100644
 + +} from '@mui/material'
 +-+import type { SelectChangeEvent } from '@mui/material/Select'
 +-+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
++-+
++-+const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
++-+const headingSx = { fontFamily: 'Cantata One' }
 +++import CloseIcon from '@mui/icons-material/Close'
 +++import CheckIcon from '@mui/icons-material/Check'
 + +
-+-+const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
-+-+const headingSx = { fontFamily: 'Cantata One' }
-+-+
 +-+type SortMethod = 'year' | 'subsidiary'
-+-+
++++import type { ProjectRecord } from '../../lib/projectsDatabase'
++ +
 +-+type Mode = 'select' | 'detail'
 +-+
 +-+interface DetailSelection {
@@ -1929,18 +2513,17 @@ index 8756e36..c17db3e 100644
 +-+  error?: string
 +-+  detailSelection?: DetailSelection
 +-+  projects?: ProjectRecord[]
-+-+}
-+++import type { ProjectRecord } from '../../lib/projectsDatabase'
-+ +
-+-+const encodeSelectionId = (type: SortMethod, year: string) => {
-+-+  const yearPart = encodeURIComponent(year)
-+-+  return `${type}--${yearPart}`
 +++interface ProjectDatabaseDetailDialogProps {
 +++  open: boolean
 +++  onClose: () => void
 +++  project: ProjectRecord | null
 + +}
 + +
++-+const encodeSelectionId = (type: SortMethod, year: string) => {
++-+  const yearPart = encodeURIComponent(year)
++-+  return `${type}--${yearPart}`
++-+}
++-+
 +-+const decodeSelectionId = (value: string): DetailSelection | null => {
 +-+  const [typePart, yearPart] = value.split('--')
 +-+  if (!typePart || !yearPart) {
@@ -2329,18 +2912,59 @@ index 8756e36..c17db3e 100644
 +-+    const matchingProjects = projects.filter(
 +-+      (project) => project.year === selection.year
 +-+    )
++-+
++-+    return {
++-+      props: {
++-+        mode: 'detail',
++-+        years,
++-+        detailSelection: selection,
++-+        projects: matchingProjects,
++-+      },
++-+    }
++-+  } catch (err) {
++-+    console.error('[projects-database] Failed to load projects:', err)
++-+    return {
++-+      props: {
++-+        mode: 'select',
++-+        years: [],
++-+        error:
++-+          err instanceof Error ? err.message : 'Error retrieving project records',
++-+      },
++-+    }
++-+  }
++-+}
++-diff --git a/pages/dashboard/businesses/projects-database/index.tsx b/pages/dashboard/businesses/projects-database/index.tsx
++-new file mode 100644
++-index 0000000..51c3a8a
++---- /dev/null
++-+++ b/pages/dashboard/businesses/projects-database/index.tsx
++-@@ -0,0 +1,14 @@
++-+import { GetServerSideProps } from 'next'
++-+
++-+const ProjectsDatabaseIndex = () => null
++-+
++-+export const getServerSideProps: GetServerSideProps = async () => {
++-+  return {
++-+    redirect: {
++-+      destination: '/dashboard/businesses/projects-database/select',
++-+      permanent: false,
++-+    },
++-+  }
++-+}
++-+
++-+export default ProjectsDatabaseIndex
 ++diff --git a/context-bundle.md b/context-bundle.md
-++index 8756e36..3663015 100644
+++index 8756e36..25ebbf9 100644
 ++--- a/context-bundle.md
 +++++ b/context-bundle.md
-++@@ -1,810 +1,2423 @@
+++@@ -1,810 +1,3735 @@
 ++-# PR #249 — Diff Summary
 +++# PR #251 — Diff Summary
 ++ 
 ++-- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 ++-- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 +++- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-+++- **Head (source)**: `f7850e302284d9f84e1c837ff979a538ccf9b14f`
++++- **Head (source)**: `938f8f077b94101f947bf2e4a14aaf1757a07223`
 ++ - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 ++ 
 ++ ## Changed Files
@@ -2377,14 +3001,14 @@ index 8756e36..c17db3e 100644
 +++ .../businesses/coaching-sessions.test.tsx          |   35 +-
 +++ components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
 +++ components/StudentDialog/PaymentModal.test.tsx     |   21 +-
-+++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  113 ++
-+++ context-bundle.md                                  | 1232 ++++++++------------
-+++ cypress/e2e/add_payment_cascade.cy.tsx             |   70 +-
-+++ docs/context/PR-251.md                             |  558 +++++++++
++++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  113 +
++++ context-bundle.md                                  | 3101 +++++++++++++++-----
++++ cypress/e2e/add_payment_cascade.cy.tsx             |   72 +-
++++ docs/context/PR-251.md                             |    1 +
 +++ jest.config.cjs                                    |    2 +
 +++ lib/erlDirectory.test.ts                           |    4 +-
 +++ .../businesses/projects-database/[groupId].tsx     |   29 +-
-+++ 10 files changed, 1269 insertions(+), 803 deletions(-)
++++ 10 files changed, 2581 insertions(+), 805 deletions(-)
 ++ ```
 ++ 
 ++ ## Unified Diff (truncated to first 4000 lines)
@@ -3330,26 +3954,18 @@ index 8756e36..c17db3e 100644
 ++-+    const matchingProjects = projects.filter(
 ++-+      (project) => project.year === selection.year
 ++-+    )
-++-+
-++-+    return {
-++-+      props: {
-++-+        mode: 'detail',
-++-+        years,
-++-+        detailSelection: selection,
-++-+        projects: matchingProjects,
-++-+      },
 +++diff --git a/context-bundle.md b/context-bundle.md
-+++index 8756e36..81ef4ef 100644
++++index 8756e36..3663015 100644
 +++--- a/context-bundle.md
 ++++++ b/context-bundle.md
-+++@@ -1,810 +1,558 @@
++++@@ -1,810 +1,2423 @@
 +++-# PR #249 — Diff Summary
 ++++# PR #251 — Diff Summary
 +++ 
 +++-- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 +++-- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 ++++- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-++++- **Head (source)**: `c08d615458e64086f577db3d49f2e1a3b84f2195`
+++++- **Head (source)**: `f7850e302284d9f84e1c837ff979a538ccf9b14f`
 +++ - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 +++ 
 +++ ## Changed Files
@@ -3365,6 +3981,7 @@ index 8756e36..c17db3e 100644
 ++++M	components/StudentDialog/PaymentHistory.test.tsx
 ++++M	components/StudentDialog/PaymentModal.test.tsx
 ++++A	components/projectdialog/ProjectDatabaseDetailDialog.tsx
+++++M	context-bundle.md
 ++++M	cypress/e2e/add_payment_cascade.cy.tsx
 ++++A	docs/context/PR-251.md
 ++++M	jest.config.cjs
@@ -3382,16 +3999,17 @@ index 8756e36..c17db3e 100644
 +++- .../businesses/projects-database/[groupId].tsx     | 400 +++++++++++++++++++++
 +++- .../businesses/projects-database/index.tsx         |  14 +
 +++- 6 files changed, 666 insertions(+), 30 deletions(-)
-++++ .../businesses/coaching-sessions.test.tsx          |  35 +++++--
-++++ components/StudentDialog/PaymentHistory.test.tsx   |   8 +-
-++++ components/StudentDialog/PaymentModal.test.tsx     |  21 ++--
-++++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  | 113 +++++++++++++++++++++
-++++ cypress/e2e/add_payment_cascade.cy.tsx             |  69 ++++++-------
-++++ docs/context/PR-251.md                             |   1 +
-++++ jest.config.cjs                                    |   2 +
-++++ lib/erlDirectory.test.ts                           |   4 +-
-++++ .../businesses/projects-database/[groupId].tsx     |  29 +++++-
-++++ 9 files changed, 221 insertions(+), 61 deletions(-)
+++++ .../businesses/coaching-sessions.test.tsx          |   35 +-
+++++ components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
+++++ components/StudentDialog/PaymentModal.test.tsx     |   21 +-
+++++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  113 ++
+++++ context-bundle.md                                  | 1232 ++++++++------------
+++++ cypress/e2e/add_payment_cascade.cy.tsx             |   70 +-
+++++ docs/context/PR-251.md                             |  558 +++++++++
+++++ jest.config.cjs                                    |    2 +
+++++ lib/erlDirectory.test.ts                           |    4 +-
+++++ .../businesses/projects-database/[groupId].tsx     |   29 +-
+++++ 10 files changed, 1269 insertions(+), 803 deletions(-)
 +++ ```
 +++ 
 +++ ## Unified Diff (truncated to first 4000 lines)
@@ -3434,612 +4052,4 @@ index 8756e36..c17db3e 100644
 +++- export const app = !getApps().length
 +++-   ? initializeApp(firebaseConfig)
 +++-   : getApp()
-+++--export const db = getFirestore(app, databaseId)
-+++-+export const db = getFirestore(app, DEFAULT_DATABASE_ID)
-+++-+export const projectsDb = getFirestore(app, PROJECTS_DATABASE_ID)
-+++-+export const PROJECTS_FIRESTORE_DATABASE_ID = PROJECTS_DATABASE_ID
-+++-+export const getFirestoreForDatabase = (databaseId: string) => getFirestore(app, databaseId)
-+++- // after you create/export `db`...
-+++- if (typeof window !== 'undefined') {
-+++-   // @ts-expect-error attach for debugging
-+++-diff --git a/lib/projectsDatabase.ts b/lib/projectsDatabase.ts
-+++-new file mode 100644
-+++-index 0000000..4c054ce
-+++---- /dev/null
-+++-+++ b/lib/projectsDatabase.ts
-+++-@@ -0,0 +1,220 @@
-+++-+// lib/projectsDatabase.ts
-+++-+
-+++-+import { collection, getDocs, Timestamp } from 'firebase/firestore'
-+++-+
-+++-+import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from './firebase'
-+++-+
-+++-+const YEAR_ID_PATTERN = /^\d{4}$/
-+++-+const FALLBACK_YEAR_IDS = ['2025', '2024', '2023', '2022', '2021']
-+++-+
-+++-+interface ListCollectionIdsResponse {
-+++-+  collectionIds?: string[]
-+++-+  error?: { message?: string }
-+++-+}
-+++-+
-+++-+export interface ProjectRecord {
-+++-+  id: string
-+++-+  year: string
-+++-+  amount: number | null
-+++-+  clientCompany: string | null
-+++-+  invoice: string | null
-+++-+  onDateDisplay: string | null
-+++-+  onDateIso: string | null
-+++-+  paid: boolean | null
-+++-+  paidTo: string | null
-+++-+  presenterWorkType: string | null
-+++-+  projectDateDisplay: string | null
-+++-+  projectDateIso: string | null
-+++-+  projectNature: string | null
-+++-+  projectNumber: string
-+++-+  projectTitle: string | null
-+++-+  subsidiary: string | null
-+++-+}
-+++-+
-+++-+export interface ProjectsDatabaseResult {
-+++-+  projects: ProjectRecord[]
-+++-+  years: string[]
-+++-+}
-+++-+
-+++-+const toTimestamp = (value: unknown): Timestamp | null => {
-+++-+  if (value instanceof Timestamp) {
-+++-+    return value
-+++-+  }
-+++-+  if (
-+++-+    value &&
-+++-+    typeof value === 'object' &&
-+++-+    'seconds' in value &&
-+++-+    'nanoseconds' in value &&
-+++-+    typeof (value as any).seconds === 'number' &&
-+++-+    typeof (value as any).nanoseconds === 'number'
-+++-+  ) {
-+++-+    return new Timestamp((value as any).seconds, (value as any).nanoseconds)
-+++-+  }
-+++-+  return null
-+++-+}
-+++-+
-+++-+const toDate = (value: unknown): Date | null => {
-+++-+  const ts = toTimestamp(value)
-+++-+  if (ts) {
-+++-+    const date = ts.toDate()
-+++-+    return isNaN(date.getTime()) ? null : date
-+++-+  }
-+++-+  if (typeof value === 'string' || value instanceof String) {
-+++-+    const parsed = new Date(value as string)
-+++-+    return isNaN(parsed.getTime()) ? null : parsed
-+++-+  }
-+++-+  if (value instanceof Date) {
-+++-+    return isNaN(value.getTime()) ? null : value
-+++-+  }
-+++-+  return null
-+++-+}
-+++-+
-+++-+const formatDisplayDate = (value: unknown): string | null => {
-+++-+  const date = toDate(value)
-+++-+  if (!date) return null
-+++-+  return date.toLocaleDateString('en-US', {
-+++-+    month: 'short',
-+++-+    day: '2-digit',
-+++-+    year: 'numeric',
-+++-+  })
-+++-+}
-+++-+
-+++-+const toIsoDate = (value: unknown): string | null => {
-+++-+  const date = toDate(value)
-+++-+  if (!date) return null
-+++-+  return date.toISOString()
-+++-+}
-+++-+
-+++-+const toStringValue = (value: unknown): string | null => {
-+++-+  if (typeof value === 'string') {
-+++-+    return value.trim() || null
-+++-+  }
-+++-+  if (value instanceof String) {
-+++-+    const trimmed = value.toString().trim()
-+++-+    return trimmed || null
-+++-+  }
-+++-+  return null
-+++-+}
-+++-+
-+++-+const toNumberValue = (value: unknown): number | null => {
-+++-+  if (typeof value === 'number' && !Number.isNaN(value)) {
-+++-+    return value
-+++-+  }
-+++-+  if (typeof value === 'string') {
-+++-+    const parsed = Number(value)
-+++-+    return Number.isNaN(parsed) ? null : parsed
-++++diff --git a/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx b/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
-++++index 75ef22c..8ec8b9e 100644
-++++--- a/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
-+++++++ b/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
-++++@@ -19,15 +19,37 @@ jest.mock('firebase/firestore', () => ({
-++++ }))
-++++ jest.mock('../../../../lib/firebase', () => ({ db: {} }))
-++++ jest.mock('../../../../lib/paths', () => ({ PATHS: {}, logPath: jest.fn() }))
-++++-jest.mock('../../../../components/StudentDialog/OverviewTab', () => () => null)
-++++-jest.mock('../../../../components/StudentDialog/SessionDetail', () => () => null)
-++++-jest.mock('../../../../components/StudentDialog/FloatingWindow', () => ({ children }: any) => (
-++++-  <div>{children}</div>
-++++-))
-+++++jest.mock('../../../../components/StudentDialog/OverviewTab', () => {
-+++++  function OverviewTabMock() {
-+++++    return null
-+++ +  }
-+++-+  return null
-+++-+}
-+++-+
-+++-+const toBooleanValue = (value: unknown): boolean | null => {
-+++-+  if (typeof value === 'boolean') {
-+++-+    return value
-+++++  OverviewTabMock.displayName = 'OverviewTabMock'
-+++++  return OverviewTabMock
-+++++})
-+++++jest.mock('../../../../components/StudentDialog/SessionDetail', () => {
-+++++  function SessionDetailMock() {
-+++++    return null
-+++ +  }
-+++-+  return null
-+++-+}
-+++-+
-+++-+const uniqueSortedYears = (values: Iterable<string>) =>
-+++-+  Array.from(new Set(values)).sort((a, b) =>
-+++-+    b.localeCompare(a, undefined, { numeric: true })
-+++-+  )
-+++-+
-+++-+const listYearCollections = async (): Promise<string[]> => {
-+++-+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
-+++-+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-+++-+
-+++-+  if (!apiKey || !projectId) {
-+++-+    console.warn('[projectsDatabase] Missing Firebase configuration, falling back to defaults')
-+++-+    return [...FALLBACK_YEAR_IDS]
-+++++  SessionDetailMock.displayName = 'SessionDetailMock'
-+++++  return SessionDetailMock
-+++++})
-+++++jest.mock('../../../../components/StudentDialog/FloatingWindow', () => {
-+++++  function FloatingWindowMock({ children }: any) {
-+++++    return <div>{children}</div>
-+++ +  }
-+++-+
-+++-+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
-+++-+
-+++-+  try {
-+++-+    const response = await fetch(url, {
-+++-+      method: 'POST',
-+++-+      headers: { 'Content-Type': 'application/json' },
-+++-+      body: JSON.stringify({
-+++-+        parent: `projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents`,
-+++-+        pageSize: 200,
-+++-+      }),
-+++-+    })
-+++-+
-+++-+    if (!response.ok) {
-+++-+      console.warn('[projectsDatabase] Failed to list collection IDs:', response.status, response.statusText)
-+++-+      return [...FALLBACK_YEAR_IDS]
-+++-+    }
-+++-+
-+++-+    const json = (await response.json()) as ListCollectionIdsResponse
-+++-+    if (json.error) {
-+++-+      console.warn('[projectsDatabase] Firestore responded with error:', json.error.message)
-+++-+      return [...FALLBACK_YEAR_IDS]
-+++-+    }
-+++-+
-+++-+    const ids = json.collectionIds?.filter((id) => YEAR_ID_PATTERN.test(id)) ?? []
-+++-+    if (ids.length === 0) {
-+++-+      console.warn('[projectsDatabase] No year collections found, falling back to defaults')
-+++-+      return [...FALLBACK_YEAR_IDS]
-+++-+    }
-+++-+    return uniqueSortedYears(ids)
-+++-+  } catch (err) {
-+++-+    console.warn('[projectsDatabase] listYearCollections failed:', err)
-+++-+    return [...FALLBACK_YEAR_IDS]
-+++++  FloatingWindowMock.displayName = 'FloatingWindowMock'
-+++++  return FloatingWindowMock
-+++++})
-++++ jest.mock('../../../../lib/sessionStats', () => ({ clearSessionSummaries: jest.fn() }))
-++++ jest.mock('../../../../lib/sessions', () => ({ computeSessionStart: jest.fn() }))
-++++ jest.mock('../../../../lib/billing/useBilling', () => ({ useBilling: () => ({ data: null, isLoading: false }) }))
-++++-jest.mock('../../../../components/LoadingDash', () => () => null)
-+++++jest.mock('../../../../components/LoadingDash', () => {
-+++++  function LoadingDashMock() {
-+++++    return null
-+++ +  }
-+++-+}
-+++-+
-+++-+export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResult> => {
-+++-+  const yearIds = await listYearCollections()
-+++-+  const projects: ProjectRecord[] = []
-+++-+  const yearsWithData = new Set<string>()
-+++-+
-+++-+  await Promise.all(
-+++-+    yearIds.map(async (year) => {
-+++-+      const snapshot = await getDocs(collection(projectsDb, year))
-+++-+      snapshot.forEach((doc) => {
-+++-+        const data = doc.data() as Record<string, unknown>
-+++-+        const projectNumber = toStringValue(data.projectNumber) ?? doc.id
-+++-+
-+++-+        const amount = toNumberValue(data.amount)
-+++-+        const projectDateIso = toIsoDate(data.projectDate)
-+++-+        const projectDateDisplay = formatDisplayDate(data.projectDate)
-+++-+        const onDateIso = toIsoDate(data.onDate)
-+++-+        const onDateDisplay = formatDisplayDate(data.onDate)
-+++-+
-+++-+        projects.push({
-+++-+          id: doc.id,
-+++-+          year,
-+++-+          amount,
-+++-+          clientCompany: toStringValue(data.clientCompany),
-+++-+          invoice: toStringValue(data.invoice),
-+++-+          onDateDisplay,
-+++-+          onDateIso,
-+++-+          paid: toBooleanValue(data.paid),
-+++-+          paidTo: toStringValue(data.paidTo),
-+++-+          presenterWorkType: toStringValue(data.presenterWorkType),
-+++-+          projectDateDisplay,
-+++-+          projectDateIso,
-+++-+          projectNature: toStringValue(data.projectNature),
-+++-+          projectNumber,
-+++-+          projectTitle: toStringValue(data.projectTitle),
-+++-+          subsidiary: toStringValue(data.subsidiary),
-+++-+        })
-+++-+
-+++-+        yearsWithData.add(year)
-+++-+      })
-+++-+    })
-+++-+  )
-+++-+
-+++-+  projects.sort((a, b) => {
-+++-+    if (a.year !== b.year) {
-+++-+      return b.year.localeCompare(a.year, undefined, { numeric: true })
-+++-+    }
-+++-+    return a.projectNumber.localeCompare(b.projectNumber, undefined, { numeric: true })
-+++-+  })
-+++-+
-+++-+  return {
-+++-+    projects,
-+++-+    years: uniqueSortedYears(yearsWithData),
-+++++  LoadingDashMock.displayName = 'LoadingDashMock'
-+++++  return LoadingDashMock
-+++++})
-++++ jest.mock('../../../../lib/scanLogs', () => ({
-++++   readScanLogs: jest.fn(async () => null),
-++++   writeScanLog: jest.fn(),
-++++@@ -51,4 +73,3 @@ describe('coaching sessions card view', () => {
-++++     expect(screen.queryByTestId('pprompt-badge')).toBeNull()
-++++   })
-++++ })
-++++-
-++++diff --git a/components/StudentDialog/PaymentHistory.test.tsx b/components/StudentDialog/PaymentHistory.test.tsx
-++++index e850e7a..e2560e9 100644
-++++--- a/components/StudentDialog/PaymentHistory.test.tsx
-+++++++ b/components/StudentDialog/PaymentHistory.test.tsx
-++++@@ -6,7 +6,13 @@ import '@testing-library/jest-dom'
-++++ import { render, screen, waitFor } from '@testing-library/react'
-++++ import PaymentHistory from './PaymentHistory'
-++++ 
-++++-jest.mock('./PaymentModal', () => () => <div />)
-+++++jest.mock('./PaymentModal', () => {
-+++++  function PaymentModalMock() {
-+++++    return <div />
-+++ +  }
-+++-+}
-+++-+
-+++-diff --git a/pages/dashboard/businesses/index.tsx b/pages/dashboard/businesses/index.tsx
-+++-index 505c235..135484d 100644
-+++---- a/pages/dashboard/businesses/index.tsx
-+++-+++ b/pages/dashboard/businesses/index.tsx
-+++-@@ -3,33 +3,22 @@
-+++- import { GetServerSideProps } from 'next';
-+++- import { getSession } from 'next-auth/react';
-+++- import SidebarLayout from '../../../components/SidebarLayout';
-+++--import { initializeApis } from '../../../lib/googleApi';
-+++--import { listProjectOverviewFiles } from '../../../lib/projectOverview';
-+++- import { useRouter } from 'next/router';
-+++- import { Box, Typography, List, ListItemButton, ListItemText, Button } from '@mui/material';
-+++--import { drive_v3 } from 'googleapis';
-+++++  PaymentModalMock.displayName = 'PaymentModalMock'
-+++++  return PaymentModalMock
-+++++})
-+++  
-+++--interface BusinessFile {
-+++--  companyIdentifier: string;
-+++--  fullCompanyName: string;
-+++--  file: drive_v3.Schema$File;
-+++-+interface BusinessLink {
-+++-+  title: string;
-+++-+  description: string;
-+++-+  href: string;
-+++- }
-++++ jest.mock('firebase/firestore', () => ({
-++++   collection: jest.fn(),
-++++diff --git a/components/StudentDialog/PaymentModal.test.tsx b/components/StudentDialog/PaymentModal.test.tsx
-++++index 3d4b44f..ac1f927 100644
-++++--- a/components/StudentDialog/PaymentModal.test.tsx
-+++++++ b/components/StudentDialog/PaymentModal.test.tsx
-++++@@ -6,6 +6,8 @@ import '@testing-library/jest-dom'
-++++ import { render, fireEvent, waitFor, screen } from '@testing-library/react'
-++++ import PaymentModal from './PaymentModal'
-++++ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-+++++import * as firestore from 'firebase/firestore'
-+++++import * as erlDirectory from '../../lib/erlDirectory'
-+++  
-+++- interface BusinessesPageProps {
-+++--  projectsByCategory: Record<string, BusinessFile[]>;
-+++-+  businessLinks: BusinessLink[];
-+++- }
-++++ jest.mock('../../lib/erlDirectory', () => ({
-++++   listBanks: jest
-++++@@ -46,6 +48,9 @@ jest.mock('../../lib/liveRefresh', () => ({ writeSummaryFromCache: jest.fn() }))
-+++  
-+++--export default function BusinessesPage({ projectsByCategory }: BusinessesPageProps) {
-+++-+export default function BusinessesPage({ businessLinks }: BusinessesPageProps) {
-+++-   const router = useRouter();
-++++ const noop = () => {}
-+++  
-+++--  // Flatten the grouped projects into a single array.
-+++--  // (The original code grouped them by subsidiary code; now we sort them alphabetically by fullCompanyName.)
-+++--  const files: BusinessFile[] = [];
-+++--  for (const key in projectsByCategory) {
-+++--    projectsByCategory[key].forEach((file) => files.push(file));
-+++--  }
-+++--  files.sort((a, b) => a.fullCompanyName.localeCompare(b.fullCompanyName));
-+++--
-+++-   return (
-+++-     <SidebarLayout>
-+++-       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-+++-@@ -43,12 +32,9 @@ export default function BusinessesPage({ projectsByCategory }: BusinessesPagePro
-+++-         Select a project overview file:
-+++-       </Typography>
-+++-       <List>
-+++--        {files.map((file) => (
-+++--          <ListItemButton
-+++--            key={file.file.id}
-+++--            onClick={() => router.push(`/dashboard/businesses/${file.file.id}`)}
-+++--          >
-+++--            <ListItemText primary={file.fullCompanyName} secondary={file.file.name} />
-+++-+        {businessLinks.map((link) => (
-+++-+          <ListItemButton key={link.href} onClick={() => router.push(link.href)}>
-+++-+            <ListItemText primary={link.title} secondary={link.description} />
-+++-           </ListItemButton>
-+++-         ))}
-+++-       </List>
-+++-@@ -61,12 +47,15 @@ export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async
-+++-   if (!session?.accessToken) {
-+++-     return { redirect: { destination: '/api/auth/signin', permanent: false } };
-+++-   }
-+++--  const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
-+++--  // Get the grouped project files using your existing sorting utility
-+++--  const projectsByCategory = await listProjectOverviewFiles(drive, []);
-+++-   return {
-+++-     props: {
-+++--      projectsByCategory,
-+++-+      businessLinks: [
-+++-+        {
-+++-+          title: 'Establish Productions Limited',
-+++-+          description: 'Projects (Database)',
-+++-+          href: '/dashboard/businesses/projects-database/select',
-+++-+        },
-+++-+      ],
-+++-     },
-+++-   };
-+++- };
-+++-diff --git a/pages/dashboard/businesses/projects-database/[groupId].tsx b/pages/dashboard/businesses/projects-database/[groupId].tsx
-+++++const mockedErlDirectory = jest.mocked(erlDirectory, true)
-+++++const mockedFirestore = jest.mocked(firestore, true)
-+++++
-++++ describe('PaymentModal ERL cascade', () => {
-++++   test('populates banks/accounts and submits identifier with audit fields', async () => {
-++++     const qc = new QueryClient()
-++++@@ -65,14 +70,10 @@ describe('PaymentModal ERL cascade', () => {
-++++     const accountSelect = getByTestId('bank-account-select') as HTMLInputElement
-++++     fireEvent.change(accountSelect, { target: { value: 'a1' } })
-++++     await waitFor(() =>
-++++-      expect(
-++++-        require('../../lib/erlDirectory').buildAccountLabel,
-++++-      ).toHaveBeenCalled(),
-+++++      expect(mockedErlDirectory.buildAccountLabel).toHaveBeenCalled(),
-++++     )
-++++-    expect(require('../../lib/erlDirectory').listBanks).toHaveBeenCalled()
-++++-    expect(
-++++-      require('../../lib/erlDirectory').listAccounts,
-++++-    ).toHaveBeenCalledWith({
-+++++    expect(mockedErlDirectory.listBanks).toHaveBeenCalled()
-+++++    expect(mockedErlDirectory.listAccounts).toHaveBeenCalledWith({
-++++       bankCode: '001',
-++++       bankName: 'Bank',
-++++       rawCodeSegment: '(001)',
-++++@@ -83,10 +84,10 @@ describe('PaymentModal ERL cascade', () => {
-++++     fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
-++++     fireEvent.change(getByTestId('ref-input'), { target: { value: 'R1' } })
-++++ 
-++++-    expect(require('firebase/firestore').addDoc).not.toHaveBeenCalled()
-+++++    expect(mockedFirestore.addDoc).not.toHaveBeenCalled()
-++++     fireEvent.click(getByTestId('submit-payment'))
-++++-    await waitFor(() => expect(require('firebase/firestore').addDoc).toHaveBeenCalled())
-++++-    const data = (require('firebase/firestore').addDoc as jest.Mock).mock.calls[0][1]
-+++++    await waitFor(() => expect(mockedFirestore.addDoc).toHaveBeenCalled())
-+++++    const data = (mockedFirestore.addDoc as jest.Mock).mock.calls[0][1]
-++++     expect(data.identifier).toBe('a1')
-++++     expect(data.bankCode).toBeUndefined()
-++++     expect(data.accountDocId).toBeUndefined()
-++++diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-+++ new file mode 100644
-+++-index 0000000..3823567
-++++index 0000000..3bc18b4
-+++ --- /dev/null
-+++-+++ b/pages/dashboard/businesses/projects-database/[groupId].tsx
-+++-@@ -0,0 +1,400 @@
-+++-+import { GetServerSideProps } from 'next'
-+++-+import { getSession } from 'next-auth/react'
-+++-+import { useRouter } from 'next/router'
-+++-+import { useEffect, useState } from 'react'
-+++-+
-+++-+import SidebarLayout from '../../../../components/SidebarLayout'
-+++-+import {
-+++-+  fetchProjectsFromDatabase,
-+++-+  ProjectRecord,
-+++-+} from '../../../../lib/projectsDatabase'
-+++++++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-++++@@ -0,0 +1,113 @@
-+++++// components/projectdialog/ProjectDatabaseDetailDialog.tsx
-+++ +
-+++++import React from 'react'
-+++ +import {
-+++ +  Box,
-+++ +  Button,
-+++-+  Card,
-+++-+  CardContent,
-+++-+  FormControl,
-+++-+  Grid,
-+++-+  IconButton,
-+++-+  InputLabel,
-+++-+  List,
-+++-+  ListItem,
-+++-+  ListItemText,
-+++-+  MenuItem,
-+++-+  Select,
-+++-+  ToggleButton,
-+++-+  ToggleButtonGroup,
-+++++  Checkbox,
-+++++  Dialog,
-+++++  DialogActions,
-+++++  DialogContent,
-+++++  Divider,
-+++ +  Typography,
-+++ +} from '@mui/material'
-+++-+import type { SelectChangeEvent } from '@mui/material/Select'
-+++-+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-+++-+
-+++-+const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
-+++-+const headingSx = { fontFamily: 'Cantata One' }
-+++-+
-+++-+type SortMethod = 'year' | 'subsidiary'
-+++-+
-+++-+type Mode = 'select' | 'detail'
-+++++import CloseIcon from '@mui/icons-material/Close'
-+++++import CheckIcon from '@mui/icons-material/Check'
-+++ +
-+++-+interface DetailSelection {
-+++-+  type: SortMethod
-+++-+  year: string
-+++-+}
-+++-+
-+++-+interface ProjectsDatabasePageProps {
-+++-+  mode: Mode
-+++-+  years: string[]
-+++-+  error?: string
-+++-+  detailSelection?: DetailSelection
-+++-+  projects?: ProjectRecord[]
-+++-+}
-+++-+
-+++-+const encodeSelectionId = (type: SortMethod, year: string) => {
-+++-+  const yearPart = encodeURIComponent(year)
-+++-+  return `${type}--${yearPart}`
-+++-+}
-+++-+
-+++-+const decodeSelectionId = (value: string): DetailSelection | null => {
-+++-+  const [typePart, yearPart] = value.split('--')
-+++-+  if (!typePart || !yearPart) {
-+++-+    return null
-+++-+  }
-+++-+
-+++-+  if (typePart !== 'year' && typePart !== 'subsidiary') {
-+++-+    return null
-+++-+  }
-+++++import type { ProjectRecord } from '../../lib/projectsDatabase'
-+++ +
-+++-+  try {
-+++-+    return { type: typePart, year: decodeURIComponent(yearPart) }
-+++-+  } catch (err) {
-+++-+    console.warn('[projects-database] Failed to decode selection id', err)
-+++-+    return null
-+++-+  }
-+++++interface ProjectDatabaseDetailDialogProps {
-+++++  open: boolean
-+++++  onClose: () => void
-+++++  project: ProjectRecord | null
-+++ +}
-+++ +
-+++-+const stringOrNA = (value: string | null | undefined) =>
-+++++const textOrNA = (value: string | null | undefined) =>
-+++ +  value && value.trim().length > 0 ? value : 'N/A'
-+++ +
-+++-+const amountText = (value: number | null | undefined) => {
-+++-+  if (value === null || value === undefined) {
-+++-+    return '-'
-+++++const formatAmount = (value: number | null | undefined) => {
-+++++  if (typeof value !== 'number' || Number.isNaN(value)) {
-+++++    return 'HK$0'
-+++ +  }
-+++-+
-+++ +  return `HK$${value.toLocaleString('en-US', {
-+++ +    minimumFractionDigits: 0,
-+++ +    maximumFractionDigits: 2,
-+++ +  })}`
-+++ +}
-+++ +
-+++-+const paidStatusText = (value: boolean | null | undefined) => {
-+++-+  if (value === null || value === undefined) {
-+++-+    return 'N/A'
-+++-+  }
-+++-+  return value ? 'Paid' : 'Unpaid'
-+++-+}
-+++-+
-+++-+const paidDateText = (
-+++-+  paid: boolean | null | undefined,
-+++-+  date: string | null | undefined
-+++-+) => {
-+++-+  if (!paid) {
-+++++export default function ProjectDatabaseDetailDialog({
-+++++  open,
-+++++  onClose,
-+++++  project,
-+++++}: ProjectDatabaseDetailDialogProps) {
-+++++  if (!project) {
-+++ +    return null
-+++ +  }
-+++ +
-+++-+  return date && date.trim().length > 0 ? date : '-'
-+++-+}
-+++-+
-+++-+export default function ProjectsDatabasePage({
-+++-+  mode,
-+++-+  years,
-+++-+  error,
-+++-+  detailSelection,
-+++-+  projects = [],
-+++-+}: ProjectsDatabasePageProps) {
-+++-+  const router = useRouter()
-+++-+
-+++-+  const [sortMethod, setSortMethod] = useState<SortMethod>(
-+++-+    detailSelection?.type ?? 'year'
-+++-+  )
-+++-+  const [selectedYear, setSelectedYear] = useState<string>(
-+++-+    detailSelection?.year ?? years[0] ?? ''
-+++-+  )
-+++++  const paid = project.paid === true
-+++++  const paidOnText = paid ? project.onDateDisplay || '-' : undefined
-+++ +
-+++-+  const handleYearChange = (event: SelectChangeEvent<string>) => {
-+++-+    setSelectedYear(event.target.value)
-+++-+  }
-+++-+
-+++-+  useEffect(() => {
-+++-+    if (!selectedYear && years.length > 0) {
-+++-+      setSelectedYear(years[0])
-+++-+    }
-+++-+  }, [years, selectedYear])
-+++-+
-+++-+  useEffect(() => {
-+++-+    if (detailSelection) {
-+++-+      setSortMethod(detailSelection.type)
-+++-+      setSelectedYear(detailSelection.year)
-+++-+    }
-+++-+  }, [detailSelection])
-+++-+
 ```
