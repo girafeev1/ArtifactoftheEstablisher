@@ -29,8 +29,6 @@ import {
 } from '@mui/material'
 import type { SelectChangeEvent } from '@mui/material/Select'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import ProjectDatabaseDetailDialog from '../../../../components/projectdialog/ProjectDatabaseDetailDialog'
-import ProjectDatabaseEditDialog from '../../../../components/projectdialog/ProjectDatabaseEditDialog'
 
 const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 const headingSx = { fontFamily: 'Cantata One' }
@@ -57,7 +55,7 @@ const encodeSelectionId = (type: SortMethod, year: string) => {
   return `${type}--${yearPart}`
 }
 
-const decodeSelectionId = (value: string): DetailSelection | null => {
+export const decodeSelectionId = (value: string): DetailSelection | null => {
   const [typePart, yearPart] = value.split('--')
   if (!typePart || !yearPart) {
     return null
@@ -122,13 +120,6 @@ export default function ProjectsDatabasePage({
   const [selectedYear, setSelectedYear] = useState<string>(
     detailSelection?.year ?? years[0] ?? ''
   )
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<ProjectRecord | null>(
-    null
-  )
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [projectForEdit, setProjectForEdit] = useState<ProjectRecord | null>(null)
-
   const handleYearChange = (event: SelectChangeEvent<string>) => {
     setSelectedYear(event.target.value)
   }
@@ -157,37 +148,16 @@ export default function ProjectsDatabasePage({
   }
 
   const handleProjectClick = (project: ProjectRecord) => {
-    setSelectedProject(project)
-    setDialogOpen(true)
-  }
-
-  const handleCloseDialog = () => {
-    setDialogOpen(false)
-    setSelectedProject(null)
-  }
-
-  const handleStartEdit = () => {
-    if (!selectedProject) {
-      return
+    const url = `/dashboard/businesses/projects-database/window/${encodeSelectionId(
+      'year',
+      project.year
+    )}/${encodeURIComponent(project.id)}`
+    if (typeof window !== 'undefined') {
+      const features = 'noopener,noreferrer,width=1200,height=800,resizable=yes,scrollbars=yes'
+      window.open(url, '_blank', features)
+    } else {
+      router.push(url)
     }
-    setProjectForEdit(selectedProject)
-    setDialogOpen(false)
-    setEditDialogOpen(true)
-  }
-
-  const handleCloseEditDialog = () => {
-    setEditDialogOpen(false)
-    setProjectForEdit(null)
-    if (selectedProject) {
-      setDialogOpen(true)
-    }
-  }
-
-  const handleEditSaved = async () => {
-    setEditDialogOpen(false)
-    setProjectForEdit(null)
-    setSelectedProject(null)
-    await router.replace(router.asPath)
   }
 
   if (mode === 'select') {
@@ -368,18 +338,6 @@ export default function ProjectsDatabasePage({
           )}
         </CardContent>
       </Card>
-      <ProjectDatabaseDetailDialog
-        open={dialogOpen}
-        onClose={handleCloseDialog}
-        project={selectedProject}
-        onEdit={handleStartEdit}
-      />
-      <ProjectDatabaseEditDialog
-        open={editDialogOpen}
-        project={projectForEdit}
-        onClose={handleCloseEditDialog}
-        onSaved={handleEditSaved}
-      />
     </SidebarLayout>
   )
 }
