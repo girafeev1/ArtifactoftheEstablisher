@@ -10,6 +10,9 @@ import { Box, IconButton, Button } from '@mui/material'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import PaymentModal from '../../components/StudentDialog/PaymentModal'
 
+const getCypressInstance = () =>
+  (globalThis as typeof globalThis & { Cypress?: Cypress.Cypress }).Cypress
+
 function mountModal(Component: any) {
   cy.visit('about:blank')
   cy.window().then((win) => {
@@ -26,7 +29,10 @@ function mountModal(Component: any) {
 
 describe('Add Payment cascade', () => {
   beforeEach(function () {
-    if (Cypress?.env('CI')) this.skip()
+    const cypressInstance = getCypressInstance()
+    if (cypressInstance?.env('CI')) {
+      this.skip()
+    }
   })
 
   it('shows cascade selects', () => {
@@ -143,7 +149,10 @@ describe('Add Payment cascade', () => {
 
 describe('Card footer alignment', () => {
   beforeEach(function () {
-    if (Cypress?.env('CI')) this.skip()
+    const cypressInstance = getCypressInstance()
+    if (cypressInstance?.env('CI')) {
+      this.skip()
+    }
   })
 
   function mountFooter() {
