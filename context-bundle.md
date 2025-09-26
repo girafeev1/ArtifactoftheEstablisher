@@ -1,7 +1,7 @@
 # PR #251 — Diff Summary
 
 - **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-- **Head (source)**: `0e9711747f48d6372501f5747b00b6662fe92912`
+- **Head (source)**: `9fab12b675cd8af38d3c518bd4b197f34be82e43`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -46,17 +46,17 @@ A	pages/dashboard/businesses/projects-database/window.tsx
  components/StudentDialog/PaymentModal.test.tsx     |   21 +-
  .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  119 +
  .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
- context-bundle.md                                  | 4703 +++++++++++++++++---
+ context-bundle.md                                  | 4711 +++++++++++++++++---
  cypress/e2e/add_payment_cascade.cy.tsx             |   95 +-
- docs/context/PR-251.md                             |    1 +
+ docs/context/PR-251.md                             | 4065 +++++++++++++++++
  jest.config.cjs                                    |    2 +
  lib/erlDirectory.test.ts                           |    4 +-
  lib/projectsDatabase.ts                            |  109 +-
  lib/projectsDatabaseSelection.ts                   |   30 +
  pages/api/projects-database/[year]/[projectId].ts  |   63 +
  .../businesses/projects-database/[groupId].tsx     |   60 +-
- .../businesses/projects-database/window.tsx        |    1 +
- 22 files changed, 4743 insertions(+), 1011 deletions(-)
+ .../businesses/projects-database/window.tsx        |  152 +
+ 22 files changed, 8966 insertions(+), 1011 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -916,17 +916,17 @@ index 0000000..a13c7f7
 +  )
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 8756e36..8a650cd 100644
+index 8756e36..d7d414c 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
-@@ -1,810 +1,4057 @@
+@@ -1,810 +1,4065 @@
 -# PR #249 — Diff Summary
 +# PR #251 — Diff Summary
  
 -- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 -- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 +- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-+- **Head (source)**: `ad04eeb94097e3f7e88fd8ac7ca631681fbb889e`
++- **Head (source)**: `0e9711747f48d6372501f5747b00b6662fe92912`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -942,6 +942,9 @@ index 8756e36..8a650cd 100644
 +M	.github/workflows/deploy-to-vercel-prod.yml
 +M	.github/workflows/pr-diff-file.yml
 +M	.github/workflows/pr-diff-refresh.yml
++M	.gitignore
++D	.vercel/README.txt
++D	.vercel/project.json
 +M	__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
 +M	components/StudentDialog/PaymentHistory.test.tsx
 +M	components/StudentDialog/PaymentModal.test.tsx
@@ -953,9 +956,10 @@ index 8756e36..8a650cd 100644
 +M	jest.config.cjs
 +M	lib/erlDirectory.test.ts
 +M	lib/projectsDatabase.ts
++A	lib/projectsDatabaseSelection.ts
 +A	pages/api/projects-database/[year]/[projectId].ts
 +M	pages/dashboard/businesses/projects-database/[groupId].tsx
-+A	pages/dashboard/businesses/projects-database/window/[groupToken]/[projectId].tsx
++A	pages/dashboard/businesses/projects-database/window.tsx
  ```
  
  ## Stats
@@ -969,24 +973,28 @@ index 8756e36..8a650cd 100644
 - .../businesses/projects-database/index.tsx         |  14 +
 - 6 files changed, 666 insertions(+), 30 deletions(-)
 + .github/workflows/context-bundle-pr.yml            |   36 +-
-+ .github/workflows/deploy-to-vercel-prod.yml        |   33 +-
++ .github/workflows/deploy-to-vercel-prod.yml        |   35 +-
 + .github/workflows/pr-diff-file.yml                 |   51 -
 + .github/workflows/pr-diff-refresh.yml              |   73 +-
++ .gitignore                                         |    1 +
++ .vercel/README.txt                                 |   11 -
++ .vercel/project.json                               |    1 -
 + .../businesses/coaching-sessions.test.tsx          |   35 +-
 + components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
 + components/StudentDialog/PaymentModal.test.tsx     |   21 +-
 + .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  119 +
 + .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
-+ context-bundle.md                                  | 4701 +++++++++++++++++---
++ context-bundle.md                                  | 4703 +++++++++++++++++---
 + cypress/e2e/add_payment_cascade.cy.tsx             |   95 +-
 + docs/context/PR-251.md                             |    1 +
 + jest.config.cjs                                    |    2 +
 + lib/erlDirectory.test.ts                           |    4 +-
 + lib/projectsDatabase.ts                            |  109 +-
++ lib/projectsDatabaseSelection.ts                   |   30 +
 + pages/api/projects-database/[year]/[projectId].ts  |   63 +
-+ .../businesses/projects-database/[groupId].tsx     |   25 +-
-+ .../window/[groupToken]/[projectId].tsx            |    0
-+ 18 files changed, 4701 insertions(+), 970 deletions(-)
++ .../businesses/projects-database/[groupId].tsx     |   60 +-
++ .../businesses/projects-database/window.tsx        |    1 +
++ 22 files changed, 4743 insertions(+), 1011 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1069,10 +1077,10 @@ index 8756e36..8a650cd 100644
 ++            echo "- File: docs/context/PR-${{ github.event.number }}.md"
 ++          } >> "$GITHUB_STEP_SUMMARY"
 +diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
-+index 542388b..193c3aa 100644
++index 542388b..abbe8c4 100644
 +--- a/.github/workflows/deploy-to-vercel-prod.yml
 ++++ b/.github/workflows/deploy-to-vercel-prod.yml
-+@@ -1,36 +1,20 @@
++@@ -1,36 +1,22 @@
 +-name: Deploy Codex PR to Vercel Production
 ++name: Deploy to Vercel Production
   
@@ -1150,7 +1158,7 @@ index 8756e36..8a650cd 100644
 +-  # keep manual runs available (optional)
 +-  workflow_dispatch: {}
 ++  pull_request:
-++    types: [closed]
+++    types: [opened, synchronize, reopened, ready_for_review]
 + 
 + permissions:
 +   contents: read
@@ -1168,11 +1176,13 @@ index 8756e36..8a650cd 100644
 +-      !contains(github.event.head_commit.message, 'archive PR')
 +-    runs-on: ubuntu-latest
 +-    steps:
-++    if: github.event.pull_request.merged == true
+++    if: >-
+++      github.event.pull_request.head.repo.full_name == github.repository &&
+++      github.event.pull_request.draft == false
 +     runs-on: ubuntu-latest
 +     steps:
 +       - uses: actions/checkout@v4
-+@@ -39,27 +23,24 @@ jobs:
++@@ -39,27 +25,24 @@ jobs:
 +         with:
 +           node-version: 20
 + 
@@ -1346,6 +1356,40 @@ index 8756e36..8a650cd 100644
 + 
 +       - name: Inline preview (append to comment when possible)
 +         if: always()
++diff --git a/.gitignore b/.gitignore
++index 588810e..2587906 100644
++--- a/.gitignore
+++++ b/.gitignore
++@@ -8,3 +8,4 @@
++ *.DS_Store
++ Invoice.JSON
++ tsconfig.tsbuildinfo
+++.vercel
++diff --git a/.vercel/README.txt b/.vercel/README.txt
++deleted file mode 100644
++index 525d8ce..0000000
++--- a/.vercel/README.txt
+++++ /dev/null
++@@ -1,11 +0,0 @@
++-> Why do I have a folder named ".vercel" in my project?
++-The ".vercel" folder is created when you link a directory to a Vercel project.
++-
++-> What does the "project.json" file contain?
++-The "project.json" file contains:
++-- The ID of the Vercel project that you linked ("projectId")
++-- The ID of the user or team your Vercel project is owned by ("orgId")
++-
++-> Should I commit the ".vercel" folder?
++-No, you should not share the ".vercel" folder with anyone.
++-Upon creation, it will be automatically added to your ".gitignore" file.
++diff --git a/.vercel/project.json b/.vercel/project.json
++deleted file mode 100644
++index 7ae5fef..0000000
++--- a/.vercel/project.json
+++++ /dev/null
++@@ -1 +0,0 @@
++-{"projectId":"prj_fZtOwXp0ToGe87kfUosIkQgXMEQY","orgId":"team_ne7hiLb7J8wyHgGulNGIxGIz"}
++\ No newline at end of file
 +diff --git a/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx b/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
 +index 75ef22c..8ec8b9e 100644
 +--- a/__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
@@ -1601,9 +1645,7 @@ index 8756e36..8a650cd 100644
  +  }
  +
 -+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
-++  const paid = project.paid === true
-++  const paidOnText = paid ? project.onDateDisplay || '-' : undefined
- +
+-+
 -+  try {
 -+    const response = await fetch(url, {
 -+      method: 'POST',
@@ -1636,7 +1678,9 @@ index 8756e36..8a650cd 100644
 -+    return [...FALLBACK_YEAR_IDS]
 -+  }
 -+}
--+
+++  const paid = project.paid === true
+++  const paidOnText = paid ? project.onDateDisplay || '-' : undefined
+ +
 -+export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResult> => {
 -+  const yearIds = await listYearCollections()
 -+  const projects: ProjectRecord[] = []
@@ -1891,13 +1935,13 @@ index 8756e36..8a650cd 100644
 -+
 -+const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 -+const headingSx = { fontFamily: 'Cantata One' }
--+
--+type SortMethod = 'year' | 'subsidiary'
 ++import { Timestamp } from 'firebase/firestore'
  +
--+type Mode = 'select' | 'detail'
+-+type SortMethod = 'year' | 'subsidiary'
 ++import type { ProjectRecord } from '../../lib/projectsDatabase'
  +
+-+type Mode = 'select' | 'detail'
+-+
 -+interface DetailSelection {
 -+  type: SortMethod
 -+  year: string
@@ -1943,13 +1987,13 @@ index 8756e36..8a650cd 100644
 -+  if (!typePart || !yearPart) {
 -+    return null
 -+  }
-++const toTimestampOrNull = (value: string) =>
-++  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
- +
+-+
 -+  if (typePart !== 'year' && typePart !== 'subsidiary') {
 -+    return null
 -+  }
--+
+++const toTimestampOrNull = (value: string) =>
+++  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
+ +
 -+  try {
 -+    return { type: typePart, year: decodeURIComponent(yearPart) }
 -+  } catch (err) {
@@ -2522,17 +2566,17 @@ index 8756e36..8a650cd 100644
 -+
 -+export default ProjectsDatabaseIndex
 +diff --git a/context-bundle.md b/context-bundle.md
-+index 8756e36..371ecc7 100644
++index 8756e36..8a650cd 100644
 +--- a/context-bundle.md
 ++++ b/context-bundle.md
-+@@ -1,810 +1,4055 @@
++@@ -1,810 +1,4057 @@
 +-# PR #249 — Diff Summary
 ++# PR #251 — Diff Summary
 + 
 +-- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 +-- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 ++- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-++- **Head (source)**: `3716fdfd4cf6df579a5a9dc312527f3806b20420`
+++- **Head (source)**: `ad04eeb94097e3f7e88fd8ac7ca631681fbb889e`
 + - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 + 
 + ## Changed Files
@@ -2561,6 +2605,7 @@ index 8756e36..8a650cd 100644
 ++M	lib/projectsDatabase.ts
 ++A	pages/api/projects-database/[year]/[projectId].ts
 ++M	pages/dashboard/businesses/projects-database/[groupId].tsx
+++A	pages/dashboard/businesses/projects-database/window/[groupToken]/[projectId].tsx
 + ```
 + 
 + ## Stats
@@ -2582,15 +2627,16 @@ index 8756e36..8a650cd 100644
 ++ components/StudentDialog/PaymentModal.test.tsx     |   21 +-
 ++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  119 +
 ++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
-++ context-bundle.md                                  | 4733 ++++++++++++++++----
+++ context-bundle.md                                  | 4701 +++++++++++++++++---
 ++ cypress/e2e/add_payment_cascade.cy.tsx             |   95 +-
-++ docs/context/PR-251.md                             | 4045 +++++++++++++++++
+++ docs/context/PR-251.md                             |    1 +
 ++ jest.config.cjs                                    |    2 +
 ++ lib/erlDirectory.test.ts                           |    4 +-
 ++ lib/projectsDatabase.ts                            |  109 +-
 ++ pages/api/projects-database/[year]/[projectId].ts  |   63 +
-++ .../businesses/projects-database/[groupId].tsx     |   63 +-
-++ 17 files changed, 8796 insertions(+), 989 deletions(-)
+++ .../businesses/projects-database/[groupId].tsx     |   25 +-
+++ .../window/[groupToken]/[projectId].tsx            |    0
+++ 18 files changed, 4701 insertions(+), 970 deletions(-)
 + ```
 + 
 + ## Unified Diff (truncated to first 4000 lines)
@@ -4016,50 +4062,4 @@ index 8756e36..8a650cd 100644
 +-+                    alignItems="flex-start"
 +-+                    sx={{ cursor: 'default' }}
 +-+                  >
-+-+                    <ListItemText
-+-+                      primary={primary}
-+-+                      primaryTypographyProps={{ sx: valueSx }}
-+-+                      secondary={segments.join(' | ')}
-+-+                      secondaryTypographyProps={{ sx: valueSx }}
-+-+                    />
-+-+                  </ListItem>
-+-+                )
-+-+              })}
-+-+            </List>
-+-+          )}
-+-+        </CardContent>
-+-+      </Card>
-+-+    </SidebarLayout>
-+++        <Button onClick={handleSubmit} variant="contained" disabled={disabled}>
-+++          {saving ? 'Saving…' : 'Save Changes'}
-+++        </Button>
-+++      </DialogActions>
-+++    </Dialog>
-+ +  )
-+ +}
-+-+
-+-+export const getServerSideProps: GetServerSideProps<ProjectsDatabasePageProps> = async (
-+-+  ctx
-+-+) => {
-+-+  const session = await getSession(ctx)
-+-+  if (!session?.accessToken) {
-+-+    return { redirect: { destination: '/api/auth/signin', permanent: false } }
-+-+  }
-+-+
-+-+  const groupParam = ctx.params?.groupId as string | undefined
-+-+
-+-+  try {
-+-+    const { projects, years } = await fetchProjectsFromDatabase()
-+-+
-+-+    if (!groupParam || groupParam === 'select') {
-+-+      return {
-+-+        props: {
-+-+          mode: 'select',
-+-+          years,
-+-+        },
-+-+      }
-+-+    }
-+-+
-+-+    const selection = decodeSelectionId(groupParam)
-+-+    if (!selection) {
 ```
