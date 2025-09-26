@@ -14,6 +14,8 @@ const getCypressInstance = () =>
   (globalThis as typeof globalThis & { Cypress?: { env: (name: string) => any } })
     .Cypress
 
+const cyStub = (...args: any[]) => (cy as any).stub(...args)
+
 function mountModal(Component: any) {
   cy.visit('about:blank')
   cy.window().then((win) => {
@@ -44,14 +46,14 @@ describe('Add Payment cascade', () => {
     process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = 'x'
     process.env.NEXT_PUBLIC_FIREBASE_APP_ID = 'x'
 
-    cy.stub(erlDir, 'listBanks').resolves([
+    cyStub(erlDir, 'listBanks').resolves([
       { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
     ])
-    cy.stub(erlDir, 'listAccounts').resolves([
+    cyStub(erlDir, 'listAccounts').resolves([
       { accountDocId: 'a1', accountType: 'Savings' },
     ])
-    cy.stub(firestore, 'addDoc').resolves()
-    cy.stub(firestore, 'collection').returns({})
+    cyStub(firestore, 'addDoc').resolves()
+    cyStub(firestore, 'collection').returns({})
     mountModal(PaymentModal)
 
     cy.get('[data-testid="method-select"]').should('exist')
@@ -72,12 +74,12 @@ describe('Add Payment cascade', () => {
     process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = 'x'
     process.env.NEXT_PUBLIC_FIREBASE_APP_ID = 'x'
 
-    const addDocStub = cy.stub(firestore, 'addDoc').resolves()
-    cy.stub(firestore, 'collection').returns({})
-    cy.stub(erlDir, 'listBanks').resolves([
+    const addDocStub = cyStub(firestore, 'addDoc').resolves()
+    cyStub(firestore, 'collection').returns({})
+    cyStub(erlDir, 'listBanks').resolves([
       { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
     ])
-    cy.stub(erlDir, 'listAccounts').resolves([
+    cyStub(erlDir, 'listAccounts').resolves([
       { accountDocId: 'a1', accountType: 'Savings' },
     ])
     mountModal(PaymentModal)
@@ -116,12 +118,12 @@ describe('Add Payment cascade', () => {
     process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = 'x'
     process.env.NEXT_PUBLIC_FIREBASE_APP_ID = 'x'
 
-    const addDocStub = cy.stub(firestore, 'addDoc').resolves()
-    cy.stub(firestore, 'collection').returns({})
-    cy.stub(erlDir, 'listBanks').resolves([
+    const addDocStub = cyStub(firestore, 'addDoc').resolves()
+    cyStub(firestore, 'collection').returns({})
+    cyStub(erlDir, 'listBanks').resolves([
       { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
     ])
-    cy.stub(erlDir, 'listAccounts').resolves([
+    cyStub(erlDir, 'listAccounts').resolves([
       { accountDocId: 'a1', accountType: 'Savings' },
     ])
     mountModal(PaymentModal)
