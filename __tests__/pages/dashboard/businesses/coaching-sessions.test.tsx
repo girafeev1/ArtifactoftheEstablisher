@@ -19,15 +19,37 @@ jest.mock('firebase/firestore', () => ({
 }))
 jest.mock('../../../../lib/firebase', () => ({ db: {} }))
 jest.mock('../../../../lib/paths', () => ({ PATHS: {}, logPath: jest.fn() }))
-jest.mock('../../../../components/StudentDialog/OverviewTab', () => () => null)
-jest.mock('../../../../components/StudentDialog/SessionDetail', () => () => null)
-jest.mock('../../../../components/StudentDialog/FloatingWindow', () => ({ children }: any) => (
-  <div>{children}</div>
-))
+jest.mock('../../../../components/StudentDialog/OverviewTab', () => {
+  function OverviewTabMock() {
+    return null
+  }
+  OverviewTabMock.displayName = 'OverviewTabMock'
+  return OverviewTabMock
+})
+jest.mock('../../../../components/StudentDialog/SessionDetail', () => {
+  function SessionDetailMock() {
+    return null
+  }
+  SessionDetailMock.displayName = 'SessionDetailMock'
+  return SessionDetailMock
+})
+jest.mock('../../../../components/StudentDialog/FloatingWindow', () => {
+  function FloatingWindowMock({ children }: any) {
+    return <div>{children}</div>
+  }
+  FloatingWindowMock.displayName = 'FloatingWindowMock'
+  return FloatingWindowMock
+})
 jest.mock('../../../../lib/sessionStats', () => ({ clearSessionSummaries: jest.fn() }))
 jest.mock('../../../../lib/sessions', () => ({ computeSessionStart: jest.fn() }))
 jest.mock('../../../../lib/billing/useBilling', () => ({ useBilling: () => ({ data: null, isLoading: false }) }))
-jest.mock('../../../../components/LoadingDash', () => () => null)
+jest.mock('../../../../components/LoadingDash', () => {
+  function LoadingDashMock() {
+    return null
+  }
+  LoadingDashMock.displayName = 'LoadingDashMock'
+  return LoadingDashMock
+})
 jest.mock('../../../../lib/scanLogs', () => ({
   readScanLogs: jest.fn(async () => null),
   writeScanLog: jest.fn(),
@@ -51,4 +73,3 @@ describe('coaching sessions card view', () => {
     expect(screen.queryByTestId('pprompt-badge')).toBeNull()
   })
 })
-

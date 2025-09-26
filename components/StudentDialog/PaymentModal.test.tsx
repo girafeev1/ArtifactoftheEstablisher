@@ -6,6 +6,8 @@ import '@testing-library/jest-dom'
 import { render, fireEvent, waitFor, screen } from '@testing-library/react'
 import PaymentModal from './PaymentModal'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import * as firestore from 'firebase/firestore'
+import * as erlDirectory from '../../lib/erlDirectory'
 
 jest.mock('../../lib/erlDirectory', () => ({
   listBanks: jest
@@ -46,6 +48,9 @@ jest.mock('../../lib/liveRefresh', () => ({ writeSummaryFromCache: jest.fn() }))
 
 const noop = () => {}
 
+const mockedErlDirectory = jest.mocked(erlDirectory, true)
+const mockedFirestore = jest.mocked(firestore, true)
+
 describe('PaymentModal ERL cascade', () => {
   test('populates banks/accounts and submits identifier with audit fields', async () => {
     const qc = new QueryClient()
@@ -65,14 +70,10 @@ describe('PaymentModal ERL cascade', () => {
     const accountSelect = getByTestId('bank-account-select') as HTMLInputElement
     fireEvent.change(accountSelect, { target: { value: 'a1' } })
     await waitFor(() =>
-      expect(
-        require('../../lib/erlDirectory').buildAccountLabel,
-      ).toHaveBeenCalled(),
+      expect(mockedErlDirectory.buildAccountLabel).toHaveBeenCalled(),
     )
-    expect(require('../../lib/erlDirectory').listBanks).toHaveBeenCalled()
-    expect(
-      require('../../lib/erlDirectory').listAccounts,
-    ).toHaveBeenCalledWith({
+    expect(mockedErlDirectory.listBanks).toHaveBeenCalled()
+    expect(mockedErlDirectory.listAccounts).toHaveBeenCalledWith({
       bankCode: '001',
       bankName: 'Bank',
       rawCodeSegment: '(001)',
@@ -83,10 +84,10 @@ describe('PaymentModal ERL cascade', () => {
     fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
     fireEvent.change(getByTestId('ref-input'), { target: { value: 'R1' } })
 
-    expect(require('firebase/firestore').addDoc).not.toHaveBeenCalled()
+    expect(mockedFirestore.addDoc).not.toHaveBeenCalled()
     fireEvent.click(getByTestId('submit-payment'))
-    await waitFor(() => expect(require('firebase/firestore').addDoc).toHaveBeenCalled())
-    const data = (require('firebase/firestore').addDoc as jest.Mock).mock.calls[0][1]
+    await waitFor(() => expect(mockedFirestore.addDoc).toHaveBeenCalled())
+    const data = (mockedFirestore.addDoc as jest.Mock).mock.calls[0][1]
     expect(data.identifier).toBe('a1')
     expect(data.bankCode).toBeUndefined()
     expect(data.accountDocId).toBeUndefined()

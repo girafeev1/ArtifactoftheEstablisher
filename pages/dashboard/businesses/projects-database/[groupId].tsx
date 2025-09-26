@@ -29,6 +29,7 @@ import {
 } from '@mui/material'
 import type { SelectChangeEvent } from '@mui/material/Select'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import ProjectDatabaseDetailDialog from '../../../../components/projectdialog/ProjectDatabaseDetailDialog'
 
 const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 const headingSx = { fontFamily: 'Cantata One' }
@@ -77,8 +78,8 @@ const stringOrNA = (value: string | null | undefined) =>
   value && value.trim().length > 0 ? value : 'N/A'
 
 const amountText = (value: number | null | undefined) => {
-  if (value === null || value === undefined) {
-    return '-'
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 'HK$0'
   }
 
   return `HK$${value.toLocaleString('en-US', {
@@ -120,6 +121,10 @@ export default function ProjectsDatabasePage({
   const [selectedYear, setSelectedYear] = useState<string>(
     detailSelection?.year ?? years[0] ?? ''
   )
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<ProjectRecord | null>(
+    null
+  )
 
   const handleYearChange = (event: SelectChangeEvent<string>) => {
     setSelectedYear(event.target.value)
@@ -146,6 +151,16 @@ export default function ProjectsDatabasePage({
     router.push(
       `/dashboard/businesses/projects-database/${encodeSelectionId(type, year)}`
     )
+  }
+
+  const handleProjectClick = (project: ProjectRecord) => {
+    setSelectedProject(project)
+    setDialogOpen(true)
+  }
+
+  const handleCloseDialog = () => {
+    setDialogOpen(false)
+    setSelectedProject(null)
   }
 
   if (mode === 'select') {
@@ -312,13 +327,12 @@ export default function ProjectsDatabasePage({
                   <ListItem
                     key={`${project.year}-${project.projectNumber}`}
                     alignItems="flex-start"
-                    sx={{ cursor: 'default' }}
+                    sx={{ cursor: 'pointer' }}
+                    onClick={() => handleProjectClick(project)}
                   >
                     <ListItemText
                       primary={primary}
-                      primaryTypographyProps={{ sx: valueSx }}
                       secondary={segments.join(' | ')}
-                      secondaryTypographyProps={{ sx: valueSx }}
                     />
                   </ListItem>
                 )
@@ -327,6 +341,11 @@ export default function ProjectsDatabasePage({
           )}
         </CardContent>
       </Card>
+      <ProjectDatabaseDetailDialog
+        open={dialogOpen}
+        onClose={handleCloseDialog}
+        project={selectedProject}
+      />
     </SidebarLayout>
   )
 }

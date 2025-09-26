@@ -6,7 +6,13 @@ import '@testing-library/jest-dom'
 import { render, screen, waitFor } from '@testing-library/react'
 import PaymentHistory from './PaymentHistory'
 
-jest.mock('./PaymentModal', () => () => <div />)
+jest.mock('./PaymentModal', () => {
+  function PaymentModalMock() {
+    return <div />
+  }
+  PaymentModalMock.displayName = 'PaymentModalMock'
+  return PaymentModalMock
+})
 
 jest.mock('firebase/firestore', () => ({
   collection: jest.fn(),
