@@ -16,6 +16,12 @@ const getCypressInstance = () =>
 
 const cyStub = (...args: any[]) => (cy as any).stub(...args)
 
+const ensure = (condition: unknown, message: string) => {
+  if (!condition) {
+    throw new Error(message)
+  }
+}
+
 function mountModal(Component: any) {
   cy.visit('about:blank')
   cy.window().then((win) => {
@@ -97,16 +103,17 @@ describe('Add Payment cascade', () => {
 
     cy.wrap(addDocStub).should('have.been.called')
     cy.wrap(addDocStub).its('firstCall.args.1').should((data: any) => {
-      expect(data).to.include({
-        method: 'FPS',
-        entity: 'Music Establish (ERL)',
-        bankCode: '001',
-        accountDocId: 'a1',
-        refNumber: '123',
-      })
-      expect(data.identifier).to.equal('001/a1')
-      expect(Boolean(data.timestamp)).to.equal(true)
-      expect(data.editedBy).to.be.a('string')
+      ensure(data.method === 'FPS', 'expected method to be FPS')
+      ensure(
+        data.entity === 'Music Establish (ERL)',
+        'expected entity to be Music Establish (ERL)'
+      )
+      ensure(data.bankCode === '001', 'expected bankCode to be 001')
+      ensure(data.accountDocId === 'a1', 'expected accountDocId to be a1')
+      ensure(data.refNumber === '123', 'expected refNumber to be 123')
+      ensure(data.identifier === '001/a1', 'expected identifier to be 001/a1')
+      ensure(Boolean(data.timestamp), 'expected timestamp to be present')
+      ensure(typeof data.editedBy === 'string', 'expected editedBy string')
     })
   })
 
@@ -142,10 +149,11 @@ describe('Add Payment cascade', () => {
     cy.get('[data-testid="submit-payment"]').click()
 
     cy.wrap(addDocStub).its('firstCall.args.1').should((data: any) => {
-      expect(data).to.include({ method: 'Cheque', entity: 'Personal' })
-      expect(data.bankCode).to.equal(undefined)
-      expect(data.accountDocId).to.equal(undefined)
-      expect(data.identifier).to.equal(undefined)
+      ensure(data.method === 'Cheque', 'expected method to be Cheque')
+      ensure(data.entity === 'Personal', 'expected entity to be Personal')
+      ensure(data.bankCode === undefined, 'expected bankCode undefined')
+      ensure(data.accountDocId === undefined, 'expected accountDocId undefined')
+      ensure(data.identifier === undefined, 'expected identifier undefined')
     })
   })
 })
@@ -197,10 +205,13 @@ describe('Card footer alignment', () => {
       const dotRect = $dots[0].getBoundingClientRect()
       cy.get('[data-testid="service-mode-btn"]').then(($btn) => {
         const btnRect = $btn[0].getBoundingClientRect()
-        expect(Math.abs(dotRect.bottom - btnRect.bottom)).to.be.lte(1)
+        ensure(
+          Math.abs(dotRect.bottom - btnRect.bottom) <= 1,
+          'expected dots and button bottoms aligned'
+        )
         cy.get('[data-testid="card-footer-row"]').then(($row) => {
           const rowRect = $row[0].getBoundingClientRect()
-          expect(dotRect.left).to.be.gte(rowRect.left)
+          ensure(dotRect.left >= rowRect.left, 'expected dots within footer bounds')
         })
       })
     })
