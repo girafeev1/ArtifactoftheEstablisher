@@ -11,7 +11,8 @@ import MoreVertIcon from '@mui/icons-material/MoreVert'
 import PaymentModal from '../../components/StudentDialog/PaymentModal'
 
 const getCypressInstance = () =>
-  (globalThis as typeof globalThis & { Cypress?: Cypress.Cypress }).Cypress
+  (globalThis as typeof globalThis & { Cypress?: { env: (name: string) => any } })
+    .Cypress
 
 function mountModal(Component: any) {
   cy.visit('about:blank')
