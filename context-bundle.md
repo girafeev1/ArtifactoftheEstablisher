@@ -1,7 +1,7 @@
 # PR #251 — Diff Summary
 
 - **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-- **Head (source)**: `fe8b87c8a41ef14cef411770ae6e473a85e66615`
+- **Head (source)**: `055be19894ab12aa951322f8631c0b6a0a0a4133`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -17,6 +17,7 @@ D	.vercel/project.json
 M	__tests__/pages/dashboard/businesses/coaching-sessions.test.tsx
 M	components/StudentDialog/PaymentHistory.test.tsx
 M	components/StudentDialog/PaymentModal.test.tsx
+A	components/projectdialog/ProjectDatabaseDetailContent.tsx
 A	components/projectdialog/ProjectDatabaseDetailDialog.tsx
 A	components/projectdialog/ProjectDatabaseEditDialog.tsx
 M	context-bundle.md
@@ -44,19 +45,20 @@ A	pages/dashboard/businesses/projects-database/window.tsx
  .../businesses/coaching-sessions.test.tsx          |   35 +-
  components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
  components/StudentDialog/PaymentModal.test.tsx     |   21 +-
+ .../projectdialog/ProjectDatabaseDetailContent.tsx |  135 +
  .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  119 +
  .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
  context-bundle.md                                  | 4711 +++++++++++++++++---
  cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
- docs/context/PR-251.md                             |    1 +
+ docs/context/PR-251.md                             | 4065 +++++++++++++++++
  jest.config.cjs                                    |    2 +
  lib/erlDirectory.test.ts                           |    4 +-
  lib/projectsDatabase.ts                            |  109 +-
  lib/projectsDatabaseSelection.ts                   |   30 +
  pages/api/projects-database/[year]/[projectId].ts  |   63 +
- .../businesses/projects-database/[groupId].tsx     |   60 +-
- .../businesses/projects-database/window.tsx        |  229 +
- 22 files changed, 4988 insertions(+), 1011 deletions(-)
+ .../businesses/projects-database/[groupId].tsx     |  131 +-
+ .../businesses/projects-database/window.tsx        |  114 +
+ 23 files changed, 9142 insertions(+), 1012 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -489,6 +491,147 @@ index 3d4b44f..81908ef 100644
      expect(data.identifier).toBe('a1')
      expect(data.bankCode).toBeUndefined()
      expect(data.accountDocId).toBeUndefined()
+diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
+new file mode 100644
+index 0000000..d7905f3
+--- /dev/null
++++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
+@@ -0,0 +1,135 @@
++import { useMemo } from 'react'
++
++import { Box, Chip, Divider, Link, Stack, Typography } from '@mui/material'
++
++import type { ProjectRecord } from '../../lib/projectsDatabase'
++import type { ReactNode } from 'react'
++
++const textOrNA = (value: string | null | undefined) =>
++  value && value.trim().length > 0 ? value : 'N/A'
++
++const formatAmount = (value: number | null | undefined) => {
++  if (typeof value !== 'number' || Number.isNaN(value)) {
++    return 'HK$0'
++  }
++  return `HK$${value.toLocaleString('en-US', {
++    minimumFractionDigits: 0,
++    maximumFractionDigits: 2,
++  })}`
++}
++
++const labelSx = {
++  fontFamily: 'Newsreader',
++  fontWeight: 200,
++  fontSize: '1rem',
++  letterSpacing: '0.03em',
++} as const
++
++const valueSx = {
++  fontFamily: 'Newsreader',
++  fontWeight: 500,
++  fontSize: '1.05rem',
++} as const
++
++interface ProjectDatabaseDetailContentProps {
++  project: ProjectRecord
++  headerActions?: ReactNode
++  footerActions?: ReactNode
++}
++
++export default function ProjectDatabaseDetailContent({
++  project,
++  headerActions,
++  footerActions,
++}: ProjectDatabaseDetailContentProps) {
++  const detailItems = useMemo(() => {
++    const invoiceValue: ReactNode = project.invoice
++      ? project.invoice.startsWith('http')
++        ? (
++            <Link
++              href={project.invoice}
++              target="_blank"
++              rel="noopener"
++              sx={{ fontFamily: 'inherit', fontWeight: 'inherit' }}
++            >
++              {project.invoice}
++            </Link>
++          )
++        : textOrNA(project.invoice)
++      : 'N/A'
++
++    return [
++      { label: 'Client Company', value: textOrNA(project.clientCompany) },
++      { label: 'Subsidiary', value: textOrNA(project.subsidiary) },
++      { label: 'Presenter Work Type', value: textOrNA(project.presenterWorkType) },
++      {
++        label: 'Project Pickup Date',
++        value: project.projectDateDisplay ?? '-',
++      },
++      { label: 'Amount', value: formatAmount(project.amount) },
++      { label: 'Paid', value: project.paid ? 'Yes' : 'No' },
++      {
++        label: 'Paid On',
++        value: project.paid ? project.onDateDisplay ?? '-' : '-',
++      },
++      { label: 'Pay To', value: textOrNA(project.paidTo) },
++      { label: 'Invoice', value: invoiceValue },
++    ] satisfies Array<{ label: string; value: ReactNode }>
++  }, [project])
++
++  return (
++    <Stack spacing={2}>
++      <Stack
++        direction={{ xs: 'column', sm: 'row' }}
++        justifyContent="space-between"
++        alignItems={{ xs: 'flex-start', sm: 'center' }}
++        spacing={2}
++      >
++        <Stack spacing={0.5} sx={{ width: '100%' }}>
++          <Typography variant="subtitle1" color="text.secondary">
++            {project.projectNumber}
++          </Typography>
++          <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
++            {textOrNA(project.presenterWorkType)}
++          </Typography>
++          <Typography variant="h4" sx={{ fontFamily: 'Cantata One', lineHeight: 1.2 }}>
++            {textOrNA(project.projectTitle)}
++          </Typography>
++          <Typography variant="body1" color="text.secondary">
++            — {textOrNA(project.projectNature)}
++          </Typography>
++        </Stack>
++        <Stack direction="row" spacing={1} alignItems="center">
++          <Chip label={project.year} color="primary" variant="outlined" />
++          {project.subsidiary && (
++            <Chip label={project.subsidiary} variant="outlined" />
++          )}
++          {headerActions}
++        </Stack>
++      </Stack>
++
++      <Divider />
++
++      <Stack spacing={1.6}>
++        {detailItems.map(({ label, value }) => (
++          <Box key={label}>
++            <Typography sx={labelSx}>{label}:</Typography>
++            <Typography component="div" sx={valueSx}>
++              {value}
++            </Typography>
++          </Box>
++        ))}
++      </Stack>
++
++      {footerActions && (
++        <>
++          <Divider />
++          <Stack direction="row" justifyContent="flex-end" spacing={1.5}>
++            {footerActions}
++          </Stack>
++        </>
++      )}
++    </Stack>
++  )
++}
++
 diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
 new file mode 100644
 index 0000000..1157469
@@ -916,7 +1059,7 @@ index 0000000..a13c7f7
 +  )
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 8756e36..d5f8373 100644
+index 8756e36..c5c80da 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
 @@ -1,810 +1,4065 @@
@@ -926,7 +1069,7 @@ index 8756e36..d5f8373 100644
 -- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 -- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 +- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-+- **Head (source)**: `7d44f93efc6f4c167dda1e87da4b630ca62d62f1`
++- **Head (source)**: `fe8b87c8a41ef14cef411770ae6e473a85e66615`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -986,15 +1129,15 @@ index 8756e36..d5f8373 100644
 + .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
 + context-bundle.md                                  | 4711 +++++++++++++++++---
 + cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
-+ docs/context/PR-251.md                             | 4065 +++++++++++++++++
++ docs/context/PR-251.md                             |    1 +
 + jest.config.cjs                                    |    2 +
 + lib/erlDirectory.test.ts                           |    4 +-
 + lib/projectsDatabase.ts                            |  109 +-
 + lib/projectsDatabaseSelection.ts                   |   30 +
 + pages/api/projects-database/[year]/[projectId].ts  |   63 +
 + .../businesses/projects-database/[groupId].tsx     |   60 +-
-+ .../businesses/projects-database/window.tsx        |  236 +
-+ 22 files changed, 9059 insertions(+), 1011 deletions(-)
++ .../businesses/projects-database/window.tsx        |  229 +
++ 22 files changed, 4988 insertions(+), 1011 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -2566,7 +2709,7 @@ index 8756e36..d5f8373 100644
 -+
 -+export default ProjectsDatabaseIndex
 +diff --git a/context-bundle.md b/context-bundle.md
-+index 8756e36..fedc40a 100644
++index 8756e36..d5f8373 100644
 +--- a/context-bundle.md
 ++++ b/context-bundle.md
 +@@ -1,810 +1,4065 @@
@@ -2576,7 +2719,7 @@ index 8756e36..d5f8373 100644
 +-- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 +-- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 ++- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-++- **Head (source)**: `9fab12b675cd8af38d3c518bd4b197f34be82e43`
+++- **Head (source)**: `7d44f93efc6f4c167dda1e87da4b630ca62d62f1`
 + - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 + 
 + ## Changed Files
@@ -2635,7 +2778,7 @@ index 8756e36..d5f8373 100644
 ++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  119 +
 ++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
 ++ context-bundle.md                                  | 4711 +++++++++++++++++---
-++ cypress/e2e/add_payment_cascade.cy.tsx             |   95 +-
+++ cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
 ++ docs/context/PR-251.md                             | 4065 +++++++++++++++++
 ++ jest.config.cjs                                    |    2 +
 ++ lib/erlDirectory.test.ts                           |    4 +-
@@ -2643,8 +2786,8 @@ index 8756e36..d5f8373 100644
 ++ lib/projectsDatabaseSelection.ts                   |   30 +
 ++ pages/api/projects-database/[year]/[projectId].ts  |   63 +
 ++ .../businesses/projects-database/[groupId].tsx     |   60 +-
-++ .../businesses/projects-database/window.tsx        |  152 +
-++ 22 files changed, 8966 insertions(+), 1011 deletions(-)
+++ .../businesses/projects-database/window.tsx        |  236 +
+++ 22 files changed, 9059 insertions(+), 1011 deletions(-)
 + ```
 + 
 + ## Unified Diff (truncated to first 4000 lines)
@@ -3137,7 +3280,7 @@ index 8756e36..d5f8373 100644
 ++ jest.mock('firebase/firestore', () => ({
 ++   collection: jest.fn(),
 ++diff --git a/components/StudentDialog/PaymentModal.test.tsx b/components/StudentDialog/PaymentModal.test.tsx
-++index 3d4b44f..ac1f927 100644
+++index 3d4b44f..81908ef 100644
 ++--- a/components/StudentDialog/PaymentModal.test.tsx
 +++++ b/components/StudentDialog/PaymentModal.test.tsx
 ++@@ -6,6 +6,8 @@ import '@testing-library/jest-dom'
@@ -3153,8 +3296,8 @@ index 8756e36..d5f8373 100644
 ++ 
 ++ const noop = () => {}
 ++ 
-+++const mockedErlDirectory = jest.mocked(erlDirectory, true)
-+++const mockedFirestore = jest.mocked(firestore, true)
++++const mockedErlDirectory = jest.mocked(erlDirectory, { shallow: false })
++++const mockedFirestore = jest.mocked(firestore, { shallow: false })
 +++
 ++ describe('PaymentModal ERL cascade', () => {
 ++   test('populates banks/accounts and submits identifier with audit fields', async () => {
@@ -3921,145 +4064,4 @@ index 8756e36..d5f8373 100644
 +-+                  sx={{ cursor: 'pointer', height: '100%' }}
 +-+                  onClick={() => handleNavigate('subsidiary', year)}
 +-+                >
-+-+                  <CardContent>
-+-+                    <Typography variant="h6" sx={headingSx} gutterBottom>
-+-+                      {year}
-+-+                    </Typography>
-+-+                    <Typography sx={valueSx}>Project Collection</Typography>
-+-+                  </CardContent>
-+-+                </Card>
-+-+              </Grid>
-+-+            ))}
-+++        <Grid container spacing={2}>
-+++          <Grid item xs={12} sm={6}>
-+++            <TextField
-+++              label="Project Number"
-+++              value={form.projectNumber}
-+++              onChange={handleChange('projectNumber')}
-+++              fullWidth
-+++            />
-+ +          </Grid>
-+-+        )}
-+-+      </SidebarLayout>
-+-+    )
-+-+  }
-+-+
-+-+  const handleBack = () => {
-+-+    router.push('/dashboard/businesses/projects-database/select')
-+-+  }
-+-+
-+-+  const headerLabel = detailSelection
-+-+    ? detailSelection.type === 'year'
-+-+      ? `Establish Productions Limited — ${detailSelection.year}`
-+-+      : `${detailSelection.year} Projects`
-+-+    : 'Projects'
-+-+
-+-+  return (
-+-+    <SidebarLayout>
-+-+      <Box
-+-+        sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-+-+      >
-+-+        <IconButton onClick={handleBack}>
-+-+          <ArrowBackIcon />
-+-+        </IconButton>
-+-+        <Box sx={{ textAlign: 'center' }}>
-+-+          <Typography variant="h5" sx={headingSx}>
-+-+            {headerLabel}
-+-+          </Typography>
-+-+          <Typography sx={valueSx}>Project Overview</Typography>
-+-+        </Box>
-+-+        <Button
-+-+          variant="contained"
-+-+          onClick={() => router.push('/dashboard/businesses/new')}
-+-+        >
-+-+          New Project
-+++          <Grid item xs={12} sm={6}>
-+++            <TextField
-+++              label="Client Company"
-+++              value={form.clientCompany}
-+++              onChange={handleChange('clientCompany')}
-+++              fullWidth
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12}>
-+++            <TextField
-+++              label="Project Title"
-+++              value={form.projectTitle}
-+++              onChange={handleChange('projectTitle')}
-+++              fullWidth
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12}>
-+++            <TextField
-+++              label="Project Nature"
-+++              value={form.projectNature}
-+++              onChange={handleChange('projectNature')}
-+++              fullWidth
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12} sm={6}>
-+++            <TextField
-+++              label="Project Date"
-+++              type="date"
-+++              value={form.projectDate}
-+++              onChange={handleChange('projectDate')}
-+++              fullWidth
-+++              InputLabelProps={{ shrink: true }}
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12} sm={6}>
-+++            <TextField
-+++              label="Paid On"
-+++              type="date"
-+++              value={form.onDate}
-+++              onChange={handleChange('onDate')}
-+++              fullWidth
-+++              InputLabelProps={{ shrink: true }}
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12} sm={6}>
-+++            <TextField
-+++              label="Amount (HKD)"
-+++              value={form.amount}
-+++              onChange={handleChange('amount')}
-+++              fullWidth
-+++              inputMode="decimal"
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12} sm={6}>
-+++            <TextField
-+++              label="Paid To"
-+++              value={form.paidTo}
-+++              onChange={handleChange('paidTo')}
-+++              fullWidth
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12} sm={6}>
-+++            <TextField
-+++              label="Invoice"
-+++              value={form.invoice}
-+++              onChange={handleChange('invoice')}
-+++              fullWidth
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12} sm={6}>
-+++            <TextField
-+++              label="Presenter Work Type"
-+++              value={form.presenterWorkType}
-+++              onChange={handleChange('presenterWorkType')}
-+++              fullWidth
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12}>
-+++            <TextField
-+++              label="Subsidiary"
-+++              value={form.subsidiary}
-+++              onChange={handleChange('subsidiary')}
-+++              fullWidth
-+++            />
-+++          </Grid>
-+++          <Grid item xs={12}>
-+++            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-+++              <FormControlLabel
-+++                control={<Switch checked={form.paid} onChange={handleTogglePaid} />}
 ```
