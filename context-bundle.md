@@ -1,7 +1,7 @@
 # PR #251 — Diff Summary
 
 - **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-- **Head (source)**: `7d44f93efc6f4c167dda1e87da4b630ca62d62f1`
+- **Head (source)**: `fe8b87c8a41ef14cef411770ae6e473a85e66615`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -48,15 +48,15 @@ A	pages/dashboard/businesses/projects-database/window.tsx
  .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
  context-bundle.md                                  | 4711 +++++++++++++++++---
  cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
- docs/context/PR-251.md                             | 4065 +++++++++++++++++
+ docs/context/PR-251.md                             |    1 +
  jest.config.cjs                                    |    2 +
  lib/erlDirectory.test.ts                           |    4 +-
  lib/projectsDatabase.ts                            |  109 +-
  lib/projectsDatabaseSelection.ts                   |   30 +
  pages/api/projects-database/[year]/[projectId].ts  |   63 +
  .../businesses/projects-database/[groupId].tsx     |   60 +-
- .../businesses/projects-database/window.tsx        |  236 +
- 22 files changed, 9059 insertions(+), 1011 deletions(-)
+ .../businesses/projects-database/window.tsx        |  229 +
+ 22 files changed, 4988 insertions(+), 1011 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -916,7 +916,7 @@ index 0000000..a13c7f7
 +  )
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 8756e36..fedc40a 100644
+index 8756e36..d5f8373 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
 @@ -1,810 +1,4065 @@
@@ -926,7 +926,7 @@ index 8756e36..fedc40a 100644
 -- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 -- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 +- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-+- **Head (source)**: `9fab12b675cd8af38d3c518bd4b197f34be82e43`
++- **Head (source)**: `7d44f93efc6f4c167dda1e87da4b630ca62d62f1`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -985,7 +985,7 @@ index 8756e36..fedc40a 100644
 + .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  119 +
 + .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
 + context-bundle.md                                  | 4711 +++++++++++++++++---
-+ cypress/e2e/add_payment_cascade.cy.tsx             |   95 +-
++ cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
 + docs/context/PR-251.md                             | 4065 +++++++++++++++++
 + jest.config.cjs                                    |    2 +
 + lib/erlDirectory.test.ts                           |    4 +-
@@ -993,8 +993,8 @@ index 8756e36..fedc40a 100644
 + lib/projectsDatabaseSelection.ts                   |   30 +
 + pages/api/projects-database/[year]/[projectId].ts  |   63 +
 + .../businesses/projects-database/[groupId].tsx     |   60 +-
-+ .../businesses/projects-database/window.tsx        |  152 +
-+ 22 files changed, 8966 insertions(+), 1011 deletions(-)
++ .../businesses/projects-database/window.tsx        |  236 +
++ 22 files changed, 9059 insertions(+), 1011 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1487,7 +1487,7 @@ index 8756e36..fedc40a 100644
 + jest.mock('firebase/firestore', () => ({
 +   collection: jest.fn(),
 +diff --git a/components/StudentDialog/PaymentModal.test.tsx b/components/StudentDialog/PaymentModal.test.tsx
-+index 3d4b44f..ac1f927 100644
++index 3d4b44f..81908ef 100644
 +--- a/components/StudentDialog/PaymentModal.test.tsx
 ++++ b/components/StudentDialog/PaymentModal.test.tsx
 +@@ -6,6 +6,8 @@ import '@testing-library/jest-dom'
@@ -1503,8 +1503,8 @@ index 8756e36..fedc40a 100644
 + 
 + const noop = () => {}
 + 
-++const mockedErlDirectory = jest.mocked(erlDirectory, true)
-++const mockedFirestore = jest.mocked(firestore, true)
+++const mockedErlDirectory = jest.mocked(erlDirectory, { shallow: false })
+++const mockedFirestore = jest.mocked(firestore, { shallow: false })
 ++
 + describe('PaymentModal ERL cascade', () => {
 +   test('populates banks/accounts and submits identifier with audit fields', async () => {
@@ -2566,7 +2566,7 @@ index 8756e36..fedc40a 100644
 -+
 -+export default ProjectsDatabaseIndex
 +diff --git a/context-bundle.md b/context-bundle.md
-+index 8756e36..d7d414c 100644
++index 8756e36..fedc40a 100644
 +--- a/context-bundle.md
 ++++ b/context-bundle.md
 +@@ -1,810 +1,4065 @@
@@ -2576,7 +2576,7 @@ index 8756e36..fedc40a 100644
 +-- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 +-- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 ++- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-++- **Head (source)**: `0e9711747f48d6372501f5747b00b6662fe92912`
+++- **Head (source)**: `9fab12b675cd8af38d3c518bd4b197f34be82e43`
 + - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 + 
 + ## Changed Files
@@ -2634,17 +2634,17 @@ index 8756e36..fedc40a 100644
 ++ components/StudentDialog/PaymentModal.test.tsx     |   21 +-
 ++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  119 +
 ++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
-++ context-bundle.md                                  | 4703 +++++++++++++++++---
+++ context-bundle.md                                  | 4711 +++++++++++++++++---
 ++ cypress/e2e/add_payment_cascade.cy.tsx             |   95 +-
-++ docs/context/PR-251.md                             |    1 +
+++ docs/context/PR-251.md                             | 4065 +++++++++++++++++
 ++ jest.config.cjs                                    |    2 +
 ++ lib/erlDirectory.test.ts                           |    4 +-
 ++ lib/projectsDatabase.ts                            |  109 +-
 ++ lib/projectsDatabaseSelection.ts                   |   30 +
 ++ pages/api/projects-database/[year]/[projectId].ts  |   63 +
 ++ .../businesses/projects-database/[groupId].tsx     |   60 +-
-++ .../businesses/projects-database/window.tsx        |    1 +
-++ 22 files changed, 4743 insertions(+), 1011 deletions(-)
+++ .../businesses/projects-database/window.tsx        |  152 +
+++ 22 files changed, 8966 insertions(+), 1011 deletions(-)
 + ```
 + 
 + ## Unified Diff (truncated to first 4000 lines)
