@@ -1,7 +1,7 @@
 import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import SidebarLayout from '../../../../components/SidebarLayout'
 import {
@@ -20,6 +20,8 @@ import {
   Button,
   Card,
   CardContent,
+  Dialog,
+  DialogContent,
   FormControl,
   Grid,
   IconButton,
@@ -35,6 +37,10 @@ import {
 } from '@mui/material'
 import type { SelectChangeEvent } from '@mui/material/Select'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+
+import ProjectDatabaseDetailContent from '../../../../components/projectdialog/ProjectDatabaseDetailContent'
+import ProjectDatabaseEditDialog from '../../../../components/projectdialog/ProjectDatabaseEditDialog'
 
 const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 const headingSx = { fontFamily: 'Cantata One' }
@@ -115,6 +121,10 @@ export default function ProjectsDatabasePage({
     }
   }, [detailSelection])
 
+  const [selectedProject, setSelectedProject] = useState<ProjectRecord | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+
   const handleNavigate = (type: SortMethod, year: string) => {
     if (!year) {
       return
@@ -126,15 +136,37 @@ export default function ProjectsDatabasePage({
   }
 
   const handleProjectClick = (project: ProjectRecord) => {
-    const url = `/dashboard/businesses/projects-database/window?group=${encodeURIComponent(
-      encodeSelectionId('year', project.year)
-    )}&project=${encodeURIComponent(project.id)}`
+    setSelectedProject(project)
+    setDetailOpen(true)
+  }
+
+  const standaloneUrl = useMemo(() => {
+    if (!selectedProject) return null
+    return `/dashboard/businesses/projects-database/window?group=${encodeURIComponent(
+      encodeSelectionId('year', selectedProject.year)
+    )}&project=${encodeURIComponent(selectedProject.id)}`
+  }, [selectedProject])
+
+  const handleDetach = () => {
+    if (!standaloneUrl) return
+    setDetailOpen(false)
+    setSelectedProject(null)
     if (typeof window !== 'undefined') {
       const features = 'noopener,noreferrer,width=1200,height=800,resizable=yes,scrollbars=yes'
-      window.open(url, '_blank', features)
+      window.open(standaloneUrl, '_blank', features)
     } else {
-      router.push(url)
+      void router.push(standaloneUrl)
     }
+  }
+
+  const handleEditSaved = async () => {
+    setEditOpen(false)
+    await router.replace(router.asPath)
+  }
+
+  const handleCloseDetail = () => {
+    setDetailOpen(false)
+    setSelectedProject(null)
   }
 
   if (mode === 'select') {
@@ -315,6 +347,43 @@ export default function ProjectsDatabasePage({
           )}
         </CardContent>
       </Card>
+      <Dialog
+        open={detailOpen && Boolean(selectedProject)}
+        onClose={handleCloseDetail}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+          {selectedProject && (
+            <ProjectDatabaseDetailContent
+              project={selectedProject}
+              headerActions={
+                standaloneUrl ? (
+                  <IconButton onClick={handleDetach} size="small" aria-label="Open in new window">
+                    <OpenInNewIcon fontSize="small" />
+                  </IconButton>
+                ) : null
+              }
+              footerActions={
+                <>
+                  <Button variant="outlined" onClick={handleCloseDetail}>
+                    Close
+                  </Button>
+                  <Button variant="contained" onClick={() => setEditOpen(true)}>
+                    Edit
+                  </Button>
+                </>
+              }
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      <ProjectDatabaseEditDialog
+        open={editOpen}
+        project={selectedProject}
+        onClose={() => setEditOpen(false)}
+        onSaved={handleEditSaved}
+      />
     </SidebarLayout>
   )
 }
