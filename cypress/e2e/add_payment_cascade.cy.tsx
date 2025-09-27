@@ -8,9 +8,28 @@ import * as erlDir from '../../lib/erlDirectory'
 import * as firestore from 'firebase/firestore'
 import { Box, IconButton, Button } from '@mui/material'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
-declare const expect: any
+import PaymentModal from '../../components/StudentDialog/PaymentModal'
 
-declare const Cypress: any
+const getCypressEnv = () => {
+  const runtimeGlobal = globalThis as typeof globalThis & {
+    [key: string]: unknown
+  }
+  const maybeCypress = runtimeGlobal['Cypress'] as
+    | { env?: (name: string) => unknown }
+    | undefined
+  if (maybeCypress && typeof maybeCypress.env === 'function') {
+    return maybeCypress.env
+  }
+  return null
+}
+
+const cyStub = (...args: any[]) => (cy as any).stub(...args)
+
+const ensure = (condition: unknown, message: string) => {
+  if (!condition) {
+    throw new Error(message)
+  }
+}
 
 function mountModal(Component: any) {
   cy.visit('about:blank')
@@ -28,7 +47,10 @@ function mountModal(Component: any) {
 
 describe('Add Payment cascade', () => {
   beforeEach(function () {
-    if (Cypress?.env('CI')) this.skip()
+    const env = getCypressEnv()
+    if (env && env('CI')) {
+      this.skip()
+    }
   })
 
   it('shows cascade selects', () => {
@@ -39,17 +61,14 @@ describe('Add Payment cascade', () => {
     process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = 'x'
     process.env.NEXT_PUBLIC_FIREBASE_APP_ID = 'x'
 
-    ;(cy as any).stub(erlDir, 'listBanks').resolves([
+    cyStub(erlDir, 'listBanks').resolves([
       { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
     ])
-    ;(cy as any).stub(erlDir, 'listAccounts').resolves([
+    cyStub(erlDir, 'listAccounts').resolves([
       { accountDocId: 'a1', accountType: 'Savings' },
     ])
-    ;(cy as any).stub(firestore, 'addDoc').resolves()
-    ;(cy as any).stub(firestore, 'collection').returns({})
-    delete require.cache[require.resolve('../../components/StudentDialog/PaymentModal')]
-    const PaymentModal = require('../../components/StudentDialog/PaymentModal')
-      .default
+    cyStub(firestore, 'addDoc').resolves()
+    cyStub(firestore, 'collection').returns({})
     mountModal(PaymentModal)
 
     cy.get('[data-testid="method-select"]').should('exist')
@@ -70,17 +89,14 @@ describe('Add Payment cascade', () => {
     process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = 'x'
     process.env.NEXT_PUBLIC_FIREBASE_APP_ID = 'x'
 
-    const addDocStub = (cy as any).stub(firestore, 'addDoc').resolves()
-    ;(cy as any).stub(firestore, 'collection').returns({})
-    ;(cy as any).stub(erlDir, 'listBanks').resolves([
+    const addDocStub = cyStub(firestore, 'addDoc').resolves()
+    cyStub(firestore, 'collection').returns({})
+    cyStub(erlDir, 'listBanks').resolves([
       { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
     ])
-    ;(cy as any).stub(erlDir, 'listAccounts').resolves([
+    cyStub(erlDir, 'listAccounts').resolves([
       { accountDocId: 'a1', accountType: 'Savings' },
     ])
-    delete require.cache[require.resolve('../../components/StudentDialog/PaymentModal')]
-    const PaymentModal = require('../../components/StudentDialog/PaymentModal')
-      .default
     mountModal(PaymentModal)
 
     cy.get('[data-testid="method-select"]').parent().click()
@@ -96,16 +112,17 @@ describe('Add Payment cascade', () => {
 
     cy.wrap(addDocStub).should('have.been.called')
     cy.wrap(addDocStub).its('firstCall.args.1').should((data: any) => {
-      ;(expect as any)(data).to.include({
-        method: 'FPS',
-        entity: 'Music Establish (ERL)',
-        bankCode: '001',
-        accountDocId: 'a1',
-        refNumber: '123',
-      })
-      ;(expect as any)(data.identifier).to.eq('001/a1')
-      ;(expect as any)(data.timestamp).to.be.ok
-      ;(expect as any)(data.editedBy).to.be.a('string')
+      ensure(data.method === 'FPS', 'expected method to be FPS')
+      ensure(
+        data.entity === 'Music Establish (ERL)',
+        'expected entity to be Music Establish (ERL)'
+      )
+      ensure(data.bankCode === '001', 'expected bankCode to be 001')
+      ensure(data.accountDocId === 'a1', 'expected accountDocId to be a1')
+      ensure(data.refNumber === '123', 'expected refNumber to be 123')
+      ensure(data.identifier === '001/a1', 'expected identifier to be 001/a1')
+      ensure(Boolean(data.timestamp), 'expected timestamp to be present')
+      ensure(typeof data.editedBy === 'string', 'expected editedBy string')
     })
   })
 
@@ -117,17 +134,14 @@ describe('Add Payment cascade', () => {
     process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = 'x'
     process.env.NEXT_PUBLIC_FIREBASE_APP_ID = 'x'
 
-    const addDocStub = (cy as any).stub(firestore, 'addDoc').resolves()
-    ;(cy as any).stub(firestore, 'collection').returns({})
-    ;(cy as any).stub(erlDir, 'listBanks').resolves([
+    const addDocStub = cyStub(firestore, 'addDoc').resolves()
+    cyStub(firestore, 'collection').returns({})
+    cyStub(erlDir, 'listBanks').resolves([
       { bankCode: '001', bankName: 'Bank', rawCodeSegment: '(001)' },
     ])
-    ;(cy as any).stub(erlDir, 'listAccounts').resolves([
+    cyStub(erlDir, 'listAccounts').resolves([
       { accountDocId: 'a1', accountType: 'Savings' },
     ])
-    delete require.cache[require.resolve('../../components/StudentDialog/PaymentModal')]
-    const PaymentModal = require('../../components/StudentDialog/PaymentModal')
-      .default
     mountModal(PaymentModal)
 
     cy.get('[data-testid="method-select"]').parent().click()
@@ -144,17 +158,21 @@ describe('Add Payment cascade', () => {
     cy.get('[data-testid="submit-payment"]').click()
 
     cy.wrap(addDocStub).its('firstCall.args.1').should((data: any) => {
-      ;(expect as any)(data).to.include({ method: 'Cheque', entity: 'Personal' })
-      ;(expect as any)(data.bankCode).to.be.undefined
-      ;(expect as any)(data.accountDocId).to.be.undefined
-      ;(expect as any)(data.identifier).to.be.undefined
+      ensure(data.method === 'Cheque', 'expected method to be Cheque')
+      ensure(data.entity === 'Personal', 'expected entity to be Personal')
+      ensure(data.bankCode === undefined, 'expected bankCode undefined')
+      ensure(data.accountDocId === undefined, 'expected accountDocId undefined')
+      ensure(data.identifier === undefined, 'expected identifier undefined')
     })
   })
 })
 
 describe('Card footer alignment', () => {
   beforeEach(function () {
-    if (Cypress?.env('CI')) this.skip()
+    const env = getCypressEnv()
+    if (env && env('CI')) {
+      this.skip()
+    }
   })
 
   function mountFooter() {
@@ -196,13 +214,15 @@ describe('Card footer alignment', () => {
       const dotRect = $dots[0].getBoundingClientRect()
       cy.get('[data-testid="service-mode-btn"]').then(($btn) => {
         const btnRect = $btn[0].getBoundingClientRect()
-        ;(expect as any)(Math.abs(dotRect.bottom - btnRect.bottom)).to.be.lte(1)
+        ensure(
+          Math.abs(dotRect.bottom - btnRect.bottom) <= 1,
+          'expected dots and button bottoms aligned'
+        )
         cy.get('[data-testid="card-footer-row"]').then(($row) => {
           const rowRect = $row[0].getBoundingClientRect()
-          ;(expect as any)(dotRect.left).to.be.gte(rowRect.left)
+          ensure(dotRect.left >= rowRect.left, 'expected dots within footer bounds')
         })
       })
     })
   })
 })
-
