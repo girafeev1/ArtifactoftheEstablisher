@@ -48,8 +48,8 @@ jest.mock('../../lib/liveRefresh', () => ({ writeSummaryFromCache: jest.fn() }))
 
 const noop = () => {}
 
-const mockedErlDirectory = jest.mocked(erlDirectory, true)
-const mockedFirestore = jest.mocked(firestore, true)
+const mockedErlDirectory = jest.mocked(erlDirectory, { shallow: false })
+const mockedFirestore = jest.mocked(firestore, { shallow: false })
 
 describe('PaymentModal ERL cascade', () => {
   test('populates banks/accounts and submits identifier with audit fields', async () => {

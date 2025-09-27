@@ -10,9 +10,18 @@ import { Box, IconButton, Button } from '@mui/material'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import PaymentModal from '../../components/StudentDialog/PaymentModal'
 
-const getCypressInstance = () =>
-  (globalThis as typeof globalThis & { Cypress?: { env: (name: string) => any } })
-    .Cypress
+const getCypressEnv = () => {
+  const runtimeGlobal = globalThis as typeof globalThis & {
+    [key: string]: unknown
+  }
+  const maybeCypress = runtimeGlobal['Cypress'] as
+    | { env?: (name: string) => unknown }
+    | undefined
+  if (maybeCypress && typeof maybeCypress.env === 'function') {
+    return maybeCypress.env
+  }
+  return null
+}
 
 const cyStub = (...args: any[]) => (cy as any).stub(...args)
 
@@ -38,8 +47,8 @@ function mountModal(Component: any) {
 
 describe('Add Payment cascade', () => {
   beforeEach(function () {
-    const cypressInstance = getCypressInstance()
-    if (cypressInstance?.env('CI')) {
+    const env = getCypressEnv()
+    if (env && env('CI')) {
       this.skip()
     }
   })
@@ -160,8 +169,8 @@ describe('Add Payment cascade', () => {
 
 describe('Card footer alignment', () => {
   beforeEach(function () {
-    const cypressInstance = getCypressInstance()
-    if (cypressInstance?.env('CI')) {
+    const env = getCypressEnv()
+    if (env && env('CI')) {
       this.skip()
     }
   })

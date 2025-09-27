@@ -1,9 +1,9 @@
+import Head from 'next/head'
 import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-import SidebarLayout from '../../../../components/SidebarLayout'
 import ProjectDatabaseEditDialog from '../../../../components/projectdialog/ProjectDatabaseEditDialog'
 import {
   fetchProjectsFromDatabase,
@@ -11,7 +11,19 @@ import {
 } from '../../../../lib/projectsDatabase'
 import { decodeSelectionId } from '../../../../lib/projectsDatabaseSelection'
 
-import { Box, Button, Chip, Divider, Stack, Typography } from '@mui/material'
+import {
+  Box,
+  Button,
+  Chip,
+  Divider,
+  Link,
+  Paper,
+  Stack,
+  Typography,
+  Checkbox,
+} from '@mui/material'
+import CheckIcon from '@mui/icons-material/Check'
+import CloseIcon from '@mui/icons-material/Close'
 
 interface ProjectWindowPageProps {
   project: ProjectRecord
@@ -39,71 +51,143 @@ export default function ProjectWindowPage({ project }: ProjectWindowPageProps) {
     setCurrentProject(project)
   }, [project])
 
+  const handleCloseWindow = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.close()
+    } else {
+      void router.push('/dashboard/businesses/projects-database/select')
+    }
+  }, [router])
+
   const handleEditSaved = async () => {
     setEditOpen(false)
     await router.replace(router.asPath)
   }
 
   return (
-    <SidebarLayout>
-      <Box sx={{ p: 4, maxWidth: 960, mx: 'auto' }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-          <Box>
-            <Typography variant="h4" gutterBottom>
-              Project Overview
+    <>
+      <Head>
+        <title>
+          {currentProject.projectNumber} · Project Overview · Establish Productions Limited
+        </title>
+      </Head>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          bgcolor: '#f6f8f9',
+          py: { xs: 4, md: 8 },
+          px: { xs: 2, md: 0 },
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
+        <Paper
+          elevation={4}
+          sx={{
+            width: 'min(720px, 100%)',
+            px: { xs: 3, md: 5 },
+            py: { xs: 3, md: 4 },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            justifyContent="space-between"
+            alignItems={{ xs: 'flex-start', sm: 'center' }}
+            spacing={2}
+          >
+            <Stack spacing={0.5} sx={{ width: '100%' }}>
+              <Typography variant="subtitle1" color="text.secondary">
+                {currentProject.projectNumber}
+              </Typography>
+              <Typography variant="subtitle1" color="text.secondary">
+                {textOrNA(currentProject.clientCompany)}
+              </Typography>
+              <Typography variant="h4" sx={{ fontFamily: 'Cantata One', lineHeight: 1.2 }}>
+                {textOrNA(currentProject.projectTitle)}
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                — {textOrNA(currentProject.projectNature)}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Chip label={currentProject.year} color="primary" variant="outlined" />
+              {currentProject.subsidiary && (
+                <Chip label={currentProject.subsidiary} variant="outlined" />
+              )}
+            </Stack>
+          </Stack>
+
+          <Divider sx={{ my: 1 }} />
+
+          <Stack spacing={1.5}>
+            <Typography>
+              <strong>Client Company:</strong> {textOrNA(currentProject.clientCompany)}
             </Typography>
-            <Typography variant="subtitle1" color="text.secondary">
-              {currentProject.projectNumber} — {textOrNA(currentProject.projectTitle)}
+            {currentProject.subsidiary && (
+              <Typography>
+                <strong>Subsidiary:</strong> {textOrNA(currentProject.subsidiary)}
+              </Typography>
+            )}
+            {currentProject.presenterWorkType && (
+              <Typography>
+                <strong>Presenter Work Type:</strong> {textOrNA(currentProject.presenterWorkType)}
+              </Typography>
+            )}
+            <Typography>
+              <strong>Project Pickup Date:</strong>{' '}
+              {currentProject.projectDateDisplay ?? 'Not set'}
             </Typography>
-          </Box>
-          <Stack direction="row" spacing={1}>
-            <Chip label={currentProject.year} variant="outlined" />
+            <Typography>
+              <strong>Amount:</strong> {formatAmount(currentProject.amount)}
+            </Typography>
+            <Typography sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <strong>Paid:</strong>
+              <Checkbox
+                checked={Boolean(currentProject.paid)}
+                icon={<CloseIcon fontSize="small" />}
+                checkedIcon={<CheckIcon fontSize="small" />}
+                disableRipple
+                disabled
+              />
+            </Typography>
+            {currentProject.paid && (
+              <Typography>
+                <strong>Paid On:</strong> {currentProject.onDateDisplay ?? '-'}
+              </Typography>
+            )}
+            {currentProject.paidTo && (
+              <Typography>
+                <strong>Pay To:</strong> {textOrNA(currentProject.paidTo)}
+              </Typography>
+            )}
+            {currentProject.invoice && (
+              <Typography>
+                <strong>Invoice:</strong>{' '}
+                {currentProject.invoice.startsWith('http') ? (
+                  <Link href={currentProject.invoice} target="_blank" rel="noopener">
+                    {currentProject.invoice}
+                  </Link>
+                ) : (
+                  textOrNA(currentProject.invoice)
+                )}
+              </Typography>
+            )}
+          </Stack>
+
+          <Divider sx={{ my: 1 }} />
+
+          <Stack direction="row" justifyContent="flex-end" spacing={1.5}>
+            <Button variant="outlined" onClick={handleCloseWindow}>
+              Close
+            </Button>
             <Button variant="contained" onClick={() => setEditOpen(true)}>
               Edit
             </Button>
           </Stack>
-        </Stack>
-
-        <Divider sx={{ mb: 3 }} />
-
-        <Stack spacing={2}>
-          <Typography>
-            <strong>Client Company:</strong> {textOrNA(currentProject.clientCompany)}
-          </Typography>
-          <Typography>
-            <strong>Project Nature:</strong> {textOrNA(currentProject.projectNature)}
-          </Typography>
-          <Typography>
-            <strong>Presenter Work Type:</strong> {textOrNA(currentProject.presenterWorkType)}
-          </Typography>
-          <Typography>
-            <strong>Subsidiary:</strong> {textOrNA(currentProject.subsidiary)}
-          </Typography>
-          <Typography>
-            <strong>Project Pickup Date:</strong> {currentProject.projectDateDisplay ?? 'Not set'}
-          </Typography>
-          <Typography>
-            <strong>Amount:</strong> {formatAmount(currentProject.amount)}
-          </Typography>
-          <Typography>
-            <strong>Paid:</strong> {currentProject.paid ? 'Yes' : 'No'}
-          </Typography>
-          {currentProject.paid && (
-            <Typography>
-              <strong>Paid On:</strong> {currentProject.onDateDisplay ?? '-'}
-            </Typography>
-          )}
-          {currentProject.paidTo && (
-            <Typography>
-              <strong>Paid To:</strong> {textOrNA(currentProject.paidTo)}
-            </Typography>
-          )}
-          {currentProject.invoice && (
-            <Typography>
-              <strong>Invoice:</strong> {textOrNA(currentProject.invoice)}
-            </Typography>
-          )}
-        </Stack>
+        </Paper>
       </Box>
       <ProjectDatabaseEditDialog
         open={editOpen}
@@ -111,7 +195,7 @@ export default function ProjectWindowPage({ project }: ProjectWindowPageProps) {
         onClose={() => setEditOpen(false)}
         onSaved={handleEditSaved}
       />
-    </SidebarLayout>
+    </>
   )
 }
 
