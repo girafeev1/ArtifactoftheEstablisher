@@ -1,7 +1,7 @@
 # PR #252 — Diff Summary
 
 - **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-- **Head (source)**: `b73c9a9ef8d7bc70cfe5c8ebacaa8f5ab531cac2`
+- **Head (source)**: `b49d9dc07d37173d09473023cd2c0992a490e501`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -53,7 +53,7 @@ A	vercel.json
  context-bundle.md                                  | 4707 +++++++++++++++++---
  cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
  docs/context/PR-251.md                             | 4067 +++++++++++++++++
- docs/context/PR-252.md                             |    1 +
+ docs/context/PR-252.md                             | 4071 +++++++++++++++++
  jest.config.cjs                                    |    2 +
  lib/erlDirectory.test.ts                           |    4 +-
  lib/projectsDatabase.ts                            |  109 +-
@@ -62,7 +62,7 @@ A	vercel.json
  .../businesses/projects-database/[groupId].tsx     |  111 +-
  .../businesses/projects-database/window.tsx        |  107 +
  vercel.json                                        |    6 +
- 25 files changed, 9085 insertions(+), 1007 deletions(-)
+ 25 files changed, 13155 insertions(+), 1007 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -673,7 +673,7 @@ index 0000000..a9a4bce
 +}
 diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
 new file mode 100644
-index 0000000..2efd125
+index 0000000..34283e5
 --- /dev/null
 +++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
 @@ -0,0 +1,44 @@
@@ -708,7 +708,7 @@ index 0000000..2efd125
 +      open={open}
 +      onClose={onClose}
 +      fullWidth
-+      maxWidth="md"
++      maxWidth="sm"
 +    >
 +      <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
 +        <ProjectDatabaseDetailContent
@@ -1023,7 +1023,7 @@ index 0000000..a13c7f7
 +  )
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 8756e36..28b3e2e 100644
+index 8756e36..fd2c6f3 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
 @@ -1,810 +1,4071 @@
@@ -1033,7 +1033,7 @@ index 8756e36..28b3e2e 100644
 -- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 -- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 +- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-+- **Head (source)**: `4405180a32755ee10561a9fd6519627b832f07af`
++- **Head (source)**: `b73c9a9ef8d7bc70cfe5c8ebacaa8f5ab531cac2`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -1092,13 +1092,13 @@ index 8756e36..28b3e2e 100644
 + .../businesses/coaching-sessions.test.tsx          |   35 +-
 + components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
 + components/StudentDialog/PaymentModal.test.tsx     |   21 +-
-+ .../projectdialog/ProjectDatabaseDetailContent.tsx |  167 +
++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  170 +
 + .../projectdialog/ProjectDatabaseDetailDialog.tsx  |   44 +
 + .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
-+ context-bundle.md                                  | 4705 +++++++++++++++++---
++ context-bundle.md                                  | 4707 +++++++++++++++++---
 + cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
 + docs/context/PR-251.md                             | 4067 +++++++++++++++++
-+ docs/context/PR-252.md                             | 4069 +++++++++++++++++
++ docs/context/PR-252.md                             |    1 +
 + jest.config.cjs                                    |    2 +
 + lib/erlDirectory.test.ts                           |    4 +-
 + lib/projectsDatabase.ts                            |  109 +-
@@ -1107,7 +1107,7 @@ index 8756e36..28b3e2e 100644
 + .../businesses/projects-database/[groupId].tsx     |  111 +-
 + .../businesses/projects-database/window.tsx        |  107 +
 + vercel.json                                        |    6 +
-+ 25 files changed, 13148 insertions(+), 1007 deletions(-)
++ 25 files changed, 9085 insertions(+), 1007 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1656,10 +1656,10 @@ index 8756e36..28b3e2e 100644
 +     expect(data.accountDocId).toBeUndefined()
 +diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
 +new file mode 100644
-+index 0000000..fb006cf
++index 0000000..a9a4bce
 +--- /dev/null
 ++++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-+@@ -0,0 +1,167 @@
++@@ -0,0 +1,170 @@
 ++import { useMemo } from 'react'
  +
 -+const formatDisplayDate = (value: unknown): string | null => {
@@ -1732,7 +1732,7 @@ index 8756e36..28b3e2e 100644
 -+  }
 -+  return null
 ++const labelSx = {
-++  fontFamily: 'Calibri, "Segoe UI", sans-serif',
+++  fontFamily: "Calibri, 'Segoe UI', sans-serif",
 ++  fontWeight: 400,
 ++  fontSize: '0.9rem',
 ++  letterSpacing: '0.02em',
@@ -1795,7 +1795,7 @@ index 8756e36..28b3e2e 100644
 ++  const rawPresenter = textOrNA(project.presenterWorkType)
 ++  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
 ++  const hasCjkInTitle = Boolean(
-++    project.projectTitle && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(project.projectTitle)
+++    project.projectTitle && /[぀-ヿ㐀-䶿一-鿿]/.test(project.projectTitle)
  +  )
  +
 -+const listYearCollections = async (): Promise<string[]> => {
@@ -1810,56 +1810,59 @@ index 8756e36..28b3e2e 100644
 -+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
 ++  return (
 ++    <Stack spacing={1.2}>
-++      <Stack spacing={0.75} sx={{ width: '100%' }}>
-++        <Box
-++          sx={{
-++            display: 'flex',
-++            alignItems: 'center',
-++            flexWrap: 'wrap',
-++            columnGap: 1,
-++            rowGap: 0.75,
-++            width: '100%',
-++          }}
-++        >
-++          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-++            <Typography variant="subtitle1" color="text.secondary">
+++      <Stack
+++        direction={{ xs: 'column', sm: 'row' }}
+++        alignItems={{ xs: 'flex-start', sm: 'flex-start' }}
+++        spacing={1.5}
+++      >
+++        <Stack spacing={0.75} sx={{ flexGrow: 1, minWidth: 0 }}>
+++          <Stack
+++            direction='row'
+++            alignItems='center'
+++            spacing={1}
+++            sx={{ flexWrap: 'wrap', rowGap: 0.5 }}
+++          >
+++            <Typography variant='subtitle1' color='text.secondary'>
 ++              {project.projectNumber}
 ++            </Typography>
 ++            {onEdit && (
-++              <IconButton onClick={onEdit} aria-label="Edit project" size="small">
-++                <EditOutlinedIcon fontSize="small" />
+++              <IconButton onClick={onEdit} aria-label='Edit project' size='small'>
+++                <EditOutlinedIcon fontSize='small' />
 ++              </IconButton>
 ++            )}
-++          </Box>
-++          {project.subsidiary && (
-++            <Chip label={textOrNA(project.subsidiary)} variant="outlined" size="small" />
-++          )}
-++          <Box sx={{ flexGrow: 1 }} />
-++          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+++          </Stack>
+++          <Typography variant='subtitle1' sx={{ color: 'text.primary' }}>
+++            {presenterText}
+++          </Typography>
+++          <Typography
+++            variant='h4'
+++            className={hasCjkInTitle ? yujiMai.className : undefined}
+++            sx={{ fontFamily: hasCjkInTitle ? undefined : 'Cantata One', lineHeight: 1.2 }}
+++          >
+++            {textOrNA(project.projectTitle)}
+++          </Typography>
+++          <Typography variant='body1' color='text.secondary'>
+++            {textOrNA(project.projectNature)}
+++          </Typography>
+++        </Stack>
+++        <Stack spacing={0.75} alignItems={{ xs: 'flex-start', sm: 'flex-end' }}>
+++          <Stack direction='row' spacing={0.5} alignItems='center'>
 ++            {headerActions}
 ++            {onClose && (
-++              <IconButton onClick={onClose} aria-label="close project details" size="small">
-++                <CloseIcon fontSize="small" />
+++              <IconButton onClick={onClose} aria-label='close project details' size='small'>
+++                <CloseIcon fontSize='small' />
 ++              </IconButton>
 ++            )}
-++          </Box>
-++        </Box>
-++        <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
-++          {presenterText}
-++        </Typography>
-++        <Typography
-++          variant="h4"
-++          className={hasCjkInTitle ? yujiMai.className : undefined}
-++          sx={{
-++            fontFamily: hasCjkInTitle ? undefined : 'Cantata One',
-++            lineHeight: 1.2,
-++          }}
-++        >
-++          {textOrNA(project.projectTitle)}
-++        </Typography>
-++        <Typography variant="body1" color="text.secondary">
-++          {textOrNA(project.projectNature)}
-++        </Typography>
+++          </Stack>
+++          {project.subsidiary && (
+++            <Chip
+++              label={textOrNA(project.subsidiary)}
+++              variant='outlined'
+++              size='small'
+++              sx={{ alignSelf: { xs: 'flex-start', sm: 'flex-end' } }}
+++            />
+++          )}
+++        </Stack>
 ++      </Stack>
 ++
 ++      <Divider />
@@ -1868,7 +1871,7 @@ index 8756e36..28b3e2e 100644
 ++        {detailItems.map(({ label, value }) => (
 ++          <Box key={label}>
 ++            <Typography sx={labelSx}>{label}:</Typography>
-++            <Typography component="div" sx={valueSx} className={cormorantSemi.className}>
+++            <Typography component='div' sx={valueSx} className={cormorantSemi.className}>
 ++              {value}
 ++            </Typography>
 ++          </Box>
@@ -2141,13 +2144,13 @@ index 8756e36..28b3e2e 100644
 -+
 -+const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 -+const headingSx = { fontFamily: 'Cantata One' }
+-+
+-+type SortMethod = 'year' | 'subsidiary'
 ++import { Timestamp } from 'firebase/firestore'
  +
--+type SortMethod = 'year' | 'subsidiary'
+-+type Mode = 'select' | 'detail'
 ++import type { ProjectRecord } from '../../lib/projectsDatabase'
  +
--+type Mode = 'select' | 'detail'
--+
 -+interface DetailSelection {
 -+  type: SortMethod
 -+  year: string
@@ -2193,13 +2196,13 @@ index 8756e36..28b3e2e 100644
 -+  if (!typePart || !yearPart) {
 -+    return null
 -+  }
-++const toTimestampOrNull = (value: string) =>
-++  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
- +
+-+
 -+  if (typePart !== 'year' && typePart !== 'subsidiary') {
 -+    return null
 -+  }
--+
+++const toTimestampOrNull = (value: string) =>
+++  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
+ +
 -+  try {
 -+    return { type: typePart, year: decodeURIComponent(yearPart) }
 -+  } catch (err) {
@@ -2772,17 +2775,17 @@ index 8756e36..28b3e2e 100644
 -+
 -+export default ProjectsDatabaseIndex
 +diff --git a/context-bundle.md b/context-bundle.md
-+index 8756e36..3abcf5d 100644
++index 8756e36..28b3e2e 100644
 +--- a/context-bundle.md
 ++++ b/context-bundle.md
-+@@ -1,810 +1,4069 @@
++@@ -1,810 +1,4071 @@
 +-# PR #249 — Diff Summary
 ++# PR #252 — Diff Summary
 + 
 +-- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 +-- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 ++- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-++- **Head (source)**: `2d79a4603a117a5ab7549baded77331bafeef463`
+++- **Head (source)**: `4405180a32755ee10561a9fd6519627b832f07af`
 + - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 + 
 + ## Changed Files
@@ -2818,6 +2821,7 @@ index 8756e36..28b3e2e 100644
 ++A	pages/api/projects-database/[year]/[projectId].ts
 ++M	pages/dashboard/businesses/projects-database/[groupId].tsx
 ++A	pages/dashboard/businesses/projects-database/window.tsx
+++A	vercel.json
 + ```
 + 
 + ## Stats
@@ -2840,21 +2844,22 @@ index 8756e36..28b3e2e 100644
 ++ .../businesses/coaching-sessions.test.tsx          |   35 +-
 ++ components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
 ++ components/StudentDialog/PaymentModal.test.tsx     |   21 +-
-++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  143 +
+++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  167 +
 ++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |   44 +
 ++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
-++ context-bundle.md                                  | 4701 +++++++++++++++++---
+++ context-bundle.md                                  | 4705 +++++++++++++++++---
 ++ cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
 ++ docs/context/PR-251.md                             | 4067 +++++++++++++++++
-++ docs/context/PR-252.md                             |    1 +
+++ docs/context/PR-252.md                             | 4069 +++++++++++++++++
 ++ jest.config.cjs                                    |    2 +
 ++ lib/erlDirectory.test.ts                           |    4 +-
 ++ lib/projectsDatabase.ts                            |  109 +-
 ++ lib/projectsDatabaseSelection.ts                   |   30 +
 ++ pages/api/projects-database/[year]/[projectId].ts  |   63 +
 ++ .../businesses/projects-database/[groupId].tsx     |  111 +-
-++ .../businesses/projects-database/window.tsx        |  105 +
-++ 24 files changed, 9045 insertions(+), 1006 deletions(-)
+++ .../businesses/projects-database/window.tsx        |  107 +
+++ vercel.json                                        |    6 +
+++ 25 files changed, 13148 insertions(+), 1007 deletions(-)
 + ```
 + 
 + ## Unified Diff (truncated to first 4000 lines)
@@ -3403,10 +3408,10 @@ index 8756e36..28b3e2e 100644
 ++     expect(data.accountDocId).toBeUndefined()
 ++diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
 ++new file mode 100644
-++index 0000000..bf790c6
+++index 0000000..fb006cf
 ++--- /dev/null
 +++++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-++@@ -0,0 +1,143 @@
+++@@ -0,0 +1,167 @@
 +++import { useMemo } from 'react'
 + +
 +-+const formatDisplayDate = (value: unknown): string | null => {
@@ -3418,9 +3423,18 @@ index 8756e36..28b3e2e 100644
 +-+    year: 'numeric',
 +-+  })
 +-+}
-+++import { Box, Chip, Divider, IconButton, Link, Stack, Typography } from '@mui/material'
++++import {
++++  Box,
++++  Chip,
++++  Divider,
++++  IconButton,
++++  Link,
++++  Stack,
++++  Typography,
++++} from '@mui/material'
 +++import CloseIcon from '@mui/icons-material/Close'
 +++import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
++++import { Cormorant_Infant, Yuji_Mai } from 'next/font/google'
 + +
 +-+const toIsoDate = (value: unknown): string | null => {
 +-+  const date = toDate(value)
@@ -3429,7 +3443,6 @@ index 8756e36..28b3e2e 100644
 +-+}
 +++import type { ProjectRecord } from '../../lib/projectsDatabase'
 +++import type { ReactNode } from 'react'
-+++import { Cormorant_Infant } from 'next/font/google'
 + +
 +-+const toStringValue = (value: unknown): string | null => {
 +-+  if (typeof value === 'string') {
@@ -3441,7 +3454,8 @@ index 8756e36..28b3e2e 100644
 +-+  }
 +-+  return null
 +-+}
-+++const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600' })
++++const yujiMai = Yuji_Mai({ subsets: ['latin'], weight: '400', display: 'swap' })
++++const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600', display: 'swap' })
 + +
 +-+const toNumberValue = (value: unknown): number | null => {
 +-+  if (typeof value === 'number' && !Number.isNaN(value)) {
@@ -3450,15 +3464,9 @@ index 8756e36..28b3e2e 100644
 +-+  if (typeof value === 'string') {
 +-+    const parsed = Number(value)
 +-+    return Number.isNaN(parsed) ? null : parsed
-+-+  }
-+-+  return null
-+-+}
 +++const textOrNA = (value: string | null | undefined) =>
 +++  value && value.trim().length > 0 ? value : 'N/A'
-+ +
-+-+const toBooleanValue = (value: unknown): boolean | null => {
-+-+  if (typeof value === 'boolean') {
-+-+    return value
++++
 +++const formatAmount = (value: number | null | undefined) => {
 +++  if (typeof value !== 'number' || Number.isNaN(value)) {
 +++    return 'HK$0'
@@ -3470,10 +3478,11 @@ index 8756e36..28b3e2e 100644
 +++  })}`
 + +}
 + +
-+-+const uniqueSortedYears = (values: Iterable<string>) =>
-+-+  Array.from(new Set(values)).sort((a, b) =>
-+-+    b.localeCompare(a, undefined, { numeric: true })
-+-+  )
++-+const toBooleanValue = (value: unknown): boolean | null => {
++-+  if (typeof value === 'boolean') {
++-+    return value
++-+  }
++-+  return null
 +++const labelSx = {
 +++  fontFamily: 'Calibri, "Segoe UI", sans-serif',
 +++  fontWeight: 400,
@@ -3491,11 +3500,11 @@ index 8756e36..28b3e2e 100644
 +++  headerActions?: ReactNode
 +++  onClose?: () => void
 +++  onEdit?: () => void
-+++}
++ +}
 + +
-+-+const listYearCollections = async (): Promise<string[]> => {
-+-+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
-+-+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
++-+const uniqueSortedYears = (values: Iterable<string>) =>
++-+  Array.from(new Set(values)).sort((a, b) =>
++-+    b.localeCompare(a, undefined, { numeric: true })
 +++export default function ProjectDatabaseDetailContent({
 +++  project,
 +++  headerActions,
@@ -3534,25 +3543,37 @@ index 8756e36..28b3e2e 100644
 +++      { label: 'Invoice', value: invoiceValue },
 +++    ] satisfies Array<{ label: string; value: ReactNode }>
 +++  }, [project])
++++
++++  const rawPresenter = textOrNA(project.presenterWorkType)
++++  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
++++  const hasCjkInTitle = Boolean(
++++    project.projectTitle && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(project.projectTitle)
++ +  )
 + +
++-+const listYearCollections = async (): Promise<string[]> => {
++-+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
++-+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
++-+
 +-+  if (!apiKey || !projectId) {
 +-+    console.warn('[projectsDatabase] Missing Firebase configuration, falling back to defaults')
 +-+    return [...FALLBACK_YEAR_IDS]
 +-+  }
-+++  const rawPresenter = textOrNA(project.presenterWorkType)
-+++  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
-+ +
++-+
 +-+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
 +++  return (
 +++    <Stack spacing={1.2}>
-+++      <Stack
-+++        direction={{ xs: 'column', sm: 'row' }}
-+++        justifyContent="space-between"
-+++        alignItems={{ xs: 'flex-start', sm: 'center' }}
-+++        spacing={2}
-+++      >
-+++        <Stack spacing={0.5} sx={{ width: '100%' }}>
-+++          <Stack direction="row" alignItems="center" spacing={1}>
++++      <Stack spacing={0.75} sx={{ width: '100%' }}>
++++        <Box
++++          sx={{
++++            display: 'flex',
++++            alignItems: 'center',
++++            flexWrap: 'wrap',
++++            columnGap: 1,
++++            rowGap: 0.75,
++++            width: '100%',
++++          }}
++++        >
++++          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
 +++            <Typography variant="subtitle1" color="text.secondary">
 +++              {project.projectNumber}
 +++            </Typography>
@@ -3561,28 +3582,36 @@ index 8756e36..28b3e2e 100644
 +++                <EditOutlinedIcon fontSize="small" />
 +++              </IconButton>
 +++            )}
-+++          </Stack>
-+++          <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
-+++            {presenterText}
-+++          </Typography>
-+++          <Typography variant="h4" sx={{ fontFamily: 'Cantata One', lineHeight: 1.2 }}>
-+++            {textOrNA(project.projectTitle)}
-+++          </Typography>
-+++          <Typography variant="body1" color="text.secondary">
-+++            {textOrNA(project.projectNature)}
-+++          </Typography>
-+++        </Stack>
-+++        <Stack direction="row" spacing={0.75} alignItems="center">
++++          </Box>
 +++          {project.subsidiary && (
 +++            <Chip label={textOrNA(project.subsidiary)} variant="outlined" size="small" />
 +++          )}
-+++          {headerActions}
-+++          {onClose && (
-+++            <IconButton onClick={onClose} aria-label="close project details" size="small">
-+++              <CloseIcon fontSize="small" />
-+++            </IconButton>
-+++          )}
-+++        </Stack>
++++          <Box sx={{ flexGrow: 1 }} />
++++          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
++++            {headerActions}
++++            {onClose && (
++++              <IconButton onClick={onClose} aria-label="close project details" size="small">
++++                <CloseIcon fontSize="small" />
++++              </IconButton>
++++            )}
++++          </Box>
++++        </Box>
++++        <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
++++          {presenterText}
++++        </Typography>
++++        <Typography
++++          variant="h4"
++++          className={hasCjkInTitle ? yujiMai.className : undefined}
++++          sx={{
++++            fontFamily: hasCjkInTitle ? undefined : 'Cantata One',
++++            lineHeight: 1.2,
++++          }}
++++        >
++++          {textOrNA(project.projectTitle)}
++++        </Typography>
++++        <Typography variant="body1" color="text.secondary">
++++          {textOrNA(project.projectNature)}
++++        </Typography>
 +++      </Stack>
 +++
 +++      <Divider />
@@ -3916,13 +3945,13 @@ index 8756e36..28b3e2e 100644
 +-+  if (!typePart || !yearPart) {
 +-+    return null
 +-+  }
-+-+
-+-+  if (typePart !== 'year' && typePart !== 'subsidiary') {
-+-+    return null
-+-+  }
 +++const toTimestampOrNull = (value: string) =>
 +++  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
 + +
++-+  if (typePart !== 'year' && typePart !== 'subsidiary') {
++-+    return null
++-+  }
++-+
 +-+  try {
 +-+    return { type: typePart, year: decodeURIComponent(yearPart) }
 +-+  } catch (err) {
@@ -4039,33 +4068,4 @@ index 8756e36..28b3e2e 100644
 +++      setSaving(false)
 +++      return
 +++    }
-+ +
-+-+  useEffect(() => {
-+-+    if (!selectedYear && years.length > 0) {
-+-+      setSelectedYear(years[0])
-+++    const updates: Record<string, unknown> = {
-+++      projectNumber: sanitizeText(form.projectNumber),
-+++      projectTitle: sanitizeText(form.projectTitle),
-+++      projectNature: sanitizeText(form.projectNature),
-+++      clientCompany: sanitizeText(form.clientCompany),
-+++      presenterWorkType: sanitizeText(form.presenterWorkType),
-+++      subsidiary: sanitizeText(form.subsidiary),
-+++      invoice: sanitizeText(form.invoice),
-+++      paidTo: sanitizeText(form.paidTo),
-+++      paid: form.paid,
-+ +    }
-+-+  }, [years, selectedYear])
-+ +
-+-+  useEffect(() => {
-+-+    if (detailSelection) {
-+-+      setSortMethod(detailSelection.type)
-+-+      setSelectedYear(detailSelection.year)
-+++    if (form.amount.trim().length === 0) {
-+++      updates.amount = null
-+++    } else if (parsedAmount !== null) {
-+++      updates.amount = parsedAmount
-+ +    }
-+-+  }, [detailSelection])
-+ +
-+-+  const handleNavigate = (type: SortMethod, year: string) => {
 ```
