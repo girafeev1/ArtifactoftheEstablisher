@@ -1,7 +1,7 @@
 # PR #252 — Diff Summary
 
 - **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-- **Head (source)**: `2d79a4603a117a5ab7549baded77331bafeef463`
+- **Head (source)**: `4405180a32755ee10561a9fd6519627b832f07af`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -31,6 +31,7 @@ A	lib/projectsDatabaseSelection.ts
 A	pages/api/projects-database/[year]/[projectId].ts
 M	pages/dashboard/businesses/projects-database/[groupId].tsx
 A	pages/dashboard/businesses/projects-database/window.tsx
+A	vercel.json
 ```
 
 ## Stats
@@ -46,21 +47,22 @@ A	pages/dashboard/businesses/projects-database/window.tsx
  .../businesses/coaching-sessions.test.tsx          |   35 +-
  components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
  components/StudentDialog/PaymentModal.test.tsx     |   21 +-
- .../projectdialog/ProjectDatabaseDetailContent.tsx |  143 +
+ .../projectdialog/ProjectDatabaseDetailContent.tsx |  167 +
  .../projectdialog/ProjectDatabaseDetailDialog.tsx  |   44 +
  .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
- context-bundle.md                                  | 4701 +++++++++++++++++---
+ context-bundle.md                                  | 4705 +++++++++++++++++---
  cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
  docs/context/PR-251.md                             | 4067 +++++++++++++++++
- docs/context/PR-252.md                             |    1 +
+ docs/context/PR-252.md                             | 4069 +++++++++++++++++
  jest.config.cjs                                    |    2 +
  lib/erlDirectory.test.ts                           |    4 +-
  lib/projectsDatabase.ts                            |  109 +-
  lib/projectsDatabaseSelection.ts                   |   30 +
  pages/api/projects-database/[year]/[projectId].ts  |   63 +
  .../businesses/projects-database/[groupId].tsx     |  111 +-
- .../businesses/projects-database/window.tsx        |  105 +
- 24 files changed, 9045 insertions(+), 1006 deletions(-)
+ .../businesses/projects-database/window.tsx        |  107 +
+ vercel.json                                        |    6 +
+ 25 files changed, 13148 insertions(+), 1007 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -495,21 +497,30 @@ index 3d4b44f..81908ef 100644
      expect(data.accountDocId).toBeUndefined()
 diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
 new file mode 100644
-index 0000000..bf790c6
+index 0000000..fb006cf
 --- /dev/null
 +++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-@@ -0,0 +1,143 @@
+@@ -0,0 +1,167 @@
 +import { useMemo } from 'react'
 +
-+import { Box, Chip, Divider, IconButton, Link, Stack, Typography } from '@mui/material'
++import {
++  Box,
++  Chip,
++  Divider,
++  IconButton,
++  Link,
++  Stack,
++  Typography,
++} from '@mui/material'
 +import CloseIcon from '@mui/icons-material/Close'
 +import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
++import { Cormorant_Infant, Yuji_Mai } from 'next/font/google'
 +
 +import type { ProjectRecord } from '../../lib/projectsDatabase'
 +import type { ReactNode } from 'react'
-+import { Cormorant_Infant } from 'next/font/google'
 +
-+const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600' })
++const yujiMai = Yuji_Mai({ subsets: ['latin'], weight: '400', display: 'swap' })
++const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600', display: 'swap' })
 +
 +const textOrNA = (value: string | null | undefined) =>
 +  value && value.trim().length > 0 ? value : 'N/A'
@@ -584,17 +595,24 @@ index 0000000..bf790c6
 +
 +  const rawPresenter = textOrNA(project.presenterWorkType)
 +  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
++  const hasCjkInTitle = Boolean(
++    project.projectTitle && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(project.projectTitle)
++  )
 +
 +  return (
 +    <Stack spacing={1.2}>
-+      <Stack
-+        direction={{ xs: 'column', sm: 'row' }}
-+        justifyContent="space-between"
-+        alignItems={{ xs: 'flex-start', sm: 'center' }}
-+        spacing={2}
-+      >
-+        <Stack spacing={0.5} sx={{ width: '100%' }}>
-+          <Stack direction="row" alignItems="center" spacing={1}>
++      <Stack spacing={0.75} sx={{ width: '100%' }}>
++        <Box
++          sx={{
++            display: 'flex',
++            alignItems: 'center',
++            flexWrap: 'wrap',
++            columnGap: 1,
++            rowGap: 0.75,
++            width: '100%',
++          }}
++        >
++          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
 +            <Typography variant="subtitle1" color="text.secondary">
 +              {project.projectNumber}
 +            </Typography>
@@ -603,28 +621,36 @@ index 0000000..bf790c6
 +                <EditOutlinedIcon fontSize="small" />
 +              </IconButton>
 +            )}
-+          </Stack>
-+          <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
-+            {presenterText}
-+          </Typography>
-+          <Typography variant="h4" sx={{ fontFamily: 'Cantata One', lineHeight: 1.2 }}>
-+            {textOrNA(project.projectTitle)}
-+          </Typography>
-+          <Typography variant="body1" color="text.secondary">
-+            {textOrNA(project.projectNature)}
-+          </Typography>
-+        </Stack>
-+        <Stack direction="row" spacing={0.75} alignItems="center">
++          </Box>
 +          {project.subsidiary && (
 +            <Chip label={textOrNA(project.subsidiary)} variant="outlined" size="small" />
 +          )}
-+          {headerActions}
-+          {onClose && (
-+            <IconButton onClick={onClose} aria-label="close project details" size="small">
-+              <CloseIcon fontSize="small" />
-+            </IconButton>
-+          )}
-+        </Stack>
++          <Box sx={{ flexGrow: 1 }} />
++          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
++            {headerActions}
++            {onClose && (
++              <IconButton onClick={onClose} aria-label="close project details" size="small">
++                <CloseIcon fontSize="small" />
++              </IconButton>
++            )}
++          </Box>
++        </Box>
++        <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
++          {presenterText}
++        </Typography>
++        <Typography
++          variant="h4"
++          className={hasCjkInTitle ? yujiMai.className : undefined}
++          sx={{
++            fontFamily: hasCjkInTitle ? undefined : 'Cantata One',
++            lineHeight: 1.2,
++          }}
++        >
++          {textOrNA(project.projectTitle)}
++        </Typography>
++        <Typography variant="body1" color="text.secondary">
++          {textOrNA(project.projectNature)}
++        </Typography>
 +      </Stack>
 +
 +      <Divider />
@@ -994,17 +1020,17 @@ index 0000000..a13c7f7
 +  )
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 8756e36..2e955d9 100644
+index 8756e36..3abcf5d 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
-@@ -1,810 +1,4067 @@
+@@ -1,810 +1,4069 @@
 -# PR #249 — Diff Summary
 +# PR #252 — Diff Summary
  
 -- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 -- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 +- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-+- **Head (source)**: `c2dd9ea1d98d60c61a8ab4aac1affd04d5187535`
++- **Head (source)**: `2d79a4603a117a5ab7549baded77331bafeef463`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -1032,6 +1058,7 @@ index 8756e36..2e955d9 100644
 +M	context-bundle.md
 +M	cypress/e2e/add_payment_cascade.cy.tsx
 +A	docs/context/PR-251.md
++A	docs/context/PR-252.md
 +M	jest.config.cjs
 +M	lib/erlDirectory.test.ts
 +M	lib/projectsDatabase.ts
@@ -1061,20 +1088,21 @@ index 8756e36..2e955d9 100644
 + .../businesses/coaching-sessions.test.tsx          |   35 +-
 + components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
 + components/StudentDialog/PaymentModal.test.tsx     |   21 +-
-+ .../projectdialog/ProjectDatabaseDetailContent.tsx |  150 +
-+ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |   57 +
++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  143 +
++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |   44 +
 + .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
-+ context-bundle.md                                  | 4695 +++++++++++++++++---
++ context-bundle.md                                  | 4701 +++++++++++++++++---
 + cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
 + docs/context/PR-251.md                             | 4067 +++++++++++++++++
++ docs/context/PR-252.md                             |    1 +
 + jest.config.cjs                                    |    2 +
 + lib/erlDirectory.test.ts                           |    4 +-
 + lib/projectsDatabase.ts                            |  109 +-
 + lib/projectsDatabaseSelection.ts                   |   30 +
 + pages/api/projects-database/[year]/[projectId].ts  |   63 +
 + .../businesses/projects-database/[groupId].tsx     |  111 +-
-+ .../businesses/projects-database/window.tsx        |  114 +
-+ 23 files changed, 9070 insertions(+), 1003 deletions(-)
++ .../businesses/projects-database/window.tsx        |  105 +
++ 24 files changed, 9045 insertions(+), 1006 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1104,6 +1132,7 @@ index 8756e36..2e955d9 100644
 -+++ b/lib/firebase.ts
 -@@ -17,13 +17,19 @@ Object.entries(firebaseConfig).forEach(([k, v]) => {
 -   console.log(`   ${k}: ${v}`)
+- })
 +diff --git a/.github/workflows/context-bundle-pr.yml b/.github/workflows/context-bundle-pr.yml
 +index eae6a8a..73f53ce 100644
 +--- a/.github/workflows/context-bundle-pr.yml
@@ -1111,7 +1140,14 @@ index 8756e36..2e955d9 100644
 +@@ -53,31 +53,11 @@ jobs:
 +           git commit -m "chore(context): update PR #${{ github.event.number }}"
 +           git push origin HEAD:${{ github.head_ref }}
-+ 
+  
+--const databaseId = 'mel-sessions'
+--console.log('📚 Firestore database ID:', databaseId)
+-+const DEFAULT_DATABASE_ID = 'mel-sessions'
+-+const PROJECTS_DATABASE_ID = 'epl-projects'
+-+
+-+console.log('📚 Firestore database ID:', DEFAULT_DATABASE_ID)
+-+console.log('📚 Firestore projects database ID:', PROJECTS_DATABASE_ID)
 +-      # 🔗 Upsert a single comment with evergreen & snapshot links
 +-      - name: Comment links on PR
 +-        if: always()
@@ -1155,7 +1191,65 @@ index 8756e36..2e955d9 100644
 +@@ -1,36 +1,22 @@
 +-name: Deploy Codex PR to Vercel Production
 ++name: Deploy to Vercel Production
-+ 
+  
+- export const app = !getApps().length
+-   ? initializeApp(firebaseConfig)
+-   : getApp()
+--export const db = getFirestore(app, databaseId)
+-+export const db = getFirestore(app, DEFAULT_DATABASE_ID)
+-+export const projectsDb = getFirestore(app, PROJECTS_DATABASE_ID)
+-+export const PROJECTS_FIRESTORE_DATABASE_ID = PROJECTS_DATABASE_ID
+-+export const getFirestoreForDatabase = (databaseId: string) => getFirestore(app, databaseId)
+- // after you create/export `db`...
+- if (typeof window !== 'undefined') {
+-   // @ts-expect-error attach for debugging
+-diff --git a/lib/projectsDatabase.ts b/lib/projectsDatabase.ts
+-new file mode 100644
+-index 0000000..4c054ce
+---- /dev/null
+-+++ b/lib/projectsDatabase.ts
+-@@ -0,0 +1,220 @@
+-+// lib/projectsDatabase.ts
+-+
+-+import { collection, getDocs, Timestamp } from 'firebase/firestore'
+-+
+-+import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from './firebase'
+-+
+-+const YEAR_ID_PATTERN = /^\d{4}$/
+-+const FALLBACK_YEAR_IDS = ['2025', '2024', '2023', '2022', '2021']
+-+
+-+interface ListCollectionIdsResponse {
+-+  collectionIds?: string[]
+-+  error?: { message?: string }
+-+}
+-+
+-+export interface ProjectRecord {
+-+  id: string
+-+  year: string
+-+  amount: number | null
+-+  clientCompany: string | null
+-+  invoice: string | null
+-+  onDateDisplay: string | null
+-+  onDateIso: string | null
+-+  paid: boolean | null
+-+  paidTo: string | null
+-+  presenterWorkType: string | null
+-+  projectDateDisplay: string | null
+-+  projectDateIso: string | null
+-+  projectNature: string | null
+-+  projectNumber: string
+-+  projectTitle: string | null
+-+  subsidiary: string | null
+-+}
+-+
+-+export interface ProjectsDatabaseResult {
+-+  projects: ProjectRecord[]
+-+  years: string[]
+-+}
+-+
+-+const toTimestamp = (value: unknown): Timestamp | null => {
+-+  if (value instanceof Timestamp) {
+-+    return value
 + on:
 +-  push:
 +-    branches:
@@ -1420,21 +1514,41 @@ index 8756e36..2e955d9 100644
 ++jest.mock('../../../../components/StudentDialog/OverviewTab', () => {
 ++  function OverviewTabMock() {
 ++    return null
-++  }
+ +  }
+-+  if (
+-+    value &&
+-+    typeof value === 'object' &&
+-+    'seconds' in value &&
+-+    'nanoseconds' in value &&
+-+    typeof (value as any).seconds === 'number' &&
+-+    typeof (value as any).nanoseconds === 'number'
+-+  ) {
+-+    return new Timestamp((value as any).seconds, (value as any).nanoseconds)
 ++  OverviewTabMock.displayName = 'OverviewTabMock'
 ++  return OverviewTabMock
 ++})
 ++jest.mock('../../../../components/StudentDialog/SessionDetail', () => {
 ++  function SessionDetailMock() {
 ++    return null
-++  }
+ +  }
+-+  return null
+-+}
+-+
+-+const toDate = (value: unknown): Date | null => {
+-+  const ts = toTimestamp(value)
+-+  if (ts) {
+-+    const date = ts.toDate()
+-+    return isNaN(date.getTime()) ? null : date
 ++  SessionDetailMock.displayName = 'SessionDetailMock'
 ++  return SessionDetailMock
 ++})
 ++jest.mock('../../../../components/StudentDialog/FloatingWindow', () => {
 ++  function FloatingWindowMock({ children }: any) {
 ++    return <div>{children}</div>
-++  }
+ +  }
+-+  if (typeof value === 'string' || value instanceof String) {
+-+    const parsed = new Date(value as string)
+-+    return isNaN(parsed.getTime()) ? null : parsed
 ++  FloatingWindowMock.displayName = 'FloatingWindowMock'
 ++  return FloatingWindowMock
 ++})
@@ -1445,7 +1559,9 @@ index 8756e36..2e955d9 100644
 ++jest.mock('../../../../components/LoadingDash', () => {
 ++  function LoadingDashMock() {
 ++    return null
-++  }
+ +  }
+-+  if (value instanceof Date) {
+-+    return isNaN(value.getTime()) ? null : value
 ++  LoadingDashMock.displayName = 'LoadingDashMock'
 ++  return LoadingDashMock
 ++})
@@ -1455,7 +1571,7 @@ index 8756e36..2e955d9 100644
 +@@ -51,4 +73,3 @@ describe('coaching sessions card view', () => {
 +     expect(screen.queryByTestId('pprompt-badge')).toBeNull()
 +   })
-  })
++ })
 +-
 +diff --git a/components/StudentDialog/PaymentHistory.test.tsx b/components/StudentDialog/PaymentHistory.test.tsx
 +index e850e7a..e2560e9 100644
@@ -1464,35 +1580,18 @@ index 8756e36..2e955d9 100644
 +@@ -6,7 +6,13 @@ import '@testing-library/jest-dom'
 + import { render, screen, waitFor } from '@testing-library/react'
 + import PaymentHistory from './PaymentHistory'
-  
---const databaseId = 'mel-sessions'
---console.log('📚 Firestore database ID:', databaseId)
--+const DEFAULT_DATABASE_ID = 'mel-sessions'
--+const PROJECTS_DATABASE_ID = 'epl-projects'
--+
--+console.log('📚 Firestore database ID:', DEFAULT_DATABASE_ID)
--+console.log('📚 Firestore projects database ID:', PROJECTS_DATABASE_ID)
++ 
 +-jest.mock('./PaymentModal', () => () => <div />)
 ++jest.mock('./PaymentModal', () => {
 ++  function PaymentModalMock() {
 ++    return <div />
-++  }
+ +  }
+-+  return null
+-+}
 ++  PaymentModalMock.displayName = 'PaymentModalMock'
 ++  return PaymentModalMock
 ++})
-  
-- export const app = !getApps().length
--   ? initializeApp(firebaseConfig)
--   : getApp()
---export const db = getFirestore(app, databaseId)
--+export const db = getFirestore(app, DEFAULT_DATABASE_ID)
--+export const projectsDb = getFirestore(app, PROJECTS_DATABASE_ID)
--+export const PROJECTS_FIRESTORE_DATABASE_ID = PROJECTS_DATABASE_ID
--+export const getFirestoreForDatabase = (databaseId: string) => getFirestore(app, databaseId)
-- // after you create/export `db`...
-- if (typeof window !== 'undefined') {
--   // @ts-expect-error attach for debugging
--diff --git a/lib/projectsDatabase.ts b/lib/projectsDatabase.ts
++ 
 + jest.mock('firebase/firestore', () => ({
 +   collection: jest.fn(),
 +diff --git a/components/StudentDialog/PaymentModal.test.tsx b/components/StudentDialog/PaymentModal.test.tsx
@@ -1551,100 +1650,12 @@ index 8756e36..2e955d9 100644
 +     expect(data.bankCode).toBeUndefined()
 +     expect(data.accountDocId).toBeUndefined()
 +diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
- new file mode 100644
--index 0000000..4c054ce
-+index 0000000..f1175ac
- --- /dev/null
--+++ b/lib/projectsDatabase.ts
--@@ -0,0 +1,220 @@
--+// lib/projectsDatabase.ts
--+
--+import { collection, getDocs, Timestamp } from 'firebase/firestore'
--+
--+import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from './firebase'
++new file mode 100644
++index 0000000..bf790c6
++--- /dev/null
 ++++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-+@@ -0,0 +1,150 @@
++@@ -0,0 +1,143 @@
 ++import { useMemo } from 'react'
- +
--+const YEAR_ID_PATTERN = /^\d{4}$/
--+const FALLBACK_YEAR_IDS = ['2025', '2024', '2023', '2022', '2021']
-++import { Box, Chip, Divider, IconButton, Link, Stack, Typography } from '@mui/material'
-++import CloseIcon from '@mui/icons-material/Close'
- +
--+interface ListCollectionIdsResponse {
--+  collectionIds?: string[]
--+  error?: { message?: string }
--+}
-++import type { ProjectRecord } from '../../lib/projectsDatabase'
-++import type { ReactNode } from 'react'
-++import { Cormorant_Infant } from 'next/font/google'
- +
--+export interface ProjectRecord {
--+  id: string
--+  year: string
--+  amount: number | null
--+  clientCompany: string | null
--+  invoice: string | null
--+  onDateDisplay: string | null
--+  onDateIso: string | null
--+  paid: boolean | null
--+  paidTo: string | null
--+  presenterWorkType: string | null
--+  projectDateDisplay: string | null
--+  projectDateIso: string | null
--+  projectNature: string | null
--+  projectNumber: string
--+  projectTitle: string | null
--+  subsidiary: string | null
--+}
-++const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600' })
- +
--+export interface ProjectsDatabaseResult {
--+  projects: ProjectRecord[]
--+  years: string[]
--+}
--+
--+const toTimestamp = (value: unknown): Timestamp | null => {
--+  if (value instanceof Timestamp) {
--+    return value
--+  }
--+  if (
--+    value &&
--+    typeof value === 'object' &&
--+    'seconds' in value &&
--+    'nanoseconds' in value &&
--+    typeof (value as any).seconds === 'number' &&
--+    typeof (value as any).nanoseconds === 'number'
--+  ) {
--+    return new Timestamp((value as any).seconds, (value as any).nanoseconds)
--+  }
--+  return null
--+}
-++const textOrNA = (value: string | null | undefined) =>
-++  value && value.trim().length > 0 ? value : 'N/A'
- +
--+const toDate = (value: unknown): Date | null => {
--+  const ts = toTimestamp(value)
--+  if (ts) {
--+    const date = ts.toDate()
--+    return isNaN(date.getTime()) ? null : date
--+  }
--+  if (typeof value === 'string' || value instanceof String) {
--+    const parsed = new Date(value as string)
--+    return isNaN(parsed.getTime()) ? null : parsed
-++const formatAmount = (value: number | null | undefined) => {
-++  if (typeof value !== 'number' || Number.isNaN(value)) {
-++    return 'HK$0'
- +  }
--+  if (value instanceof Date) {
--+    return isNaN(value.getTime()) ? null : value
--+  }
--+  return null
-++  return `HK$${value.toLocaleString('en-US', {
-++    minimumFractionDigits: 0,
-++    maximumFractionDigits: 2,
-++  })}`
- +}
  +
 -+const formatDisplayDate = (value: unknown): string | null => {
 -+  const date = toDate(value)
@@ -1654,6 +1665,63 @@ index 8756e36..2e955d9 100644
 -+    day: '2-digit',
 -+    year: 'numeric',
 -+  })
+-+}
+++import { Box, Chip, Divider, IconButton, Link, Stack, Typography } from '@mui/material'
+++import CloseIcon from '@mui/icons-material/Close'
+++import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+ +
+-+const toIsoDate = (value: unknown): string | null => {
+-+  const date = toDate(value)
+-+  if (!date) return null
+-+  return date.toISOString()
+-+}
+++import type { ProjectRecord } from '../../lib/projectsDatabase'
+++import type { ReactNode } from 'react'
+++import { Cormorant_Infant } from 'next/font/google'
+ +
+-+const toStringValue = (value: unknown): string | null => {
+-+  if (typeof value === 'string') {
+-+    return value.trim() || null
+-+  }
+-+  if (value instanceof String) {
+-+    const trimmed = value.toString().trim()
+-+    return trimmed || null
+-+  }
+-+  return null
+-+}
+++const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600' })
+ +
+-+const toNumberValue = (value: unknown): number | null => {
+-+  if (typeof value === 'number' && !Number.isNaN(value)) {
+-+    return value
+-+  }
+-+  if (typeof value === 'string') {
+-+    const parsed = Number(value)
+-+    return Number.isNaN(parsed) ? null : parsed
+-+  }
+-+  return null
+-+}
+++const textOrNA = (value: string | null | undefined) =>
+++  value && value.trim().length > 0 ? value : 'N/A'
+ +
+-+const toBooleanValue = (value: unknown): boolean | null => {
+-+  if (typeof value === 'boolean') {
+-+    return value
+++const formatAmount = (value: number | null | undefined) => {
+++  if (typeof value !== 'number' || Number.isNaN(value)) {
+++    return 'HK$0'
+ +  }
+-+  return null
+++  return `HK$${value.toLocaleString('en-US', {
+++    minimumFractionDigits: 0,
+++    maximumFractionDigits: 2,
+++  })}`
+ +}
+ +
+-+const uniqueSortedYears = (values: Iterable<string>) =>
+-+  Array.from(new Set(values)).sort((a, b) =>
+-+    b.localeCompare(a, undefined, { numeric: true })
+-+  )
 ++const labelSx = {
 ++  fontFamily: 'Calibri, "Segoe UI", sans-serif',
 ++  fontWeight: 400,
@@ -1669,20 +1737,18 @@ index 8756e36..2e955d9 100644
 ++interface ProjectDatabaseDetailContentProps {
 ++  project: ProjectRecord
 ++  headerActions?: ReactNode
-++  footerActions?: ReactNode
 ++  onClose?: () => void
- +}
+++  onEdit?: () => void
+++}
  +
--+const toIsoDate = (value: unknown): string | null => {
--+  const date = toDate(value)
--+  if (!date) return null
--+  return date.toISOString()
--+}
+-+const listYearCollections = async (): Promise<string[]> => {
+-+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+-+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
 ++export default function ProjectDatabaseDetailContent({
 ++  project,
 ++  headerActions,
-++  footerActions,
 ++  onClose,
+++  onEdit,
 ++}: ProjectDatabaseDetailContentProps) {
 ++  const detailItems = useMemo(() => {
 ++    const invoiceValue: ReactNode = project.invoice
@@ -1702,14 +1768,12 @@ index 8756e36..2e955d9 100644
 ++
 ++    return [
 ++      { label: 'Client Company', value: textOrNA(project.clientCompany) },
-++      { label: 'Subsidiary', value: textOrNA(project.subsidiary) },
-++      { label: 'Presenter Work Type', value: textOrNA(project.presenterWorkType) },
 ++      {
 ++        label: 'Project Pickup Date',
 ++        value: project.projectDateDisplay ?? '-',
 ++      },
 ++      { label: 'Amount', value: formatAmount(project.amount) },
-++      { label: 'Paid', value: project.paid ? 'Yes' : 'No' },
+++      { label: 'Paid', value: project.paid ? '🤑' : '👎🏻' },
 ++      {
 ++        label: 'Paid On',
 ++        value: project.paid ? project.onDateDisplay ?? '-' : '-',
@@ -1719,27 +1783,14 @@ index 8756e36..2e955d9 100644
 ++    ] satisfies Array<{ label: string; value: ReactNode }>
 ++  }, [project])
  +
--+const toStringValue = (value: unknown): string | null => {
--+  if (typeof value === 'string') {
--+    return value.trim() || null
+-+  if (!apiKey || !projectId) {
+-+    console.warn('[projectsDatabase] Missing Firebase configuration, falling back to defaults')
+-+    return [...FALLBACK_YEAR_IDS]
 -+  }
--+  if (value instanceof String) {
--+    const trimmed = value.toString().trim()
--+    return trimmed || null
--+  }
--+  return null
--+}
-++  const presenterText = textOrNA(project.presenterWorkType)
+++  const rawPresenter = textOrNA(project.presenterWorkType)
+++  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
  +
--+const toNumberValue = (value: unknown): number | null => {
--+  if (typeof value === 'number' && !Number.isNaN(value)) {
--+    return value
--+  }
--+  if (typeof value === 'string') {
--+    const parsed = Number(value)
--+    return Number.isNaN(parsed) ? null : parsed
--+  }
--+  return null
+-+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
 ++  return (
 ++    <Stack spacing={1.2}>
 ++      <Stack
@@ -1749,9 +1800,16 @@ index 8756e36..2e955d9 100644
 ++        spacing={2}
 ++      >
 ++        <Stack spacing={0.5} sx={{ width: '100%' }}>
-++          <Typography variant="subtitle1" color="text.secondary">
-++            {project.projectNumber}
-++          </Typography>
+++          <Stack direction="row" alignItems="center" spacing={1}>
+++            <Typography variant="subtitle1" color="text.secondary">
+++              {project.projectNumber}
+++            </Typography>
+++            {onEdit && (
+++              <IconButton onClick={onEdit} aria-label="Edit project" size="small">
+++                <EditOutlinedIcon fontSize="small" />
+++              </IconButton>
+++            )}
+++          </Stack>
 ++          <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
 ++            {presenterText}
 ++          </Typography>
@@ -1759,13 +1817,12 @@ index 8756e36..2e955d9 100644
 ++            {textOrNA(project.projectTitle)}
 ++          </Typography>
 ++          <Typography variant="body1" color="text.secondary">
-++            — {textOrNA(project.projectNature)}
+++            {textOrNA(project.projectNature)}
 ++          </Typography>
 ++        </Stack>
 ++        <Stack direction="row" spacing={0.75} alignItems="center">
-++          <Chip label={project.year} color="primary" variant="outlined" />
 ++          {project.subsidiary && (
-++            <Chip label={project.subsidiary} variant="outlined" />
+++            <Chip label={textOrNA(project.subsidiary)} variant="outlined" size="small" />
 ++          )}
 ++          {headerActions}
 ++          {onClose && (
@@ -1782,54 +1839,46 @@ index 8756e36..2e955d9 100644
 ++        {detailItems.map(({ label, value }) => (
 ++          <Box key={label}>
 ++            <Typography sx={labelSx}>{label}:</Typography>
-++            <Typography
-++              component="div"
-++              sx={valueSx}
-++              className={cormorantSemi.className}
-++            >
+++            <Typography component="div" sx={valueSx} className={cormorantSemi.className}>
 ++              {value}
 ++            </Typography>
 ++          </Box>
 ++        ))}
 ++      </Stack>
-++
-++      {footerActions && (
-++        <>
-++          <Divider />
-++          <Stack direction="row" justifyContent="flex-end" spacing={1.5}>
-++            {footerActions}
-++          </Stack>
-++        </>
-++      )}
 ++    </Stack>
 ++  )
- +}
+++}
 +diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
 +new file mode 100644
-+index 0000000..f123feb
++index 0000000..2efd125
 +--- /dev/null
 ++++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-+@@ -0,0 +1,57 @@
-++import { Button, Dialog, DialogContent } from '@mui/material'
++@@ -0,0 +1,44 @@
+++import { Dialog, DialogContent } from '@mui/material'
  +
--+const toBooleanValue = (value: unknown): boolean | null => {
--+  if (typeof value === 'boolean') {
--+    return value
--+  }
--+  return null
--+}
+-+  try {
+-+    const response = await fetch(url, {
+-+      method: 'POST',
+-+      headers: { 'Content-Type': 'application/json' },
+-+      body: JSON.stringify({
+-+        parent: `projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents`,
+-+        pageSize: 200,
+-+      }),
+-+    })
 ++import type { ReactNode } from 'react'
  +
--+const uniqueSortedYears = (values: Iterable<string>) =>
--+  Array.from(new Set(values)).sort((a, b) =>
--+    b.localeCompare(a, undefined, { numeric: true })
--+  )
+-+    if (!response.ok) {
+-+      console.warn('[projectsDatabase] Failed to list collection IDs:', response.status, response.statusText)
+-+      return [...FALLBACK_YEAR_IDS]
+-+    }
 ++import type { ProjectRecord } from '../../lib/projectsDatabase'
 ++import ProjectDatabaseDetailContent from './ProjectDatabaseDetailContent'
  +
--+const listYearCollections = async (): Promise<string[]> => {
--+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
--+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+-+    const json = (await response.json()) as ListCollectionIdsResponse
+-+    if (json.error) {
+-+      console.warn('[projectsDatabase] Firestore responded with error:', json.error.message)
+-+      return [...FALLBACK_YEAR_IDS]
+-+    }
 ++interface ProjectDatabaseDetailDialogProps {
 ++  open: boolean
 ++  onClose: () => void
@@ -1838,8 +1887,14 @@ index 8756e36..2e955d9 100644
 ++  headerActions?: ReactNode
 ++}
  +
--+  if (!apiKey || !projectId) {
--+    console.warn('[projectsDatabase] Missing Firebase configuration, falling back to defaults')
+-+    const ids = json.collectionIds?.filter((id) => YEAR_ID_PATTERN.test(id)) ?? []
+-+    if (ids.length === 0) {
+-+      console.warn('[projectsDatabase] No year collections found, falling back to defaults')
+-+      return [...FALLBACK_YEAR_IDS]
+-+    }
+-+    return uniqueSortedYears(ids)
+-+  } catch (err) {
+-+    console.warn('[projectsDatabase] listYearCollections failed:', err)
 -+    return [...FALLBACK_YEAR_IDS]
 ++export default function ProjectDatabaseDetailDialog({
 ++  open,
@@ -1851,54 +1906,8 @@ index 8756e36..2e955d9 100644
 ++  if (!project) {
 ++    return null
  +  }
- +
--+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
--+
--+  try {
--+    const response = await fetch(url, {
--+      method: 'POST',
--+      headers: { 'Content-Type': 'application/json' },
--+      body: JSON.stringify({
--+        parent: `projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents`,
--+        pageSize: 200,
--+      }),
--+    })
--+
--+    if (!response.ok) {
--+      console.warn('[projectsDatabase] Failed to list collection IDs:', response.status, response.statusText)
--+      return [...FALLBACK_YEAR_IDS]
--+    }
--+
--+    const json = (await response.json()) as ListCollectionIdsResponse
--+    if (json.error) {
--+      console.warn('[projectsDatabase] Firestore responded with error:', json.error.message)
--+      return [...FALLBACK_YEAR_IDS]
--+    }
-++  const footerActions = [
-++    <Button key="close" onClick={onClose}>
-++      Close
-++    </Button>,
-++    ...(onEdit
-++      ? [
-++          <Button key="edit" variant="contained" onClick={onEdit}>
-++            Edit
-++          </Button>,
-++        ]
-++      : []),
-++  ]
- +
--+    const ids = json.collectionIds?.filter((id) => YEAR_ID_PATTERN.test(id)) ?? []
--+    if (ids.length === 0) {
--+      console.warn('[projectsDatabase] No year collections found, falling back to defaults')
--+      return [...FALLBACK_YEAR_IDS]
--+    }
--+    return uniqueSortedYears(ids)
--+  } catch (err) {
--+    console.warn('[projectsDatabase] listYearCollections failed:', err)
--+    return [...FALLBACK_YEAR_IDS]
--+  }
 -+}
--+
+ +
 -+export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResult> => {
 -+  const yearIds = await listYearCollections()
 -+  const projects: ProjectRecord[] = []
@@ -1950,8 +1959,8 @@ index 8756e36..2e955d9 100644
 ++        <ProjectDatabaseDetailContent
 ++          project={project}
 ++          headerActions={headerActions}
-++          footerActions={footerActions}
 ++          onClose={onClose}
+++          onEdit={onEdit}
 ++        />
 ++      </DialogContent>
 ++    </Dialog>
@@ -2734,17 +2743,17 @@ index 8756e36..2e955d9 100644
 -+
 -+export default ProjectsDatabaseIndex
 +diff --git a/context-bundle.md b/context-bundle.md
-+index 8756e36..bf36329 100644
++index 8756e36..2e955d9 100644
 +--- a/context-bundle.md
 ++++ b/context-bundle.md
 +@@ -1,810 +1,4067 @@
 +-# PR #249 — Diff Summary
-++# PR #251 — Diff Summary
+++# PR #252 — Diff Summary
 + 
 +-- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 +-- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 ++- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-++- **Head (source)**: `055be19894ab12aa951322f8631c0b6a0a0a4133`
+++- **Head (source)**: `c2dd9ea1d98d60c61a8ab4aac1affd04d5187535`
 + - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 + 
 + ## Changed Files
@@ -2801,20 +2810,20 @@ index 8756e36..2e955d9 100644
 ++ .../businesses/coaching-sessions.test.tsx          |   35 +-
 ++ components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
 ++ components/StudentDialog/PaymentModal.test.tsx     |   21 +-
-++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  135 +
-++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  119 +
+++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  150 +
+++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |   57 +
 ++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
-++ context-bundle.md                                  | 4711 +++++++++++++++++---
+++ context-bundle.md                                  | 4695 +++++++++++++++++---
 ++ cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
-++ docs/context/PR-251.md                             | 4065 +++++++++++++++++
+++ docs/context/PR-251.md                             | 4067 +++++++++++++++++
 ++ jest.config.cjs                                    |    2 +
 ++ lib/erlDirectory.test.ts                           |    4 +-
 ++ lib/projectsDatabase.ts                            |  109 +-
 ++ lib/projectsDatabaseSelection.ts                   |   30 +
 ++ pages/api/projects-database/[year]/[projectId].ts  |   63 +
-++ .../businesses/projects-database/[groupId].tsx     |  131 +-
+++ .../businesses/projects-database/[groupId].tsx     |  111 +-
 ++ .../businesses/projects-database/window.tsx        |  114 +
-++ 23 files changed, 9142 insertions(+), 1012 deletions(-)
+++ 23 files changed, 9070 insertions(+), 1003 deletions(-)
 + ```
 + 
 + ## Unified Diff (truncated to first 4000 lines)
@@ -2844,7 +2853,6 @@ index 8756e36..2e955d9 100644
 +-+++ b/lib/firebase.ts
 +-@@ -17,13 +17,19 @@ Object.entries(firebaseConfig).forEach(([k, v]) => {
 +-   console.log(`   ${k}: ${v}`)
-+- })
 ++diff --git a/.github/workflows/context-bundle-pr.yml b/.github/workflows/context-bundle-pr.yml
 ++index eae6a8a..73f53ce 100644
 ++--- a/.github/workflows/context-bundle-pr.yml
@@ -2852,14 +2860,7 @@ index 8756e36..2e955d9 100644
 ++@@ -53,31 +53,11 @@ jobs:
 ++           git commit -m "chore(context): update PR #${{ github.event.number }}"
 ++           git push origin HEAD:${{ github.head_ref }}
-+  
-+--const databaseId = 'mel-sessions'
-+--console.log('📚 Firestore database ID:', databaseId)
-+-+const DEFAULT_DATABASE_ID = 'mel-sessions'
-+-+const PROJECTS_DATABASE_ID = 'epl-projects'
-+-+
-+-+console.log('📚 Firestore database ID:', DEFAULT_DATABASE_ID)
-+-+console.log('📚 Firestore projects database ID:', PROJECTS_DATABASE_ID)
+++ 
 ++-      # 🔗 Upsert a single comment with evergreen & snapshot links
 ++-      - name: Comment links on PR
 ++-        if: always()
@@ -2903,65 +2904,7 @@ index 8756e36..2e955d9 100644
 ++@@ -1,36 +1,22 @@
 ++-name: Deploy Codex PR to Vercel Production
 +++name: Deploy to Vercel Production
-+  
-+- export const app = !getApps().length
-+-   ? initializeApp(firebaseConfig)
-+-   : getApp()
-+--export const db = getFirestore(app, databaseId)
-+-+export const db = getFirestore(app, DEFAULT_DATABASE_ID)
-+-+export const projectsDb = getFirestore(app, PROJECTS_DATABASE_ID)
-+-+export const PROJECTS_FIRESTORE_DATABASE_ID = PROJECTS_DATABASE_ID
-+-+export const getFirestoreForDatabase = (databaseId: string) => getFirestore(app, databaseId)
-+- // after you create/export `db`...
-+- if (typeof window !== 'undefined') {
-+-   // @ts-expect-error attach for debugging
-+-diff --git a/lib/projectsDatabase.ts b/lib/projectsDatabase.ts
-+-new file mode 100644
-+-index 0000000..4c054ce
-+---- /dev/null
-+-+++ b/lib/projectsDatabase.ts
-+-@@ -0,0 +1,220 @@
-+-+// lib/projectsDatabase.ts
-+-+
-+-+import { collection, getDocs, Timestamp } from 'firebase/firestore'
-+-+
-+-+import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from './firebase'
-+-+
-+-+const YEAR_ID_PATTERN = /^\d{4}$/
-+-+const FALLBACK_YEAR_IDS = ['2025', '2024', '2023', '2022', '2021']
-+-+
-+-+interface ListCollectionIdsResponse {
-+-+  collectionIds?: string[]
-+-+  error?: { message?: string }
-+-+}
-+-+
-+-+export interface ProjectRecord {
-+-+  id: string
-+-+  year: string
-+-+  amount: number | null
-+-+  clientCompany: string | null
-+-+  invoice: string | null
-+-+  onDateDisplay: string | null
-+-+  onDateIso: string | null
-+-+  paid: boolean | null
-+-+  paidTo: string | null
-+-+  presenterWorkType: string | null
-+-+  projectDateDisplay: string | null
-+-+  projectDateIso: string | null
-+-+  projectNature: string | null
-+-+  projectNumber: string
-+-+  projectTitle: string | null
-+-+  subsidiary: string | null
-+-+}
-+-+
-+-+export interface ProjectsDatabaseResult {
-+-+  projects: ProjectRecord[]
-+-+  years: string[]
-+-+}
-+-+
-+-+const toTimestamp = (value: unknown): Timestamp | null => {
-+-+  if (value instanceof Timestamp) {
-+-+    return value
+++ 
 ++ on:
 ++-  push:
 ++-    branches:
@@ -3226,41 +3169,21 @@ index 8756e36..2e955d9 100644
 +++jest.mock('../../../../components/StudentDialog/OverviewTab', () => {
 +++  function OverviewTabMock() {
 +++    return null
-+ +  }
-+-+  if (
-+-+    value &&
-+-+    typeof value === 'object' &&
-+-+    'seconds' in value &&
-+-+    'nanoseconds' in value &&
-+-+    typeof (value as any).seconds === 'number' &&
-+-+    typeof (value as any).nanoseconds === 'number'
-+-+  ) {
-+-+    return new Timestamp((value as any).seconds, (value as any).nanoseconds)
++++  }
 +++  OverviewTabMock.displayName = 'OverviewTabMock'
 +++  return OverviewTabMock
 +++})
 +++jest.mock('../../../../components/StudentDialog/SessionDetail', () => {
 +++  function SessionDetailMock() {
 +++    return null
-+ +  }
-+-+  return null
-+-+}
-+-+
-+-+const toDate = (value: unknown): Date | null => {
-+-+  const ts = toTimestamp(value)
-+-+  if (ts) {
-+-+    const date = ts.toDate()
-+-+    return isNaN(date.getTime()) ? null : date
++++  }
 +++  SessionDetailMock.displayName = 'SessionDetailMock'
 +++  return SessionDetailMock
 +++})
 +++jest.mock('../../../../components/StudentDialog/FloatingWindow', () => {
 +++  function FloatingWindowMock({ children }: any) {
 +++    return <div>{children}</div>
-+ +  }
-+-+  if (typeof value === 'string' || value instanceof String) {
-+-+    const parsed = new Date(value as string)
-+-+    return isNaN(parsed.getTime()) ? null : parsed
++++  }
 +++  FloatingWindowMock.displayName = 'FloatingWindowMock'
 +++  return FloatingWindowMock
 +++})
@@ -3271,9 +3194,7 @@ index 8756e36..2e955d9 100644
 +++jest.mock('../../../../components/LoadingDash', () => {
 +++  function LoadingDashMock() {
 +++    return null
-+ +  }
-+-+  if (value instanceof Date) {
-+-+    return isNaN(value.getTime()) ? null : value
++++  }
 +++  LoadingDashMock.displayName = 'LoadingDashMock'
 +++  return LoadingDashMock
 +++})
@@ -3283,7 +3204,7 @@ index 8756e36..2e955d9 100644
 ++@@ -51,4 +73,3 @@ describe('coaching sessions card view', () => {
 ++     expect(screen.queryByTestId('pprompt-badge')).toBeNull()
 ++   })
-++ })
++  })
 ++-
 ++diff --git a/components/StudentDialog/PaymentHistory.test.tsx b/components/StudentDialog/PaymentHistory.test.tsx
 ++index e850e7a..e2560e9 100644
@@ -3292,18 +3213,35 @@ index 8756e36..2e955d9 100644
 ++@@ -6,7 +6,13 @@ import '@testing-library/jest-dom'
 ++ import { render, screen, waitFor } from '@testing-library/react'
 ++ import PaymentHistory from './PaymentHistory'
-++ 
++  
++--const databaseId = 'mel-sessions'
++--console.log('📚 Firestore database ID:', databaseId)
++-+const DEFAULT_DATABASE_ID = 'mel-sessions'
++-+const PROJECTS_DATABASE_ID = 'epl-projects'
++-+
++-+console.log('📚 Firestore database ID:', DEFAULT_DATABASE_ID)
++-+console.log('📚 Firestore projects database ID:', PROJECTS_DATABASE_ID)
 ++-jest.mock('./PaymentModal', () => () => <div />)
 +++jest.mock('./PaymentModal', () => {
 +++  function PaymentModalMock() {
 +++    return <div />
-+ +  }
-+-+  return null
-+-+}
++++  }
 +++  PaymentModalMock.displayName = 'PaymentModalMock'
 +++  return PaymentModalMock
 +++})
-++ 
++  
++- export const app = !getApps().length
++-   ? initializeApp(firebaseConfig)
++-   : getApp()
++--export const db = getFirestore(app, databaseId)
++-+export const db = getFirestore(app, DEFAULT_DATABASE_ID)
++-+export const projectsDb = getFirestore(app, PROJECTS_DATABASE_ID)
++-+export const PROJECTS_FIRESTORE_DATABASE_ID = PROJECTS_DATABASE_ID
++-+export const getFirestoreForDatabase = (databaseId: string) => getFirestore(app, databaseId)
++- // after you create/export `db`...
++- if (typeof window !== 'undefined') {
++-   // @ts-expect-error attach for debugging
++-diff --git a/lib/projectsDatabase.ts b/lib/projectsDatabase.ts
 ++ jest.mock('firebase/firestore', () => ({
 ++   collection: jest.fn(),
 ++diff --git a/components/StudentDialog/PaymentModal.test.tsx b/components/StudentDialog/PaymentModal.test.tsx
@@ -3362,12 +3300,100 @@ index 8756e36..2e955d9 100644
 ++     expect(data.bankCode).toBeUndefined()
 ++     expect(data.accountDocId).toBeUndefined()
 ++diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-++new file mode 100644
-++index 0000000..d7905f3
-++--- /dev/null
++ new file mode 100644
++-index 0000000..4c054ce
+++index 0000000..f1175ac
++ --- /dev/null
++-+++ b/lib/projectsDatabase.ts
++-@@ -0,0 +1,220 @@
++-+// lib/projectsDatabase.ts
++-+
++-+import { collection, getDocs, Timestamp } from 'firebase/firestore'
++-+
++-+import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from './firebase'
 +++++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-++@@ -0,0 +1,135 @@
+++@@ -0,0 +1,150 @@
 +++import { useMemo } from 'react'
++ +
++-+const YEAR_ID_PATTERN = /^\d{4}$/
++-+const FALLBACK_YEAR_IDS = ['2025', '2024', '2023', '2022', '2021']
++++import { Box, Chip, Divider, IconButton, Link, Stack, Typography } from '@mui/material'
++++import CloseIcon from '@mui/icons-material/Close'
++ +
++-+interface ListCollectionIdsResponse {
++-+  collectionIds?: string[]
++-+  error?: { message?: string }
++-+}
++++import type { ProjectRecord } from '../../lib/projectsDatabase'
++++import type { ReactNode } from 'react'
++++import { Cormorant_Infant } from 'next/font/google'
++ +
++-+export interface ProjectRecord {
++-+  id: string
++-+  year: string
++-+  amount: number | null
++-+  clientCompany: string | null
++-+  invoice: string | null
++-+  onDateDisplay: string | null
++-+  onDateIso: string | null
++-+  paid: boolean | null
++-+  paidTo: string | null
++-+  presenterWorkType: string | null
++-+  projectDateDisplay: string | null
++-+  projectDateIso: string | null
++-+  projectNature: string | null
++-+  projectNumber: string
++-+  projectTitle: string | null
++-+  subsidiary: string | null
++-+}
++++const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600' })
++ +
++-+export interface ProjectsDatabaseResult {
++-+  projects: ProjectRecord[]
++-+  years: string[]
++-+}
++-+
++-+const toTimestamp = (value: unknown): Timestamp | null => {
++-+  if (value instanceof Timestamp) {
++-+    return value
++-+  }
++-+  if (
++-+    value &&
++-+    typeof value === 'object' &&
++-+    'seconds' in value &&
++-+    'nanoseconds' in value &&
++-+    typeof (value as any).seconds === 'number' &&
++-+    typeof (value as any).nanoseconds === 'number'
++-+  ) {
++-+    return new Timestamp((value as any).seconds, (value as any).nanoseconds)
++-+  }
++-+  return null
++-+}
++++const textOrNA = (value: string | null | undefined) =>
++++  value && value.trim().length > 0 ? value : 'N/A'
++ +
++-+const toDate = (value: unknown): Date | null => {
++-+  const ts = toTimestamp(value)
++-+  if (ts) {
++-+    const date = ts.toDate()
++-+    return isNaN(date.getTime()) ? null : date
++-+  }
++-+  if (typeof value === 'string' || value instanceof String) {
++-+    const parsed = new Date(value as string)
++-+    return isNaN(parsed.getTime()) ? null : parsed
++++const formatAmount = (value: number | null | undefined) => {
++++  if (typeof value !== 'number' || Number.isNaN(value)) {
++++    return 'HK$0'
++ +  }
++-+  if (value instanceof Date) {
++-+    return isNaN(value.getTime()) ? null : value
++-+  }
++-+  return null
++++  return `HK$${value.toLocaleString('en-US', {
++++    minimumFractionDigits: 0,
++++    maximumFractionDigits: 2,
++++  })}`
++ +}
 + +
 +-+const formatDisplayDate = (value: unknown): string | null => {
 +-+  const date = toDate(value)
@@ -3377,124 +3403,35 @@ index 8756e36..2e955d9 100644
 +-+    day: '2-digit',
 +-+    year: 'numeric',
 +-+  })
-+-+}
-+++import { Box, Chip, Divider, Link, Stack, Typography } from '@mui/material'
-+ +
-+-+const toIsoDate = (value: unknown): string | null => {
-+-+  const date = toDate(value)
-+-+  if (!date) return null
-+-+  return date.toISOString()
-+-+}
-+++import type { ProjectRecord } from '../../lib/projectsDatabase'
-+++import type { ReactNode } from 'react'
-+ +
-+-+const toStringValue = (value: unknown): string | null => {
-+-+  if (typeof value === 'string') {
-+-+    return value.trim() || null
-+-+  }
-+-+  if (value instanceof String) {
-+-+    const trimmed = value.toString().trim()
-+-+    return trimmed || null
-+-+  }
-+-+  return null
-+-+}
-+++const textOrNA = (value: string | null | undefined) =>
-+++  value && value.trim().length > 0 ? value : 'N/A'
-+ +
-+-+const toNumberValue = (value: unknown): number | null => {
-+-+  if (typeof value === 'number' && !Number.isNaN(value)) {
-+-+    return value
-+++const formatAmount = (value: number | null | undefined) => {
-+++  if (typeof value !== 'number' || Number.isNaN(value)) {
-+++    return 'HK$0'
-+ +  }
-+-+  if (typeof value === 'string') {
-+-+    const parsed = Number(value)
-+-+    return Number.isNaN(parsed) ? null : parsed
-+-+  }
-+-+  return null
-+++  return `HK$${value.toLocaleString('en-US', {
-+++    minimumFractionDigits: 0,
-+++    maximumFractionDigits: 2,
-+++  })}`
-+ +}
-+ +
-+-+const toBooleanValue = (value: unknown): boolean | null => {
-+-+  if (typeof value === 'boolean') {
-+-+    return value
-+-+  }
-+-+  return null
 +++const labelSx = {
-+++  fontFamily: 'Newsreader',
-+++  fontWeight: 200,
-+++  fontSize: '1rem',
-+++  letterSpacing: '0.03em',
++++  fontFamily: 'Calibri, "Segoe UI", sans-serif',
++++  fontWeight: 400,
++++  fontSize: '0.9rem',
++++  letterSpacing: '0.02em',
 +++} as const
 +++
 +++const valueSx = {
-+++  fontFamily: 'Newsreader',
-+++  fontWeight: 500,
-+++  fontSize: '1.05rem',
++++  fontSize: '1.2rem',
++++  lineHeight: 1.3,
 +++} as const
 +++
 +++interface ProjectDatabaseDetailContentProps {
 +++  project: ProjectRecord
 +++  headerActions?: ReactNode
 +++  footerActions?: ReactNode
++++  onClose?: () => void
 + +}
 + +
-+-+const uniqueSortedYears = (values: Iterable<string>) =>
-+-+  Array.from(new Set(values)).sort((a, b) =>
-+-+    b.localeCompare(a, undefined, { numeric: true })
-+-+  )
-+-+
-+-+const listYearCollections = async (): Promise<string[]> => {
-+-+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
-+-+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-+-+
-+-+  if (!apiKey || !projectId) {
-+-+    console.warn('[projectsDatabase] Missing Firebase configuration, falling back to defaults')
-+-+    return [...FALLBACK_YEAR_IDS]
-+-+  }
-+-+
-+-+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
-+-+
-+-+  try {
-+-+    const response = await fetch(url, {
-+-+      method: 'POST',
-+-+      headers: { 'Content-Type': 'application/json' },
-+-+      body: JSON.stringify({
-+-+        parent: `projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents`,
-+-+        pageSize: 200,
-+-+      }),
-+-+    })
-+-+
-+-+    if (!response.ok) {
-+-+      console.warn('[projectsDatabase] Failed to list collection IDs:', response.status, response.statusText)
-+-+      return [...FALLBACK_YEAR_IDS]
-+-+    }
-+-+
-+-+    const json = (await response.json()) as ListCollectionIdsResponse
-+-+    if (json.error) {
-+-+      console.warn('[projectsDatabase] Firestore responded with error:', json.error.message)
-+-+      return [...FALLBACK_YEAR_IDS]
-+-+    }
-+-+
-+-+    const ids = json.collectionIds?.filter((id) => YEAR_ID_PATTERN.test(id)) ?? []
-+-+    if (ids.length === 0) {
-+-+      console.warn('[projectsDatabase] No year collections found, falling back to defaults')
-+-+      return [...FALLBACK_YEAR_IDS]
-+-+    }
-+-+    return uniqueSortedYears(ids)
-+-+  } catch (err) {
-+-+    console.warn('[projectsDatabase] listYearCollections failed:', err)
-+-+    return [...FALLBACK_YEAR_IDS]
-+-+  }
++-+const toIsoDate = (value: unknown): string | null => {
++-+  const date = toDate(value)
++-+  if (!date) return null
++-+  return date.toISOString()
 +-+}
 +++export default function ProjectDatabaseDetailContent({
 +++  project,
 +++  headerActions,
 +++  footerActions,
++++  onClose,
 +++}: ProjectDatabaseDetailContentProps) {
 +++  const detailItems = useMemo(() => {
 +++    const invoiceValue: ReactNode = project.invoice
@@ -3531,6 +3468,186 @@ index 8756e36..2e955d9 100644
 +++    ] satisfies Array<{ label: string; value: ReactNode }>
 +++  }, [project])
 + +
++-+const toStringValue = (value: unknown): string | null => {
++-+  if (typeof value === 'string') {
++-+    return value.trim() || null
++-+  }
++-+  if (value instanceof String) {
++-+    const trimmed = value.toString().trim()
++-+    return trimmed || null
++-+  }
++-+  return null
++-+}
++++  const presenterText = textOrNA(project.presenterWorkType)
++ +
++-+const toNumberValue = (value: unknown): number | null => {
++-+  if (typeof value === 'number' && !Number.isNaN(value)) {
++-+    return value
++-+  }
++-+  if (typeof value === 'string') {
++-+    const parsed = Number(value)
++-+    return Number.isNaN(parsed) ? null : parsed
++-+  }
++-+  return null
++++  return (
++++    <Stack spacing={1.2}>
++++      <Stack
++++        direction={{ xs: 'column', sm: 'row' }}
++++        justifyContent="space-between"
++++        alignItems={{ xs: 'flex-start', sm: 'center' }}
++++        spacing={2}
++++      >
++++        <Stack spacing={0.5} sx={{ width: '100%' }}>
++++          <Typography variant="subtitle1" color="text.secondary">
++++            {project.projectNumber}
++++          </Typography>
++++          <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
++++            {presenterText}
++++          </Typography>
++++          <Typography variant="h4" sx={{ fontFamily: 'Cantata One', lineHeight: 1.2 }}>
++++            {textOrNA(project.projectTitle)}
++++          </Typography>
++++          <Typography variant="body1" color="text.secondary">
++++            — {textOrNA(project.projectNature)}
++++          </Typography>
++++        </Stack>
++++        <Stack direction="row" spacing={0.75} alignItems="center">
++++          <Chip label={project.year} color="primary" variant="outlined" />
++++          {project.subsidiary && (
++++            <Chip label={project.subsidiary} variant="outlined" />
++++          )}
++++          {headerActions}
++++          {onClose && (
++++            <IconButton onClick={onClose} aria-label="close project details" size="small">
++++              <CloseIcon fontSize="small" />
++++            </IconButton>
++++          )}
++++        </Stack>
++++      </Stack>
++++
++++      <Divider />
++++
++++      <Stack spacing={1.2}>
++++        {detailItems.map(({ label, value }) => (
++++          <Box key={label}>
++++            <Typography sx={labelSx}>{label}:</Typography>
++++            <Typography
++++              component="div"
++++              sx={valueSx}
++++              className={cormorantSemi.className}
++++            >
++++              {value}
++++            </Typography>
++++          </Box>
++++        ))}
++++      </Stack>
++++
++++      {footerActions && (
++++        <>
++++          <Divider />
++++          <Stack direction="row" justifyContent="flex-end" spacing={1.5}>
++++            {footerActions}
++++          </Stack>
++++        </>
++++      )}
++++    </Stack>
++++  )
++ +}
+++diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
+++new file mode 100644
+++index 0000000..f123feb
+++--- /dev/null
++++++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
+++@@ -0,0 +1,57 @@
++++import { Button, Dialog, DialogContent } from '@mui/material'
++ +
++-+const toBooleanValue = (value: unknown): boolean | null => {
++-+  if (typeof value === 'boolean') {
++-+    return value
++-+  }
++-+  return null
++-+}
++++import type { ReactNode } from 'react'
++ +
++-+const uniqueSortedYears = (values: Iterable<string>) =>
++-+  Array.from(new Set(values)).sort((a, b) =>
++-+    b.localeCompare(a, undefined, { numeric: true })
++-+  )
++++import type { ProjectRecord } from '../../lib/projectsDatabase'
++++import ProjectDatabaseDetailContent from './ProjectDatabaseDetailContent'
++ +
++-+const listYearCollections = async (): Promise<string[]> => {
++-+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
++-+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
++++interface ProjectDatabaseDetailDialogProps {
++++  open: boolean
++++  onClose: () => void
++++  project: ProjectRecord | null
++++  onEdit?: () => void
++++  headerActions?: ReactNode
++++}
++ +
++-+  if (!apiKey || !projectId) {
++-+    console.warn('[projectsDatabase] Missing Firebase configuration, falling back to defaults')
++-+    return [...FALLBACK_YEAR_IDS]
++++export default function ProjectDatabaseDetailDialog({
++++  open,
++++  onClose,
++++  project,
++++  onEdit,
++++  headerActions,
++++}: ProjectDatabaseDetailDialogProps) {
++++  if (!project) {
++++    return null
++ +  }
++ +
++-+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
++-+
++-+  try {
++-+    const response = await fetch(url, {
++-+      method: 'POST',
++-+      headers: { 'Content-Type': 'application/json' },
++-+      body: JSON.stringify({
++-+        parent: `projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents`,
++-+        pageSize: 200,
++-+      }),
++-+    })
++-+
++-+    if (!response.ok) {
++-+      console.warn('[projectsDatabase] Failed to list collection IDs:', response.status, response.statusText)
++-+      return [...FALLBACK_YEAR_IDS]
++-+    }
++-+
++-+    const json = (await response.json()) as ListCollectionIdsResponse
++-+    if (json.error) {
++-+      console.warn('[projectsDatabase] Firestore responded with error:', json.error.message)
++-+      return [...FALLBACK_YEAR_IDS]
++-+    }
++++  const footerActions = [
++++    <Button key="close" onClick={onClose}>
++++      Close
++++    </Button>,
++++    ...(onEdit
++++      ? [
++++          <Button key="edit" variant="contained" onClick={onEdit}>
++++            Edit
++++          </Button>,
++++        ]
++++      : []),
++++  ]
++ +
++-+    const ids = json.collectionIds?.filter((id) => YEAR_ID_PATTERN.test(id)) ?? []
++-+    if (ids.length === 0) {
++-+      console.warn('[projectsDatabase] No year collections found, falling back to defaults')
++-+      return [...FALLBACK_YEAR_IDS]
++-+    }
++-+    return uniqueSortedYears(ids)
++-+  } catch (err) {
++-+    console.warn('[projectsDatabase] listYearCollections failed:', err)
++-+    return [...FALLBACK_YEAR_IDS]
++-+  }
++-+}
++-+
 +-+export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResult> => {
 +-+  const yearIds = await listYearCollections()
 +-+  const projects: ProjectRecord[] = []
@@ -3572,58 +3689,21 @@ index 8756e36..2e955d9 100644
 +-+      })
 +-+    })
 +++  return (
-+++    <Stack spacing={2}>
-+++      <Stack
-+++        direction={{ xs: 'column', sm: 'row' }}
-+++        justifyContent="space-between"
-+++        alignItems={{ xs: 'flex-start', sm: 'center' }}
-+++        spacing={2}
-+++      >
-+++        <Stack spacing={0.5} sx={{ width: '100%' }}>
-+++          <Typography variant="subtitle1" color="text.secondary">
-+++            {project.projectNumber}
-+++          </Typography>
-+++          <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
-+++            {textOrNA(project.presenterWorkType)}
-+++          </Typography>
-+++          <Typography variant="h4" sx={{ fontFamily: 'Cantata One', lineHeight: 1.2 }}>
-+++            {textOrNA(project.projectTitle)}
-+++          </Typography>
-+++          <Typography variant="body1" color="text.secondary">
-+++            — {textOrNA(project.projectNature)}
-+++          </Typography>
-+++        </Stack>
-+++        <Stack direction="row" spacing={1} alignItems="center">
-+++          <Chip label={project.year} color="primary" variant="outlined" />
-+++          {project.subsidiary && (
-+++            <Chip label={project.subsidiary} variant="outlined" />
-+++          )}
-+++          {headerActions}
-+++        </Stack>
-+++      </Stack>
-+++
-+++      <Divider />
-+++
-+++      <Stack spacing={1.6}>
-+++        {detailItems.map(({ label, value }) => (
-+++          <Box key={label}>
-+++            <Typography sx={labelSx}>{label}:</Typography>
-+++            <Typography component="div" sx={valueSx}>
-+++              {value}
-+++            </Typography>
-+++          </Box>
-+++        ))}
-+++      </Stack>
-+++
-+++      {footerActions && (
-+++        <>
-+++          <Divider />
-+++          <Stack direction="row" justifyContent="flex-end" spacing={1.5}>
-+++            {footerActions}
-+++          </Stack>
-+++        </>
-+++      )}
-+++    </Stack>
++++    <Dialog
++++      open={open}
++++      onClose={onClose}
++++      fullWidth
++++      maxWidth="md"
++++    >
++++      <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
++++        <ProjectDatabaseDetailContent
++++          project={project}
++++          headerActions={headerActions}
++++          footerActions={footerActions}
++++          onClose={onClose}
++++        />
++++      </DialogContent>
++++    </Dialog>
 + +  )
 +-+
 +-+  projects.sort((a, b) => {
@@ -3638,7 +3718,7 @@ index 8756e36..2e955d9 100644
 +-+    years: uniqueSortedYears(yearsWithData),
 +-+  }
 + +}
-+ +
++-+
 +-diff --git a/pages/dashboard/businesses/index.tsx b/pages/dashboard/businesses/index.tsx
 +-index 505c235..135484d 100644
 +---- a/pages/dashboard/businesses/index.tsx
@@ -3720,10 +3800,10 @@ index 8756e36..2e955d9 100644
 +-   };
 +- };
 +-diff --git a/pages/dashboard/businesses/projects-database/[groupId].tsx b/pages/dashboard/businesses/projects-database/[groupId].tsx
-++diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
+++diff --git a/components/projectdialog/ProjectDatabaseEditDialog.tsx b/components/projectdialog/ProjectDatabaseEditDialog.tsx
 + new file mode 100644
 +-index 0000000..3823567
-++index 0000000..1157469
+++index 0000000..a13c7f7
 + --- /dev/null
 +-+++ b/pages/dashboard/businesses/projects-database/[groupId].tsx
 +-@@ -0,0 +1,400 @@
@@ -3737,18 +3817,23 @@ index 8756e36..2e955d9 100644
 +-+  fetchProjectsFromDatabase,
 +-+  ProjectRecord,
 +-+} from '../../../../lib/projectsDatabase'
-+++++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-++@@ -0,0 +1,119 @@
-+++// components/projectdialog/ProjectDatabaseDetailDialog.tsx
++++++ b/components/projectdialog/ProjectDatabaseEditDialog.tsx
+++@@ -0,0 +1,295 @@
++++import { useEffect, useMemo, useState } from 'react'
 + +
-+++import React from 'react'
 + +import {
++++  Alert,
 + +  Box,
 + +  Button,
 +-+  Card,
 +-+  CardContent,
 +-+  FormControl,
-+-+  Grid,
++++  Dialog,
++++  DialogActions,
++++  DialogContent,
++++  DialogTitle,
++++  FormControlLabel,
++ +  Grid,
 +-+  IconButton,
 +-+  InputLabel,
 +-+  List,
@@ -3758,34 +3843,30 @@ index 8756e36..2e955d9 100644
 +-+  Select,
 +-+  ToggleButton,
 +-+  ToggleButtonGroup,
-+++  Checkbox,
-+++  Dialog,
-+++  DialogActions,
-+++  DialogContent,
-+++  Divider,
++++  Switch,
++++  TextField,
 + +  Typography,
 + +} from '@mui/material'
 +-+import type { SelectChangeEvent } from '@mui/material/Select'
 +-+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-+++import CloseIcon from '@mui/icons-material/Close'
-+++import CheckIcon from '@mui/icons-material/Check'
-+ +
++-+
 +-+const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 +-+const headingSx = { fontFamily: 'Cantata One' }
-+++import type { ProjectRecord } from '../../lib/projectsDatabase'
++++import { Timestamp } from 'firebase/firestore'
 + +
 +-+type SortMethod = 'year' | 'subsidiary'
-+-+
++++import type { ProjectRecord } from '../../lib/projectsDatabase'
++ +
 +-+type Mode = 'select' | 'detail'
 +-+
 +-+interface DetailSelection {
 +-+  type: SortMethod
 +-+  year: string
-+++interface ProjectDatabaseDetailDialogProps {
++++interface ProjectDatabaseEditDialogProps {
 +++  open: boolean
-+++  onClose: () => void
 +++  project: ProjectRecord | null
-+++  onEdit?: () => void
++++  onClose: () => void
++++  onSaved: () => void
 + +}
 + +
 +-+interface ProjectsDatabasePageProps {
@@ -3794,164 +3875,6 @@ index 8756e36..2e955d9 100644
 +-+  error?: string
 +-+  detailSelection?: DetailSelection
 +-+  projects?: ProjectRecord[]
-+-+}
-+++const textOrNA = (value: string | null | undefined) =>
-+++  value && value.trim().length > 0 ? value : 'N/A'
-+ +
-+-+const encodeSelectionId = (type: SortMethod, year: string) => {
-+-+  const yearPart = encodeURIComponent(year)
-+-+  return `${type}--${yearPart}`
-+++const formatAmount = (value: number | null | undefined) => {
-+++  if (typeof value !== 'number' || Number.isNaN(value)) {
-+++    return 'HK$0'
-+++  }
-+++  return `HK$${value.toLocaleString('en-US', {
-+++    minimumFractionDigits: 0,
-+++    maximumFractionDigits: 2,
-+++  })}`
-+ +}
-+ +
-+-+const decodeSelectionId = (value: string): DetailSelection | null => {
-+-+  const [typePart, yearPart] = value.split('--')
-+-+  if (!typePart || !yearPart) {
-+++export default function ProjectDatabaseDetailDialog({
-+++  open,
-+++  onClose,
-+++  project,
-+++  onEdit,
-+++}: ProjectDatabaseDetailDialogProps) {
-+++  if (!project) {
-+ +    return null
-+ +  }
-+ +
-+-+  if (typePart !== 'year' && typePart !== 'subsidiary') {
-+-+    return null
-+-+  }
-+++  const paid = project.paid === true
-+++  const paidOnText = paid ? project.onDateDisplay || '-' : undefined
-+ +
-+-+  try {
-+-+    return { type: typePart, year: decodeURIComponent(yearPart) }
-+-+  } catch (err) {
-+-+    console.warn('[projects-database] Failed to decode selection id', err)
-+-+    return null
-+-+  }
-+++  return (
-+++    <Dialog open={open} onClose={onClose} fullWidth>
-+++      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-+++        <Typography variant="subtitle1">
-+++          {textOrNA(project.projectNumber)}
-+++        </Typography>
-+++        <Typography variant="subtitle1">
-+++          {textOrNA(project.clientCompany)}
-+++        </Typography>
-+++        <Typography variant="h4">{textOrNA(project.projectTitle)}</Typography>
-+++        <Typography variant="body2"> - {textOrNA(project.projectNature)}</Typography>
-+++        <Divider />
-+++        <Typography variant="body2">
-+++          <strong>Project Pickup Date:</strong>{' '}
-+++          {project.projectDateDisplay ?? 'Not set'}
-+++        </Typography>
-+++        <Typography variant="body2">
-+++          <strong>Amount:</strong> {formatAmount(project.amount)}
-+++        </Typography>
-+++        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-+++          <strong>Paid:</strong>
-+++          <Checkbox
-+++            checked={paid}
-+++            icon={<CloseIcon />}
-+++            checkedIcon={<CheckIcon />}
-+++            disableRipple
-+++            sx={{ p: 0 }}
-+++            disabled
-+++          />
-+++        </Typography>
-+++        {paidOnText && (
-+++          <Typography variant="body2">
-+++            <strong>Paid On:</strong> {paidOnText}
-+++          </Typography>
-+++        )}
-+++        {project.paidTo && (
-+++          <Typography variant="body2">
-+++            <strong>Pay to:</strong> {textOrNA(project.paidTo)}
-+++          </Typography>
-+++        )}
-+++        {project.presenterWorkType && (
-+++          <Typography variant="body2">
-+++            <strong>Presenter Work Type:</strong> {textOrNA(project.presenterWorkType)}
-+++          </Typography>
-+++        )}
-+++        {project.subsidiary && (
-+++          <Typography variant="body2">
-+++            <strong>Subsidiary:</strong> {textOrNA(project.subsidiary)}
-+++          </Typography>
-+++        )}
-+++        <Divider />
-+++        <Box sx={{ mt: 1 }}>
-+++          <Typography variant="body2">
-+++            <strong>Invoice:</strong> {textOrNA(project.invoice)}
-+++          </Typography>
-+++        </Box>
-+++      </DialogContent>
-+++      <DialogActions>
-+++        <Button onClick={onClose}>Close</Button>
-+++        {onEdit && (
-+++          <Button variant="contained" onClick={onEdit}>
-+++            Edit
-+++          </Button>
-+++        )}
-+++      </DialogActions>
-+++    </Dialog>
-+++  )
-+ +}
-++diff --git a/components/projectdialog/ProjectDatabaseEditDialog.tsx b/components/projectdialog/ProjectDatabaseEditDialog.tsx
-++new file mode 100644
-++index 0000000..a13c7f7
-++--- /dev/null
-+++++ b/components/projectdialog/ProjectDatabaseEditDialog.tsx
-++@@ -0,0 +1,295 @@
-+++import { useEffect, useMemo, useState } from 'react'
-+ +
-+-+const stringOrNA = (value: string | null | undefined) =>
-+-+  value && value.trim().length > 0 ? value : 'N/A'
-+++import {
-+++  Alert,
-+++  Box,
-+++  Button,
-+++  Dialog,
-+++  DialogActions,
-+++  DialogContent,
-+++  DialogTitle,
-+++  FormControlLabel,
-+++  Grid,
-+++  Switch,
-+++  TextField,
-+++  Typography,
-+++} from '@mui/material'
-+++import { Timestamp } from 'firebase/firestore'
-+ +
-+-+const amountText = (value: number | null | undefined) => {
-+-+  if (value === null || value === undefined) {
-+-+    return '-'
-+-+  }
-+++import type { ProjectRecord } from '../../lib/projectsDatabase'
-+ +
-+-+  return `HK$${value.toLocaleString('en-US', {
-+-+    minimumFractionDigits: 0,
-+-+    maximumFractionDigits: 2,
-+-+  })}`
-+++interface ProjectDatabaseEditDialogProps {
-+++  open: boolean
-+++  project: ProjectRecord | null
-+++  onClose: () => void
-+++  onSaved: () => void
-+ +}
-+ +
-+-+const paidStatusText = (value: boolean | null | undefined) => {
-+-+  if (value === null || value === undefined) {
-+-+    return 'N/A'
-+-+  }
-+-+  return value ? 'Paid' : 'Unpaid'
 +++interface FormState {
 +++  projectNumber: string
 +++  projectTitle: string
@@ -3967,20 +3890,114 @@ index 8756e36..2e955d9 100644
 +++  onDate: string
 + +}
 + +
++-+const encodeSelectionId = (type: SortMethod, year: string) => {
++-+  const yearPart = encodeURIComponent(year)
++-+  return `${type}--${yearPart}`
++++const toDateInputValue = (value: string | null) => {
++++  if (!value) return ''
++++  const parsed = new Date(value)
++++  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().split('T')[0]
++ +}
++ +
++-+const decodeSelectionId = (value: string): DetailSelection | null => {
++-+  const [typePart, yearPart] = value.split('--')
++-+  if (!typePart || !yearPart) {
++-+    return null
++-+  }
++-+
++-+  if (typePart !== 'year' && typePart !== 'subsidiary') {
++-+    return null
++-+  }
++++const toTimestampOrNull = (value: string) =>
++++  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
++ +
++-+  try {
++-+    return { type: typePart, year: decodeURIComponent(yearPart) }
++-+  } catch (err) {
++-+    console.warn('[projects-database] Failed to decode selection id', err)
++-+    return null
++-+  }
++++const sanitizeText = (value: string) => {
++++  const trimmed = value.trim()
++++  return trimmed.length === 0 ? null : trimmed
++ +}
++ +
++-+const stringOrNA = (value: string | null | undefined) =>
++-+  value && value.trim().length > 0 ? value : 'N/A'
++++export default function ProjectDatabaseEditDialog({
++++  open,
++++  project,
++++  onClose,
++++  onSaved,
++++}: ProjectDatabaseEditDialogProps) {
++++  const [form, setForm] = useState<FormState | null>(null)
++++  const [saving, setSaving] = useState(false)
++++  const [error, setError] = useState<string | null>(null)
++ +
++-+const amountText = (value: number | null | undefined) => {
++-+  if (value === null || value === undefined) {
++-+    return '-'
++-+  }
++++  useEffect(() => {
++++    if (!project) {
++++      setForm(null)
++++      return
++++    }
++ +
++-+  return `HK$${value.toLocaleString('en-US', {
++-+    minimumFractionDigits: 0,
++-+    maximumFractionDigits: 2,
++-+  })}`
++-+}
++++    setForm({
++++      projectNumber: project.projectNumber ?? '',
++++      projectTitle: project.projectTitle ?? '',
++++      projectNature: project.projectNature ?? '',
++++      clientCompany: project.clientCompany ?? '',
++++      amount:
++++        project.amount !== null && project.amount !== undefined
++++          ? String(project.amount)
++++          : '',
++++      paid: Boolean(project.paid),
++++      paidTo: project.paidTo ?? '',
++++      invoice: project.invoice ?? '',
++++      presenterWorkType: project.presenterWorkType ?? '',
++++      subsidiary: project.subsidiary ?? '',
++++      projectDate: toDateInputValue(project.projectDateIso),
++++      onDate: toDateInputValue(project.onDateIso),
++++    })
++++    setError(null)
++++  }, [project])
++ +
++-+const paidStatusText = (value: boolean | null | undefined) => {
++-+  if (value === null || value === undefined) {
++-+    return 'N/A'
++-+  }
++-+  return value ? 'Paid' : 'Unpaid'
++-+}
++++  const disabled = useMemo(() => saving || !form || !project, [saving, form, project])
++ +
 +-+const paidDateText = (
 +-+  paid: boolean | null | undefined,
 +-+  date: string | null | undefined
 +-+) => {
 +-+  if (!paid) {
 +-+    return null
-+-+  }
-+-+
++++  const handleChange = (field: keyof FormState) =>
++++    (event: React.ChangeEvent<HTMLInputElement>) => {
++++      if (!form) return
++++      setForm({ ...form, [field]: event.target.value })
++++    }
++++
++++  const handleTogglePaid = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
++++    if (!form) return
++++    setForm({ ...form, paid: checked })
++ +  }
++ +
 +-+  return date && date.trim().length > 0 ? date : '-'
-+++const toDateInputValue = (value: string | null) => {
-+++  if (!value) return ''
-+++  const parsed = new Date(value)
-+++  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().split('T')[0]
-+ +}
++-+}
++++  const handleSubmit = async () => {
++++    if (!project || !form) return
 + +
 +-+export default function ProjectsDatabasePage({
 +-+  mode,
@@ -3997,73 +4014,58 @@ index 8756e36..2e955d9 100644
 +-+  const [selectedYear, setSelectedYear] = useState<string>(
 +-+    detailSelection?.year ?? years[0] ?? ''
 +-+  )
-+++const toTimestampOrNull = (value: string) =>
-+++  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
++++    setSaving(true)
++++    setError(null)
 + +
 +-+  const handleYearChange = (event: SelectChangeEvent<string>) => {
 +-+    setSelectedYear(event.target.value)
 +-+  }
-+++const sanitizeText = (value: string) => {
-+++  const trimmed = value.trim()
-+++  return trimmed.length === 0 ? null : trimmed
-+++}
++++    const amountValue = form.amount.trim()
++++    const parsedAmount = amountValue.length > 0 ? Number(amountValue) : null
++++    if (amountValue.length > 0 && Number.isNaN(parsedAmount)) {
++++      setError('Amount must be a number')
++++      setSaving(false)
++++      return
++++    }
 + +
 +-+  useEffect(() => {
 +-+    if (!selectedYear && years.length > 0) {
 +-+      setSelectedYear(years[0])
-+-+    }
++++    const updates: Record<string, unknown> = {
++++      projectNumber: sanitizeText(form.projectNumber),
++++      projectTitle: sanitizeText(form.projectTitle),
++++      projectNature: sanitizeText(form.projectNature),
++++      clientCompany: sanitizeText(form.clientCompany),
++++      presenterWorkType: sanitizeText(form.presenterWorkType),
++++      subsidiary: sanitizeText(form.subsidiary),
++++      invoice: sanitizeText(form.invoice),
++++      paidTo: sanitizeText(form.paidTo),
++++      paid: form.paid,
++ +    }
 +-+  }, [years, selectedYear])
-+++export default function ProjectDatabaseEditDialog({
-+++  open,
-+++  project,
-+++  onClose,
-+++  onSaved,
-+++}: ProjectDatabaseEditDialogProps) {
-+++  const [form, setForm] = useState<FormState | null>(null)
-+++  const [saving, setSaving] = useState(false)
-+++  const [error, setError] = useState<string | null>(null)
 + +
-+ +  useEffect(() => {
++-+  useEffect(() => {
 +-+    if (detailSelection) {
 +-+      setSortMethod(detailSelection.type)
 +-+      setSelectedYear(detailSelection.year)
-+-+    }
++++    if (form.amount.trim().length === 0) {
++++      updates.amount = null
++++    } else if (parsedAmount !== null) {
++++      updates.amount = parsedAmount
++ +    }
 +-+  }, [detailSelection])
-+-+
++ +
 +-+  const handleNavigate = (type: SortMethod, year: string) => {
 +-+    if (!year) {
-+++    if (!project) {
-+++      setForm(null)
-+ +      return
-+ +    }
-+ +
-+-+    router.push(
-+-+      `/dashboard/businesses/projects-database/${encodeSelectionId(type, year)}`
-+-+    )
-+-+  }
-+-+
-+-+  if (mode === 'select') {
-+-+    return (
-+-+      <SidebarLayout>
-+-+        <Box sx={{ mb: 3 }}>
-+-+          <Typography variant="h4" sx={headingSx} gutterBottom>
-+-+            Projects (Database)
-+-+          </Typography>
-+-+          <Typography variant="h6" sx={{ ...headingSx, mt: 2 }}>
-+-+            Establish Productions Limited
-+-+          </Typography>
-+-+        </Box>
-+-+        {error && (
-+-+          <Typography color="error" sx={{ mb: 2 }}>
-+-+            {error}
-+-+          </Typography>
-+-+        )}
-+-+        <Box
-+-+          sx={{
-+-+            display: 'flex',
-+-+            flexWrap: 'wrap',
-+-+            gap: 2,
-+-+            alignItems: 'center',
-+-+            mb: 3,
-+-+          }}
++-+      return
++++    updates.projectDate = toTimestampOrNull(form.projectDate)
++++    updates.onDate = toTimestampOrNull(form.onDate)
++++
++++    try {
++++      const response = await fetch(
++++        `/api/projects-database/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
++++        {
++++          method: 'PATCH',
++++          headers: { 'Content-Type': 'application/json' },
++++          body: JSON.stringify({ updates }),
 ```
