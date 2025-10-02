@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 import { Box, Chip, Divider, IconButton, Link, Stack, Typography } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 
 import type { ProjectRecord } from '../../lib/projectsDatabase'
 import type { ReactNode } from 'react'
@@ -37,15 +38,15 @@ const valueSx = {
 interface ProjectDatabaseDetailContentProps {
   project: ProjectRecord
   headerActions?: ReactNode
-  footerActions?: ReactNode
   onClose?: () => void
+  onEdit?: () => void
 }
 
 export default function ProjectDatabaseDetailContent({
   project,
   headerActions,
-  footerActions,
   onClose,
+  onEdit,
 }: ProjectDatabaseDetailContentProps) {
   const detailItems = useMemo(() => {
     const invoiceValue: ReactNode = project.invoice
@@ -65,14 +66,12 @@ export default function ProjectDatabaseDetailContent({
 
     return [
       { label: 'Client Company', value: textOrNA(project.clientCompany) },
-      { label: 'Subsidiary', value: textOrNA(project.subsidiary) },
-      { label: 'Presenter Work Type', value: textOrNA(project.presenterWorkType) },
       {
         label: 'Project Pickup Date',
         value: project.projectDateDisplay ?? '-',
       },
       { label: 'Amount', value: formatAmount(project.amount) },
-      { label: 'Paid', value: project.paid ? 'Yes' : 'No' },
+      { label: 'Paid', value: project.paid ? '🤑' : '👎🏻' },
       {
         label: 'Paid On',
         value: project.paid ? project.onDateDisplay ?? '-' : '-',
@@ -82,7 +81,8 @@ export default function ProjectDatabaseDetailContent({
     ] satisfies Array<{ label: string; value: ReactNode }>
   }, [project])
 
-  const presenterText = textOrNA(project.presenterWorkType)
+  const rawPresenter = textOrNA(project.presenterWorkType)
+  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
 
   return (
     <Stack spacing={1.2}>
@@ -93,9 +93,16 @@ export default function ProjectDatabaseDetailContent({
         spacing={2}
       >
         <Stack spacing={0.5} sx={{ width: '100%' }}>
-          <Typography variant="subtitle1" color="text.secondary">
-            {project.projectNumber}
-          </Typography>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography variant="subtitle1" color="text.secondary">
+              {project.projectNumber}
+            </Typography>
+            {onEdit && (
+              <IconButton onClick={onEdit} aria-label="Edit project" size="small">
+                <EditOutlinedIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Stack>
           <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
             {presenterText}
           </Typography>
@@ -103,13 +110,12 @@ export default function ProjectDatabaseDetailContent({
             {textOrNA(project.projectTitle)}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            — {textOrNA(project.projectNature)}
+            {textOrNA(project.projectNature)}
           </Typography>
         </Stack>
         <Stack direction="row" spacing={0.75} alignItems="center">
-          <Chip label={project.year} color="primary" variant="outlined" />
           {project.subsidiary && (
-            <Chip label={project.subsidiary} variant="outlined" />
+            <Chip label={textOrNA(project.subsidiary)} variant="outlined" size="small" />
           )}
           {headerActions}
           {onClose && (
@@ -126,25 +132,12 @@ export default function ProjectDatabaseDetailContent({
         {detailItems.map(({ label, value }) => (
           <Box key={label}>
             <Typography sx={labelSx}>{label}:</Typography>
-            <Typography
-              component="div"
-              sx={valueSx}
-              className={cormorantSemi.className}
-            >
+            <Typography component="div" sx={valueSx} className={cormorantSemi.className}>
               {value}
             </Typography>
           </Box>
         ))}
       </Stack>
-
-      {footerActions && (
-        <>
-          <Divider />
-          <Stack direction="row" justifyContent="flex-end" spacing={1.5}>
-            {footerActions}
-          </Stack>
-        </>
-      )}
     </Stack>
   )
 }

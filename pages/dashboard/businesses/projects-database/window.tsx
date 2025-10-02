@@ -9,7 +9,7 @@ import ProjectDatabaseDetailContent from '../../../../components/projectdialog/P
 import { fetchProjectsFromDatabase, ProjectRecord } from '../../../../lib/projectsDatabase'
 import { decodeSelectionId } from '../../../../lib/projectsDatabaseSelection'
 
-import { Box, Button } from '@mui/material'
+import { Box } from '@mui/material'
 
 interface ProjectWindowPageProps {
   project: ProjectRecord
@@ -46,25 +46,16 @@ export default function ProjectWindowPage({ project }: ProjectWindowPageProps) {
       </Head>
       <Box
         sx={{
-          maxWidth: 720,
-          mx: 'auto',
-          py: { xs: 4, md: 6 },
+          width: '100%',
+          minWidth: 0,
+          py: { xs: 3, md: 5 },
           px: { xs: 3, md: 4 },
-          minHeight: '100vh',
         }}
       >
         <ProjectDatabaseDetailContent
           project={currentProject}
-          footerActions={
-            <>
-              <Button variant="outlined" onClick={handleCloseWindow}>
-                Close
-              </Button>
-              <Button variant="contained" onClick={() => setEditOpen(true)}>
-                Edit
-              </Button>
-            </>
-          }
+          onEdit={() => setEditOpen(true)}
+          onClose={handleCloseWindow}
         />
       </Box>
       <ProjectDatabaseEditDialog

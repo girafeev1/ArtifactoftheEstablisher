@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogContent } from '@mui/material'
+import { Dialog, DialogContent } from '@mui/material'
 
 import type { ReactNode } from 'react'
 
@@ -24,19 +24,6 @@ export default function ProjectDatabaseDetailDialog({
     return null
   }
 
-  const footerActions = [
-    <Button key="close" onClick={onClose}>
-      Close
-    </Button>,
-    ...(onEdit
-      ? [
-          <Button key="edit" variant="contained" onClick={onEdit}>
-            Edit
-          </Button>,
-        ]
-      : []),
-  ]
-
   return (
     <Dialog
       open={open}
@@ -48,8 +35,8 @@ export default function ProjectDatabaseDetailDialog({
         <ProjectDatabaseDetailContent
           project={project}
           headerActions={headerActions}
-          footerActions={footerActions}
           onClose={onClose}
+          onEdit={onEdit}
         />
       </DialogContent>
     </Dialog>
