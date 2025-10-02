@@ -1,39 +1,16 @@
-// components/projectdialog/ProjectDatabaseDetailDialog.tsx
+import { Button, Dialog, DialogContent } from '@mui/material'
 
-import React from 'react'
-import {
-  Box,
-  Button,
-  Checkbox,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  Divider,
-  Typography,
-} from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
-import CheckIcon from '@mui/icons-material/Check'
+import type { ReactNode } from 'react'
 
 import type { ProjectRecord } from '../../lib/projectsDatabase'
+import ProjectDatabaseDetailContent from './ProjectDatabaseDetailContent'
 
 interface ProjectDatabaseDetailDialogProps {
   open: boolean
   onClose: () => void
   project: ProjectRecord | null
   onEdit?: () => void
-}
-
-const textOrNA = (value: string | null | undefined) =>
-  value && value.trim().length > 0 ? value : 'N/A'
-
-const formatAmount = (value: number | null | undefined) => {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return 'HK$0'
-  }
-  return `HK$${value.toLocaleString('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })}`
+  headerActions?: ReactNode
 }
 
 export default function ProjectDatabaseDetailDialog({
@@ -41,79 +18,40 @@ export default function ProjectDatabaseDetailDialog({
   onClose,
   project,
   onEdit,
+  headerActions,
 }: ProjectDatabaseDetailDialogProps) {
   if (!project) {
     return null
   }
 
-  const paid = project.paid === true
-  const paidOnText = paid ? project.onDateDisplay || '-' : undefined
+  const footerActions = [
+    <Button key="close" onClick={onClose}>
+      Close
+    </Button>,
+    ...(onEdit
+      ? [
+          <Button key="edit" variant="contained" onClick={onEdit}>
+            Edit
+          </Button>,
+        ]
+      : []),
+  ]
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth>
-      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Typography variant="subtitle1">
-          {textOrNA(project.projectNumber)}
-        </Typography>
-        <Typography variant="subtitle1">
-          {textOrNA(project.clientCompany)}
-        </Typography>
-        <Typography variant="h4">{textOrNA(project.projectTitle)}</Typography>
-        <Typography variant="body2"> - {textOrNA(project.projectNature)}</Typography>
-        <Divider />
-        <Typography variant="body2">
-          <strong>Project Pickup Date:</strong>{' '}
-          {project.projectDateDisplay ?? 'Not set'}
-        </Typography>
-        <Typography variant="body2">
-          <strong>Amount:</strong> {formatAmount(project.amount)}
-        </Typography>
-        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <strong>Paid:</strong>
-          <Checkbox
-            checked={paid}
-            icon={<CloseIcon />}
-            checkedIcon={<CheckIcon />}
-            disableRipple
-            sx={{ p: 0 }}
-            disabled
-          />
-        </Typography>
-        {paidOnText && (
-          <Typography variant="body2">
-            <strong>Paid On:</strong> {paidOnText}
-          </Typography>
-        )}
-        {project.paidTo && (
-          <Typography variant="body2">
-            <strong>Pay to:</strong> {textOrNA(project.paidTo)}
-          </Typography>
-        )}
-        {project.presenterWorkType && (
-          <Typography variant="body2">
-            <strong>Presenter Work Type:</strong> {textOrNA(project.presenterWorkType)}
-          </Typography>
-        )}
-        {project.subsidiary && (
-          <Typography variant="body2">
-            <strong>Subsidiary:</strong> {textOrNA(project.subsidiary)}
-          </Typography>
-        )}
-        <Divider />
-        <Box sx={{ mt: 1 }}>
-          <Typography variant="body2">
-            <strong>Invoice:</strong> {textOrNA(project.invoice)}
-          </Typography>
-        </Box>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="md"
+    >
+      <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+        <ProjectDatabaseDetailContent
+          project={project}
+          headerActions={headerActions}
+          footerActions={footerActions}
+          onClose={onClose}
+        />
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-        {onEdit && (
-          <Button variant="contained" onClick={onEdit}>
-            Edit
-          </Button>
-        )}
-      </DialogActions>
     </Dialog>
   )
 }

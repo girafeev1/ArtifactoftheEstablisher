@@ -20,8 +20,6 @@ import {
   Button,
   Card,
   CardContent,
-  Dialog,
-  DialogContent,
   FormControl,
   Grid,
   IconButton,
@@ -39,7 +37,7 @@ import type { SelectChangeEvent } from '@mui/material/Select'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
-import ProjectDatabaseDetailContent from '../../../../components/projectdialog/ProjectDatabaseDetailContent'
+import ProjectDatabaseDetailDialog from '../../../../components/projectdialog/ProjectDatabaseDetailDialog'
 import ProjectDatabaseEditDialog from '../../../../components/projectdialog/ProjectDatabaseEditDialog'
 
 const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
@@ -347,37 +345,19 @@ export default function ProjectsDatabasePage({
           )}
         </CardContent>
       </Card>
-      <Dialog
+      <ProjectDatabaseDetailDialog
         open={detailOpen && Boolean(selectedProject)}
         onClose={handleCloseDetail}
-        fullWidth
-        maxWidth="md"
-      >
-        <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
-          {selectedProject && (
-            <ProjectDatabaseDetailContent
-              project={selectedProject}
-              headerActions={
-                standaloneUrl ? (
-                  <IconButton onClick={handleDetach} size="small" aria-label="Open in new window">
-                    <OpenInNewIcon fontSize="small" />
-                  </IconButton>
-                ) : null
-              }
-              footerActions={
-                <>
-                  <Button variant="outlined" onClick={handleCloseDetail}>
-                    Close
-                  </Button>
-                  <Button variant="contained" onClick={() => setEditOpen(true)}>
-                    Edit
-                  </Button>
-                </>
-              }
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+        project={selectedProject}
+        headerActions={
+          standaloneUrl ? (
+            <IconButton onClick={handleDetach} size="small" aria-label="Open in new window">
+              <OpenInNewIcon fontSize="small" />
+            </IconButton>
+          ) : null
+        }
+        onEdit={() => setEditOpen(true)}
+      />
       <ProjectDatabaseEditDialog
         open={editOpen}
         project={selectedProject}

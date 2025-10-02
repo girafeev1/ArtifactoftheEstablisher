@@ -1,9 +1,13 @@
 import { useMemo } from 'react'
 
-import { Box, Chip, Divider, Link, Stack, Typography } from '@mui/material'
+import { Box, Chip, Divider, IconButton, Link, Stack, Typography } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
 
 import type { ProjectRecord } from '../../lib/projectsDatabase'
 import type { ReactNode } from 'react'
+import { Cormorant_Infant } from 'next/font/google'
+
+const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600' })
 
 const textOrNA = (value: string | null | undefined) =>
   value && value.trim().length > 0 ? value : 'N/A'
@@ -19,28 +23,29 @@ const formatAmount = (value: number | null | undefined) => {
 }
 
 const labelSx = {
-  fontFamily: 'Newsreader',
-  fontWeight: 200,
-  fontSize: '1rem',
-  letterSpacing: '0.03em',
+  fontFamily: 'Calibri, "Segoe UI", sans-serif',
+  fontWeight: 400,
+  fontSize: '0.9rem',
+  letterSpacing: '0.02em',
 } as const
 
 const valueSx = {
-  fontFamily: 'Newsreader',
-  fontWeight: 500,
-  fontSize: '1.05rem',
+  fontSize: '1.2rem',
+  lineHeight: 1.3,
 } as const
 
 interface ProjectDatabaseDetailContentProps {
   project: ProjectRecord
   headerActions?: ReactNode
   footerActions?: ReactNode
+  onClose?: () => void
 }
 
 export default function ProjectDatabaseDetailContent({
   project,
   headerActions,
   footerActions,
+  onClose,
 }: ProjectDatabaseDetailContentProps) {
   const detailItems = useMemo(() => {
     const invoiceValue: ReactNode = project.invoice
@@ -77,8 +82,10 @@ export default function ProjectDatabaseDetailContent({
     ] satisfies Array<{ label: string; value: ReactNode }>
   }, [project])
 
+  const presenterText = textOrNA(project.presenterWorkType)
+
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.2}>
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         justifyContent="space-between"
@@ -90,7 +97,7 @@ export default function ProjectDatabaseDetailContent({
             {project.projectNumber}
           </Typography>
           <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
-            {textOrNA(project.presenterWorkType)}
+            {presenterText}
           </Typography>
           <Typography variant="h4" sx={{ fontFamily: 'Cantata One', lineHeight: 1.2 }}>
             {textOrNA(project.projectTitle)}
@@ -99,22 +106,31 @@ export default function ProjectDatabaseDetailContent({
             — {textOrNA(project.projectNature)}
           </Typography>
         </Stack>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={0.75} alignItems="center">
           <Chip label={project.year} color="primary" variant="outlined" />
           {project.subsidiary && (
             <Chip label={project.subsidiary} variant="outlined" />
           )}
           {headerActions}
+          {onClose && (
+            <IconButton onClick={onClose} aria-label="close project details" size="small">
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          )}
         </Stack>
       </Stack>
 
       <Divider />
 
-      <Stack spacing={1.6}>
+      <Stack spacing={1.2}>
         {detailItems.map(({ label, value }) => (
           <Box key={label}>
             <Typography sx={labelSx}>{label}:</Typography>
-            <Typography component="div" sx={valueSx}>
+            <Typography
+              component="div"
+              sx={valueSx}
+              className={cormorantSemi.className}
+            >
               {value}
             </Typography>
           </Box>
@@ -132,4 +148,3 @@ export default function ProjectDatabaseDetailContent({
     </Stack>
   )
 }
-
