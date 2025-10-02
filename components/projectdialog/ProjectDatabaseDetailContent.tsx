@@ -1,14 +1,23 @@
 import { useMemo } from 'react'
 
-import { Box, Chip, Divider, IconButton, Link, Stack, Typography } from '@mui/material'
+import {
+  Box,
+  Chip,
+  Divider,
+  IconButton,
+  Link,
+  Stack,
+  Typography,
+} from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import { Cormorant_Infant, Yuji_Mai } from 'next/font/google'
 
 import type { ProjectRecord } from '../../lib/projectsDatabase'
 import type { ReactNode } from 'react'
-import { Cormorant_Infant } from 'next/font/google'
 
-const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600' })
+const yujiMai = Yuji_Mai({ subsets: ['latin'], weight: '400', display: 'swap' })
+const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600', display: 'swap' })
 
 const textOrNA = (value: string | null | undefined) =>
   value && value.trim().length > 0 ? value : 'N/A'
@@ -83,17 +92,24 @@ export default function ProjectDatabaseDetailContent({
 
   const rawPresenter = textOrNA(project.presenterWorkType)
   const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
+  const hasCjkInTitle = Boolean(
+    project.projectTitle && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(project.projectTitle)
+  )
 
   return (
     <Stack spacing={1.2}>
-      <Stack
-        direction={{ xs: 'column', sm: 'row' }}
-        justifyContent="space-between"
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
-        spacing={2}
-      >
-        <Stack spacing={0.5} sx={{ width: '100%' }}>
-          <Stack direction="row" alignItems="center" spacing={1}>
+      <Stack spacing={0.75} sx={{ width: '100%' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            columnGap: 1,
+            rowGap: 0.75,
+            width: '100%',
+          }}
+        >
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="subtitle1" color="text.secondary">
               {project.projectNumber}
             </Typography>
@@ -102,28 +118,36 @@ export default function ProjectDatabaseDetailContent({
                 <EditOutlinedIcon fontSize="small" />
               </IconButton>
             )}
-          </Stack>
-          <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
-            {presenterText}
-          </Typography>
-          <Typography variant="h4" sx={{ fontFamily: 'Cantata One', lineHeight: 1.2 }}>
-            {textOrNA(project.projectTitle)}
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            {textOrNA(project.projectNature)}
-          </Typography>
-        </Stack>
-        <Stack direction="row" spacing={0.75} alignItems="center">
+          </Box>
           {project.subsidiary && (
             <Chip label={textOrNA(project.subsidiary)} variant="outlined" size="small" />
           )}
-          {headerActions}
-          {onClose && (
-            <IconButton onClick={onClose} aria-label="close project details" size="small">
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          )}
-        </Stack>
+          <Box sx={{ flexGrow: 1 }} />
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+            {headerActions}
+            {onClose && (
+              <IconButton onClick={onClose} aria-label="close project details" size="small">
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Box>
+        </Box>
+        <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
+          {presenterText}
+        </Typography>
+        <Typography
+          variant="h4"
+          className={hasCjkInTitle ? yujiMai.className : undefined}
+          sx={{
+            fontFamily: hasCjkInTitle ? undefined : 'Cantata One',
+            lineHeight: 1.2,
+          }}
+        >
+          {textOrNA(project.projectTitle)}
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          {textOrNA(project.projectNature)}
+        </Typography>
       </Stack>
 
       <Divider />
