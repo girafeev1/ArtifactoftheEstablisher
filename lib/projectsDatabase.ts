@@ -1,6 +1,15 @@
 // lib/projectsDatabase.ts
 
-import { collection, getDocs, Timestamp } from 'firebase/firestore'
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+} from 'firebase/firestore'
 
 import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from './firebase'
 
@@ -34,6 +43,17 @@ export interface ProjectRecord {
 export interface ProjectsDatabaseResult {
   projects: ProjectRecord[]
   years: string[]
+}
+
+export interface ProjectUpdateInput {
+  year: string
+  projectId: string
+  updates: Partial<ProjectRecord>
+  editedBy: string
+}
+
+export interface ProjectUpdateResult {
+  updatedFields: string[]
 }
 
 const toTimestamp = (value: unknown): Timestamp | null => {
@@ -218,3 +238,90 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
   }
 }
 
+const UPDATE_LOG_COLLECTION = 'updateLogs'
+
+const READ_ONLY_FIELDS = new Set(['id', 'year'])
+
+const sanitizeUpdates = (updates: Partial<ProjectRecord>) => {
+  const payload: Record<string, unknown> = {}
+  Object.entries(updates).forEach(([key, value]) => {
+    if (value !== undefined && !READ_ONLY_FIELDS.has(key)) {
+      payload[key] = value
+    }
+  })
+  return payload
+}
+
+const hasValueChanged = (current: unknown, next: unknown) => {
+  if (current === next) {
+    return false
+  }
+  if (current instanceof Timestamp && next instanceof Timestamp) {
+    return current.toMillis() !== next.toMillis()
+  }
+  if (current instanceof Timestamp && typeof next === 'string') {
+    const parsed = new Date(next)
+    return parsed.getTime() !== current.toMillis()
+  }
+  if (typeof current === 'number' && typeof next === 'number') {
+    return current !== next
+  }
+  if (typeof current === 'boolean' && typeof next === 'boolean') {
+    return current !== next
+  }
+  if (current == null || next == null) {
+    return current !== next
+  }
+  if (typeof current === 'object' && typeof next === 'object') {
+    return JSON.stringify(current) !== JSON.stringify(next)
+  }
+  return current !== next
+}
+
+export const updateProjectInDatabase = async ({
+  year,
+  projectId,
+  updates,
+  editedBy,
+}: ProjectUpdateInput): Promise<ProjectUpdateResult> => {
+  const trimmedYear = year.trim()
+  if (!YEAR_ID_PATTERN.test(trimmedYear)) {
+    throw new Error('Invalid year identifier provided')
+  }
+
+  const projectRef = doc(projectsDb, trimmedYear, projectId)
+  const snapshot = await getDoc(projectRef)
+  if (!snapshot.exists()) {
+    throw new Error('Project record not found')
+  }
+
+  const currentData = snapshot.data() as Record<string, unknown>
+  const sanitized = sanitizeUpdates(updates)
+
+  const changedEntries = Object.entries(sanitized).filter(([field, value]) =>
+    hasValueChanged(currentData[field], value)
+  )
+
+  if (changedEntries.length === 0) {
+    return { updatedFields: [] }
+  }
+
+  const updatePayload = Object.fromEntries(changedEntries)
+
+  await updateDoc(projectRef, updatePayload)
+
+  const logsCollection = collection(projectRef, UPDATE_LOG_COLLECTION)
+  const logWrites = changedEntries.map(([field]) =>
+    addDoc(logsCollection, {
+      field,
+      editedBy,
+      timestamp: serverTimestamp(),
+    })
+  )
+
+  await Promise.all(logWrites)
+
+  return {
+    updatedFields: changedEntries.map(([field]) => field),
+  }
+}

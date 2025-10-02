@@ -1,36 +1,22 @@
-name: Deploy Codex PR to Vercel Production
+name: Deploy to Vercel Production
 
 on:
-  push:
-    branches:
-      - main
-      - shwdtf-*          # your Codex PRs
-      - codex/*           # additional Codex-style branches
-    # BLACKLIST ONLY: if a push changes ONLY these paths, the job won't run
-    paths-ignore:
-      - 'docs/**'
-      - 'prompts/**'
-      - '.github/**'      # editing workflows should NOT deploy your app
-      - '**/*.md'         # any markdown-only change (README, etc.)
-
-  # keep manual runs available (optional)
-  workflow_dispatch: {}
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
   deployments: write
 
 concurrency:
-  group: vercel-prod-${{ github.ref }}
+  group: vercel-prod-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   deploy:
-      if: |
-      !contains(github.event.head_commit.message, 'chore(context)') &&
-      !contains(github.event.head_commit.message, 'archive PR')
-    runs-on: ubuntu-latest
-    steps:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,27 +25,24 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install deps
+      - name: Install dependencies
         run: npm ci
 
       - name: Install Vercel CLI
         run: npm i -g vercel@latest
 
-      # Pull environment (Production)
-      - name: Link Vercel project (prod)
+      - name: Pull production environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # Build locally using Vercel build (produces .vercel/output)
       - name: Build
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # Deploy the prebuilt output as Production
       - name: Deploy to Production
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:

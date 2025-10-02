@@ -53,31 +53,11 @@ jobs:
           git commit -m "chore(context): update PR #${{ github.event.number }}"
           git push origin HEAD:${{ github.head_ref }}
 
-      # 🔗 Upsert a single comment with evergreen & snapshot links
-      - name: Comment links on PR
-        if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const pr = context.payload.pull_request;
-            const owner = context.repo.owner;
-            const repo  = context.repo.repo;
-            const headRef = pr.head.ref;
-            const headSha = pr.head.sha;
-            const n = pr.number;
-            const evergreen = `https://github.com/${owner}/${repo}/blob/${headRef}/docs/context/PR-${n}.md`;
-            const snapshot  = `https://raw.githubusercontent.com/${owner}/${repo}/${headSha}/docs/context/PR-${n}.md`;
-            const body = [
-              `**Diff file generated ✅**`,
-              ``,
-              `Evergreen: ${evergreen}`,
-              `Snapshot: ${snapshot}`,
-              `File path: docs/context/PR-${n}.md`
-            ].join('\n');
-            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number: n });
-            const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('Diff file generated ✅'));
-            if (mine) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number: n, body });
-            }
+      - name: Log context bundle update
+        if: steps.ctxdiff.outputs.changed == 'true'
+        run: |
+          {
+            echo "## Context bundle updated"
+            echo "- PR: #${{ github.event.number }}"
+            echo "- File: docs/context/PR-${{ github.event.number }}.md"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -29,7 +29,8 @@ test('buildBankLabel formats bank name and code', () => {
 })
 
 test('listBanks expands multiple codes', async () => {
-  ;(getDocs as jest.Mock).mockResolvedValueOnce({
+  const getDocsMock = getDocs as jest.Mock
+  getDocsMock.mockResolvedValueOnce({
     docs: [
       { id: 'b1', data: () => ({ name: 'Bank1', code: [40, 152] }) },
     ],
@@ -57,4 +58,3 @@ test('buildAccountLabel masks and falls back', () => {
     }),
   ).toBe('Savings · ••••4321')
 })
-

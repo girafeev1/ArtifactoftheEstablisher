@@ -158,74 +158,13 @@ jobs:
             /tmp/diff.patch
           if-no-files-found: ignore
 
-      - name: Compose links
-        id: links
-        env:
-          OWNER_REPO: ${{ github.repository }}
-          BRANCH: ${{ needs.resolve.outputs.head_ref }}
-          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
-          # Prefer the new commit SHA if we made one, else the original head SHA
-          HEAD_SHA: ${{ steps.commit.outputs.head_after || needs.resolve.outputs.head_sha }}
+      - name: Log diff refresh location
         run: |
-          FILE="docs/context/PR-${PR_NUMBER}.md"
-          echo "evergreen=https://github.com/${OWNER_REPO}/blob/${BRANCH}/${FILE}" >> "$GITHUB_OUTPUT"
-          echo "snapshot=https://raw.githubusercontent.com/${OWNER_REPO}/${HEAD_SHA}/${FILE}" >> "$GITHUB_OUTPUT"
-          echo "run_url=https://github.com/${OWNER_REPO}/actions/runs/${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
-
-      - name: Post sticky comment
-        uses: actions/github-script@v7
-        env:
-          EVERGREEN: ${{ steps.links.outputs.evergreen }}
-          SNAPSHOT:  ${{ steps.links.outputs.snapshot }}
-          RUN_URL:   ${{ steps.links.outputs.run_url }}
-          IS_SAME:   ${{ needs.resolve.outputs.same_repo }}
-        with:
-          script: |
-            const prNumber = Number("${{ needs.resolve.outputs.pr_number }}");
-            const marker = "<!-- pr-diff-refresh-sticky -->";
-
-            let body;
-            if (process.env.IS_SAME === 'true') {
-              body = [
-                `**Diff file refreshed** ✅`,
-                ``,
-                `- Evergreen: ${process.env.EVERGREEN}`,
-                `- Snapshot: ${process.env.SNAPSHOT}`,
-                ``,
-                `_File path:_ docs/context/PR-${prNumber}.md`,
-                marker
-              ].join('\n');
-            } else {
-              body = [
-                `**Diff refreshed (fork PR)** ⚠️`,
-                `Artifacts (download): ${process.env.RUN_URL}`,
-                ``,
-                `_Note:_ Workflows cannot push files back to fork branches.`,
-                marker
-              ].join('\n');
-            }
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber
-            });
-            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body
-              });
-            }
+          {
+            echo "## Diff refreshed"
+            echo "- PR: #${{ needs.resolve.outputs.pr_number }}"
+            echo "- File: docs/context/PR-${{ needs.resolve.outputs.pr_number }}.md"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Inline preview (append to comment when possible)
         if: always()
