@@ -47,11 +47,11 @@ export default function ProjectWindowPage({ project }: ProjectWindowPageProps) {
       <Box
         sx={{
           width: '100%',
-          maxWidth: 640,
+          maxWidth: 560,
           mx: 'auto',
           minWidth: 0,
           py: { xs: 3, md: 5 },
-          px: { xs: 3, md: 4 },
+          px: { xs: 2.5, md: 3.5 },
         }}
       >
         <ProjectDatabaseDetailContent
