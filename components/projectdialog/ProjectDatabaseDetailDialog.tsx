@@ -29,7 +29,7 @@ export default function ProjectDatabaseDetailDialog({
       open={open}
       onClose={onClose}
       fullWidth
-      maxWidth="md"
+      maxWidth="sm"
     >
       <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
         <ProjectDatabaseDetailContent
