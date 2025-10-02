@@ -14,8 +14,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Timestamp } from 'firebase/firestore'
-
 import type { ProjectRecord } from '../../lib/projectsDatabase'
 
 interface ProjectDatabaseEditDialogProps {
@@ -46,8 +44,12 @@ const toDateInputValue = (value: string | null) => {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().split('T')[0]
 }
 
-const toTimestampOrNull = (value: string) =>
-  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
+const toIsoUtcStringOrNull = (value: string) => {
+  if (!value) return null
+  const isoLocalMidnight = `${value}T00:00:00+08:00`
+  const date = new Date(isoLocalMidnight)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
 
 const sanitizeText = (value: string) => {
   const trimmed = value.trim()
@@ -135,8 +137,8 @@ export default function ProjectDatabaseEditDialog({
       updates.amount = parsedAmount
     }
 
-    updates.projectDate = toTimestampOrNull(form.projectDate)
-    updates.onDate = toTimestampOrNull(form.onDate)
+    updates.projectDate = toIsoUtcStringOrNull(form.projectDate)
+    updates.onDate = toIsoUtcStringOrNull(form.onDate)
 
     try {
       const response = await fetch(

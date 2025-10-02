@@ -124,7 +124,7 @@ export default function ProjectDatabaseDetailContent({
           </Typography>
           <Typography
             variant='h4'
-            className={hasCjkInTitle ? yujiMai.className : undefined}
+            className={hasCjkInTitle ? 'yuji-title' : undefined}
             sx={{ fontFamily: hasCjkInTitle ? undefined : 'Cantata One', lineHeight: 1.2 }}
           >
             {textOrNA(project.projectTitle)}

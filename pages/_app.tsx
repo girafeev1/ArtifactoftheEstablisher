@@ -5,6 +5,7 @@ import type { AppProps } from 'next/app';
 import { setupClientLogging } from '../lib/clientLogger';
 import { Newsreader, Cantata_One, Nunito } from 'next/font/google';
 import '../styles/studentDialog.css';
+import '../styles/project-dialog.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../lib/theme';

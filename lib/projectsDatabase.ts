@@ -242,12 +242,50 @@ const UPDATE_LOG_COLLECTION = 'updateLogs'
 
 const READ_ONLY_FIELDS = new Set(['id', 'year'])
 
+const normalizeTimestampInput = (value: unknown) => {
+  if (value == null) {
+    return null
+  }
+
+  if (value instanceof Timestamp) {
+    return value
+  }
+
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'seconds' in value &&
+    'nanoseconds' in value &&
+    typeof (value as any).seconds === 'number' &&
+    typeof (value as any).nanoseconds === 'number'
+  ) {
+    return new Timestamp((value as any).seconds, (value as any).nanoseconds)
+  }
+
+  if (typeof value === 'string') {
+    const parsed = new Date(value)
+    if (!Number.isNaN(parsed.getTime())) {
+      return Timestamp.fromDate(parsed)
+    }
+    return value
+  }
+
+  return value
+}
+
 const sanitizeUpdates = (updates: Partial<ProjectRecord>) => {
   const payload: Record<string, unknown> = {}
   Object.entries(updates).forEach(([key, value]) => {
-    if (value !== undefined && !READ_ONLY_FIELDS.has(key)) {
-      payload[key] = value
+    if (value === undefined || READ_ONLY_FIELDS.has(key)) {
+      return
     }
+
+    if (key === 'projectDate' || key === 'onDate') {
+      payload[key] = normalizeTimestampInput(value)
+      return
+    }
+
+    payload[key] = value
   })
   return payload
 }
