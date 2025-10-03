@@ -1,13 +1,19 @@
 import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import SidebarLayout from '../../../../components/SidebarLayout'
 import {
   fetchProjectsFromDatabase,
   ProjectRecord,
 } from '../../../../lib/projectsDatabase'
+import {
+  decodeSelectionId,
+  encodeSelectionId,
+  ProjectsSortMethod,
+  SelectionDescriptor,
+} from '../../../../lib/projectsDatabaseSelection'
 
 import {
   Box,
@@ -29,56 +35,33 @@ import {
 } from '@mui/material'
 import type { SelectChangeEvent } from '@mui/material/Select'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+
+import ProjectDatabaseDetailDialog from '../../../../components/projectdialog/ProjectDatabaseDetailDialog'
+import ProjectDatabaseEditDialog from '../../../../components/projectdialog/ProjectDatabaseEditDialog'
+import ProjectDatabaseCreateDialog from '../../../../components/projectdialog/ProjectDatabaseCreateDialog'
 
 const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 const headingSx = { fontFamily: 'Cantata One' }
 
-type SortMethod = 'year' | 'subsidiary'
+type SortMethod = ProjectsSortMethod
 
 type Mode = 'select' | 'detail'
-
-interface DetailSelection {
-  type: SortMethod
-  year: string
-}
 
 interface ProjectsDatabasePageProps {
   mode: Mode
   years: string[]
   error?: string
-  detailSelection?: DetailSelection
+  detailSelection?: SelectionDescriptor
   projects?: ProjectRecord[]
-}
-
-const encodeSelectionId = (type: SortMethod, year: string) => {
-  const yearPart = encodeURIComponent(year)
-  return `${type}--${yearPart}`
-}
-
-const decodeSelectionId = (value: string): DetailSelection | null => {
-  const [typePart, yearPart] = value.split('--')
-  if (!typePart || !yearPart) {
-    return null
-  }
-
-  if (typePart !== 'year' && typePart !== 'subsidiary') {
-    return null
-  }
-
-  try {
-    return { type: typePart, year: decodeURIComponent(yearPart) }
-  } catch (err) {
-    console.warn('[projects-database] Failed to decode selection id', err)
-    return null
-  }
 }
 
 const stringOrNA = (value: string | null | undefined) =>
   value && value.trim().length > 0 ? value : 'N/A'
 
 const amountText = (value: number | null | undefined) => {
-  if (value === null || value === undefined) {
-    return '-'
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 'HK$0'
   }
 
   return `HK$${value.toLocaleString('en-US', {
@@ -120,7 +103,6 @@ export default function ProjectsDatabasePage({
   const [selectedYear, setSelectedYear] = useState<string>(
     detailSelection?.year ?? years[0] ?? ''
   )
-
   const handleYearChange = (event: SelectChangeEvent<string>) => {
     setSelectedYear(event.target.value)
   }
@@ -138,6 +120,11 @@ export default function ProjectsDatabasePage({
     }
   }, [detailSelection])
 
+  const [selectedProject, setSelectedProject] = useState<ProjectRecord | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+
   const handleNavigate = (type: SortMethod, year: string) => {
     if (!year) {
       return
@@ -146,6 +133,63 @@ export default function ProjectsDatabasePage({
     router.push(
       `/dashboard/businesses/projects-database/${encodeSelectionId(type, year)}`
     )
+  }
+
+  const handleProjectClick = (project: ProjectRecord) => {
+    setSelectedProject(project)
+    setDetailOpen(true)
+  }
+
+  const standaloneUrl = useMemo(() => {
+    if (!selectedProject) return null
+    return `/dashboard/businesses/projects-database/window?group=${encodeURIComponent(
+      encodeSelectionId('year', selectedProject.year)
+    )}&project=${encodeURIComponent(selectedProject.id)}`
+  }, [selectedProject])
+
+  const createStandaloneUrl = useMemo(() => {
+    if (!detailSelection) return null
+    return `/dashboard/businesses/projects-database/new-window?group=${encodeURIComponent(
+      encodeSelectionId(detailSelection.type, detailSelection.year)
+    )}`
+  }, [detailSelection])
+
+  const handleDetach = () => {
+    if (!standaloneUrl) return
+    setDetailOpen(false)
+    setSelectedProject(null)
+    if (typeof window !== 'undefined') {
+      const features = 'noopener,noreferrer,width=1200,height=800,resizable=yes,scrollbars=yes'
+      window.open(standaloneUrl, '_blank', features)
+    } else {
+      void router.push(standaloneUrl)
+    }
+  }
+
+  const handleEditSaved = async () => {
+    setEditOpen(false)
+    await router.replace(router.asPath)
+  }
+
+  const handleCreateSaved = async (_?: ProjectRecord | null) => {
+    setCreateOpen(false)
+    await router.replace(router.asPath)
+  }
+
+  const handleCloseDetail = () => {
+    setDetailOpen(false)
+    setSelectedProject(null)
+  }
+
+  const handleCreateDetach = () => {
+    if (!createStandaloneUrl) return
+    setCreateOpen(false)
+    if (typeof window !== 'undefined') {
+      const features = 'noopener,noreferrer,width=1200,height=800,resizable=yes,scrollbars=yes'
+      window.open(createStandaloneUrl, '_blank', features)
+    } else {
+      void router.push(createStandaloneUrl)
+    }
   }
 
   if (mode === 'select') {
@@ -276,7 +320,7 @@ export default function ProjectsDatabasePage({
         </Box>
         <Button
           variant="contained"
-          onClick={() => router.push('/dashboard/businesses/new')}
+          onClick={() => setCreateOpen(true)}
         >
           New Project
         </Button>
@@ -312,13 +356,12 @@ export default function ProjectsDatabasePage({
                   <ListItem
                     key={`${project.year}-${project.projectNumber}`}
                     alignItems="flex-start"
-                    sx={{ cursor: 'default' }}
+                    sx={{ cursor: 'pointer' }}
+                    onClick={() => handleProjectClick(project)}
                   >
                     <ListItemText
                       primary={primary}
-                      primaryTypographyProps={{ sx: valueSx }}
                       secondary={segments.join(' | ')}
-                      secondaryTypographyProps={{ sx: valueSx }}
                     />
                   </ListItem>
                 )
@@ -327,6 +370,32 @@ export default function ProjectsDatabasePage({
           )}
         </CardContent>
       </Card>
+      <ProjectDatabaseDetailDialog
+        open={detailOpen && Boolean(selectedProject)}
+        onClose={handleCloseDetail}
+        project={selectedProject}
+        headerActions={
+          standaloneUrl ? (
+            <IconButton onClick={handleDetach} size="small" aria-label="Open in new window">
+              <OpenInNewIcon fontSize="small" />
+            </IconButton>
+          ) : null
+        }
+        onEdit={() => setEditOpen(true)}
+      />
+      <ProjectDatabaseEditDialog
+        open={editOpen}
+        project={selectedProject}
+        onClose={() => setEditOpen(false)}
+        onSaved={handleEditSaved}
+      />
+      <ProjectDatabaseCreateDialog
+        open={createOpen}
+        year={detailSelection?.year ?? null}
+        onClose={() => setCreateOpen(false)}
+        onCreated={handleCreateSaved}
+        onDetach={createStandaloneUrl ? handleCreateDetach : undefined}
+      />
     </SidebarLayout>
   )
 }

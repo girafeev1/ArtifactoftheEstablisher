@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Yuji+Mai&family=Federo&family=Iansui&family=Karla:wght@300&display=block');
+
+.yuji-title {
+  font-family: 'Yuji Mai', 'Cantata One', serif !important;
+}
+
+.federo-text {
+  font-family: 'Federo', 'Cantata One', serif !important;
+  letter-spacing: 0.08em;
+}
+
+.iansui-text {
+  font-family: 'Iansui', 'Yuji Mai', serif !important;
+  letter-spacing: 0.04em;
+}
+
+.karla-label {
+  font-family: 'Karla', 'Newsreader', sans-serif !important;
+  font-weight: 300;
+}
