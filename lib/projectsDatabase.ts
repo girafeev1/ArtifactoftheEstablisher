@@ -7,6 +7,7 @@ import {
   getDoc,
   getDocs,
   serverTimestamp,
+  setDoc,
   Timestamp,
   updateDoc,
 } from 'firebase/firestore'
@@ -54,6 +55,16 @@ export interface ProjectUpdateInput {
 
 export interface ProjectUpdateResult {
   updatedFields: string[]
+}
+
+export interface ProjectCreateInput {
+  year: string
+  data: Record<string, unknown>
+  createdBy: string
+}
+
+export interface ProjectCreateResult {
+  project: ProjectRecord
 }
 
 const toTimestamp = (value: unknown): Timestamp | null => {
@@ -134,6 +145,39 @@ const toBooleanValue = (value: unknown): boolean | null => {
   return null
 }
 
+const buildProjectRecord = (
+  year: string,
+  id: string,
+  data: Record<string, unknown>
+): ProjectRecord => {
+  const projectNumber = toStringValue(data.projectNumber) ?? id
+
+  const amount = toNumberValue(data.amount)
+  const projectDateIso = toIsoDate(data.projectDate)
+  const projectDateDisplay = formatDisplayDate(data.projectDate)
+  const onDateIso = toIsoDate(data.onDate)
+  const onDateDisplay = formatDisplayDate(data.onDate)
+
+  return {
+    id,
+    year,
+    amount,
+    clientCompany: toStringValue(data.clientCompany),
+    invoice: toStringValue(data.invoice),
+    onDateDisplay,
+    onDateIso,
+    paid: toBooleanValue(data.paid),
+    paidTo: toStringValue(data.paidTo),
+    presenterWorkType: toStringValue(data.presenterWorkType),
+    projectDateDisplay,
+    projectDateIso,
+    projectNature: toStringValue(data.projectNature),
+    projectNumber,
+    projectTitle: toStringValue(data.projectTitle),
+    subsidiary: toStringValue(data.subsidiary),
+  }
+}
+
 const uniqueSortedYears = (values: Iterable<string>) =>
   Array.from(new Set(values)).sort((a, b) =>
     b.localeCompare(a, undefined, { numeric: true })
@@ -193,32 +237,7 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
       const snapshot = await getDocs(collection(projectsDb, year))
       snapshot.forEach((doc) => {
         const data = doc.data() as Record<string, unknown>
-        const projectNumber = toStringValue(data.projectNumber) ?? doc.id
-
-        const amount = toNumberValue(data.amount)
-        const projectDateIso = toIsoDate(data.projectDate)
-        const projectDateDisplay = formatDisplayDate(data.projectDate)
-        const onDateIso = toIsoDate(data.onDate)
-        const onDateDisplay = formatDisplayDate(data.onDate)
-
-        projects.push({
-          id: doc.id,
-          year,
-          amount,
-          clientCompany: toStringValue(data.clientCompany),
-          invoice: toStringValue(data.invoice),
-          onDateDisplay,
-          onDateIso,
-          paid: toBooleanValue(data.paid),
-          paidTo: toStringValue(data.paidTo),
-          presenterWorkType: toStringValue(data.presenterWorkType),
-          projectDateDisplay,
-          projectDateIso,
-          projectNature: toStringValue(data.projectNature),
-          projectNumber,
-          projectTitle: toStringValue(data.projectTitle),
-          subsidiary: toStringValue(data.subsidiary),
-        })
+        projects.push(buildProjectRecord(year, doc.id, data))
 
         yearsWithData.add(year)
       })
@@ -288,6 +307,92 @@ const sanitizeUpdates = (updates: Partial<ProjectRecord>) => {
     payload[key] = value
   })
   return payload
+}
+
+export const createProjectInDatabase = async ({
+  year,
+  data,
+  createdBy,
+}: ProjectCreateInput): Promise<ProjectCreateResult> => {
+  const trimmedYear = year.trim()
+  if (!YEAR_ID_PATTERN.test(trimmedYear)) {
+    throw new Error('Invalid year identifier provided')
+  }
+
+  const rawProjectNumber = (data as Record<string, unknown>).projectNumber
+  const projectNumber =
+    typeof rawProjectNumber === 'string'
+      ? rawProjectNumber.trim()
+      : rawProjectNumber instanceof String
+      ? rawProjectNumber.toString().trim()
+      : null
+
+  if (!projectNumber) {
+    throw new Error('Project number is required')
+  }
+
+  const projectsCollection = collection(projectsDb, trimmedYear)
+  const projectRef = doc(projectsCollection, projectNumber)
+  const existing = await getDoc(projectRef)
+  if (existing.exists()) {
+    throw new Error('A project with this number already exists')
+  }
+
+  const sanitized = sanitizeUpdates({
+    ...(data as Partial<ProjectRecord>),
+    projectNumber,
+  }) as Partial<ProjectRecord> & Record<string, unknown>
+
+  const timestamp = serverTimestamp()
+  const baseDefaults: Record<string, unknown> = {
+    projectTitle: null,
+    projectNature: null,
+    clientCompany: null,
+    amount: null,
+    paid: false,
+    paidTo: null,
+    invoice: null,
+    presenterWorkType: null,
+    subsidiary: null,
+    projectDate: null,
+    onDate: null,
+  }
+
+  const docPayload: Record<string, unknown> = {
+    ...baseDefaults,
+    ...sanitized,
+    projectNumber,
+    paid: sanitized.paid ?? false,
+    projectDate: sanitized.projectDate ?? null,
+    onDate: sanitized.onDate ?? null,
+    createdBy,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+
+  await setDoc(projectRef, docPayload)
+
+  const logsCollection = collection(projectRef, UPDATE_LOG_COLLECTION)
+  await addDoc(logsCollection, {
+    field: 'created',
+    editedBy: createdBy,
+    timestamp: serverTimestamp(),
+  })
+
+  const snapshot = await getDoc(projectRef)
+  if (!snapshot.exists()) {
+    throw new Error('Failed to read created project')
+  }
+
+  const createdProject = buildProjectRecord(
+    trimmedYear,
+    snapshot.id,
+    snapshot.data() as Record<string, unknown>
+  )
+
+  return {
+    project: createdProject,
+  }
 }
 
 const hasValueChanged = (current: unknown, next: unknown) => {

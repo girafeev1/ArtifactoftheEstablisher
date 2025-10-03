@@ -39,6 +39,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
 import ProjectDatabaseDetailDialog from '../../../../components/projectdialog/ProjectDatabaseDetailDialog'
 import ProjectDatabaseEditDialog from '../../../../components/projectdialog/ProjectDatabaseEditDialog'
+import ProjectDatabaseCreateDialog from '../../../../components/projectdialog/ProjectDatabaseCreateDialog'
 
 const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 const headingSx = { fontFamily: 'Cantata One' }
@@ -122,6 +123,7 @@ export default function ProjectsDatabasePage({
   const [selectedProject, setSelectedProject] = useState<ProjectRecord | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
 
   const handleNavigate = (type: SortMethod, year: string) => {
     if (!year) {
@@ -145,6 +147,13 @@ export default function ProjectsDatabasePage({
     )}&project=${encodeURIComponent(selectedProject.id)}`
   }, [selectedProject])
 
+  const createStandaloneUrl = useMemo(() => {
+    if (!detailSelection) return null
+    return `/dashboard/businesses/projects-database/new-window?group=${encodeURIComponent(
+      encodeSelectionId(detailSelection.type, detailSelection.year)
+    )}`
+  }, [detailSelection])
+
   const handleDetach = () => {
     if (!standaloneUrl) return
     setDetailOpen(false)
@@ -162,9 +171,25 @@ export default function ProjectsDatabasePage({
     await router.replace(router.asPath)
   }
 
+  const handleCreateSaved = async (_?: ProjectRecord | null) => {
+    setCreateOpen(false)
+    await router.replace(router.asPath)
+  }
+
   const handleCloseDetail = () => {
     setDetailOpen(false)
     setSelectedProject(null)
+  }
+
+  const handleCreateDetach = () => {
+    if (!createStandaloneUrl) return
+    setCreateOpen(false)
+    if (typeof window !== 'undefined') {
+      const features = 'noopener,noreferrer,width=1200,height=800,resizable=yes,scrollbars=yes'
+      window.open(createStandaloneUrl, '_blank', features)
+    } else {
+      void router.push(createStandaloneUrl)
+    }
   }
 
   if (mode === 'select') {
@@ -295,7 +320,7 @@ export default function ProjectsDatabasePage({
         </Box>
         <Button
           variant="contained"
-          onClick={() => router.push('/dashboard/businesses/new')}
+          onClick={() => setCreateOpen(true)}
         >
           New Project
         </Button>
@@ -363,6 +388,13 @@ export default function ProjectsDatabasePage({
         project={selectedProject}
         onClose={() => setEditOpen(false)}
         onSaved={handleEditSaved}
+      />
+      <ProjectDatabaseCreateDialog
+        open={createOpen}
+        year={detailSelection?.year ?? null}
+        onClose={() => setCreateOpen(false)}
+        onCreated={handleCreateSaved}
+        onDetach={createStandaloneUrl ? handleCreateDetach : undefined}
       />
     </SidebarLayout>
   )
