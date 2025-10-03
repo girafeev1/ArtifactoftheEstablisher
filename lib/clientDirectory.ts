@@ -6,9 +6,10 @@ import { getFirestoreForDatabase } from './firebase'
 
 export interface ClientDirectoryRecord {
   companyName: string
-  name: string | null
   title: string | null
-  email: string | null
+  name: string | null
+  nameAddressed: string | null
+  emailAddress: string | null
   phone: string | null
   addressLine1: string | null
   addressLine2: string | null
@@ -32,11 +33,18 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
 
   const records: ClientDirectoryRecord[] = snap.docs.map((doc) => {
     const data = doc.data() as Record<string, unknown>
+    const companyName = sanitizeString(data.companyName) ?? doc.id
+    const title = sanitizeString(data.title)
+    const name = sanitizeString(data.name)
+
     return {
-      companyName: sanitizeString(data.companyName) ?? doc.id,
-      name: sanitizeString(data.name),
-      title: sanitizeString(data.title),
-      email: sanitizeString(data.email),
+      companyName,
+      title,
+      name,
+      nameAddressed:
+        sanitizeString(data.nameAddressed) ??
+        (([title, name].filter(Boolean).join(' ') || null) as string | null),
+      emailAddress: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
       phone: sanitizeString(data.phone),
       addressLine1: sanitizeString(data.addressLine1),
       addressLine2: sanitizeString(data.addressLine2),

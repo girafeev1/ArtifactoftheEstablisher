@@ -70,28 +70,6 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
               </Link>
             </MenuItem>
             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
-              <Link
-                href="/dashboard/businesses/client-accounts-database"
-                passHref
-                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
-              >
-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-                  Client Accounts (Database)
-                </Button>
-              </Link>
-            </MenuItem>
-            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
-              <Link
-                href="/dashboard/businesses/company-bank-accounts-database"
-                passHref
-                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
-              >
-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-                  Company Bank Accounts (Database)
-                </Button>
-              </Link>
-            </MenuItem>
-            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
               <Link href="/dashboard/businesses/coaching-sessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
                   Coaching Sessions
@@ -114,6 +92,28 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
               <Link href="/dashboard/database?view=bank" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
                   Company Bank Accounts
+                </Button>
+              </Link>
+            </MenuItem>
+            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
+              <Link
+                href="/dashboard/businesses/client-accounts-database"
+                passHref
+                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
+              >
+                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+                  Client Accounts (Database)
+                </Button>
+              </Link>
+            </MenuItem>
+            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
+              <Link
+                href="/dashboard/businesses/company-bank-accounts-database"
+                passHref
+                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
+              >
+                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+                  Company Bank Accounts (Database)
                 </Button>
               </Link>
             </MenuItem>

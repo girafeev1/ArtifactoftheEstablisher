@@ -4,103 +4,213 @@ import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
 
 import SidebarLayout from '../../../../components/SidebarLayout'
-import { fetchClientsDirectory, ClientDirectoryRecord } from '../../../../lib/clientDirectory'
+import ViewClientDialog from '../../../../components/clientdialog/ViewClientDialog'
+import EditClientDialog, { type Client as EditDialogClient } from '../../../../components/clientdialog/EditClientDialog'
+import NewClientDialog from '../../../../components/clientdialog/NewClientDialog'
+import {
+  ClientDirectoryRecord,
+  fetchClientsDirectory,
+} from '../../../../lib/clientDirectory'
 
 import {
+  Alert,
   Box,
-  Card,
-  CardContent,
-  Chip,
-  Grid,
-  TextField,
+  Button,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material'
-import { useMemo, useState } from 'react'
+import { useRouter } from 'next/router'
+import { useEffect, useMemo, useState } from 'react'
 
 interface ClientAccountsDatabasePageProps {
   clients: ClientDirectoryRecord[]
+  error?: string
 }
 
-const renderLine = (label: string, value: string | null) => (
-  <Typography variant='body2' sx={{ mt: 0.5 }}>
-    <strong>{label}:</strong> {value ?? 'N/A'}
-  </Typography>
-)
+const convertToClientDetails = (record: ClientDirectoryRecord) => ({
+  companyName: record.companyName,
+  title: record.title ?? '',
+  nameAddressed: record.nameAddressed ?? record.name ?? '',
+  emailAddress: record.emailAddress ?? '',
+  addressLine1: record.addressLine1 ?? '',
+  addressLine2: record.addressLine2 ?? '',
+  addressLine3: record.addressLine3 ?? '',
+  addressLine4: record.addressLine4 ?? '',
+  addressLine5: record.region ?? record.addressLine5 ?? '',
+})
 
-export default function ClientAccountsDatabasePage({
-  clients,
-}: ClientAccountsDatabasePageProps) {
-  const [query, setQuery] = useState('')
+const convertToEditClient = (record: ClientDirectoryRecord): EditDialogClient => ({
+  companyName: record.companyName,
+  title: record.title ?? 'Mr.',
+  nameAddressed: record.nameAddressed ?? record.name ?? '',
+  emailAddress: record.emailAddress ?? '',
+  addressLine1: record.addressLine1 ?? '',
+  addressLine2: record.addressLine2 ?? '',
+  addressLine3: record.addressLine3 ?? '',
+  addressLine4: record.addressLine4 ?? '',
+  addressLine5: record.region ?? record.addressLine5 ?? 'Kowloon',
+})
 
-  const filtered = useMemo(() => {
-    const trimmed = query.trim().toLowerCase()
-    if (!trimmed) {
-      return clients
+export default function ClientAccountsDatabasePage({ clients, error }: ClientAccountsDatabasePageProps) {
+  const router = useRouter()
+  const [selectedLetter, setSelectedLetter] = useState<string | null>(null)
+  const [filteredClients, setFilteredClients] = useState<ClientDirectoryRecord[]>(clients)
+  const [selectedClient, setSelectedClient] = useState<ClientDirectoryRecord | null>(null)
+  const [editableClient, setEditableClient] = useState<EditDialogClient | null>(null)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+
+  const uniqueLetters = useMemo(
+    () => Array.from(new Set(clients.map((client) => client.companyName.charAt(0).toUpperCase()))).sort(),
+    [clients]
+  )
+
+  useEffect(() => {
+    if (selectedLetter) {
+      setFilteredClients(
+        clients.filter((client) => client.companyName.charAt(0).toUpperCase() === selectedLetter)
+      )
+    } else {
+      setFilteredClients(clients)
     }
-    return clients.filter((client) =>
-      [
-        client.companyName,
-        client.name,
-        client.email,
-        client.addressLine1,
-        client.addressLine2,
-        client.addressLine3,
-        client.addressLine4,
-        client.addressLine5,
-      ]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(trimmed))
-    )
-  }, [clients, query])
+  }, [selectedLetter, clients])
+
+  const handleClientClick = (client: ClientDirectoryRecord) => {
+    setSelectedClient(client)
+    setViewDialogOpen(true)
+  }
+
+  const handleCloseViewDialog = () => {
+    setViewDialogOpen(false)
+    setSelectedClient(null)
+  }
+
+  const handleEditFromView = () => {
+    if (!selectedClient) {
+      return
+    }
+    setViewDialogOpen(false)
+    setEditableClient(convertToEditClient(selectedClient))
+    setEditDialogOpen(true)
+  }
+
+  const handleCloseEditDialog = () => {
+    setEditDialogOpen(false)
+    setSelectedClient(null)
+    setEditableClient(null)
+  }
+
+  const handleOpenAddDialog = () => {
+    setAddDialogOpen(true)
+  }
+
+  const handleCloseAddDialog = () => {
+    setAddDialogOpen(false)
+  }
+
+  const handleNewClientSubmitted = () => {
+    setAddDialogOpen(false)
+    router.replace(router.asPath)
+  }
+
+  const handleClientChange = (client: EditDialogClient) => {
+    setEditableClient(client)
+  }
+
+  const handleSaveClient = async () => {
+    alert('Editing clients in Firestore is not yet implemented.')
+    setEditDialogOpen(false)
+    setEditableClient(null)
+    router.replace(router.asPath)
+  }
+
+  const handleToggleView = (newView: 'clients' | 'bank') => {
+    if (newView === 'clients') {
+      router.push('/dashboard/businesses/client-accounts-database', undefined, { shallow: true })
+    } else {
+      router.push('/dashboard/businesses/company-bank-accounts-database', undefined, { shallow: true })
+    }
+  }
 
   return (
     <SidebarLayout>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-        <Box>
-          <Typography variant='h4'>Client Accounts (Database)</Typography>
-          <Typography variant='subtitle1' color='text.secondary'>
-            Establish Productions Limited directory
-          </Typography>
-        </Box>
-        <TextField
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder='Search clients by name, email, or address'
-          size='small'
-          sx={{ width: { xs: '100%', sm: 320 } }}
-        />
-      </Box>
-
-      {filtered.length === 0 ? (
-        <Typography>No client entries found.</Typography>
-      ) : (
-        <Grid container spacing={2}>
-          {filtered.map((client) => (
-            <Grid item xs={12} md={6} lg={4} key={client.companyName}>
-              <Card variant='outlined' sx={{ height: '100%' }}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-                    <Typography variant='h6' sx={{ fontFamily: 'Cantata One' }}>
-                      {client.companyName}
-                    </Typography>
-                    {client.region && <Chip size='small' label={client.region} />}
-                  </Box>
-                  {client.title || client.name ? (
-                    renderLine('Contact', [client.title, client.name].filter(Boolean).join(' ') || null)
-                  ) : null}
-                  {renderLine('Email', client.email)}
-                  {renderLine('Phone', client.phone)}
-                  {renderLine('Address 1', client.addressLine1)}
-                  {renderLine('Address 2', client.addressLine2)}
-                  {renderLine('Address 3', client.addressLine3)}
-                  {renderLine('Address 4', client.addressLine4)}
-                  {renderLine('Address 5', client.addressLine5)}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+      <Typography variant='h4' gutterBottom>
+        Client Accounts (Database)
+      </Typography>
+      {error && (
+        <Alert severity='error' sx={{ mb: 2 }}>
+          Error: {error}
+        </Alert>
       )}
+      <ToggleButtonGroup
+        exclusive
+        value='clients'
+        onChange={(event, value) => {
+          if (value) {
+            handleToggleView(value)
+          }
+        }}
+        sx={{ mb: 2 }}
+      >
+        <ToggleButton value='clients'>Client Accounts</ToggleButton>
+        <ToggleButton value='bank'>Company Bank Accounts</ToggleButton>
+      </ToggleButtonGroup>
+      <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        {uniqueLetters.map((letter) => (
+          <Button
+            key={letter}
+            variant={selectedLetter === letter ? 'contained' : 'outlined'}
+            onClick={() => setSelectedLetter(selectedLetter === letter ? null : letter)}
+          >
+            {letter}
+          </Button>
+        ))}
+      </Box>
+      <Box sx={{ mb: 2 }}>
+        <Button variant='contained' onClick={handleOpenAddDialog}>
+          Add Client
+        </Button>
+      </Box>
+      {filteredClients.length === 0 ? (
+        <Typography>No client data found.</Typography>
+      ) : (
+        <List>
+          {filteredClients.map((entry, idx) => (
+            <ListItem key={`${entry.companyName}-${idx}`} disablePadding>
+              <ListItemButton onClick={() => handleClientClick(entry)}>
+                <ListItemText
+                  primary={entry.companyName}
+                  secondary={`${entry.title ?? ''} ${entry.nameAddressed ?? ''} - ${
+                    entry.emailAddress ?? 'N/A'
+                  }`}
+                />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      )}
+      <ViewClientDialog
+        open={viewDialogOpen}
+        onClose={handleCloseViewDialog}
+        client={selectedClient ? convertToClientDetails(selectedClient) : null}
+        onEdit={handleEditFromView}
+      />
+      {editableClient && (
+        <EditClientDialog
+          open={editDialogOpen}
+          onClose={handleCloseEditDialog}
+          client={editableClient}
+          onClientChange={handleClientChange}
+          onSave={async () => handleSaveClient()}
+        />
+      )}
+      <NewClientDialog open={addDialogOpen} onClose={handleCloseAddDialog} onSubmitted={handleNewClientSubmitted} />
     </SidebarLayout>
   )
 }
@@ -127,6 +237,7 @@ export const getServerSideProps: GetServerSideProps<ClientAccountsDatabasePagePr
     return {
       props: {
         clients: [],
+        error: err instanceof Error ? err.message : 'Failed to load client directory',
       },
     }
   }

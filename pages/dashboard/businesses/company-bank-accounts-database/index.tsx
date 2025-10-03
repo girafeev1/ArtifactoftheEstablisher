@@ -15,115 +15,186 @@ import {
   AccordionSummary,
   Box,
   Chip,
-  Grid,
-  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useRouter } from 'next/router'
+
+const formatBankName = (name: string) => {
+  const tokens = name.split(/([\s-]+)/)
+  return tokens.map((token, index) => {
+    if (/^[\s-]+$/.test(token)) {
+      return (
+        <span key={`sep-${index}`} className='federo-text'>
+          {token}
+        </span>
+      )
+    }
+    if (token.length === 0) {
+      return null
+    }
+    const [first, ...rest] = token
+    return (
+      <span key={`word-${index}`} className='federo-text'>
+        <span style={{ fontWeight: 700 }}>{first}</span>
+        <span>{rest.join('')}</span>
+      </span>
+    )
+  })
+}
 
 interface CompanyBankAccountsDatabasePageProps {
   accounts: BankAccountDirectoryRecord[]
 }
 
-const renderDetail = (label: string, value: string | null) => (
-  <Typography variant='body2' sx={{ mt: 0.5 }}>
-    <strong>{label}:</strong> {value ?? 'N/A'}
-  </Typography>
-)
-
 export default function CompanyBankAccountsDatabasePage({
   accounts,
 }: CompanyBankAccountsDatabasePageProps) {
-  const [query, setQuery] = useState('')
+  const router = useRouter()
 
-  const filteredGroups = useMemo(() => {
-    const trimmed = query.trim().toLowerCase()
-
-    const filtered = trimmed
-      ? accounts.filter((account) =>
-          [
-            account.bankName,
-            account.bankCode,
-            account.accountId,
-            account.accountType,
-            account.accountNumber,
-            account.fpsId,
-            account.fpsEmail,
-          ]
-            .filter(Boolean)
-            .some((value) => value!.toLowerCase().includes(trimmed))
-        )
-      : accounts
-
-    return filtered.reduce((acc, account) => {
-      const key = `${account.bankName}__${account.bankCode ?? 'unknown'}`
-      if (!acc[key]) {
-        acc[key] = { bankName: account.bankName, bankCode: account.bankCode, entries: [] as typeof filtered }
+  const grouped = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        bankName: string
+        bankCode: string | null
+        entries: BankAccountDirectoryRecord[]
+        active: boolean
       }
-      acc[key].entries.push(account)
-      return acc
-    }, {} as Record<string, { bankName: string; bankCode: string | null; entries: BankAccountDirectoryRecord[] }>)
-  }, [accounts, query])
+    >()
 
-  const keys = useMemo(() => Object.keys(filteredGroups).sort(), [filteredGroups])
+    accounts.forEach((account) => {
+      const key = `${account.bankName}__${account.bankCode ?? 'unknown'}`
+      if (!map.has(key)) {
+        map.set(key, {
+          bankName: account.bankName,
+          bankCode: account.bankCode,
+          entries: [],
+          active: false,
+        })
+      }
+      const bucket = map.get(key)!
+      bucket.entries.push(account)
+      if (account.status === true) {
+        bucket.active = true
+      }
+    })
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.active !== b.active) {
+        return a.active ? -1 : 1
+      }
+      const codeA = a.bankCode ? Number(a.bankCode.replace(/[^0-9]/g, '')) : Number.POSITIVE_INFINITY
+      const codeB = b.bankCode ? Number(b.bankCode.replace(/[^0-9]/g, '')) : Number.POSITIVE_INFINITY
+      if (codeA !== codeB) {
+        return codeA - codeB
+      }
+      return a.bankName.localeCompare(b.bankName)
+    })
+  }, [accounts])
+
+  const getStatusChip = (active: boolean | null) => {
+    if (active === null) {
+      return null
+    }
+    return (
+      <Chip
+        size='small'
+        label={active ? 'Active' : 'Inactive'}
+        sx={{
+          bgcolor: active ? 'success.main' : 'error.main',
+          color: 'common.white',
+        }}
+      />
+    )
+  }
 
   return (
     <SidebarLayout>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-        <Box>
-          <Typography variant='h4'>Company Bank Accounts (Database)</Typography>
-          <Typography variant='subtitle1' color='text.secondary'>
-            Establish Records Limited directory
-          </Typography>
-        </Box>
-        <TextField
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder='Search bank, account number, or FPS details'
-          size='small'
-          sx={{ width: { xs: '100%', sm: 320 } }}
-        />
-      </Box>
-
-      {keys.length === 0 ? (
+      <Typography variant='h4' gutterBottom>
+        Company Bank Accounts (Database)
+      </Typography>
+      <ToggleButtonGroup
+        exclusive
+        value='bank'
+        onChange={(event, value) => {
+          if (value === 'clients') {
+            router.push('/dashboard/businesses/client-accounts-database', undefined, { shallow: true })
+          }
+        }}
+        sx={{ mb: 2 }}
+      >
+        <ToggleButton value='clients'>Client Accounts</ToggleButton>
+        <ToggleButton value='bank'>Company Bank Accounts</ToggleButton>
+      </ToggleButtonGroup>
+      {grouped.length === 0 ? (
         <Typography>No bank accounts found.</Typography>
       ) : (
-        <Grid container spacing={2}>
-          {keys.map((key) => {
-            const group = filteredGroups[key]
-            return (
-              <Grid item xs={12} key={key}>
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-                      <Typography variant='h6' sx={{ fontFamily: 'Cantata One' }}>
-                        {group.bankName}
-                      </Typography>
-                      {group.bankCode && <Chip size='small' label={`Bank Code ${group.bankCode}`} />}
+        grouped.map((group) => (
+          <Accordion key={`${group.bankName}-${group.bankCode ?? 'unknown'}`} sx={{ mb: 2 }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography
+                    variant='h5'
+                    component='div'
+                    sx={{ display: 'flex', gap: 0.25, flexWrap: 'wrap', alignItems: 'center' }}
+                  >
+                    {formatBankName(group.bankName)}
+                  </Typography>
+                  {getStatusChip(group.active)}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {group.bankCode && (
+                    <Typography variant='body2' color='text.secondary'>
+                      {group.bankCode}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails>
+              {group.entries
+                .slice()
+                .sort((a, b) => {
+                  if (a.status !== b.status) {
+                    return (b.status ? 1 : 0) - (a.status ? 1 : 0)
+                  }
+                  return a.accountId.localeCompare(b.accountId)
+                })
+                .map((entry) => (
+                  <Box
+                    key={entry.accountId}
+                    sx={{
+                      mb: 2,
+                      p: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1,
+                    }}
+                  >
+                    <Typography variant='h6'>
+                      {entry.accountType ? `${entry.accountType} Type` : 'Account'}
+                    </Typography>
+                    <Typography variant='body1'>
+                      {entry.accountNumber ?? 'Account number unavailable'}
+                    </Typography>
+                    <Typography variant='body2'>FPS ID: {entry.fpsId ?? 'N/A'}</Typography>
+                    <Typography variant='body2'>FPS Email: {entry.fpsEmail ?? 'N/A'}</Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <Chip label={entry.accountId} size='small' variant='outlined' />
                     </Box>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    {group.entries.map((entry) => (
-                      <Box key={entry.accountId} sx={{ mb: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                        <Typography variant='subtitle1' sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                          Account: {entry.accountId}
-                        </Typography>
-                        {renderDetail('Account Type', entry.accountType)}
-                        {renderDetail('Account Number', entry.accountNumber)}
-                        {renderDetail('FPS ID', entry.fpsId)}
-                        {renderDetail('FPS Email', entry.fpsEmail)}
-                        <Typography variant='body2' sx={{ mt: 0.5 }}>
-                          <strong>Status:</strong> {entry.status === null ? 'Unknown' : entry.status ? 'Active' : 'Inactive'}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </AccordionDetails>
-                </Accordion>
-              </Grid>
-            )
-          })}
-        </Grid>
+                  </Box>
+                ))}
+            </AccordionDetails>
+          </Accordion>
+        ))
       )}
     </SidebarLayout>
   )

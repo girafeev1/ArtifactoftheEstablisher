@@ -65,7 +65,6 @@ export const fetchBankAccountsDirectory = async (): Promise<BankAccountDirectory
       const codes = normalizeBankCodes(bankData.code)
 
       if (codes.length === 0) {
-        // No sub-collections; treat as a placeholder without accounts
         results.push({
           bankName,
           bankCode: null,
@@ -87,7 +86,9 @@ export const fetchBankAccountsDirectory = async (): Promise<BankAccountDirectory
           accountsSnapshot.forEach((accountDoc) => {
             const accountData = accountDoc.data() as Record<string, unknown>
             const fpsId =
-              toOptionalString(accountData['FPS ID']) ?? toOptionalString(accountData['fpsId'])
+              toOptionalString(accountData['FPS ID']) ??
+              toOptionalString(accountData['fpsId']) ??
+              toOptionalString(accountData['fpsID'])
             const fpsEmail =
               toOptionalString(accountData['FPS Email']) ??
               toOptionalString(accountData['fpsEmail']) ??
@@ -95,7 +96,7 @@ export const fetchBankAccountsDirectory = async (): Promise<BankAccountDirectory
 
             results.push({
               bankName,
-              bankCode: code,
+              bankCode: `(${code})`,
               accountId: accountDoc.id,
               accountType: toOptionalString(accountData.accountType),
               accountNumber: toOptionalString(accountData.accountNumber),
