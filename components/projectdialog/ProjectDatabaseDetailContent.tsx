@@ -11,12 +11,11 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import { Cormorant_Infant, Yuji_Mai } from 'next/font/google'
+import { Cormorant_Infant } from 'next/font/google'
 
 import type { ProjectRecord } from '../../lib/projectsDatabase'
 import type { ReactNode } from 'react'
 
-const yujiMai = Yuji_Mai({ subsets: ['latin'], weight: '400', display: 'swap' })
 const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600', display: 'swap' })
 
 const textOrNA = (value: string | null | undefined) =>
@@ -33,7 +32,6 @@ const formatAmount = (value: number | null | undefined) => {
 }
 
 const labelSx = {
-  fontFamily: "Calibri, 'Segoe UI', sans-serif",
   fontWeight: 400,
   fontSize: '0.9rem',
   letterSpacing: '0.02em',
@@ -92,9 +90,13 @@ export default function ProjectDatabaseDetailContent({
 
   const rawPresenter = textOrNA(project.presenterWorkType)
   const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
-  const hasCjkInTitle = Boolean(
-    project.projectTitle && /[぀-ヿ㐀-䶿一-鿿]/.test(project.projectTitle)
-  )
+  const hasCjkCharacters = (value: string | null | undefined) =>
+    Boolean(value && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(value))
+
+  const hasCjkInTitle = hasCjkCharacters(project.projectTitle)
+  const hasCjkPresenter = hasCjkCharacters(project.presenterWorkType)
+
+  const presenterClassName = hasCjkPresenter ? 'iansui-text' : 'federo-text'
 
   return (
     <Stack spacing={1.2}>
@@ -119,7 +121,11 @@ export default function ProjectDatabaseDetailContent({
               </IconButton>
             )}
           </Stack>
-          <Typography variant='subtitle1' sx={{ color: 'text.primary' }}>
+          <Typography
+            variant='subtitle1'
+            sx={{ color: 'text.primary' }}
+            className={presenterClassName}
+          >
             {presenterText}
           </Typography>
           <Typography
@@ -158,7 +164,9 @@ export default function ProjectDatabaseDetailContent({
       <Stack spacing={1.2}>
         {detailItems.map(({ label, value }) => (
           <Box key={label}>
-            <Typography sx={labelSx}>{label}:</Typography>
+            <Typography sx={labelSx} className='karla-label'>
+              {label}:
+            </Typography>
             <Typography component='div' sx={valueSx} className={cormorantSemi.className}>
               {value}
             </Typography>
