@@ -395,6 +395,11 @@ export default function ProjectsDatabasePage({
         onClose={() => setCreateOpen(false)}
         onCreated={handleCreateSaved}
         onDetach={createStandaloneUrl ? handleCreateDetach : undefined}
+        existingProjectNumbers={
+          (projects ?? [])
+            .map((project) => project.projectNumber?.trim())
+            .filter((value): value is string => Boolean(value))
+        }
       />
     </SidebarLayout>
   )
