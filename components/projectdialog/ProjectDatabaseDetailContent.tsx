@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   Box,
@@ -12,6 +12,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import { Cormorant_Infant } from 'next/font/google'
+import { fetchBankAccountsDirectory } from '../../lib/bankAccountsDirectory'
 
 import type { ProjectRecord } from '../../lib/projectsDatabase'
 import type { ReactNode } from 'react'
@@ -67,6 +68,29 @@ const valueSx = {
   lineHeight: 1.3,
 } as const
 
+let bankAccountLabelCache: Map<string, string> | null = null
+let bankAccountLabelPromise: Promise<Map<string, string>> | null = null
+
+const getBankAccountLabelMap = async (): Promise<Map<string, string>> => {
+  if (bankAccountLabelCache) {
+    return bankAccountLabelCache
+  }
+  if (!bankAccountLabelPromise) {
+    bankAccountLabelPromise = fetchBankAccountsDirectory().then((records) => {
+      const map = new Map<string, string>()
+      records.forEach((record) => {
+        const label = record.accountType
+          ? `${record.bankName} - ${record.accountType}`
+          : record.bankName
+        map.set(record.accountId, label)
+      })
+      bankAccountLabelCache = map
+      return map
+    })
+  }
+  return bankAccountLabelPromise
+}
+
 interface ProjectDatabaseDetailContentProps {
   project: ProjectRecord
   headerActions?: ReactNode
@@ -80,6 +104,39 @@ export default function ProjectDatabaseDetailContent({
   onClose,
   onEdit,
 }: ProjectDatabaseDetailContentProps) {
+  const [payToLabel, setPayToLabel] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      if (!project.paidTo) {
+        if (!cancelled) {
+          setPayToLabel(null)
+        }
+        return
+      }
+
+      try {
+        const map = await getBankAccountLabelMap()
+        if (!cancelled) {
+          setPayToLabel(map.get(project.paidTo) ?? null)
+        }
+      } catch (err) {
+        console.error('[ProjectDatabaseDetailContent] failed to load bank account labels:', err)
+        if (!cancelled) {
+          setPayToLabel(null)
+        }
+      }
+    }
+
+    load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [project.paidTo])
+
   const detailItems = useMemo(() => {
     const invoiceValue: ReactNode = project.invoice
       ? project.invoice.startsWith('http')
@@ -108,10 +165,13 @@ export default function ProjectDatabaseDetailContent({
         label: 'Paid On',
         value: project.paid ? project.onDateDisplay ?? '-' : '-',
       },
-      { label: 'Pay To', value: textOrNA(project.paidTo) },
+      {
+        label: 'Pay To',
+        value: payToLabel ?? textOrNA(project.paidTo),
+      },
       { label: 'Invoice', value: invoiceValue },
     ] satisfies Array<{ label: string; value: ReactNode }>
-  }, [project])
+  }, [payToLabel, project])
 
   const presenterBase = textOrNA(project.presenterWorkType)
   const presenterText = presenterBase === 'N/A' ? presenterBase : `${presenterBase} -`

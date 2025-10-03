@@ -23,28 +23,33 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { useMemo } from 'react'
 import { useRouter } from 'next/router'
 
-const formatBankName = (name: string) => {
-  const tokens = name.split(/([\s-]+)/)
-  return tokens.map((token, index) => {
-    if (/^[\s-]+$/.test(token)) {
+const formatBankName = (name: string) =>
+  name.split(/(-|\s+)/).map((segment, index) => {
+    if (segment === '-') {
       return (
-        <span key={`sep-${index}`} className='federo-text'>
-          {token}
+        <span key={`hyphen-${index}`} className='federo-text' style={{ margin: '0 6px' }}>
+          -
         </span>
       )
     }
-    if (token.length === 0) {
-      return null
+    if (segment.trim().length === 0) {
+      return (
+        <span key={`space-${index}`} className='federo-text'>
+          {segment}
+        </span>
+      )
     }
-    const [first, ...rest] = token
     return (
-      <span key={`word-${index}`} className='federo-text'>
-        <span style={{ fontWeight: 700 }}>{first}</span>
-        <span>{rest.join('')}</span>
+      <span key={`word-${index}`} className='federo-text' style={{ marginRight: 6 }}>
+        {segment.split('').map((char, charIndex) => (
+          <span key={`char-${index}-${charIndex}`} style={charIndex === 0 ? { fontWeight: 700 } : undefined}>
+            {char}
+          </span>
+        ))}
       </span>
     )
-  })
-}
+  });
+
 
 interface CompanyBankAccountsDatabasePageProps {
   accounts: BankAccountDirectoryRecord[]
@@ -105,8 +110,10 @@ export default function CompanyBankAccountsDatabasePage({
         size='small'
         label={active ? 'Active' : 'Inactive'}
         sx={{
-          bgcolor: active ? 'success.main' : 'error.main',
-          color: 'common.white',
+          bgcolor: active ? 'rgba(76, 175, 80, 0.18)' : 'rgba(244, 67, 54, 0.18)',
+          color: active ? 'success.main' : 'error.main',
+          border: '1px solid',
+          borderColor: active ? 'success.light' : 'error.light',
         }}
       />
     )
@@ -136,24 +143,25 @@ export default function CompanyBankAccountsDatabasePage({
         grouped.map((group) => (
           <Accordion key={`${group.bankName}-${group.bankCode ?? 'unknown'}`} sx={{ mb: 2 }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                  <Typography
-                    variant='h5'
-                    component='div'
-                    sx={{ display: 'flex', gap: 0.25, flexWrap: 'wrap', alignItems: 'center' }}
-                  >
-                    {formatBankName(group.bankName)}
-                  </Typography>
-                  {getStatusChip(group.active)}
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography
+                  variant='h5'
+                  component='div'
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
+                >
+                  {formatBankName(group.bankName)}
                   {group.bankCode && (
-                    <Typography variant='body2' color='text.secondary'>
+                    <Typography
+                      variant='h6'
+                      component='span'
+                      color='text.secondary'
+                      sx={{ fontSize: '0.7em' }}
+                    >
                       {group.bankCode}
                     </Typography>
                   )}
-                </Box>
+                </Typography>
+                {getStatusChip(group.active)}
               </Box>
             </AccordionSummary>
             <AccordionDetails>
@@ -180,14 +188,14 @@ export default function CompanyBankAccountsDatabasePage({
                     }}
                   >
                     <Typography variant='h6'>
-                      {entry.accountType ? `${entry.accountType} Type` : 'Account'}
+                      {entry.accountType ? `${entry.accountType} Account` : 'Account'}
                     </Typography>
                     <Typography variant='body1'>
                       {entry.accountNumber ?? 'Account number unavailable'}
                     </Typography>
                     <Typography variant='body2'>FPS ID: {entry.fpsId ?? 'N/A'}</Typography>
                     <Typography variant='body2'>FPS Email: {entry.fpsEmail ?? 'N/A'}</Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
                       <Chip label={entry.accountId} size='small' variant='outlined' />
                     </Box>
                   </Box>
