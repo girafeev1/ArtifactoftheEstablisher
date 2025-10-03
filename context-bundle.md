@@ -1,7 +1,7 @@
 # PR #253 — Diff Summary
 
 - **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-- **Head (source)**: `7a92f08bde37fbdf4ed3650cda3402a4ec1131f0`
+- **Head (source)**: `f7a6c25336c28868c6a3fd5d9c0a6c9d4e57fee2`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -20,7 +20,6 @@ A	pages/dashboard/businesses/client-accounts-database/index.tsx
 A	pages/dashboard/businesses/company-bank-accounts-database/index.tsx
 M	pages/dashboard/businesses/projects-database/[groupId].tsx
 M	pages/dashboard/businesses/projects-database/new-window.tsx
-M	vercel.json
 ```
 
 ## Stats
@@ -29,65 +28,62 @@ M	vercel.json
  .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
  components/SidebarLayout.tsx                       |   22 +
  .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  158 +-
- .../projectdialog/ProjectDatabaseDetailContent.tsx |   69 +-
+ .../projectdialog/ProjectDatabaseDetailContent.tsx |  135 +-
  components/projectdialog/projectFormUtils.ts       |   79 +
- context-bundle.md                                  | 7754 ++++++++++----------
+ context-bundle.md                                  | 7762 ++++++++++----------
  docs/context/PR-253.md                             |    1 +
- lib/bankAccountsDirectory.ts                       |  123 +
- lib/clientDirectory.ts                             |   51 +
- .../businesses/client-accounts-database/index.tsx  |  133 +
- .../company-bank-accounts-database/index.tsx       |  157 +
+ lib/bankAccountsDirectory.ts                       |  124 +
+ lib/clientDirectory.ts                             |   59 +
+ .../businesses/client-accounts-database/index.tsx  |  244 +
+ .../company-bank-accounts-database/index.tsx       |  236 +
  .../businesses/projects-database/[groupId].tsx     |    5 +
  .../businesses/projects-database/new-window.tsx    |   38 +-
- vercel.json                                        |    2 +-
- 14 files changed, 4635 insertions(+), 3967 deletions(-)
+ 13 files changed, 4902 insertions(+), 3971 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
 
 ```diff
 diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
-index abbe8c4..17f75a1 100644
+index abbe8c4..e5d0142 100644
 --- a/.github/workflows/deploy-to-vercel-prod.yml
 +++ b/.github/workflows/deploy-to-vercel-prod.yml
-@@ -1,6 +1,8 @@
+@@ -1,22 +1,20 @@
  name: Deploy to Vercel Production
  
  on:
+-  pull_request:
+-    types: [opened, synchronize, reopened, ready_for_review]
 +  push:
 +    branches: ['**']
-   pull_request:
-     types: [opened, synchronize, reopened, ready_for_review]
  
-@@ -9,14 +11,16 @@ permissions:
+ permissions:
+   contents: read
    deployments: write
  
  concurrency:
 -  group: vercel-prod-${{ github.event.pull_request.number }}
-+  group: vercel-prod-${{ github.event.pull_request.number || github.ref }}
++  group: vercel-prod-${{ github.ref }}
    cancel-in-progress: true
  
  jobs:
    deploy:
-     if: >-
+-    if: >-
 -      github.event.pull_request.head.repo.full_name == github.repository &&
 -      github.event.pull_request.draft == false
-+      (github.event_name == 'pull_request' &&
-+       github.event.pull_request.head.repo.full_name == github.repository &&
-+       github.event.pull_request.draft == false) ||
-+      (github.event_name == 'push')
++    if: github.event_name == 'push'
      runs-on: ubuntu-latest
      steps:
        - uses: actions/checkout@v4
 diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
-index 3ba283a..f4991ee 100644
+index 3ba283a..abcdf45 100644
 --- a/components/SidebarLayout.tsx
 +++ b/components/SidebarLayout.tsx
-@@ -69,6 +69,28 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
+@@ -95,6 +95,28 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
                  </Button>
                </Link>
              </MenuItem>
-+            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
++            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
 +              <Link
 +                href="/dashboard/businesses/client-accounts-database"
 +                passHref
@@ -98,7 +94,7 @@ index 3ba283a..f4991ee 100644
 +                </Button>
 +              </Link>
 +            </MenuItem>
-+            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
++            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
 +              <Link
 +                href="/dashboard/businesses/company-bank-accounts-database"
 +                passHref
@@ -109,9 +105,9 @@ index 3ba283a..f4991ee 100644
 +                </Button>
 +              </Link>
 +            </MenuItem>
-             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
-               <Link href="/dashboard/businesses/coaching-sessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
-                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+           </Menu>
+         </Box>
+         <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
 diff --git a/components/projectdialog/ProjectDatabaseCreateDialog.tsx b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
 index 8152e21..ec3a41f 100644
 --- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
@@ -387,10 +383,23 @@ index 8152e21..ec3a41f 100644
      </ProjectDatabaseWindow>
    )
 diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-index e136869..5b32d98 100644
+index e136869..0fe9d27 100644
 --- a/components/projectdialog/ProjectDatabaseDetailContent.tsx
 +++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-@@ -18,6 +18,31 @@ import type { ReactNode } from 'react'
+@@ -1,4 +1,4 @@
+-import { useMemo } from 'react'
++import { useEffect, useMemo, useState } from 'react'
+ 
+ import {
+   Box,
+@@ -12,12 +12,38 @@ import {
+ import CloseIcon from '@mui/icons-material/Close'
+ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+ import { Cormorant_Infant } from 'next/font/google'
++import { fetchBankAccountsDirectory } from '../../lib/bankAccountsDirectory'
+ 
+ import type { ProjectRecord } from '../../lib/projectsDatabase'
+ import type { ReactNode } from 'react'
  
  const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600', display: 'swap' })
  
@@ -422,28 +431,108 @@ index e136869..5b32d98 100644
  const textOrNA = (value: string | null | undefined) =>
    value && value.trim().length > 0 ? value : 'N/A'
  
-@@ -88,15 +113,12 @@ export default function ProjectDatabaseDetailContent({
+@@ -42,6 +68,29 @@ const valueSx = {
+   lineHeight: 1.3,
+ } as const
+ 
++let bankAccountLabelCache: Map<string, string> | null = null
++let bankAccountLabelPromise: Promise<Map<string, string>> | null = null
++
++const getBankAccountLabelMap = async (): Promise<Map<string, string>> => {
++  if (bankAccountLabelCache) {
++    return bankAccountLabelCache
++  }
++  if (!bankAccountLabelPromise) {
++    bankAccountLabelPromise = fetchBankAccountsDirectory().then((records) => {
++      const map = new Map<string, string>()
++      records.forEach((record) => {
++        const label = record.accountType
++          ? `${record.bankName} - ${record.accountType}`
++          : record.bankName
++        map.set(record.accountId, label)
++      })
++      bankAccountLabelCache = map
++      return map
++    })
++  }
++  return bankAccountLabelPromise
++}
++
+ interface ProjectDatabaseDetailContentProps {
+   project: ProjectRecord
+   headerActions?: ReactNode
+@@ -55,6 +104,39 @@ export default function ProjectDatabaseDetailContent({
+   onClose,
+   onEdit,
+ }: ProjectDatabaseDetailContentProps) {
++  const [payToLabel, setPayToLabel] = useState<string | null>(null)
++
++  useEffect(() => {
++    let cancelled = false
++
++    const load = async () => {
++      if (!project.paidTo) {
++        if (!cancelled) {
++          setPayToLabel(null)
++        }
++        return
++      }
++
++      try {
++        const map = await getBankAccountLabelMap()
++        if (!cancelled) {
++          setPayToLabel(map.get(project.paidTo) ?? null)
++        }
++      } catch (err) {
++        console.error('[ProjectDatabaseDetailContent] failed to load bank account labels:', err)
++        if (!cancelled) {
++          setPayToLabel(null)
++        }
++      }
++    }
++
++    load()
++
++    return () => {
++      cancelled = true
++    }
++  }, [project.paidTo])
++
+   const detailItems = useMemo(() => {
+     const invoiceValue: ReactNode = project.invoice
+       ? project.invoice.startsWith('http')
+@@ -83,20 +165,20 @@ export default function ProjectDatabaseDetailContent({
+         label: 'Paid On',
+         value: project.paid ? project.onDateDisplay ?? '-' : '-',
+       },
+-      { label: 'Pay To', value: textOrNA(project.paidTo) },
++      {
++        label: 'Pay To',
++        value: payToLabel ?? textOrNA(project.paidTo),
++      },
+       { label: 'Invoice', value: invoiceValue },
      ] satisfies Array<{ label: string; value: ReactNode }>
-   }, [project])
+-  }, [project])
++  }, [payToLabel, project])
  
 -  const rawPresenter = textOrNA(project.presenterWorkType)
 -  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
 -  const hasCjkCharacters = (value: string | null | undefined) =>
 -    Boolean(value && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(value))
--
--  const hasCjkInTitle = hasCjkCharacters(project.projectTitle)
--  const hasCjkPresenter = hasCjkCharacters(project.presenterWorkType)
 +  const presenterBase = textOrNA(project.presenterWorkType)
 +  const presenterText = presenterBase === 'N/A' ? presenterBase : `${presenterBase} -`
 +  const presenterSegments = splitByCjkSegments(presenterText)
  
+-  const hasCjkInTitle = hasCjkCharacters(project.projectTitle)
+-  const hasCjkPresenter = hasCjkCharacters(project.presenterWorkType)
+-
 -  const presenterClassName = hasCjkPresenter ? 'iansui-text' : 'federo-text'
 +  const projectTitleText = textOrNA(project.projectTitle)
 +  const titleSegments = splitByCjkSegments(projectTitleText)
  
    return (
      <Stack spacing={1.2}>
-@@ -121,19 +143,32 @@ export default function ProjectDatabaseDetailContent({
+@@ -121,19 +203,32 @@ export default function ProjectDatabaseDetailContent({
                </IconButton>
              )}
            </Stack>
@@ -573,17 +662,17 @@ index 0e0a19a..6dfc761 100644
 +  return `${defaultPrefix}${String(1).padStart(defaultWidth, '0')}`
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 3adfa99..348b7ea 100644
+index 3adfa99..6d8cc21 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
-@@ -1,4075 +1,4039 @@
+@@ -1,4075 +1,4049 @@
 -# PR #252 — Diff Summary
 +# PR #253 — Diff Summary
  
 -- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 -- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 +- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-+- **Head (source)**: `6cfa019f533ddcce1de82f9b3e65d7588c9c426a`
++- **Head (source)**: `7a92f08bde37fbdf4ed3650cda3402a4ec1131f0`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -602,6 +691,7 @@ index 3adfa99..348b7ea 100644
 -A	components/projectdialog/ProjectDatabaseDetailContent.tsx
 -A	components/projectdialog/ProjectDatabaseDetailDialog.tsx
 -A	components/projectdialog/ProjectDatabaseEditDialog.tsx
++M	components/SidebarLayout.tsx
 +M	components/projectdialog/ProjectDatabaseCreateDialog.tsx
 +M	components/projectdialog/ProjectDatabaseDetailContent.tsx
 +M	components/projectdialog/projectFormUtils.ts
@@ -616,6 +706,10 @@ index 3adfa99..348b7ea 100644
 -M	pages/_app.tsx
 -A	pages/api/projects-database/[year]/[projectId].ts
 +A	docs/context/PR-253.md
++A	lib/bankAccountsDirectory.ts
++A	lib/clientDirectory.ts
++A	pages/dashboard/businesses/client-accounts-database/index.tsx
++A	pages/dashboard/businesses/company-bank-accounts-database/index.tsx
  M	pages/dashboard/businesses/projects-database/[groupId].tsx
 -A	pages/dashboard/businesses/projects-database/window.tsx
 -A	styles/project-dialog.css
@@ -656,15 +750,20 @@ index 3adfa99..348b7ea 100644
 - vercel.json                                        |    6 +
 - 27 files changed, 9401 insertions(+), 1020 deletions(-)
 + .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
++ components/SidebarLayout.tsx                       |   22 +
 + .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  158 +-
 + .../projectdialog/ProjectDatabaseDetailContent.tsx |   69 +-
 + components/projectdialog/projectFormUtils.ts       |   79 +
-+ context-bundle.md                                  | 7776 ++++++++++----------
-+ docs/context/PR-253.md                             | 4035 ++++++++++
++ context-bundle.md                                  | 7754 ++++++++++----------
++ docs/context/PR-253.md                             |    1 +
++ lib/bankAccountsDirectory.ts                       |  123 +
++ lib/clientDirectory.ts                             |   51 +
++ .../businesses/client-accounts-database/index.tsx  |  133 +
++ .../company-bank-accounts-database/index.tsx       |  157 +
 + .../businesses/projects-database/[groupId].tsx     |    5 +
 + .../businesses/projects-database/new-window.tsx    |   38 +-
 + vercel.json                                        |    2 +-
-+ 9 files changed, 8192 insertions(+), 3980 deletions(-)
++ 14 files changed, 4635 insertions(+), 3967 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -782,6 +881,39 @@ index 3adfa99..348b7ea 100644
 -@@ -39,27 +25,24 @@ jobs:
 -         with:
 -           node-version: 20
++diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
++index 3ba283a..f4991ee 100644
++--- a/components/SidebarLayout.tsx
+++++ b/components/SidebarLayout.tsx
++@@ -69,6 +69,28 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
++                 </Button>
++               </Link>
++             </MenuItem>
+++            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
+++              <Link
+++                href="/dashboard/businesses/client-accounts-database"
+++                passHref
+++                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
+++              >
+++                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+++                  Client Accounts (Database)
+++                </Button>
+++              </Link>
+++            </MenuItem>
+++            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
+++              <Link
+++                href="/dashboard/businesses/company-bank-accounts-database"
+++                passHref
+++                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
+++              >
+++                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+++                  Company Bank Accounts (Database)
+++                </Button>
+++              </Link>
+++            </MenuItem>
++             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
++               <Link href="/dashboard/businesses/coaching-sessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
++                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
 +diff --git a/components/projectdialog/ProjectDatabaseCreateDialog.tsx b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
 +index 8152e21..ec3a41f 100644
 +--- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
@@ -2224,13 +2356,13 @@ index 3adfa99..348b7ea 100644
  +}
  diff --git a/context-bundle.md b/context-bundle.md
 -index 8756e36..6a287ad 100644
-+index 3adfa99..5e8aca0 100644
++index 3adfa99..348b7ea 100644
  --- a/context-bundle.md
  +++ b/context-bundle.md
 -@@ -1,810 +1,4071 @@
 --# PR #249 — Diff Summary
 -+# PR #252 — Diff Summary
-+@@ -1,4075 +1,4035 @@
++@@ -1,4075 +1,4039 @@
 +-# PR #252 — Diff Summary
 ++# PR #253 — Diff Summary
   
@@ -2241,7 +2373,7 @@ index 3adfa99..348b7ea 100644
 +-- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 +-- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 ++- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-++- **Head (source)**: `17d6e1ba35fce1fbf18b7ed80e8e6383b0e8b287`
+++- **Head (source)**: `6cfa019f533ddcce1de82f9b3e65d7588c9c426a`
   - **Repo**: `girafeev1/ArtifactoftheEstablisher`
   
   ## Changed Files
@@ -2279,7 +2411,7 @@ index 3adfa99..348b7ea 100644
 -+A	pages/dashboard/businesses/projects-database/window.tsx
 -+A	vercel.json
 +-M	.github/workflows/context-bundle-pr.yml
-+-M	.github/workflows/deploy-to-vercel-prod.yml
++ M	.github/workflows/deploy-to-vercel-prod.yml
 +-M	.github/workflows/pr-diff-file.yml
 +-M	.github/workflows/pr-diff-refresh.yml
 +-M	.gitignore
@@ -2310,6 +2442,7 @@ index 3adfa99..348b7ea 100644
 +-A	styles/project-dialog.css
 +-A	vercel.json
 ++M	pages/dashboard/businesses/projects-database/new-window.tsx
+++M	vercel.json
   ```
   
   ## Stats
@@ -2376,14 +2509,16 @@ index 3adfa99..348b7ea 100644
 +- styles/project-dialog.css                          |   20 +
 +- vercel.json                                        |    6 +
 +- 27 files changed, 9401 insertions(+), 1020 deletions(-)
+++ .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
 ++ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  158 +-
 ++ .../projectdialog/ProjectDatabaseDetailContent.tsx |   69 +-
 ++ components/projectdialog/projectFormUtils.ts       |   79 +
-++ context-bundle.md                                  | 3952 ++++++++++---------
-++ docs/context/PR-253.md                             | 4035 ++++++++++++++++++++
+++ context-bundle.md                                  | 7776 ++++++++++----------
+++ docs/context/PR-253.md                             | 4035 ++++++++++
 ++ .../businesses/projects-database/[groupId].tsx     |    5 +
 ++ .../businesses/projects-database/new-window.tsx    |   38 +-
-++ 7 files changed, 6272 insertions(+), 2064 deletions(-)
+++ vercel.json                                        |    2 +-
+++ 9 files changed, 8192 insertions(+), 3980 deletions(-)
   ```
   
   ## Unified Diff (truncated to first 4000 lines)
@@ -2420,12 +2555,7 @@ index 3adfa99..348b7ea 100644
 +-@@ -53,31 +53,11 @@ jobs:
 +-           git commit -m "chore(context): update PR #${{ github.event.number }}"
 +-           git push origin HEAD:${{ github.head_ref }}
-++diff --git a/components/projectdialog/ProjectDatabaseCreateDialog.tsx b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
-++index 8152e21..ec3a41f 100644
-++--- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
-+++++ b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
-++@@ -19,7 +19,11 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
-+  
++- 
 +--      # 🔗 Upsert a single comment with evergreen & snapshot links
 +--      - name: Comment links on PR
 +--        if: always()
@@ -2462,15 +2592,18 @@ index 3adfa99..348b7ea 100644
 +-+            echo "- PR: #${{ github.event.number }}"
 +-+            echo "- File: docs/context/PR-${{ github.event.number }}.md"
 +-+          } >> "$GITHUB_STEP_SUMMARY"
-+-diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
++ diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
 +-index 542388b..abbe8c4 100644
-+---- a/.github/workflows/deploy-to-vercel-prod.yml
-+-+++ b/.github/workflows/deploy-to-vercel-prod.yml
+++index abbe8c4..17f75a1 100644
++ --- a/.github/workflows/deploy-to-vercel-prod.yml
++ +++ b/.github/workflows/deploy-to-vercel-prod.yml
 +-@@ -1,36 +1,22 @@
 +--name: Deploy Codex PR to Vercel Production
 +-+name: Deploy to Vercel Production
-+- 
-+- on:
+++@@ -1,6 +1,8 @@
+++ name: Deploy to Vercel Production
++  
++  on:
 +--  push:
 +--    branches:
 +--      - main
@@ -2487,18 +2620,25 @@ index 3adfa99..348b7ea 100644
 +--  workflow_dispatch: {}
 +-+  pull_request:
 +-+    types: [opened, synchronize, reopened, ready_for_review]
-+- 
++++  push:
++++    branches: ['**']
+++   pull_request:
+++     types: [opened, synchronize, reopened, ready_for_review]
++  
 +- permissions:
 +-   contents: read
-+-   deployments: write
-+- 
-+- concurrency:
+++@@ -9,14 +11,16 @@ permissions:
++    deployments: write
++  
++  concurrency:
 +--  group: vercel-prod-${{ github.ref }}
 +-+  group: vercel-prod-${{ github.event.pull_request.number }}
-+-   cancel-in-progress: true
-+- 
-+- jobs:
-+-   deploy:
+++-  group: vercel-prod-${{ github.event.pull_request.number }}
++++  group: vercel-prod-${{ github.event.pull_request.number || github.ref }}
++    cancel-in-progress: true
++  
++  jobs:
++    deploy:
 +--      if: |
 +--      !contains(github.event.head_commit.message, 'chore(context)') &&
 +--      !contains(github.event.head_commit.message, 'archive PR')
@@ -2507,13 +2647,25 @@ index 3adfa99..348b7ea 100644
 +-+    if: >-
 +-+      github.event.pull_request.head.repo.full_name == github.repository &&
 +-+      github.event.pull_request.draft == false
-+-     runs-on: ubuntu-latest
-+-     steps:
-+-       - uses: actions/checkout@v4
+++     if: >-
+++-      github.event.pull_request.head.repo.full_name == github.repository &&
+++-      github.event.pull_request.draft == false
++++      (github.event_name == 'pull_request' &&
++++       github.event.pull_request.head.repo.full_name == github.repository &&
++++       github.event.pull_request.draft == false) ||
++++      (github.event_name == 'push')
++      runs-on: ubuntu-latest
++      steps:
++        - uses: actions/checkout@v4
 +-@@ -39,27 +25,24 @@ jobs:
 +-         with:
 +-           node-version: 20
-+- 
+++diff --git a/components/projectdialog/ProjectDatabaseCreateDialog.tsx b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
+++index 8152e21..ec3a41f 100644
+++--- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
++++++ b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
+++@@ -19,7 +19,11 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
++  
 +--      - name: Install deps
 +-+      - name: Install dependencies
 +-         run: npm ci
@@ -3514,9 +3666,6 @@ index 3adfa99..348b7ea 100644
 --+  const date = toDate(value)
 --+  if (!date) return null
 --+  return date.toISOString()
---+}
--++import type { ProjectRecord } from '../../lib/projectsDatabase'
--++import type { ReactNode } from 'react'
 +-+
 +-+export default function ProjectDatabaseDetailContent({
 +-+  project,
@@ -3629,16 +3778,7 @@ index 3adfa99..348b7ea 100644
 +-+      </Stack>
 +-+
 +-+      <Divider />
-  +
---+const toStringValue = (value: unknown): string | null => {
---+  if (typeof value === 'string') {
---+    return value.trim() || null
---+  }
---+  if (value instanceof String) {
---+    const trimmed = value.toString().trim()
---+    return trimmed || null
---+  }
---+  return null
++-+
 +-+      <Stack spacing={1.2}>
 +-+        {detailItems.map(({ label, value }) => (
 +-+          <Box key={label}>
@@ -3653,6 +3793,41 @@ index 3adfa99..348b7ea 100644
 +-+      </Stack>
 +-+    </Stack>
 +-+  )
+ -+}
+-++import type { ProjectRecord } from '../../lib/projectsDatabase'
+-++import type { ReactNode } from 'react'
+- +
+--+const toStringValue = (value: unknown): string | null => {
+--+  if (typeof value === 'string') {
+--+    return value.trim() || null
+--+  }
+--+  if (value instanceof String) {
+--+    const trimmed = value.toString().trim()
+--+    return trimmed || null
+--+  }
+--+  return null
++-diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
++-new file mode 100644
++-index 0000000..787fc34
++---- /dev/null
++-+++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
++-@@ -0,0 +1,201 @@
++-+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
++-+import { createPortal } from 'react-dom'
++-+import { Rnd, type RndDragCallback, type RndResizeCallback } from 'react-rnd'
++-+import { Backdrop, Box, Fade, useMediaQuery, useTheme } from '@mui/material'
++-+
++-+import type { ReactNode } from 'react'
++-+
++-+import type { ProjectRecord } from '../../lib/projectsDatabase'
++-+import ProjectDatabaseDetailContent from './ProjectDatabaseDetailContent'
++-+
++-+interface ProjectDatabaseDetailDialogProps {
++-+  open: boolean
++-+  onClose: () => void
++-+  project: ProjectRecord | null
++-+  onEdit?: () => void
++-+  headerActions?: ReactNode
  -+}
 -++const yujiMai = Yuji_Mai({ subsets: ['latin'], weight: '400', display: 'swap' })
 -++const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600', display: 'swap' })
@@ -3753,22 +3928,13 @@ index 3adfa99..348b7ea 100644
 --+const listYearCollections = async (): Promise<string[]> => {
 --+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
 --+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-+-diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-+-new file mode 100644
-+-index 0000000..787fc34
-+---- /dev/null
-+-+++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-+-@@ -0,0 +1,201 @@
-+-+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-+-+import { createPortal } from 'react-dom'
-+-+import { Rnd, type RndDragCallback, type RndResizeCallback } from 'react-rnd'
-+-+import { Backdrop, Box, Fade, useMediaQuery, useTheme } from '@mui/material'
  -+
 --+  if (!apiKey || !projectId) {
 --+    console.warn('[projectsDatabase] Missing Firebase configuration, falling back to defaults')
 --+    return [...FALLBACK_YEAR_IDS]
 --+  }
-+-+import type { ReactNode } from 'react'
++-+const MIN_WIDTH = 400
++-+const MIN_HEIGHT = 200
  -+
 --+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
 -++  return (
@@ -3878,172 +4044,4 @@ index 3adfa99..348b7ea 100644
 -++  open: boolean
 -++  onClose: () => void
 -++  project: ProjectRecord | null
--++  onEdit?: () => void
--++  headerActions?: ReactNode
--++}
-- +
---+    const ids = json.collectionIds?.filter((id) => YEAR_ID_PATTERN.test(id)) ?? []
---+    if (ids.length === 0) {
---+      console.warn('[projectsDatabase] No year collections found, falling back to defaults')
---+      return [...FALLBACK_YEAR_IDS]
---+    }
---+    return uniqueSortedYears(ids)
---+  } catch (err) {
---+    console.warn('[projectsDatabase] listYearCollections failed:', err)
---+    return [...FALLBACK_YEAR_IDS]
--++export default function ProjectDatabaseDetailDialog({
--++  open,
--++  onClose,
--++  project,
--++  onEdit,
--++  headerActions,
--++}: ProjectDatabaseDetailDialogProps) {
--++  if (!project) {
--++    return null
-- +  }
-+-+import type { ProjectRecord } from '../../lib/projectsDatabase'
-+-+import ProjectDatabaseDetailContent from './ProjectDatabaseDetailContent'
-+-+
-+-+interface ProjectDatabaseDetailDialogProps {
-+-+  open: boolean
-+-+  onClose: () => void
-+-+  project: ProjectRecord | null
-+-+  onEdit?: () => void
-+-+  headerActions?: ReactNode
- -+}
-- +
---+export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResult> => {
---+  const yearIds = await listYearCollections()
---+  const projects: ProjectRecord[] = []
---+  const yearsWithData = new Set<string>()
- -+
---+  await Promise.all(
---+    yearIds.map(async (year) => {
---+      const snapshot = await getDocs(collection(projectsDb, year))
---+      snapshot.forEach((doc) => {
---+        const data = doc.data() as Record<string, unknown>
---+        const projectNumber = toStringValue(data.projectNumber) ?? doc.id
-+-+const MIN_WIDTH = 400
-+-+const MIN_HEIGHT = 200
- -+
---+        const amount = toNumberValue(data.amount)
---+        const projectDateIso = toIsoDate(data.projectDate)
---+        const projectDateDisplay = formatDisplayDate(data.projectDate)
---+        const onDateIso = toIsoDate(data.onDate)
---+        const onDateDisplay = formatDisplayDate(data.onDate)
-+-+const clamp = (value: number, min: number, max: number) =>
-+-+  Math.min(Math.max(value, min), max)
- -+
---+        projects.push({
---+          id: doc.id,
---+          year,
---+          amount,
---+          clientCompany: toStringValue(data.clientCompany),
---+          invoice: toStringValue(data.invoice),
---+          onDateDisplay,
---+          onDateIso,
---+          paid: toBooleanValue(data.paid),
---+          paidTo: toStringValue(data.paidTo),
---+          presenterWorkType: toStringValue(data.presenterWorkType),
---+          projectDateDisplay,
---+          projectDateIso,
---+          projectNature: toStringValue(data.projectNature),
---+          projectNumber,
---+          projectTitle: toStringValue(data.projectTitle),
---+          subsidiary: toStringValue(data.subsidiary),
---+        })
-+-+export default function ProjectDatabaseDetailDialog({
-+-+  open,
-+-+  onClose,
-+-+  project,
-+-+  onEdit,
-+-+  headerActions,
-+-+}: ProjectDatabaseDetailDialogProps) {
-+-+  const theme = useTheme()
-+-+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'))
-+-+  const [mounted, setMounted] = useState(false)
-+-+  const [size, setSize] = useState<{ width: number; height: number }>(() => ({
-+-+    width: 560,
-+-+    height: 480,
-+-+  }))
-+-+  const [position, setPosition] = useState<{ x: number; y: number }>(() => ({
-+-+    x: 80,
-+-+    y: 80,
-+-+  }))
-+-+  const [needsMeasurement, setNeedsMeasurement] = useState(true)
-+-+  const contentRef = useRef<HTMLDivElement | null>(null)
- -+
---+        yearsWithData.add(year)
---+      })
---+    })
--++  return (
--++    <Dialog
--++      open={open}
--++      onClose={onClose}
--++      fullWidth
--++      maxWidth="sm"
--++    >
--++      <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
--++        <ProjectDatabaseDetailContent
--++          project={project}
--++          headerActions={headerActions}
--++          onClose={onClose}
--++          onEdit={onEdit}
--++        />
--++      </DialogContent>
--++    </Dialog>
-- +  )
-+-+  useEffect(() => {
-+-+    setMounted(true)
-+-+  }, [])
- -+
---+  projects.sort((a, b) => {
---+    if (a.year !== b.year) {
---+      return b.year.localeCompare(a.year, undefined, { numeric: true })
-+-+  useEffect(() => {
-+-+    if (open) {
-+-+      const previous = document.body.style.overflow
-+-+      document.body.style.overflow = 'hidden'
-+-+      setNeedsMeasurement(true)
-+-+      return () => {
-+-+        document.body.style.overflow = previous
-+-+      }
- -+    }
---+    return a.projectNumber.localeCompare(b.projectNumber, undefined, { numeric: true })
---+  })
-+-+    return undefined
-+-+  }, [open])
- -+
---+  return {
---+    projects,
---+    years: uniqueSortedYears(yearsWithData),
---+  }
-- +}
-+-+  useLayoutEffect(() => {
-+-+    if (!open || !needsMeasurement || !contentRef.current || isSmallScreen) {
-+-+      return
-+++  const handleProjectNumberKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-+++    if (event.key === 'Enter') {
-+++      event.preventDefault()
-+++      commitProjectNumber()
-+++    } else if (event.key === 'Escape') {
-+++      event.preventDefault()
-+++      updateProjectNumber(defaultProjectNumber)
-+++      setEditingProjectNumber(false)
-+ +    }
- -+
---diff --git a/pages/dashboard/businesses/index.tsx b/pages/dashboard/businesses/index.tsx
---index 505c235..135484d 100644
------ a/pages/dashboard/businesses/index.tsx
---+++ b/pages/dashboard/businesses/index.tsx
---@@ -3,33 +3,22 @@
--- import { GetServerSideProps } from 'next';
--- import { getSession } from 'next-auth/react';
--- import SidebarLayout from '../../../components/SidebarLayout';
----import { initializeApis } from '../../../lib/googleApi';
----import { listProjectOverviewFiles } from '../../../lib/projectOverview';
--- import { useRouter } from 'next/router';
--- import { Box, Typography, List, ListItemButton, ListItemText, Button } from '@mui/material';
----import { drive_v3 } from 'googleapis';
--- 
 ```
