@@ -1,18 +1,23 @@
 # PR #253 — Diff Summary
 
 - **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-- **Head (source)**: `6cfa019f533ddcce1de82f9b3e65d7588c9c426a`
+- **Head (source)**: `7a92f08bde37fbdf4ed3650cda3402a4ec1131f0`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
 
 ```txt
 M	.github/workflows/deploy-to-vercel-prod.yml
+M	components/SidebarLayout.tsx
 M	components/projectdialog/ProjectDatabaseCreateDialog.tsx
 M	components/projectdialog/ProjectDatabaseDetailContent.tsx
 M	components/projectdialog/projectFormUtils.ts
 M	context-bundle.md
 A	docs/context/PR-253.md
+A	lib/bankAccountsDirectory.ts
+A	lib/clientDirectory.ts
+A	pages/dashboard/businesses/client-accounts-database/index.tsx
+A	pages/dashboard/businesses/company-bank-accounts-database/index.tsx
 M	pages/dashboard/businesses/projects-database/[groupId].tsx
 M	pages/dashboard/businesses/projects-database/new-window.tsx
 M	vercel.json
@@ -22,15 +27,20 @@ M	vercel.json
 
 ```txt
  .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
+ components/SidebarLayout.tsx                       |   22 +
  .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  158 +-
  .../projectdialog/ProjectDatabaseDetailContent.tsx |   69 +-
  components/projectdialog/projectFormUtils.ts       |   79 +
- context-bundle.md                                  | 7776 ++++++++++----------
- docs/context/PR-253.md                             | 4035 ++++++++++
+ context-bundle.md                                  | 7754 ++++++++++----------
+ docs/context/PR-253.md                             |    1 +
+ lib/bankAccountsDirectory.ts                       |  123 +
+ lib/clientDirectory.ts                             |   51 +
+ .../businesses/client-accounts-database/index.tsx  |  133 +
+ .../company-bank-accounts-database/index.tsx       |  157 +
  .../businesses/projects-database/[groupId].tsx     |    5 +
  .../businesses/projects-database/new-window.tsx    |   38 +-
  vercel.json                                        |    2 +-
- 9 files changed, 8192 insertions(+), 3980 deletions(-)
+ 14 files changed, 4635 insertions(+), 3967 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -69,6 +79,39 @@ index abbe8c4..17f75a1 100644
      runs-on: ubuntu-latest
      steps:
        - uses: actions/checkout@v4
+diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
+index 3ba283a..f4991ee 100644
+--- a/components/SidebarLayout.tsx
++++ b/components/SidebarLayout.tsx
+@@ -69,6 +69,28 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
+                 </Button>
+               </Link>
+             </MenuItem>
++            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
++              <Link
++                href="/dashboard/businesses/client-accounts-database"
++                passHref
++                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
++              >
++                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
++                  Client Accounts (Database)
++                </Button>
++              </Link>
++            </MenuItem>
++            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
++              <Link
++                href="/dashboard/businesses/company-bank-accounts-database"
++                passHref
++                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
++              >
++                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
++                  Company Bank Accounts (Database)
++                </Button>
++              </Link>
++            </MenuItem>
+             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
+               <Link href="/dashboard/businesses/coaching-sessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
 diff --git a/components/projectdialog/ProjectDatabaseCreateDialog.tsx b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
 index 8152e21..ec3a41f 100644
 --- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
@@ -530,24 +573,24 @@ index 0e0a19a..6dfc761 100644
 +  return `${defaultPrefix}${String(1).padStart(defaultWidth, '0')}`
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 3adfa99..5e8aca0 100644
+index 3adfa99..348b7ea 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
-@@ -1,4075 +1,4035 @@
+@@ -1,4075 +1,4039 @@
 -# PR #252 — Diff Summary
 +# PR #253 — Diff Summary
  
 -- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 -- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 +- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-+- **Head (source)**: `17d6e1ba35fce1fbf18b7ed80e8e6383b0e8b287`
++- **Head (source)**: `6cfa019f533ddcce1de82f9b3e65d7588c9c426a`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
  
  ```txt
 -M	.github/workflows/context-bundle-pr.yml
--M	.github/workflows/deploy-to-vercel-prod.yml
+ M	.github/workflows/deploy-to-vercel-prod.yml
 -M	.github/workflows/pr-diff-file.yml
 -M	.github/workflows/pr-diff-refresh.yml
 -M	.gitignore
@@ -578,6 +621,7 @@ index 3adfa99..5e8aca0 100644
 -A	styles/project-dialog.css
 -A	vercel.json
 +M	pages/dashboard/businesses/projects-database/new-window.tsx
++M	vercel.json
  ```
  
  ## Stats
@@ -611,14 +655,16 @@ index 3adfa99..5e8aca0 100644
 - styles/project-dialog.css                          |   20 +
 - vercel.json                                        |    6 +
 - 27 files changed, 9401 insertions(+), 1020 deletions(-)
++ .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
 + .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  158 +-
 + .../projectdialog/ProjectDatabaseDetailContent.tsx |   69 +-
 + components/projectdialog/projectFormUtils.ts       |   79 +
-+ context-bundle.md                                  | 3952 ++++++++++---------
-+ docs/context/PR-253.md                             | 4035 ++++++++++++++++++++
++ context-bundle.md                                  | 7776 ++++++++++----------
++ docs/context/PR-253.md                             | 4035 ++++++++++
 + .../businesses/projects-database/[groupId].tsx     |    5 +
 + .../businesses/projects-database/new-window.tsx    |   38 +-
-+ 7 files changed, 6272 insertions(+), 2064 deletions(-)
++ vercel.json                                        |    2 +-
++ 9 files changed, 8192 insertions(+), 3980 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -631,12 +677,7 @@ index 3adfa99..5e8aca0 100644
 -@@ -53,31 +53,11 @@ jobs:
 -           git commit -m "chore(context): update PR #${{ github.event.number }}"
 -           git push origin HEAD:${{ github.head_ref }}
-+diff --git a/components/projectdialog/ProjectDatabaseCreateDialog.tsx b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
-+index 8152e21..ec3a41f 100644
-+--- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
-++++ b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
-+@@ -19,7 +19,11 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
-  
+- 
 --      # 🔗 Upsert a single comment with evergreen & snapshot links
 --      - name: Comment links on PR
 --        if: always()
@@ -673,15 +714,18 @@ index 3adfa99..5e8aca0 100644
 -+            echo "- PR: #${{ github.event.number }}"
 -+            echo "- File: docs/context/PR-${{ github.event.number }}.md"
 -+          } >> "$GITHUB_STEP_SUMMARY"
--diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
+ diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
 -index 542388b..abbe8c4 100644
----- a/.github/workflows/deploy-to-vercel-prod.yml
--+++ b/.github/workflows/deploy-to-vercel-prod.yml
++index abbe8c4..17f75a1 100644
+ --- a/.github/workflows/deploy-to-vercel-prod.yml
+ +++ b/.github/workflows/deploy-to-vercel-prod.yml
 -@@ -1,36 +1,22 @@
 --name: Deploy Codex PR to Vercel Production
 -+name: Deploy to Vercel Production
-- 
-- on:
++@@ -1,6 +1,8 @@
++ name: Deploy to Vercel Production
+  
+  on:
 --  push:
 --    branches:
 --      - main
@@ -698,18 +742,25 @@ index 3adfa99..5e8aca0 100644
 --  workflow_dispatch: {}
 -+  pull_request:
 -+    types: [opened, synchronize, reopened, ready_for_review]
-- 
+++  push:
+++    branches: ['**']
++   pull_request:
++     types: [opened, synchronize, reopened, ready_for_review]
+  
 - permissions:
 -   contents: read
--   deployments: write
-- 
-- concurrency:
++@@ -9,14 +11,16 @@ permissions:
+    deployments: write
+  
+  concurrency:
 --  group: vercel-prod-${{ github.ref }}
 -+  group: vercel-prod-${{ github.event.pull_request.number }}
--   cancel-in-progress: true
-- 
-- jobs:
--   deploy:
++-  group: vercel-prod-${{ github.event.pull_request.number }}
+++  group: vercel-prod-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+  
+  jobs:
+    deploy:
 --      if: |
 --      !contains(github.event.head_commit.message, 'chore(context)') &&
 --      !contains(github.event.head_commit.message, 'archive PR')
@@ -718,13 +769,25 @@ index 3adfa99..5e8aca0 100644
 -+    if: >-
 -+      github.event.pull_request.head.repo.full_name == github.repository &&
 -+      github.event.pull_request.draft == false
--     runs-on: ubuntu-latest
--     steps:
--       - uses: actions/checkout@v4
++     if: >-
++-      github.event.pull_request.head.repo.full_name == github.repository &&
++-      github.event.pull_request.draft == false
+++      (github.event_name == 'pull_request' &&
+++       github.event.pull_request.head.repo.full_name == github.repository &&
+++       github.event.pull_request.draft == false) ||
+++      (github.event_name == 'push')
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
 -@@ -39,27 +25,24 @@ jobs:
 -         with:
 -           node-version: 20
-- 
++diff --git a/components/projectdialog/ProjectDatabaseCreateDialog.tsx b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
++index 8152e21..ec3a41f 100644
++--- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
+++++ b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
++@@ -19,7 +19,11 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+  
 --      - name: Install deps
 -+      - name: Install dependencies
 -         run: npm ci
@@ -1301,7 +1364,7 @@ index 3adfa99..5e8aca0 100644
 -+      </Stack>
 -+
 -+      <Divider />
- +
+-+
 -+      <Stack spacing={1.2}>
 -+        {detailItems.map(({ label, value }) => (
 -+          <Box key={label}>
@@ -1367,7 +1430,7 @@ index 3adfa99..5e8aca0 100644
 -+  }))
 -+  const [needsMeasurement, setNeedsMeasurement] = useState(true)
 -+  const contentRef = useRef<HTMLDivElement | null>(null)
--+
+ +
 -+  useEffect(() => {
 -+    setMounted(true)
 -+  }, [])
@@ -2161,13 +2224,13 @@ index 3adfa99..5e8aca0 100644
  +}
  diff --git a/context-bundle.md b/context-bundle.md
 -index 8756e36..6a287ad 100644
-+index 3adfa99..e568e82 100644
++index 3adfa99..5e8aca0 100644
  --- a/context-bundle.md
  +++ b/context-bundle.md
 -@@ -1,810 +1,4071 @@
 --# PR #249 — Diff Summary
 -+# PR #252 — Diff Summary
-+@@ -1,1221 +1,512 @@
++@@ -1,4075 +1,4035 @@
 +-# PR #252 — Diff Summary
 ++# PR #253 — Diff Summary
   
@@ -2178,7 +2241,7 @@ index 3adfa99..5e8aca0 100644
 +-- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 +-- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 ++- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-++- **Head (source)**: `698ba00af717d5683dc4d402a53bd4ccf609cf0b`
+++- **Head (source)**: `17d6e1ba35fce1fbf18b7ed80e8e6383b0e8b287`
   - **Repo**: `girafeev1/ArtifactoftheEstablisher`
   
   ## Changed Files
@@ -2228,7 +2291,10 @@ index 3adfa99..5e8aca0 100644
 +-A	components/projectdialog/ProjectDatabaseDetailContent.tsx
 +-A	components/projectdialog/ProjectDatabaseDetailDialog.tsx
 +-A	components/projectdialog/ProjectDatabaseEditDialog.tsx
-+-M	context-bundle.md
+++M	components/projectdialog/ProjectDatabaseCreateDialog.tsx
+++M	components/projectdialog/ProjectDatabaseDetailContent.tsx
+++M	components/projectdialog/projectFormUtils.ts
++ M	context-bundle.md
 +-M	cypress/e2e/add_payment_cascade.cy.tsx
 +-A	docs/context/PR-251.md
 +-A	docs/context/PR-252.md
@@ -2238,11 +2304,7 @@ index 3adfa99..5e8aca0 100644
 +-A	lib/projectsDatabaseSelection.ts
 +-M	pages/_app.tsx
 +-A	pages/api/projects-database/[year]/[projectId].ts
-++M	components/projectdialog/ProjectDatabaseCreateDialog.tsx
-++M	components/projectdialog/ProjectDatabaseDetailContent.tsx
-++M	components/projectdialog/projectFormUtils.ts
-++M	docs/context/PR-252.md
-++M	docs/context/index.md
+++A	docs/context/PR-253.md
 + M	pages/dashboard/businesses/projects-database/[groupId].tsx
 +-A	pages/dashboard/businesses/projects-database/window.tsx
 +-A	styles/project-dialog.css
@@ -2317,11 +2379,11 @@ index 3adfa99..5e8aca0 100644
 ++ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  158 +-
 ++ .../projectdialog/ProjectDatabaseDetailContent.tsx |   69 +-
 ++ components/projectdialog/projectFormUtils.ts       |   79 +
-++ docs/context/PR-252.md                             | 4076 +++++++++++++++++++-
-++ docs/context/index.md                              |    1 -
+++ context-bundle.md                                  | 3952 ++++++++++---------
+++ docs/context/PR-253.md                             | 4035 ++++++++++++++++++++
 ++ .../businesses/projects-database/[groupId].tsx     |    5 +
 ++ .../businesses/projects-database/new-window.tsx    |   38 +-
-++ 7 files changed, 4356 insertions(+), 70 deletions(-)
+++ 7 files changed, 6272 insertions(+), 2064 deletions(-)
   ```
   
   ## Unified Diff (truncated to first 4000 lines)
@@ -2351,14 +2413,6 @@ index 3adfa99..5e8aca0 100644
 --+++ b/lib/firebase.ts
 --@@ -17,13 +17,19 @@ Object.entries(firebaseConfig).forEach(([k, v]) => {
 --   console.log(`   ${k}: ${v}`)
--- })
--+diff --git a/.github/workflows/context-bundle-pr.yml b/.github/workflows/context-bundle-pr.yml
--+index eae6a8a..73f53ce 100644
--+--- a/.github/workflows/context-bundle-pr.yml
--++++ b/.github/workflows/context-bundle-pr.yml
--+@@ -53,31 +53,11 @@ jobs:
--+           git commit -m "chore(context): update PR #${{ github.event.number }}"
--+           git push origin HEAD:${{ github.head_ref }}
 +-diff --git a/.github/workflows/context-bundle-pr.yml b/.github/workflows/context-bundle-pr.yml
 +-index eae6a8a..73f53ce 100644
 +---- a/.github/workflows/context-bundle-pr.yml
@@ -2371,57 +2425,7 @@ index 3adfa99..5e8aca0 100644
 ++--- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
 +++++ b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
 ++@@ -19,7 +19,11 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
-   
----const databaseId = 'mel-sessions'
----console.log('📚 Firestore database ID:', databaseId)
---+const DEFAULT_DATABASE_ID = 'mel-sessions'
---+const PROJECTS_DATABASE_ID = 'epl-projects'
---+
---+console.log('📚 Firestore database ID:', DEFAULT_DATABASE_ID)
---+console.log('📚 Firestore projects database ID:', PROJECTS_DATABASE_ID)
--+-      # 🔗 Upsert a single comment with evergreen & snapshot links
--+-      - name: Comment links on PR
--+-        if: always()
--+-        uses: actions/github-script@v7
--+-        with:
--+-          script: |
--+-            const pr = context.payload.pull_request;
--+-            const owner = context.repo.owner;
--+-            const repo  = context.repo.repo;
--+-            const headRef = pr.head.ref;
--+-            const headSha = pr.head.sha;
--+-            const n = pr.number;
--+-            const evergreen = `https://github.com/${owner}/${repo}/blob/${headRef}/docs/context/PR-${n}.md`;
--+-            const snapshot  = `https://raw.githubusercontent.com/${owner}/${repo}/${headSha}/docs/context/PR-${n}.md`;
--+-            const body = [
--+-              `**Diff file generated ✅**`,
--+-              ``,
--+-              `Evergreen: ${evergreen}`,
--+-              `Snapshot: ${snapshot}`,
--+-              `File path: docs/context/PR-${n}.md`
--+-            ].join('\n');
--+-            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number: n });
--+-            const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('Diff file generated ✅'));
--+-            if (mine) {
--+-              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
--+-            } else {
--+-              await github.rest.issues.createComment({ owner, repo, issue_number: n, body });
--+-            }
--++      - name: Log context bundle update
--++        if: steps.ctxdiff.outputs.changed == 'true'
--++        run: |
--++          {
--++            echo "## Context bundle updated"
--++            echo "- PR: #${{ github.event.number }}"
--++            echo "- File: docs/context/PR-${{ github.event.number }}.md"
--++          } >> "$GITHUB_STEP_SUMMARY"
--+diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
--+index 542388b..abbe8c4 100644
--+--- a/.github/workflows/deploy-to-vercel-prod.yml
--++++ b/.github/workflows/deploy-to-vercel-prod.yml
--+@@ -1,36 +1,22 @@
--+-name: Deploy Codex PR to Vercel Production
--++name: Deploy to Vercel Production
++  
 +--      # 🔗 Upsert a single comment with evergreen & snapshot links
 +--      - name: Comment links on PR
 +--        if: always()
@@ -2513,6 +2517,9 @@ index 3adfa99..5e8aca0 100644
 +--      - name: Install deps
 +-+      - name: Install dependencies
 +-         run: npm ci
++- 
++-       - name: Install Vercel CLI
++-         run: npm i -g vercel@latest
 ++ import ProjectDatabaseWindow from './ProjectDatabaseWindow'
 ++ import type { ProjectRecord } from '../../lib/projectsDatabase'
 ++-import { sanitizeText, toIsoUtcStringOrNull } from './projectFormUtils'
@@ -2522,8 +2529,13 @@ index 3adfa99..5e8aca0 100644
 +++  toIsoUtcStringOrNull,
 +++} from './projectFormUtils'
 +  
-+-       - name: Install Vercel CLI
-+-         run: npm i -g vercel@latest
++--      # Pull environment (Production)
++--      - name: Link Vercel project (prod)
++-+      - name: Pull production environment
++-         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
++-         env:
++-           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
++-           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 ++ interface ProjectDatabaseCreateDialogProps {
 ++   open: boolean
 ++@@ -27,6 +31,7 @@ interface ProjectDatabaseCreateDialogProps {
@@ -2533,10 +2545,9 @@ index 3adfa99..5e8aca0 100644
 +++  existingProjectNumbers: readonly string[]
 ++ }
 +  
-+--      # Pull environment (Production)
-+--      - name: Link Vercel project (prod)
-+-+      - name: Pull production environment
-+-         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
++--      # Build locally using Vercel build (produces .vercel/output)
++-       - name: Build
++-         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 +-         env:
 +-           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
 +-           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -2547,41 +2558,6 @@ index 3adfa99..5e8aca0 100644
 ++   onBusyChange?: (busy: boolean) => void
 +++  existingProjectNumbers: readonly string[]
 ++ }
-+  
-+--      # Build locally using Vercel build (produces .vercel/output)
-+-       - name: Build
-+-         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-+-         env:
-+-           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-+-           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-++ interface FormState {
-++@@ -77,16 +83,40 @@ export function ProjectDatabaseCreateForm({
-++   variant,
-++   resetToken,
-++   onBusyChange,
-+++  existingProjectNumbers,
-++ }: ProjectDatabaseCreateFormProps) {
-++   const [form, setForm] = useState<FormState>(EMPTY_FORM)
-++   const [saving, setSaving] = useState(false)
-++   const [error, setError] = useState<string | null>(null)
-+++  const [editingProjectNumber, setEditingProjectNumber] = useState(false)
-+++
-+++  const normalizedProjectNumbers = useMemo(
-+++    () => {
-+++      const trimmed = existingProjectNumbers
-+++        .map((value) => value.trim())
-+++        .filter((value) => value.length > 0)
-+++      return Array.from(new Set(trimmed))
-+++    },
-+++    [existingProjectNumbers]
-+++  )
-+++
-+++  const defaultProjectNumber = useMemo(
-+++    () => generateSequentialProjectNumber(year, normalizedProjectNumbers),
-+++    [year, normalizedProjectNumbers]
-+++  )
-+++
-+++  const defaultSubsidiary = 'Establish Records Limited'
 +  
 +--      # Deploy the prebuilt output as Production
 +-       - name: Deploy to Production
@@ -2653,18 +2629,34 @@ index 3adfa99..5e8aca0 100644
 +-@@ -158,74 +158,13 @@ jobs:
 +-             /tmp/diff.patch
 +-           if-no-files-found: ignore
-++   useEffect(() => {
-++-    setForm(EMPTY_FORM)
-+++    setForm({
-+++      ...EMPTY_FORM,
-+++      projectNumber: defaultProjectNumber,
-+++      subsidiary: defaultSubsidiary,
-+++    })
-++     setError(null)
-++     setSaving(false)
-++-  }, [resetToken])
-+++    setEditingProjectNumber(false)
-+++  }, [resetToken, defaultProjectNumber, defaultSubsidiary])
+++ interface FormState {
+++@@ -77,16 +83,40 @@ export function ProjectDatabaseCreateForm({
+++   variant,
+++   resetToken,
+++   onBusyChange,
++++  existingProjectNumbers,
+++ }: ProjectDatabaseCreateFormProps) {
+++   const [form, setForm] = useState<FormState>(EMPTY_FORM)
+++   const [saving, setSaving] = useState(false)
+++   const [error, setError] = useState<string | null>(null)
++++  const [editingProjectNumber, setEditingProjectNumber] = useState(false)
++++
++++  const normalizedProjectNumbers = useMemo(
++++    () => {
++++      const trimmed = existingProjectNumbers
++++        .map((value) => value.trim())
++++        .filter((value) => value.length > 0)
++++      return Array.from(new Set(trimmed))
++++    },
++++    [existingProjectNumbers]
++++  )
++++
++++  const defaultProjectNumber = useMemo(
++++    () => generateSequentialProjectNumber(year, normalizedProjectNumbers),
++++    [year, normalizedProjectNumbers]
++++  )
++++
++++  const defaultSubsidiary = 'Establish Records Limited'
 +  
 +--      - name: Compose links
 +--        id: links
@@ -2741,10 +2733,17 @@ index 3adfa99..5e8aca0 100644
 +-+            echo "- File: docs/context/PR-${{ needs.resolve.outputs.pr_number }}.md"
 +-+          } >> "$GITHUB_STEP_SUMMARY"
 ++   useEffect(() => {
-++     onBusyChange?.(saving)
-++@@ -99,10 +129,31 @@ export function ProjectDatabaseCreateForm({
-++       setForm((prev) => ({ ...prev, [field]: event.target.value }))
-++     }
+++-    setForm(EMPTY_FORM)
++++    setForm({
++++      ...EMPTY_FORM,
++++      projectNumber: defaultProjectNumber,
++++      subsidiary: defaultSubsidiary,
++++    })
+++     setError(null)
+++     setSaving(false)
+++-  }, [resetToken])
++++    setEditingProjectNumber(false)
++++  }, [resetToken, defaultProjectNumber, defaultSubsidiary])
 +  
 +-       - name: Inline preview (append to comment when possible)
 +-         if: always()
@@ -2823,9 +2822,7 @@ index 3adfa99..5e8aca0 100644
 +-+jest.mock('../../../../components/LoadingDash', () => {
 +-+  function LoadingDashMock() {
 +-+    return null
-+++  const updateProjectNumber = (value: string) => {
-+++    setForm((prev) => ({ ...prev, projectNumber: value }))
-+ +  }
++-+  }
 +-+  LoadingDashMock.displayName = 'LoadingDashMock'
 +-+  return LoadingDashMock
 +-+})
@@ -2835,7 +2832,14 @@ index 3adfa99..5e8aca0 100644
 +-@@ -51,4 +73,3 @@ describe('coaching sessions card view', () => {
 +-     expect(screen.queryByTestId('pprompt-badge')).toBeNull()
 +-   })
-+- })
+ - })
+-+diff --git a/.github/workflows/context-bundle-pr.yml b/.github/workflows/context-bundle-pr.yml
+-+index eae6a8a..73f53ce 100644
+-+--- a/.github/workflows/context-bundle-pr.yml
+-++++ b/.github/workflows/context-bundle-pr.yml
+-+@@ -53,31 +53,11 @@ jobs:
+-+           git commit -m "chore(context): update PR #${{ github.event.number }}"
+-+           git push origin HEAD:${{ github.head_ref }}
 +--
 +-diff --git a/components/StudentDialog/PaymentHistory.test.tsx b/components/StudentDialog/PaymentHistory.test.tsx
 +-index e850e7a..e2560e9 100644
@@ -2844,12 +2848,69 @@ index 3adfa99..5e8aca0 100644
 +-@@ -6,7 +6,13 @@ import '@testing-library/jest-dom'
 +- import { render, screen, waitFor } from '@testing-library/react'
 +- import PaymentHistory from './PaymentHistory'
-+- 
+++   useEffect(() => {
+++     onBusyChange?.(saving)
+++@@ -99,10 +129,31 @@ export function ProjectDatabaseCreateForm({
+++       setForm((prev) => ({ ...prev, [field]: event.target.value }))
+++     }
+   
+---const databaseId = 'mel-sessions'
+---console.log('📚 Firestore database ID:', databaseId)
+--+const DEFAULT_DATABASE_ID = 'mel-sessions'
+--+const PROJECTS_DATABASE_ID = 'epl-projects'
+--+
+--+console.log('📚 Firestore database ID:', DEFAULT_DATABASE_ID)
+--+console.log('📚 Firestore projects database ID:', PROJECTS_DATABASE_ID)
+-+-      # 🔗 Upsert a single comment with evergreen & snapshot links
+-+-      - name: Comment links on PR
+-+-        if: always()
+-+-        uses: actions/github-script@v7
+-+-        with:
+-+-          script: |
+-+-            const pr = context.payload.pull_request;
+-+-            const owner = context.repo.owner;
+-+-            const repo  = context.repo.repo;
+-+-            const headRef = pr.head.ref;
+-+-            const headSha = pr.head.sha;
+-+-            const n = pr.number;
+-+-            const evergreen = `https://github.com/${owner}/${repo}/blob/${headRef}/docs/context/PR-${n}.md`;
+-+-            const snapshot  = `https://raw.githubusercontent.com/${owner}/${repo}/${headSha}/docs/context/PR-${n}.md`;
+-+-            const body = [
+-+-              `**Diff file generated ✅**`,
+-+-              ``,
+-+-              `Evergreen: ${evergreen}`,
+-+-              `Snapshot: ${snapshot}`,
+-+-              `File path: docs/context/PR-${n}.md`
+-+-            ].join('\n');
+-+-            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number: n });
+-+-            const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('Diff file generated ✅'));
+-+-            if (mine) {
+-+-              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+-+-            } else {
+-+-              await github.rest.issues.createComment({ owner, repo, issue_number: n, body });
+-+-            }
+-++      - name: Log context bundle update
+-++        if: steps.ctxdiff.outputs.changed == 'true'
+-++        run: |
+-++          {
+-++            echo "## Context bundle updated"
+-++            echo "- PR: #${{ github.event.number }}"
+-++            echo "- File: docs/context/PR-${{ github.event.number }}.md"
+-++          } >> "$GITHUB_STEP_SUMMARY"
+-+diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
+-+index 542388b..abbe8c4 100644
+-+--- a/.github/workflows/deploy-to-vercel-prod.yml
+-++++ b/.github/workflows/deploy-to-vercel-prod.yml
+-+@@ -1,36 +1,22 @@
+-+-name: Deploy Codex PR to Vercel Production
+-++name: Deploy to Vercel Production
 +--jest.mock('./PaymentModal', () => () => <div />)
 +-+jest.mock('./PaymentModal', () => {
 +-+  function PaymentModalMock() {
 +-+    return <div />
-+-+  }
++++  const updateProjectNumber = (value: string) => {
++++    setForm((prev) => ({ ...prev, projectNumber: value }))
++ +  }
 +-+  PaymentModalMock.displayName = 'PaymentModalMock'
 +-+  return PaymentModalMock
 +-+})
@@ -3293,17 +3354,11 @@ index 3adfa99..5e8aca0 100644
 -++    return null
 - +  }
 --+  return null
+--+}
 +-+const valueSx = {
 +-+  fontSize: '1.2rem',
 +-+  lineHeight: 1.3,
 +-+} as const
-+ +
-+-+interface ProjectDatabaseDetailContentProps {
-+-+  project: ProjectRecord
-+-+  headerActions?: ReactNode
-+-+  onClose?: () => void
-+-+  onEdit?: () => void
- -+}
  -+
 --+const toDate = (value: unknown): Date | null => {
 --+  const ts = toTimestamp(value)
@@ -3358,7 +3413,12 @@ index 3adfa99..5e8aca0 100644
 -++    return <div />
 - +  }
 --+  return null
---+}
++-+interface ProjectDatabaseDetailContentProps {
++-+  project: ProjectRecord
++-+  headerActions?: ReactNode
++-+  onClose?: () => void
++-+  onEdit?: () => void
+ -+}
 -++  PaymentModalMock.displayName = 'PaymentModalMock'
 -++  return PaymentModalMock
 -++})
@@ -3457,7 +3517,119 @@ index 3adfa99..5e8aca0 100644
 --+}
 -++import type { ProjectRecord } from '../../lib/projectsDatabase'
 -++import type { ReactNode } from 'react'
-- +
++-+
++-+export default function ProjectDatabaseDetailContent({
++-+  project,
++-+  headerActions,
++-+  onClose,
++-+  onEdit,
++-+}: ProjectDatabaseDetailContentProps) {
++-+  const detailItems = useMemo(() => {
++-+    const invoiceValue: ReactNode = project.invoice
++-+      ? project.invoice.startsWith('http')
++-+        ? (
++-+            <Link
++-+              href={project.invoice}
++-+              target="_blank"
++-+              rel="noopener"
++-+              sx={{ fontFamily: 'inherit', fontWeight: 'inherit' }}
++-+            >
++-+              {project.invoice}
++-+            </Link>
++-+          )
++-+        : textOrNA(project.invoice)
++-+      : 'N/A'
++-+
++-+    return [
++-+      { label: 'Client Company', value: textOrNA(project.clientCompany) },
++-+      {
++-+        label: 'Project Pickup Date',
++-+        value: project.projectDateDisplay ?? '-',
++-+      },
++-+      { label: 'Amount', value: formatAmount(project.amount) },
++-+      { label: 'Paid', value: project.paid ? '🤑' : '👎🏻' },
++-+      {
++-+        label: 'Paid On',
++-+        value: project.paid ? project.onDateDisplay ?? '-' : '-',
++-+      },
++-+      { label: 'Pay To', value: textOrNA(project.paidTo) },
++-+      { label: 'Invoice', value: invoiceValue },
++-+    ] satisfies Array<{ label: string; value: ReactNode }>
++-+  }, [project])
++-+
++-+  const rawPresenter = textOrNA(project.presenterWorkType)
++-+  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
++-+  const hasCjkCharacters = (value: string | null | undefined) =>
++-+    Boolean(value && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(value))
++-+
++-+  const hasCjkInTitle = hasCjkCharacters(project.projectTitle)
++-+  const hasCjkPresenter = hasCjkCharacters(project.presenterWorkType)
++-+
++-+  const presenterClassName = hasCjkPresenter ? 'iansui-text' : 'federo-text'
++-+
++-+  return (
++-+    <Stack spacing={1.2}>
++-+      <Stack
++-+        direction={{ xs: 'column', sm: 'row' }}
++-+        alignItems={{ xs: 'flex-start', sm: 'flex-start' }}
++-+        spacing={1.5}
++-+      >
++-+        <Stack spacing={0.75} sx={{ flexGrow: 1, minWidth: 0 }}>
++-+          <Stack
++-+            direction='row'
++-+            alignItems='center'
++-+            spacing={1}
++-+            sx={{ flexWrap: 'wrap', rowGap: 0.5 }}
++-+          >
++-+            <Typography variant='subtitle1' color='text.secondary'>
++-+              {project.projectNumber}
++-+            </Typography>
++-+            {onEdit && (
++-+              <IconButton onClick={onEdit} aria-label='Edit project' size='small'>
++-+                <EditOutlinedIcon fontSize='small' />
++-+              </IconButton>
++-+            )}
++-+          </Stack>
++-+          <Typography
++-+            variant='subtitle1'
++-+            sx={{ color: 'text.primary' }}
++-+            className={presenterClassName}
++-+          >
++-+            {presenterText}
++-+          </Typography>
++-+          <Typography
++-+            variant='h4'
++-+            className={hasCjkInTitle ? 'yuji-title' : undefined}
++-+            sx={{ fontFamily: hasCjkInTitle ? undefined : 'Cantata One', lineHeight: 1.2 }}
++-+          >
++-+            {textOrNA(project.projectTitle)}
++-+          </Typography>
++-+          <Typography variant='body1' color='text.secondary'>
++-+            {textOrNA(project.projectNature)}
++-+          </Typography>
++-+        </Stack>
++-+        <Stack spacing={0.75} alignItems={{ xs: 'flex-start', sm: 'flex-end' }}>
++-+          <Stack direction='row' spacing={0.5} alignItems='center'>
++-+            {headerActions}
++-+            {onClose && (
++-+              <IconButton onClick={onClose} aria-label='close project details' size='small'>
++-+                <CloseIcon fontSize='small' />
++-+              </IconButton>
++-+            )}
++-+          </Stack>
++-+          {project.subsidiary && (
++-+            <Chip
++-+              label={textOrNA(project.subsidiary)}
++-+              variant='outlined'
++-+              size='small'
++-+              sx={{ alignSelf: { xs: 'flex-start', sm: 'flex-end' } }}
++-+            />
++-+          )}
++-+        </Stack>
++-+      </Stack>
++-+
++-+      <Divider />
+  +
 --+const toStringValue = (value: unknown): string | null => {
 --+  if (typeof value === 'string') {
 --+    return value.trim() || null
@@ -3467,7 +3639,21 @@ index 3adfa99..5e8aca0 100644
 --+    return trimmed || null
 --+  }
 --+  return null
---+}
++-+      <Stack spacing={1.2}>
++-+        {detailItems.map(({ label, value }) => (
++-+          <Box key={label}>
++-+            <Typography sx={labelSx} className='karla-label'>
++-+              {label}:
++-+            </Typography>
++-+            <Typography component='div' sx={valueSx} className={cormorantSemi.className}>
++-+              {value}
++-+            </Typography>
++-+          </Box>
++-+        ))}
++-+      </Stack>
++-+    </Stack>
++-+  )
+ -+}
 -++const yujiMai = Yuji_Mai({ subsets: ['latin'], weight: '400', display: 'swap' })
 -++const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600', display: 'swap' })
 - +
@@ -3567,48 +3753,22 @@ index 3adfa99..5e8aca0 100644
 --+const listYearCollections = async (): Promise<string[]> => {
 --+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
 --+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-+-+export default function ProjectDatabaseDetailContent({
-+-+  project,
-+-+  headerActions,
-+-+  onClose,
-+-+  onEdit,
-+-+}: ProjectDatabaseDetailContentProps) {
-+-+  const detailItems = useMemo(() => {
-+-+    const invoiceValue: ReactNode = project.invoice
-+-+      ? project.invoice.startsWith('http')
-+-+        ? (
-+-+            <Link
-+-+              href={project.invoice}
-+-+              target="_blank"
-+-+              rel="noopener"
-+-+              sx={{ fontFamily: 'inherit', fontWeight: 'inherit' }}
-+-+            >
-+-+              {project.invoice}
-+-+            </Link>
-+-+          )
-+-+        : textOrNA(project.invoice)
-+-+      : 'N/A'
++-diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
++-new file mode 100644
++-index 0000000..787fc34
++---- /dev/null
++-+++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
++-@@ -0,0 +1,201 @@
++-+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
++-+import { createPortal } from 'react-dom'
++-+import { Rnd, type RndDragCallback, type RndResizeCallback } from 'react-rnd'
++-+import { Backdrop, Box, Fade, useMediaQuery, useTheme } from '@mui/material'
  -+
 --+  if (!apiKey || !projectId) {
 --+    console.warn('[projectsDatabase] Missing Firebase configuration, falling back to defaults')
 --+    return [...FALLBACK_YEAR_IDS]
 --+  }
-+-+    return [
-+-+      { label: 'Client Company', value: textOrNA(project.clientCompany) },
-+-+      {
-+-+        label: 'Project Pickup Date',
-+-+        value: project.projectDateDisplay ?? '-',
-+-+      },
-+-+      { label: 'Amount', value: formatAmount(project.amount) },
-+-+      { label: 'Paid', value: project.paid ? '🤑' : '👎🏻' },
-+-+      {
-+-+        label: 'Paid On',
-+-+        value: project.paid ? project.onDateDisplay ?? '-' : '-',
-+-+      },
-+-+      { label: 'Pay To', value: textOrNA(project.paidTo) },
-+-+      { label: 'Invoice', value: invoiceValue },
-+-+    ] satisfies Array<{ label: string; value: ReactNode }>
-+-+  }, [project])
++-+import type { ReactNode } from 'react'
  -+
 --+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
 -++  return (
@@ -3741,16 +3901,21 @@ index 3adfa99..5e8aca0 100644
 -++  if (!project) {
 -++    return null
 - +  }
---+}
++-+import type { ProjectRecord } from '../../lib/projectsDatabase'
++-+import ProjectDatabaseDetailContent from './ProjectDatabaseDetailContent'
++-+
++-+interface ProjectDatabaseDetailDialogProps {
++-+  open: boolean
++-+  onClose: () => void
++-+  project: ProjectRecord | null
++-+  onEdit?: () => void
++-+  headerActions?: ReactNode
+ -+}
 - +
 --+export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResult> => {
 --+  const yearIds = await listYearCollections()
 --+  const projects: ProjectRecord[] = []
 --+  const yearsWithData = new Set<string>()
-+-+  const rawPresenter = textOrNA(project.presenterWorkType)
-+-+  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
-+-+  const hasCjkCharacters = (value: string | null | undefined) =>
-+-+    Boolean(value && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(value))
  -+
 --+  await Promise.all(
 --+    yearIds.map(async (year) => {
@@ -3758,15 +3923,16 @@ index 3adfa99..5e8aca0 100644
 --+      snapshot.forEach((doc) => {
 --+        const data = doc.data() as Record<string, unknown>
 --+        const projectNumber = toStringValue(data.projectNumber) ?? doc.id
-+-+  const hasCjkInTitle = hasCjkCharacters(project.projectTitle)
-+-+  const hasCjkPresenter = hasCjkCharacters(project.presenterWorkType)
++-+const MIN_WIDTH = 400
++-+const MIN_HEIGHT = 200
  -+
 --+        const amount = toNumberValue(data.amount)
 --+        const projectDateIso = toIsoDate(data.projectDate)
 --+        const projectDateDisplay = formatDisplayDate(data.projectDate)
 --+        const onDateIso = toIsoDate(data.onDate)
 --+        const onDateDisplay = formatDisplayDate(data.onDate)
-+-+  const presenterClassName = hasCjkPresenter ? 'iansui-text' : 'federo-text'
++-+const clamp = (value: number, min: number, max: number) =>
++-+  Math.min(Math.max(value, min), max)
  -+
 --+        projects.push({
 --+          id: doc.id,
@@ -3786,66 +3952,26 @@ index 3adfa99..5e8aca0 100644
 --+          projectTitle: toStringValue(data.projectTitle),
 --+          subsidiary: toStringValue(data.subsidiary),
 --+        })
-+-+  return (
-+-+    <Stack spacing={1.2}>
-+-+      <Stack
-+-+        direction={{ xs: 'column', sm: 'row' }}
-+-+        alignItems={{ xs: 'flex-start', sm: 'flex-start' }}
-+-+        spacing={1.5}
-+-+      >
-+-+        <Stack spacing={0.75} sx={{ flexGrow: 1, minWidth: 0 }}>
-+-+          <Stack
-+-+            direction='row'
-+-+            alignItems='center'
-+-+            spacing={1}
-+-+            sx={{ flexWrap: 'wrap', rowGap: 0.5 }}
-+-+          >
-+-+            <Typography variant='subtitle1' color='text.secondary'>
-+-+              {project.projectNumber}
-+-+            </Typography>
-+-+            {onEdit && (
-+-+              <IconButton onClick={onEdit} aria-label='Edit project' size='small'>
-+-+                <EditOutlinedIcon fontSize='small' />
-+-+              </IconButton>
-+-+            )}
-+-+          </Stack>
-+-+          <Typography
-+-+            variant='subtitle1'
-+-+            sx={{ color: 'text.primary' }}
-+-+            className={presenterClassName}
-+-+          >
-+-+            {presenterText}
-+-+          </Typography>
-+-+          <Typography
-+-+            variant='h4'
-+-+            className={hasCjkInTitle ? 'yuji-title' : undefined}
-+-+            sx={{ fontFamily: hasCjkInTitle ? undefined : 'Cantata One', lineHeight: 1.2 }}
-+-+          >
-+-+            {textOrNA(project.projectTitle)}
-+-+          </Typography>
-+-+          <Typography variant='body1' color='text.secondary'>
-+-+            {textOrNA(project.projectNature)}
-+-+          </Typography>
-+-+        </Stack>
-+-+        <Stack spacing={0.75} alignItems={{ xs: 'flex-start', sm: 'flex-end' }}>
-+-+          <Stack direction='row' spacing={0.5} alignItems='center'>
-+-+            {headerActions}
-+-+            {onClose && (
-+-+              <IconButton onClick={onClose} aria-label='close project details' size='small'>
-+-+                <CloseIcon fontSize='small' />
-+-+              </IconButton>
-+-+            )}
-+-+          </Stack>
-+-+          {project.subsidiary && (
-+-+            <Chip
-+-+              label={textOrNA(project.subsidiary)}
-+-+              variant='outlined'
-+-+              size='small'
-+-+              sx={{ alignSelf: { xs: 'flex-start', sm: 'flex-end' } }}
-+-+            />
-+-+          )}
-+-+        </Stack>
-+-+      </Stack>
++-+export default function ProjectDatabaseDetailDialog({
++-+  open,
++-+  onClose,
++-+  project,
++-+  onEdit,
++-+  headerActions,
++-+}: ProjectDatabaseDetailDialogProps) {
++-+  const theme = useTheme()
++-+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'))
++-+  const [mounted, setMounted] = useState(false)
++-+  const [size, setSize] = useState<{ width: number; height: number }>(() => ({
++-+    width: 560,
++-+    height: 480,
++-+  }))
++-+  const [position, setPosition] = useState<{ x: number; y: number }>(() => ({
++-+    x: 80,
++-+    y: 80,
++-+  }))
++-+  const [needsMeasurement, setNeedsMeasurement] = useState(true)
++-+  const contentRef = useRef<HTMLDivElement | null>(null)
  -+
 --+        yearsWithData.add(year)
 --+      })
@@ -3867,46 +3993,44 @@ index 3adfa99..5e8aca0 100644
 -++      </DialogContent>
 -++    </Dialog>
 - +  )
-+-+      <Divider />
++-+  useEffect(() => {
++-+    setMounted(true)
++-+  }, [])
  -+
 --+  projects.sort((a, b) => {
 --+    if (a.year !== b.year) {
 --+      return b.year.localeCompare(a.year, undefined, { numeric: true })
---+    }
++-+  useEffect(() => {
++-+    if (open) {
++-+      const previous = document.body.style.overflow
++-+      document.body.style.overflow = 'hidden'
++-+      setNeedsMeasurement(true)
++-+      return () => {
++-+        document.body.style.overflow = previous
++-+      }
+ -+    }
 --+    return a.projectNumber.localeCompare(b.projectNumber, undefined, { numeric: true })
 --+  })
-+-+      <Stack spacing={1.2}>
-+-+        {detailItems.map(({ label, value }) => (
-+-+          <Box key={label}>
-+-+            <Typography sx={labelSx} className='karla-label'>
-+-+              {label}:
-+-+            </Typography>
-+-+            <Typography component='div' sx={valueSx} className={cormorantSemi.className}>
-+-+              {value}
-+-+            </Typography>
-+-+          </Box>
-+-+        ))}
-+-+      </Stack>
-+-+    </Stack>
-+-+  )
-+-+}
-+-diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-+-new file mode 100644
-+-index 0000000..787fc34
-+---- /dev/null
-+-+++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-+-@@ -0,0 +1,201 @@
-+-+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-+-+import { createPortal } from 'react-dom'
-+-+import { Rnd, type RndDragCallback, type RndResizeCallback } from 'react-rnd'
-+-+import { Backdrop, Box, Fade, useMediaQuery, useTheme } from '@mui/material'
++-+    return undefined
++-+  }, [open])
  -+
 --+  return {
 --+    projects,
 --+    years: uniqueSortedYears(yearsWithData),
 --+  }
 - +}
-+-+import type { ReactNode } from 'react'
++-+  useLayoutEffect(() => {
++-+    if (!open || !needsMeasurement || !contentRef.current || isSmallScreen) {
++-+      return
++++  const handleProjectNumberKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
++++    if (event.key === 'Enter') {
++++      event.preventDefault()
++++      commitProjectNumber()
++++    } else if (event.key === 'Escape') {
++++      event.preventDefault()
++++      updateProjectNumber(defaultProjectNumber)
++++      setEditingProjectNumber(false)
++ +    }
  -+
 --diff --git a/pages/dashboard/businesses/index.tsx b/pages/dashboard/businesses/index.tsx
 --index 505c235..135484d 100644
@@ -3922,118 +4046,4 @@ index 3adfa99..5e8aca0 100644
 -- import { Box, Typography, List, ListItemButton, ListItemText, Button } from '@mui/material';
 ---import { drive_v3 } from 'googleapis';
 -- 
----interface BusinessFile {
----  companyIdentifier: string;
----  fullCompanyName: string;
----  file: drive_v3.Schema$File;
---+interface BusinessLink {
---+  title: string;
---+  description: string;
---+  href: string;
--- }
--- 
--- interface BusinessesPageProps {
----  projectsByCategory: Record<string, BusinessFile[]>;
---+  businessLinks: BusinessLink[];
--- }
--- 
----export default function BusinessesPage({ projectsByCategory }: BusinessesPageProps) {
---+export default function BusinessesPage({ businessLinks }: BusinessesPageProps) {
---   const router = useRouter();
--- 
----  // Flatten the grouped projects into a single array.
----  // (The original code grouped them by subsidiary code; now we sort them alphabetically by fullCompanyName.)
----  const files: BusinessFile[] = [];
----  for (const key in projectsByCategory) {
----    projectsByCategory[key].forEach((file) => files.push(file));
----  }
----  files.sort((a, b) => a.fullCompanyName.localeCompare(b.fullCompanyName));
----
---   return (
---     <SidebarLayout>
---       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
---@@ -43,12 +32,9 @@ export default function BusinessesPage({ projectsByCategory }: BusinessesPagePro
---         Select a project overview file:
---       </Typography>
---       <List>
----        {files.map((file) => (
----          <ListItemButton
----            key={file.file.id}
----            onClick={() => router.push(`/dashboard/businesses/${file.file.id}`)}
----          >
----            <ListItemText primary={file.fullCompanyName} secondary={file.file.name} />
---+        {businessLinks.map((link) => (
---+          <ListItemButton key={link.href} onClick={() => router.push(link.href)}>
---+            <ListItemText primary={link.title} secondary={link.description} />
---           </ListItemButton>
---         ))}
---       </List>
---@@ -61,12 +47,15 @@ export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async
---   if (!session?.accessToken) {
---     return { redirect: { destination: '/api/auth/signin', permanent: false } };
---   }
----  const { drive } = initializeApis('user', { accessToken: session.accessToken as string });
----  // Get the grouped project files using your existing sorting utility
----  const projectsByCategory = await listProjectOverviewFiles(drive, []);
---   return {
---     props: {
----      projectsByCategory,
---+      businessLinks: [
---+        {
---+          title: 'Establish Productions Limited',
---+          description: 'Projects (Database)',
---+          href: '/dashboard/businesses/projects-database/select',
---+        },
---+      ],
---     },
---   };
--- };
---diff --git a/pages/dashboard/businesses/projects-database/[groupId].tsx b/pages/dashboard/businesses/projects-database/[groupId].tsx
--+diff --git a/components/projectdialog/ProjectDatabaseEditDialog.tsx b/components/projectdialog/ProjectDatabaseEditDialog.tsx
-- new file mode 100644
---index 0000000..3823567
--+index 0000000..a13c7f7
-- --- /dev/null
---+++ b/pages/dashboard/businesses/projects-database/[groupId].tsx
---@@ -0,0 +1,400 @@
---+import { GetServerSideProps } from 'next'
---+import { getSession } from 'next-auth/react'
---+import { useRouter } from 'next/router'
---+import { useEffect, useState } from 'react'
-+-+import type { ProjectRecord } from '../../lib/projectsDatabase'
-+-+import ProjectDatabaseDetailContent from './ProjectDatabaseDetailContent'
- -+
---+import SidebarLayout from '../../../../components/SidebarLayout'
---+import {
---+  fetchProjectsFromDatabase,
---+  ProjectRecord,
---+} from '../../../../lib/projectsDatabase'
--++++ b/components/projectdialog/ProjectDatabaseEditDialog.tsx
--+@@ -0,0 +1,295 @@
--++import { useEffect, useMemo, useState } from 'react'
-- +
-- +import {
--++  Alert,
-- +  Box,
-- +  Button,
---+  Card,
---+  CardContent,
---+  FormControl,
--++  Dialog,
--++  DialogActions,
--++  DialogContent,
--++  DialogTitle,
--++  FormControlLabel,
-- +  Grid,
---+  IconButton,
---+  InputLabel,
---+  List,
---+  ListItem,
---+  ListItemText,
---+  MenuItem,
---+  Select,
---+  ToggleButton,
---+  ToggleButtonGroup,
--++  Switch,
--++  TextField,
 ```
