@@ -1,7 +1,7 @@
 # PR #252 — Diff Summary
 
 - **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-- **Head (source)**: `b49d9dc07d37173d09473023cd2c0992a490e501`
+- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -28,9 +28,11 @@ M	jest.config.cjs
 M	lib/erlDirectory.test.ts
 M	lib/projectsDatabase.ts
 A	lib/projectsDatabaseSelection.ts
+M	pages/_app.tsx
 A	pages/api/projects-database/[year]/[projectId].ts
 M	pages/dashboard/businesses/projects-database/[groupId].tsx
 A	pages/dashboard/businesses/projects-database/window.tsx
+A	styles/project-dialog.css
 A	vercel.json
 ```
 
@@ -47,22 +49,24 @@ A	vercel.json
  .../businesses/coaching-sessions.test.tsx          |   35 +-
  components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
  components/StudentDialog/PaymentModal.test.tsx     |   21 +-
- .../projectdialog/ProjectDatabaseDetailContent.tsx |  170 +
- .../projectdialog/ProjectDatabaseDetailDialog.tsx  |   44 +
- .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
+ .../projectdialog/ProjectDatabaseDetailContent.tsx |  178 +
+ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |  201 +
+ .../projectdialog/ProjectDatabaseEditDialog.tsx    |  297 ++
  context-bundle.md                                  | 4707 +++++++++++++++++---
  cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
  docs/context/PR-251.md                             | 4067 +++++++++++++++++
- docs/context/PR-252.md                             | 4071 +++++++++++++++++
+ docs/context/PR-252.md                             |    1 +
  jest.config.cjs                                    |    2 +
  lib/erlDirectory.test.ts                           |    4 +-
- lib/projectsDatabase.ts                            |  109 +-
+ lib/projectsDatabase.ts                            |  147 +-
  lib/projectsDatabaseSelection.ts                   |   30 +
+ pages/_app.tsx                                     |   34 +-
  pages/api/projects-database/[year]/[projectId].ts  |   63 +
  .../businesses/projects-database/[groupId].tsx     |  111 +-
- .../businesses/projects-database/window.tsx        |  107 +
+ .../businesses/projects-database/window.tsx        |  177 +
+ styles/project-dialog.css                          |   20 +
  vercel.json                                        |    6 +
- 25 files changed, 13155 insertions(+), 1007 deletions(-)
+ 27 files changed, 9401 insertions(+), 1020 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -497,10 +501,10 @@ index 3d4b44f..81908ef 100644
      expect(data.accountDocId).toBeUndefined()
 diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
 new file mode 100644
-index 0000000..a9a4bce
+index 0000000..e136869
 --- /dev/null
 +++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-@@ -0,0 +1,170 @@
+@@ -0,0 +1,178 @@
 +import { useMemo } from 'react'
 +
 +import {
@@ -514,12 +518,11 @@ index 0000000..a9a4bce
 +} from '@mui/material'
 +import CloseIcon from '@mui/icons-material/Close'
 +import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-+import { Cormorant_Infant, Yuji_Mai } from 'next/font/google'
++import { Cormorant_Infant } from 'next/font/google'
 +
 +import type { ProjectRecord } from '../../lib/projectsDatabase'
 +import type { ReactNode } from 'react'
 +
-+const yujiMai = Yuji_Mai({ subsets: ['latin'], weight: '400', display: 'swap' })
 +const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600', display: 'swap' })
 +
 +const textOrNA = (value: string | null | undefined) =>
@@ -536,7 +539,6 @@ index 0000000..a9a4bce
 +}
 +
 +const labelSx = {
-+  fontFamily: "Calibri, 'Segoe UI', sans-serif",
 +  fontWeight: 400,
 +  fontSize: '0.9rem',
 +  letterSpacing: '0.02em',
@@ -595,9 +597,13 @@ index 0000000..a9a4bce
 +
 +  const rawPresenter = textOrNA(project.presenterWorkType)
 +  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
-+  const hasCjkInTitle = Boolean(
-+    project.projectTitle && /[぀-ヿ㐀-䶿一-鿿]/.test(project.projectTitle)
-+  )
++  const hasCjkCharacters = (value: string | null | undefined) =>
++    Boolean(value && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(value))
++
++  const hasCjkInTitle = hasCjkCharacters(project.projectTitle)
++  const hasCjkPresenter = hasCjkCharacters(project.presenterWorkType)
++
++  const presenterClassName = hasCjkPresenter ? 'iansui-text' : 'federo-text'
 +
 +  return (
 +    <Stack spacing={1.2}>
@@ -622,12 +628,16 @@ index 0000000..a9a4bce
 +              </IconButton>
 +            )}
 +          </Stack>
-+          <Typography variant='subtitle1' sx={{ color: 'text.primary' }}>
++          <Typography
++            variant='subtitle1'
++            sx={{ color: 'text.primary' }}
++            className={presenterClassName}
++          >
 +            {presenterText}
 +          </Typography>
 +          <Typography
 +            variant='h4'
-+            className={hasCjkInTitle ? yujiMai.className : undefined}
++            className={hasCjkInTitle ? 'yuji-title' : undefined}
 +            sx={{ fontFamily: hasCjkInTitle ? undefined : 'Cantata One', lineHeight: 1.2 }}
 +          >
 +            {textOrNA(project.projectTitle)}
@@ -661,7 +671,9 @@ index 0000000..a9a4bce
 +      <Stack spacing={1.2}>
 +        {detailItems.map(({ label, value }) => (
 +          <Box key={label}>
-+            <Typography sx={labelSx}>{label}:</Typography>
++            <Typography sx={labelSx} className='karla-label'>
++              {label}:
++            </Typography>
 +            <Typography component='div' sx={valueSx} className={cormorantSemi.className}>
 +              {value}
 +            </Typography>
@@ -673,11 +685,14 @@ index 0000000..a9a4bce
 +}
 diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
 new file mode 100644
-index 0000000..34283e5
+index 0000000..787fc34
 --- /dev/null
 +++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
-@@ -0,0 +1,44 @@
-+import { Dialog, DialogContent } from '@mui/material'
+@@ -0,0 +1,201 @@
++import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
++import { createPortal } from 'react-dom'
++import { Rnd, type RndDragCallback, type RndResizeCallback } from 'react-rnd'
++import { Backdrop, Box, Fade, useMediaQuery, useTheme } from '@mui/material'
 +
 +import type { ReactNode } from 'react'
 +
@@ -692,6 +707,12 @@ index 0000000..34283e5
 +  headerActions?: ReactNode
 +}
 +
++const MIN_WIDTH = 400
++const MIN_HEIGHT = 200
++
++const clamp = (value: number, min: number, max: number) =>
++  Math.min(Math.max(value, min), max)
++
 +export default function ProjectDatabaseDetailDialog({
 +  open,
 +  onClose,
@@ -699,34 +720,182 @@ index 0000000..34283e5
 +  onEdit,
 +  headerActions,
 +}: ProjectDatabaseDetailDialogProps) {
-+  if (!project) {
++  const theme = useTheme()
++  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'))
++  const [mounted, setMounted] = useState(false)
++  const [size, setSize] = useState<{ width: number; height: number }>(() => ({
++    width: 560,
++    height: 480,
++  }))
++  const [position, setPosition] = useState<{ x: number; y: number }>(() => ({
++    x: 80,
++    y: 80,
++  }))
++  const [needsMeasurement, setNeedsMeasurement] = useState(true)
++  const contentRef = useRef<HTMLDivElement | null>(null)
++
++  useEffect(() => {
++    setMounted(true)
++  }, [])
++
++  useEffect(() => {
++    if (open) {
++      const previous = document.body.style.overflow
++      document.body.style.overflow = 'hidden'
++      setNeedsMeasurement(true)
++      return () => {
++        document.body.style.overflow = previous
++      }
++    }
++    return undefined
++  }, [open])
++
++  useLayoutEffect(() => {
++    if (!open || !needsMeasurement || !contentRef.current || isSmallScreen) {
++      return
++    }
++
++    const node = contentRef.current
++    const viewportWidth = window.innerWidth || 1024
++    const viewportHeight = window.innerHeight || 768
++    const horizontalPadding = 64
++    const verticalPadding = 96
++
++    const measuredWidth = node.scrollWidth + horizontalPadding
++    const measuredHeight = node.scrollHeight + verticalPadding
++
++    const width = clamp(
++      measuredWidth,
++      MIN_WIDTH,
++      Math.max(MIN_WIDTH, viewportWidth - 48)
++    )
++    const height = clamp(
++      measuredHeight,
++      MIN_HEIGHT,
++      Math.max(MIN_HEIGHT, viewportHeight - 48)
++    )
++
++    const x = Math.max(24, Math.round((viewportWidth - width) / 2))
++    const y = Math.max(32, Math.round((viewportHeight - height) / 2))
++
++    setSize({ width, height })
++    setPosition({ x, y })
++    setNeedsMeasurement(false)
++  }, [open, needsMeasurement, isSmallScreen])
++
++  const handleResizeStop: RndResizeCallback = (
++    _event,
++    _direction,
++    elementRef,
++    _delta,
++    nextPosition
++  ) => {
++    const width = elementRef.offsetWidth
++    const height = elementRef.offsetHeight
++    setSize({ width, height })
++    setPosition(nextPosition)
++  }
++
++  const handleDragStop: RndDragCallback = (_event, data) => {
++    setPosition({ x: data.x, y: data.y })
++  }
++
++  const portalTarget = useMemo(() => (mounted ? document.body : null), [mounted])
++
++  if (!project || !open || !portalTarget) {
 +    return null
 +  }
 +
-+  return (
-+    <Dialog
-+      open={open}
-+      onClose={onClose}
-+      fullWidth
-+      maxWidth="sm"
-+    >
-+      <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
-+        <ProjectDatabaseDetailContent
-+          project={project}
-+          headerActions={headerActions}
-+          onClose={onClose}
-+          onEdit={onEdit}
++  if (isSmallScreen) {
++    return createPortal(
++      <Fade in={open} appear unmountOnExit>
++        <Box
++          sx={{
++            position: 'fixed',
++            inset: 0,
++            bgcolor: 'background.paper',
++            zIndex: 1300,
++            display: 'flex',
++            flexDirection: 'column',
++          }}
++        >
++          <Box ref={contentRef} sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
++            <ProjectDatabaseDetailContent
++              project={project}
++              headerActions={headerActions}
++              onClose={onClose}
++              onEdit={onEdit}
++            />
++          </Box>
++        </Box>
++      </Fade>,
++      portalTarget
++    )
++  }
++
++  return createPortal(
++    <Fade in={open} appear unmountOnExit>
++      <Box
++        sx={{
++          position: 'fixed',
++          inset: 0,
++          zIndex: 1300,
++        }}
++      >
++        <Backdrop
++          open
++          onClick={onClose}
++          sx={{ position: 'absolute', inset: 0 }}
 +        />
-+      </DialogContent>
-+    </Dialog>
++        <Rnd
++          size={size}
++          position={position}
++          bounds='window'
++          minWidth={MIN_WIDTH}
++          minHeight={MIN_HEIGHT}
++          onDragStop={handleDragStop}
++          onResizeStop={handleResizeStop}
++          enableResizing
++        >
++          <Box
++            sx={{
++              bgcolor: 'background.paper',
++              height: '100%',
++              display: 'flex',
++              flexDirection: 'column',
++              boxShadow: 6,
++              borderRadius: 1,
++              overflow: 'hidden',
++            }}
++          >
++            <Box
++              ref={contentRef}
++              sx={{
++                flexGrow: 1,
++                overflow: 'auto',
++                p: { xs: 2, sm: 3 },
++              }}
++            >
++              <ProjectDatabaseDetailContent
++                project={project}
++                headerActions={headerActions}
++                onClose={onClose}
++                onEdit={onEdit}
++              />
++            </Box>
++          </Box>
++        </Rnd>
++      </Box>
++    </Fade>,
++    portalTarget
 +  )
 +}
 diff --git a/components/projectdialog/ProjectDatabaseEditDialog.tsx b/components/projectdialog/ProjectDatabaseEditDialog.tsx
 new file mode 100644
-index 0000000..a13c7f7
+index 0000000..8a75d5c
 --- /dev/null
 +++ b/components/projectdialog/ProjectDatabaseEditDialog.tsx
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,297 @@
 +import { useEffect, useMemo, useState } from 'react'
 +
 +import {
@@ -743,8 +912,6 @@ index 0000000..a13c7f7
 +  TextField,
 +  Typography,
 +} from '@mui/material'
-+import { Timestamp } from 'firebase/firestore'
-+
 +import type { ProjectRecord } from '../../lib/projectsDatabase'
 +
 +interface ProjectDatabaseEditDialogProps {
@@ -775,8 +942,12 @@ index 0000000..a13c7f7
 +  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().split('T')[0]
 +}
 +
-+const toTimestampOrNull = (value: string) =>
-+  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
++const toIsoUtcStringOrNull = (value: string) => {
++  if (!value) return null
++  const isoLocalMidnight = `${value}T00:00:00+08:00`
++  const date = new Date(isoLocalMidnight)
++  return Number.isNaN(date.getTime()) ? null : date.toISOString()
++}
 +
 +const sanitizeText = (value: string) => {
 +  const trimmed = value.trim()
@@ -864,8 +1035,8 @@ index 0000000..a13c7f7
 +      updates.amount = parsedAmount
 +    }
 +
-+    updates.projectDate = toTimestampOrNull(form.projectDate)
-+    updates.onDate = toTimestampOrNull(form.onDate)
++    updates.projectDate = toIsoUtcStringOrNull(form.projectDate)
++    updates.onDate = toIsoUtcStringOrNull(form.onDate)
 +
 +    try {
 +      const response = await fetch(
@@ -1023,7 +1194,7 @@ index 0000000..a13c7f7
 +  )
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 8756e36..fd2c6f3 100644
+index 8756e36..6a287ad 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
 @@ -1,810 +1,4071 @@
@@ -1033,7 +1204,7 @@ index 8756e36..fd2c6f3 100644
 -- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 -- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 +- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-+- **Head (source)**: `b73c9a9ef8d7bc70cfe5c8ebacaa8f5ab531cac2`
++- **Head (source)**: `b49d9dc07d37173d09473023cd2c0992a490e501`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -1098,7 +1269,7 @@ index 8756e36..fd2c6f3 100644
 + context-bundle.md                                  | 4707 +++++++++++++++++---
 + cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
 + docs/context/PR-251.md                             | 4067 +++++++++++++++++
-+ docs/context/PR-252.md                             |    1 +
++ docs/context/PR-252.md                             | 4071 +++++++++++++++++
 + jest.config.cjs                                    |    2 +
 + lib/erlDirectory.test.ts                           |    4 +-
 + lib/projectsDatabase.ts                            |  109 +-
@@ -1107,7 +1278,7 @@ index 8756e36..fd2c6f3 100644
 + .../businesses/projects-database/[groupId].tsx     |  111 +-
 + .../businesses/projects-database/window.tsx        |  107 +
 + vercel.json                                        |    6 +
-+ 25 files changed, 9085 insertions(+), 1007 deletions(-)
++ 25 files changed, 13155 insertions(+), 1007 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1882,7 +2053,7 @@ index 8756e36..fd2c6f3 100644
 ++}
 +diff --git a/components/projectdialog/ProjectDatabaseDetailDialog.tsx b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
 +new file mode 100644
-+index 0000000..2efd125
++index 0000000..34283e5
 +--- /dev/null
 ++++ b/components/projectdialog/ProjectDatabaseDetailDialog.tsx
 +@@ -0,0 +1,44 @@
@@ -1985,7 +2156,7 @@ index 8756e36..fd2c6f3 100644
 ++      open={open}
 ++      onClose={onClose}
 ++      fullWidth
-++      maxWidth="md"
+++      maxWidth="sm"
 ++    >
 ++      <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
 ++        <ProjectDatabaseDetailContent
@@ -2775,7 +2946,7 @@ index 8756e36..fd2c6f3 100644
 -+
 -+export default ProjectsDatabaseIndex
 +diff --git a/context-bundle.md b/context-bundle.md
-+index 8756e36..28b3e2e 100644
++index 8756e36..fd2c6f3 100644
 +--- a/context-bundle.md
 ++++ b/context-bundle.md
 +@@ -1,810 +1,4071 @@
@@ -2785,7 +2956,7 @@ index 8756e36..fd2c6f3 100644
 +-- **Base (target)**: `f566cbf23346c32717e383ca9f46af974f479b6e`
 +-- **Head (source)**: `8073fcbf79fae18bc77fc3ba6aff45ef1c2659b1`
 ++- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
-++- **Head (source)**: `4405180a32755ee10561a9fd6519627b832f07af`
+++- **Head (source)**: `b73c9a9ef8d7bc70cfe5c8ebacaa8f5ab531cac2`
 + - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 + 
 + ## Changed Files
@@ -2844,13 +3015,13 @@ index 8756e36..fd2c6f3 100644
 ++ .../businesses/coaching-sessions.test.tsx          |   35 +-
 ++ components/StudentDialog/PaymentHistory.test.tsx   |    8 +-
 ++ components/StudentDialog/PaymentModal.test.tsx     |   21 +-
-++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  167 +
+++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  170 +
 ++ .../projectdialog/ProjectDatabaseDetailDialog.tsx  |   44 +
 ++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |  295 ++
-++ context-bundle.md                                  | 4705 +++++++++++++++++---
+++ context-bundle.md                                  | 4707 +++++++++++++++++---
 ++ cypress/e2e/add_payment_cascade.cy.tsx             |  104 +-
 ++ docs/context/PR-251.md                             | 4067 +++++++++++++++++
-++ docs/context/PR-252.md                             | 4069 +++++++++++++++++
+++ docs/context/PR-252.md                             |    1 +
 ++ jest.config.cjs                                    |    2 +
 ++ lib/erlDirectory.test.ts                           |    4 +-
 ++ lib/projectsDatabase.ts                            |  109 +-
@@ -2859,7 +3030,7 @@ index 8756e36..fd2c6f3 100644
 ++ .../businesses/projects-database/[groupId].tsx     |  111 +-
 ++ .../businesses/projects-database/window.tsx        |  107 +
 ++ vercel.json                                        |    6 +
-++ 25 files changed, 13148 insertions(+), 1007 deletions(-)
+++ 25 files changed, 9085 insertions(+), 1007 deletions(-)
 + ```
 + 
 + ## Unified Diff (truncated to first 4000 lines)
@@ -3408,10 +3579,10 @@ index 8756e36..fd2c6f3 100644
 ++     expect(data.accountDocId).toBeUndefined()
 ++diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
 ++new file mode 100644
-++index 0000000..fb006cf
+++index 0000000..a9a4bce
 ++--- /dev/null
 +++++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-++@@ -0,0 +1,167 @@
+++@@ -0,0 +1,170 @@
 +++import { useMemo } from 'react'
 + +
 +-+const formatDisplayDate = (value: unknown): string | null => {
@@ -3484,7 +3655,7 @@ index 8756e36..fd2c6f3 100644
 +-+  }
 +-+  return null
 +++const labelSx = {
-+++  fontFamily: 'Calibri, "Segoe UI", sans-serif',
++++  fontFamily: "Calibri, 'Segoe UI', sans-serif",
 +++  fontWeight: 400,
 +++  fontSize: '0.9rem',
 +++  letterSpacing: '0.02em',
@@ -3547,7 +3718,7 @@ index 8756e36..fd2c6f3 100644
 +++  const rawPresenter = textOrNA(project.presenterWorkType)
 +++  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
 +++  const hasCjkInTitle = Boolean(
-+++    project.projectTitle && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(project.projectTitle)
++++    project.projectTitle && /[぀-ヿ㐀-䶿一-鿿]/.test(project.projectTitle)
 + +  )
 + +
 +-+const listYearCollections = async (): Promise<string[]> => {
@@ -3562,56 +3733,59 @@ index 8756e36..fd2c6f3 100644
 +-+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents:listCollectionIds?key=${apiKey}`
 +++  return (
 +++    <Stack spacing={1.2}>
-+++      <Stack spacing={0.75} sx={{ width: '100%' }}>
-+++        <Box
-+++          sx={{
-+++            display: 'flex',
-+++            alignItems: 'center',
-+++            flexWrap: 'wrap',
-+++            columnGap: 1,
-+++            rowGap: 0.75,
-+++            width: '100%',
-+++          }}
-+++        >
-+++          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-+++            <Typography variant="subtitle1" color="text.secondary">
++++      <Stack
++++        direction={{ xs: 'column', sm: 'row' }}
++++        alignItems={{ xs: 'flex-start', sm: 'flex-start' }}
++++        spacing={1.5}
++++      >
++++        <Stack spacing={0.75} sx={{ flexGrow: 1, minWidth: 0 }}>
++++          <Stack
++++            direction='row'
++++            alignItems='center'
++++            spacing={1}
++++            sx={{ flexWrap: 'wrap', rowGap: 0.5 }}
++++          >
++++            <Typography variant='subtitle1' color='text.secondary'>
 +++              {project.projectNumber}
 +++            </Typography>
 +++            {onEdit && (
-+++              <IconButton onClick={onEdit} aria-label="Edit project" size="small">
-+++                <EditOutlinedIcon fontSize="small" />
++++              <IconButton onClick={onEdit} aria-label='Edit project' size='small'>
++++                <EditOutlinedIcon fontSize='small' />
 +++              </IconButton>
 +++            )}
-+++          </Box>
-+++          {project.subsidiary && (
-+++            <Chip label={textOrNA(project.subsidiary)} variant="outlined" size="small" />
-+++          )}
-+++          <Box sx={{ flexGrow: 1 }} />
-+++          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
++++          </Stack>
++++          <Typography variant='subtitle1' sx={{ color: 'text.primary' }}>
++++            {presenterText}
++++          </Typography>
++++          <Typography
++++            variant='h4'
++++            className={hasCjkInTitle ? yujiMai.className : undefined}
++++            sx={{ fontFamily: hasCjkInTitle ? undefined : 'Cantata One', lineHeight: 1.2 }}
++++          >
++++            {textOrNA(project.projectTitle)}
++++          </Typography>
++++          <Typography variant='body1' color='text.secondary'>
++++            {textOrNA(project.projectNature)}
++++          </Typography>
++++        </Stack>
++++        <Stack spacing={0.75} alignItems={{ xs: 'flex-start', sm: 'flex-end' }}>
++++          <Stack direction='row' spacing={0.5} alignItems='center'>
 +++            {headerActions}
 +++            {onClose && (
-+++              <IconButton onClick={onClose} aria-label="close project details" size="small">
-+++                <CloseIcon fontSize="small" />
++++              <IconButton onClick={onClose} aria-label='close project details' size='small'>
++++                <CloseIcon fontSize='small' />
 +++              </IconButton>
 +++            )}
-+++          </Box>
-+++        </Box>
-+++        <Typography variant="subtitle1" sx={{ color: 'text.primary' }}>
-+++          {presenterText}
-+++        </Typography>
-+++        <Typography
-+++          variant="h4"
-+++          className={hasCjkInTitle ? yujiMai.className : undefined}
-+++          sx={{
-+++            fontFamily: hasCjkInTitle ? undefined : 'Cantata One',
-+++            lineHeight: 1.2,
-+++          }}
-+++        >
-+++          {textOrNA(project.projectTitle)}
-+++        </Typography>
-+++        <Typography variant="body1" color="text.secondary">
-+++          {textOrNA(project.projectNature)}
-+++        </Typography>
++++          </Stack>
++++          {project.subsidiary && (
++++            <Chip
++++              label={textOrNA(project.subsidiary)}
++++              variant='outlined'
++++              size='small'
++++              sx={{ alignSelf: { xs: 'flex-start', sm: 'flex-end' } }}
++++            />
++++          )}
++++        </Stack>
 +++      </Stack>
 +++
 +++      <Divider />
@@ -3620,7 +3794,7 @@ index 8756e36..fd2c6f3 100644
 +++        {detailItems.map(({ label, value }) => (
 +++          <Box key={label}>
 +++            <Typography sx={labelSx}>{label}:</Typography>
-+++            <Typography component="div" sx={valueSx} className={cormorantSemi.className}>
++++            <Typography component='div' sx={valueSx} className={cormorantSemi.className}>
 +++              {value}
 +++            </Typography>
 +++          </Box>
@@ -3893,179 +4067,9 @@ index 8756e36..fd2c6f3 100644
 +-+
 +-+const valueSx = { fontFamily: 'Newsreader', fontWeight: 500 }
 +-+const headingSx = { fontFamily: 'Cantata One' }
++-+
++-+type SortMethod = 'year' | 'subsidiary'
 +++import { Timestamp } from 'firebase/firestore'
 + +
-+-+type SortMethod = 'year' | 'subsidiary'
-+++import type { ProjectRecord } from '../../lib/projectsDatabase'
-+ +
 +-+type Mode = 'select' | 'detail'
-+-+
-+-+interface DetailSelection {
-+-+  type: SortMethod
-+-+  year: string
-+++interface ProjectDatabaseEditDialogProps {
-+++  open: boolean
-+++  project: ProjectRecord | null
-+++  onClose: () => void
-+++  onSaved: () => void
-+ +}
-+ +
-+-+interface ProjectsDatabasePageProps {
-+-+  mode: Mode
-+-+  years: string[]
-+-+  error?: string
-+-+  detailSelection?: DetailSelection
-+-+  projects?: ProjectRecord[]
-+++interface FormState {
-+++  projectNumber: string
-+++  projectTitle: string
-+++  projectNature: string
-+++  clientCompany: string
-+++  amount: string
-+++  paid: boolean
-+++  paidTo: string
-+++  invoice: string
-+++  presenterWorkType: string
-+++  subsidiary: string
-+++  projectDate: string
-+++  onDate: string
-+ +}
-+ +
-+-+const encodeSelectionId = (type: SortMethod, year: string) => {
-+-+  const yearPart = encodeURIComponent(year)
-+-+  return `${type}--${yearPart}`
-+++const toDateInputValue = (value: string | null) => {
-+++  if (!value) return ''
-+++  const parsed = new Date(value)
-+++  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().split('T')[0]
-+ +}
-+ +
-+-+const decodeSelectionId = (value: string): DetailSelection | null => {
-+-+  const [typePart, yearPart] = value.split('--')
-+-+  if (!typePart || !yearPart) {
-+-+    return null
-+-+  }
-+++const toTimestampOrNull = (value: string) =>
-+++  value ? Timestamp.fromDate(new Date(`${value}T00:00:00`)) : null
-+ +
-+-+  if (typePart !== 'year' && typePart !== 'subsidiary') {
-+-+    return null
-+-+  }
-+-+
-+-+  try {
-+-+    return { type: typePart, year: decodeURIComponent(yearPart) }
-+-+  } catch (err) {
-+-+    console.warn('[projects-database] Failed to decode selection id', err)
-+-+    return null
-+-+  }
-+++const sanitizeText = (value: string) => {
-+++  const trimmed = value.trim()
-+++  return trimmed.length === 0 ? null : trimmed
-+ +}
-+ +
-+-+const stringOrNA = (value: string | null | undefined) =>
-+-+  value && value.trim().length > 0 ? value : 'N/A'
-+++export default function ProjectDatabaseEditDialog({
-+++  open,
-+++  project,
-+++  onClose,
-+++  onSaved,
-+++}: ProjectDatabaseEditDialogProps) {
-+++  const [form, setForm] = useState<FormState | null>(null)
-+++  const [saving, setSaving] = useState(false)
-+++  const [error, setError] = useState<string | null>(null)
-+ +
-+-+const amountText = (value: number | null | undefined) => {
-+-+  if (value === null || value === undefined) {
-+-+    return '-'
-+-+  }
-+++  useEffect(() => {
-+++    if (!project) {
-+++      setForm(null)
-+++      return
-+++    }
-+ +
-+-+  return `HK$${value.toLocaleString('en-US', {
-+-+    minimumFractionDigits: 0,
-+-+    maximumFractionDigits: 2,
-+-+  })}`
-+-+}
-+++    setForm({
-+++      projectNumber: project.projectNumber ?? '',
-+++      projectTitle: project.projectTitle ?? '',
-+++      projectNature: project.projectNature ?? '',
-+++      clientCompany: project.clientCompany ?? '',
-+++      amount:
-+++        project.amount !== null && project.amount !== undefined
-+++          ? String(project.amount)
-+++          : '',
-+++      paid: Boolean(project.paid),
-+++      paidTo: project.paidTo ?? '',
-+++      invoice: project.invoice ?? '',
-+++      presenterWorkType: project.presenterWorkType ?? '',
-+++      subsidiary: project.subsidiary ?? '',
-+++      projectDate: toDateInputValue(project.projectDateIso),
-+++      onDate: toDateInputValue(project.onDateIso),
-+++    })
-+++    setError(null)
-+++  }, [project])
-+ +
-+-+const paidStatusText = (value: boolean | null | undefined) => {
-+-+  if (value === null || value === undefined) {
-+-+    return 'N/A'
-+-+  }
-+-+  return value ? 'Paid' : 'Unpaid'
-+-+}
-+++  const disabled = useMemo(() => saving || !form || !project, [saving, form, project])
-+ +
-+-+const paidDateText = (
-+-+  paid: boolean | null | undefined,
-+-+  date: string | null | undefined
-+-+) => {
-+-+  if (!paid) {
-+-+    return null
-+++  const handleChange = (field: keyof FormState) =>
-+++    (event: React.ChangeEvent<HTMLInputElement>) => {
-+++      if (!form) return
-+++      setForm({ ...form, [field]: event.target.value })
-+++    }
-+++
-+++  const handleTogglePaid = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
-+++    if (!form) return
-+++    setForm({ ...form, paid: checked })
-+ +  }
-+ +
-+-+  return date && date.trim().length > 0 ? date : '-'
-+-+}
-+++  const handleSubmit = async () => {
-+++    if (!project || !form) return
-+ +
-+-+export default function ProjectsDatabasePage({
-+-+  mode,
-+-+  years,
-+-+  error,
-+-+  detailSelection,
-+-+  projects = [],
-+-+}: ProjectsDatabasePageProps) {
-+-+  const router = useRouter()
-+-+
-+-+  const [sortMethod, setSortMethod] = useState<SortMethod>(
-+-+    detailSelection?.type ?? 'year'
-+-+  )
-+-+  const [selectedYear, setSelectedYear] = useState<string>(
-+-+    detailSelection?.year ?? years[0] ?? ''
-+-+  )
-+++    setSaving(true)
-+++    setError(null)
-+ +
-+-+  const handleYearChange = (event: SelectChangeEvent<string>) => {
-+-+    setSelectedYear(event.target.value)
-+-+  }
-+++    const amountValue = form.amount.trim()
-+++    const parsedAmount = amountValue.length > 0 ? Number(amountValue) : null
-+++    if (amountValue.length > 0 && Number.isNaN(parsedAmount)) {
-+++      setError('Amount must be a number')
-+++      setSaving(false)
-+++      return
-+++    }
 ```
