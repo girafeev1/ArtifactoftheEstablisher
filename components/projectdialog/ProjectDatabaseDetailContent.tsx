@@ -88,7 +88,9 @@ const getBankAccountLabelMap = async (): Promise<Map<string, string>> => {
   return bankAccountLabelPromise
 }
 
-void getBankAccountLabelMap()
+if (typeof window !== 'undefined') {
+  void getBankAccountLabelMap()
+}
 
 interface ProjectDatabaseDetailContentProps {
   project: ProjectRecord

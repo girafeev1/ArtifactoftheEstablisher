@@ -77,47 +77,33 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
               </Link>
             </MenuItem>
           </Menu>
-          <Button fullWidth onClick={handleDatabaseClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
-            Database
-          </Button>
-          <Menu anchorEl={databaseAnchorEl} open={Boolean(databaseAnchorEl)} onClose={handleDatabaseClose}>
-            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
-              <Link href="/dashboard/database?view=clients" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-                  Client Accounts
-                </Button>
-              </Link>
-            </MenuItem>
-            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
-              <Link href="/dashboard/database?view=bank" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-                  Company Bank Accounts
-                </Button>
-              </Link>
-            </MenuItem>
-            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
-              <Link
-                href="/dashboard/businesses/client-accounts-database"
-                passHref
-                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
-              >
-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-                  Client Accounts (Database)
-                </Button>
-              </Link>
-            </MenuItem>
-            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
-              <Link
-                href="/dashboard/businesses/company-bank-accounts-database"
-                passHref
-                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
-              >
-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-                  Company Bank Accounts (Database)
-                </Button>
-              </Link>
-            </MenuItem>
-          </Menu>
+        <Button fullWidth onClick={handleDatabaseClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
+          Database
+        </Button>
+        <Menu anchorEl={databaseAnchorEl} open={Boolean(databaseAnchorEl)} onClose={handleDatabaseClose}>
+          <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
+            <Link
+              href="/dashboard/businesses/client-accounts-database"
+              passHref
+              style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
+            >
+              <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+                Client Accounts
+              </Button>
+            </Link>
+          </MenuItem>
+          <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
+            <Link
+              href="/dashboard/businesses/company-bank-accounts-database"
+              passHref
+              style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
+            >
+              <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+                Company Bank Accounts
+              </Button>
+            </Link>
+          </MenuItem>
+        </Menu>
         </Box>
         <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
           Sign Out
