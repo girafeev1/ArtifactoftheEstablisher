@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useSession, signOut } from 'next-auth/react';
+import { signOut as firebaseSignOut } from 'firebase/auth';
 import { Box, Typography, Button, Divider, Menu, MenuItem, Stack } from '@mui/material';
+import { auth } from '../lib/firebaseClientAuth';
 
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
@@ -109,7 +111,20 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
           >
             New UI
           </Button>
-          <Button color="secondary" onClick={() => signOut()} fullWidth sx={{ justifyContent: 'flex-start' }}>
+          <Button
+            color="secondary"
+            onClick={async () => {
+              try {
+                await firebaseSignOut(auth)
+              } catch (err) {
+                console.warn('[auth] failed to sign out of Firebase', err)
+              } finally {
+                await signOut({ callbackUrl: '/auth/signin' })
+              }
+            }}
+            fullWidth
+            sx={{ justifyContent: 'flex-start' }}
+          >
             Sign Out
           </Button>
         </Stack>
