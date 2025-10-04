@@ -56,16 +56,9 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
           </Button>
           <Menu anchorEl={businessAnchorEl} open={Boolean(businessAnchorEl)} onClose={handleBusinessClose}>
             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
-              <Link href="/dashboard/businesses/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+              <Link href="/dashboard/businesses/projects/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
                   Projects
-                </Button>
-              </Link>
-            </MenuItem>
-            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
-              <Link href="/dashboard/businesses/projects-database/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-                  Projects (Database)
                 </Button>
               </Link>
             </MenuItem>

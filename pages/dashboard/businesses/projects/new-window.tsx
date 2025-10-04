@@ -106,7 +106,7 @@ export const getServerSideProps: GetServerSideProps<ProjectCreateWindowProps> = 
       },
     }
   } catch (err) {
-    console.error('[projects-database/new-window] Failed to load projects:', err)
+    console.error('[projects/new-window] Failed to load projects:', err)
     return {
       props: {
         year: selection.year,

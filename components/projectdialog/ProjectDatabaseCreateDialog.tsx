@@ -199,7 +199,7 @@ export function ProjectDatabaseCreateForm({
 
     try {
       const response = await fetch(
-        `/api/projects-database/${encodeURIComponent(year)}`,
+        `/api/projects/${encodeURIComponent(year)}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

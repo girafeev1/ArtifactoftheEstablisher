@@ -131,7 +131,7 @@ export default function ProjectsDatabasePage({
     }
 
     router.push(
-      `/dashboard/businesses/projects-database/${encodeSelectionId(type, year)}`
+      `/dashboard/businesses/projects/${encodeSelectionId(type, year)}`
     )
   }
 
@@ -142,14 +142,14 @@ export default function ProjectsDatabasePage({
 
   const standaloneUrl = useMemo(() => {
     if (!selectedProject) return null
-    return `/dashboard/businesses/projects-database/window?group=${encodeURIComponent(
+    return `/dashboard/businesses/projects/window?group=${encodeURIComponent(
       encodeSelectionId('year', selectedProject.year)
     )}&project=${encodeURIComponent(selectedProject.id)}`
   }, [selectedProject])
 
   const createStandaloneUrl = useMemo(() => {
     if (!detailSelection) return null
-    return `/dashboard/businesses/projects-database/new-window?group=${encodeURIComponent(
+    return `/dashboard/businesses/projects/new-window?group=${encodeURIComponent(
       encodeSelectionId(detailSelection.type, detailSelection.year)
     )}`
   }, [detailSelection])
@@ -293,7 +293,7 @@ export default function ProjectsDatabasePage({
   }
 
   const handleBack = () => {
-    router.push('/dashboard/businesses/projects-database/select')
+    router.push('/dashboard/businesses/projects/select')
   }
 
   const headerLabel = detailSelection
@@ -459,7 +459,7 @@ export const getServerSideProps: GetServerSideProps<ProjectsDatabasePageProps> =
       },
     }
   } catch (err) {
-    console.error('[projects-database] Failed to load projects:', err)
+    console.error('[projects] Failed to load projects:', err)
     return {
       props: {
         mode: 'select',

@@ -125,7 +125,7 @@ export default function ProjectDatabaseEditDialog({
 
     try {
       const response = await fetch(
-        `/api/projects-database/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
+        `/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
