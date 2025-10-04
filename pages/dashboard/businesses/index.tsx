@@ -44,8 +44,8 @@ export default function BusinessesPage({ businessLinks }: BusinessesPageProps) {
 
 export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async (ctx) => {
   const session = await getSession(ctx);
-  if (!session?.accessToken) {
-    return { redirect: { destination: '/api/auth/signin', permanent: false } };
+  if (!session?.user) {
+    return { redirect: { destination: '/auth/signin', permanent: false } };
   }
   return {
     props: {
