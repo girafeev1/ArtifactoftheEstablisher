@@ -1,12 +1,13 @@
 # PR #253 — Diff Summary
 
 - **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-- **Head (source)**: `5fa7f58525d04b5c3ced155c8df4058c9ab3a90b`
+- **Head (source)**: `524d3998e9db551fc0602a2b07dcd0e307f7cf39`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
 
 ```txt
+A	.eslintignore
 M	.github/workflows/deploy-to-vercel-prod.yml
 M	components/SidebarLayout.tsx
 M	components/clientdialog/NewClientDialog.tsx
@@ -17,6 +18,7 @@ M	components/projectdialog/ProjectDatabaseEditDialog.tsx
 M	components/projectdialog/projectFormUtils.ts
 M	context-bundle.md
 A	docs/context/PR-253.md
+M	eslint.config.mjs
 A	lib/bankAccountsDirectory.ts
 A	lib/clientDirectory.ts
 M	package-lock.json
@@ -40,6 +42,7 @@ A	pages/dashboard/new-ui/index.tsx
 ## Stats
 
 ```txt
+ .eslintignore                                      |    3 +
  .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
  components/SidebarLayout.tsx                       |   75 +-
  components/clientdialog/NewClientDialog.tsx        |   17 +-
@@ -48,12 +51,13 @@ A	pages/dashboard/new-ui/index.tsx
  .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
  .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
  components/projectdialog/projectFormUtils.ts       |   79 +
- context-bundle.md                                  | 7720 ++++++++++----------
- docs/context/PR-253.md                             | 4073 +++++++++++
+ context-bundle.md                                  | 7724 ++++++++++----------
+ docs/context/PR-253.md                             | 4077 +++++++++++
+ eslint.config.mjs                                  |    3 +-
  lib/bankAccountsDirectory.ts                       |  127 +
  lib/clientDirectory.ts                             |  220 +
- package-lock.json                                  | 1650 ++++-
- package.json                                       |    6 +
+ package-lock.json                                  |  162 +-
+ package.json                                       |    2 +
  pages/api/client-directory/[clientId].ts           |   49 +
  pages/api/client-directory/index.ts                |   53 +
  .../[year]/[projectId].ts                          |    0
@@ -68,12 +72,21 @@ A	pages/dashboard/new-ui/index.tsx
  .../{projects-database => projects}/window.tsx     |    2 +-
  pages/dashboard/new-ui/client-accounts.tsx         |  184 +
  pages/dashboard/new-ui/index.tsx                   |   57 +
- 28 files changed, 11201 insertions(+), 4461 deletions(-)
+ 30 files changed, 9779 insertions(+), 4405 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
 
 ```diff
+diff --git a/.eslintignore b/.eslintignore
+new file mode 100644
+index 0000000..ad0bb9f
+--- /dev/null
++++ b/.eslintignore
+@@ -0,0 +1,3 @@
++node_modules/
++.next/
++coverage/
 diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
 index abbe8c4..e5d0142 100644
 --- a/.github/workflows/deploy-to-vercel-prod.yml
@@ -1289,17 +1302,17 @@ index 0e0a19a..6dfc761 100644
 +  return `${defaultPrefix}${String(1).padStart(defaultWidth, '0')}`
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 3adfa99..c5c4993 100644
+index 3adfa99..cf5423f 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
-@@ -1,4075 +1,4073 @@
+@@ -1,4075 +1,4077 @@
 -# PR #252 — Diff Summary
 +# PR #253 — Diff Summary
  
 -- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 -- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 +- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-+- **Head (source)**: `f58b2126d675afd824cec484a03197f31dcd2db1`
++- **Head (source)**: `5fa7f58525d04b5c3ced155c8df4058c9ab3a90b`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -1343,6 +1356,7 @@ index 3adfa99..c5c4993 100644
 +A	lib/bankAccountsDirectory.ts
 +A	lib/clientDirectory.ts
 +M	package-lock.json
++M	package.json
 +A	pages/api/client-directory/[clientId].ts
 +A	pages/api/client-directory/index.ts
 +R100	pages/api/projects-database/[year]/[projectId].ts	pages/api/projects/[year]/[projectId].ts
@@ -1355,7 +1369,8 @@ index 3adfa99..c5c4993 100644
 +R078	pages/dashboard/businesses/projects-database/index.tsx	pages/dashboard/businesses/projects/index.tsx
 +R068	pages/dashboard/businesses/projects-database/new-window.tsx	pages/dashboard/businesses/projects/new-window.tsx
 +R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/businesses/projects/window.tsx
-+A	pages/dashboard/new-ui.tsx
++A	pages/dashboard/new-ui/client-accounts.tsx
++A	pages/dashboard/new-ui/index.tsx
  ```
  
  ## Stats
@@ -1398,12 +1413,13 @@ index 3adfa99..c5c4993 100644
 + .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
 + components/projectdialog/projectFormUtils.ts       |   79 +
 + context-bundle.md                                  | 7720 ++++++++++----------
-+ docs/context/PR-253.md                             | 4071 +++++++++++
++ docs/context/PR-253.md                             | 4073 +++++++++++
 + lib/bankAccountsDirectory.ts                       |  127 +
 + lib/clientDirectory.ts                             |  220 +
-+ package-lock.json                                  |    2 -
++ package-lock.json                                  | 1650 ++++-
++ package.json                                       |    6 +
 + pages/api/client-directory/[clientId].ts           |   49 +
-+ pages/api/client-directory/index.ts                |   42 +
++ pages/api/client-directory/index.ts                |   53 +
 + .../[year]/[projectId].ts                          |    0
 + .../[year]/index.ts                                |    0
 + pages/dashboard/businesses/[fileId].tsx            |  403 -
@@ -1414,8 +1430,9 @@ index 3adfa99..c5c4993 100644
 + .../{projects-database => projects}/index.tsx      |    2 +-
 + .../{projects-database => projects}/new-window.tsx |   38 +-
 + .../{projects-database => projects}/window.tsx     |    2 +-
-+ pages/dashboard/new-ui.tsx                         |   53 +
-+ 26 files changed, 9416 insertions(+), 4391 deletions(-)
++ pages/dashboard/new-ui/client-accounts.tsx         |  184 +
++ pages/dashboard/new-ui/index.tsx                   |   57 +
++ 28 files changed, 11201 insertions(+), 4461 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -3650,13 +3667,13 @@ index 3adfa99..c5c4993 100644
  +}
  diff --git a/context-bundle.md b/context-bundle.md
 -index 8756e36..6a287ad 100644
-+index 3adfa99..aeb8607 100644
++index 3adfa99..c5c4993 100644
  --- a/context-bundle.md
  +++ b/context-bundle.md
 -@@ -1,810 +1,4071 @@
 --# PR #249 — Diff Summary
 -+# PR #252 — Diff Summary
-+@@ -1,4075 +1,4071 @@
++@@ -1,4075 +1,4073 @@
 +-# PR #252 — Diff Summary
 ++# PR #253 — Diff Summary
   
@@ -3667,7 +3684,7 @@ index 3adfa99..c5c4993 100644
 +-- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 +-- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 ++- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-++- **Head (source)**: `cbdc4f0c8a85845928e65e7b1892ce455dc32fc2`
+++- **Head (source)**: `f58b2126d675afd824cec484a03197f31dcd2db1`
   - **Repo**: `girafeev1/ArtifactoftheEstablisher`
   
   ## Changed Files
@@ -3754,6 +3771,7 @@ index 3adfa99..c5c4993 100644
 ++R078	pages/dashboard/businesses/projects-database/index.tsx	pages/dashboard/businesses/projects/index.tsx
 ++R068	pages/dashboard/businesses/projects-database/new-window.tsx	pages/dashboard/businesses/projects/new-window.tsx
 ++R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/businesses/projects/window.tsx
+++A	pages/dashboard/new-ui.tsx
   ```
   
   ## Stats
@@ -3821,15 +3839,15 @@ index 3adfa99..c5c4993 100644
 +- vercel.json                                        |    6 +
 +- 27 files changed, 9401 insertions(+), 1020 deletions(-)
 ++ .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
-++ components/SidebarLayout.tsx                       |   55 +-
+++ components/SidebarLayout.tsx                       |   75 +-
 ++ components/clientdialog/NewClientDialog.tsx        |   17 +-
 ++ components/database/ClientBankDatabasePage.tsx     |  443 ++
 ++ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  162 +-
 ++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
 ++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
 ++ components/projectdialog/projectFormUtils.ts       |   79 +
-++ context-bundle.md                                  | 7696 ++++++++++----------
-++ docs/context/PR-253.md                             | 4057 +++++++++++
+++ context-bundle.md                                  | 7720 ++++++++++----------
+++ docs/context/PR-253.md                             | 4071 +++++++++++
 ++ lib/bankAccountsDirectory.ts                       |  127 +
 ++ lib/clientDirectory.ts                             |  220 +
 ++ package-lock.json                                  |    2 -
@@ -3845,7 +3863,8 @@ index 3adfa99..c5c4993 100644
 ++ .../{projects-database => projects}/index.tsx      |    2 +-
 ++ .../{projects-database => projects}/new-window.tsx |   38 +-
 ++ .../{projects-database => projects}/window.tsx     |    2 +-
-++ 25 files changed, 9314 insertions(+), 4382 deletions(-)
+++ pages/dashboard/new-ui.tsx                         |   53 +
+++ 26 files changed, 9416 insertions(+), 4391 deletions(-)
   ```
   
   ## Unified Diff (truncated to first 4000 lines)
@@ -4059,19 +4078,4 @@ index 3adfa99..c5c4993 100644
 --+  projectTitle: string | null
 --+  subsidiary: string | null
 --+}
---+
---+export interface ProjectsDatabaseResult {
---+  projects: ProjectRecord[]
---+  years: string[]
---+}
---+
---+const toTimestamp = (value: unknown): Timestamp | null => {
---+  if (value instanceof Timestamp) {
---+    return value
--+ on:
--+-  push:
--+-    branches:
--+-      - main
--+-      - shwdtf-*          # your Codex PRs
--+-      - codex/*           # additional Codex-style branches
 ```
