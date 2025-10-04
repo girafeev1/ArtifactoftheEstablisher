@@ -7,13 +7,18 @@ import { Box, Typography } from '@mui/material'
 
 import { decodeSelectionId } from '../../../../lib/projectsDatabaseSelection'
 import { ProjectDatabaseCreateForm } from '../../../../components/projectdialog/ProjectDatabaseCreateDialog'
+import { fetchProjectsFromDatabase } from '../../../../lib/projectsDatabase'
 import type { ProjectRecord } from '../../../../lib/projectsDatabase'
 
 interface ProjectCreateWindowProps {
   year: string | null
+  existingProjectNumbers: string[]
 }
 
-export default function ProjectCreateWindow({ year }: ProjectCreateWindowProps) {
+export default function ProjectCreateWindow({
+  year,
+  existingProjectNumbers,
+}: ProjectCreateWindowProps) {
   const handleClose = useCallback(() => {
     if (typeof window !== 'undefined') {
       window.close()
@@ -56,6 +61,7 @@ export default function ProjectCreateWindow({ year }: ProjectCreateWindowProps) 
               onCreated={handleCreated}
               variant="page"
               resetToken={year}
+              existingProjectNumbers={existingProjectNumbers}
             />
           ) : (
             <Typography color="error">
@@ -78,17 +84,35 @@ export const getServerSideProps: GetServerSideProps<ProjectCreateWindowProps> = 
 
   const groupToken = ctx.query.group
   if (typeof groupToken !== 'string') {
-    return { props: { year: null } }
+    return { props: { year: null, existingProjectNumbers: [] } }
   }
 
   const selection = decodeSelectionId(groupToken)
   if (!selection) {
-    return { props: { year: null } }
+    return { props: { year: null, existingProjectNumbers: [] } }
   }
 
-  return {
-    props: {
-      year: selection.year,
-    },
+  try {
+    const { projects } = await fetchProjectsFromDatabase()
+    const projectNumbers = projects
+      .filter((project) => project.year === selection.year && project.projectNumber)
+      .map((project) => project.projectNumber.trim())
+      .filter((value) => value.length > 0)
+
+    return {
+      props: {
+        year: selection.year,
+        existingProjectNumbers: projectNumbers,
+      },
+    }
+  } catch (err) {
+    console.error('[projects/new-window] Failed to load projects:', err)
+    return {
+      props: {
+        year: selection.year,
+        existingProjectNumbers: [],
+      },
+    }
   }
+
 }

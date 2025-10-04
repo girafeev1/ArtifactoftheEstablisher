@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   Box,
@@ -12,11 +12,37 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import { Cormorant_Infant } from 'next/font/google'
+import { fetchBankAccountsDirectory, buildBankAccountLabel } from '../../lib/bankAccountsDirectory'
 
 import type { ProjectRecord } from '../../lib/projectsDatabase'
 import type { ReactNode } from 'react'
 
 const cormorantSemi = Cormorant_Infant({ subsets: ['latin'], weight: '600', display: 'swap' })
+
+interface TextSegment {
+  text: string
+  isCjk: boolean
+}
+
+const CJK_REGEX = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/
+
+const splitByCjkSegments = (value: string | null | undefined): TextSegment[] => {
+  if (!value) {
+    return []
+  }
+
+  const segments: TextSegment[] = []
+  for (const char of Array.from(value)) {
+    const isCjk = CJK_REGEX.test(char)
+    const last = segments[segments.length - 1]
+    if (last && last.isCjk === isCjk) {
+      last.text += char
+    } else {
+      segments.push({ text: char, isCjk })
+    }
+  }
+  return segments
+}
 
 const textOrNA = (value: string | null | undefined) =>
   value && value.trim().length > 0 ? value : 'N/A'
@@ -42,6 +68,30 @@ const valueSx = {
   lineHeight: 1.3,
 } as const
 
+let bankAccountLabelCache: Map<string, string> | null = null
+let bankAccountLabelPromise: Promise<Map<string, string>> | null = null
+
+const getBankAccountLabelMap = async (): Promise<Map<string, string>> => {
+  if (bankAccountLabelCache) {
+    return bankAccountLabelCache
+  }
+  if (!bankAccountLabelPromise) {
+    bankAccountLabelPromise = fetchBankAccountsDirectory().then((records) => {
+      const map = new Map<string, string>()
+      records.forEach((record) => {
+        map.set(record.accountId, buildBankAccountLabel(record))
+      })
+      bankAccountLabelCache = map
+      return map
+    })
+  }
+  return bankAccountLabelPromise
+}
+
+if (typeof window !== 'undefined') {
+  void getBankAccountLabelMap()
+}
+
 interface ProjectDatabaseDetailContentProps {
   project: ProjectRecord
   headerActions?: ReactNode
@@ -55,6 +105,48 @@ export default function ProjectDatabaseDetailContent({
   onClose,
   onEdit,
 }: ProjectDatabaseDetailContentProps) {
+  const [payToLabel, setPayToLabel] = useState<string | null>(() =>
+    project.paidTo && bankAccountLabelCache?.has(project.paidTo)
+      ? bankAccountLabelCache.get(project.paidTo) ?? null
+      : null
+  )
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      if (!project.paidTo) {
+        if (!cancelled) {
+          setPayToLabel(null)
+        }
+        return
+      }
+
+      if (bankAccountLabelCache?.has(project.paidTo)) {
+        setPayToLabel(bankAccountLabelCache.get(project.paidTo) ?? null)
+        return
+      }
+
+      try {
+        const map = await getBankAccountLabelMap()
+        if (!cancelled) {
+          setPayToLabel(map.get(project.paidTo) ?? null)
+        }
+      } catch (err) {
+        console.error('[ProjectDatabaseDetailContent] failed to load bank account labels:', err)
+        if (!cancelled) {
+          setPayToLabel(null)
+        }
+      }
+    }
+
+    load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [project.paidTo])
+
   const detailItems = useMemo(() => {
     const invoiceValue: ReactNode = project.invoice
       ? project.invoice.startsWith('http')
@@ -83,20 +175,20 @@ export default function ProjectDatabaseDetailContent({
         label: 'Paid On',
         value: project.paid ? project.onDateDisplay ?? '-' : '-',
       },
-      { label: 'Pay To', value: textOrNA(project.paidTo) },
+      {
+        label: 'Pay To',
+        value: payToLabel ?? textOrNA(project.paidTo),
+      },
       { label: 'Invoice', value: invoiceValue },
     ] satisfies Array<{ label: string; value: ReactNode }>
-  }, [project])
+  }, [payToLabel, project])
 
-  const rawPresenter = textOrNA(project.presenterWorkType)
-  const presenterText = rawPresenter === 'N/A' ? rawPresenter : `${rawPresenter} -`
-  const hasCjkCharacters = (value: string | null | undefined) =>
-    Boolean(value && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(value))
+  const presenterBase = textOrNA(project.presenterWorkType)
+  const presenterText = presenterBase === 'N/A' ? presenterBase : `${presenterBase} -`
+  const presenterSegments = splitByCjkSegments(presenterText)
 
-  const hasCjkInTitle = hasCjkCharacters(project.projectTitle)
-  const hasCjkPresenter = hasCjkCharacters(project.presenterWorkType)
-
-  const presenterClassName = hasCjkPresenter ? 'iansui-text' : 'federo-text'
+  const projectTitleText = textOrNA(project.projectTitle)
+  const titleSegments = splitByCjkSegments(projectTitleText)
 
   return (
     <Stack spacing={1.2}>
@@ -121,19 +213,32 @@ export default function ProjectDatabaseDetailContent({
               </IconButton>
             )}
           </Stack>
-          <Typography
-            variant='subtitle1'
-            sx={{ color: 'text.primary' }}
-            className={presenterClassName}
-          >
-            {presenterText}
+          <Typography variant='subtitle1' sx={{ color: 'text.primary' }}>
+            {presenterSegments.length === 0
+              ? presenterText
+              : presenterSegments.map((segment, index) => (
+                  <span
+                    key={`presenter-segment-${index}`}
+                    className={segment.isCjk ? 'iansui-text' : 'federo-text'}
+                  >
+                    {segment.text}
+                  </span>
+                ))}
           </Typography>
           <Typography
             variant='h4'
-            className={hasCjkInTitle ? 'yuji-title' : undefined}
-            sx={{ fontFamily: hasCjkInTitle ? undefined : 'Cantata One', lineHeight: 1.2 }}
+            sx={{ fontFamily: 'Cantata One', lineHeight: 1.2 }}
           >
-            {textOrNA(project.projectTitle)}
+            {titleSegments.length === 0
+              ? projectTitleText
+              : titleSegments.map((segment, index) => (
+                  <span
+                    key={`title-segment-${index}`}
+                    className={segment.isCjk ? 'yuji-title' : undefined}
+                  >
+                    {segment.text}
+                  </span>
+                ))}
           </Typography>
           <Typography variant='body1' color='text.secondary'>
             {textOrNA(project.projectNature)}

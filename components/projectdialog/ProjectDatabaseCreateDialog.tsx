@@ -19,7 +19,11 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
 import ProjectDatabaseWindow from './ProjectDatabaseWindow'
 import type { ProjectRecord } from '../../lib/projectsDatabase'
-import { sanitizeText, toIsoUtcStringOrNull } from './projectFormUtils'
+import {
+  generateSequentialProjectNumber,
+  sanitizeText,
+  toIsoUtcStringOrNull,
+} from './projectFormUtils'
 
 interface ProjectDatabaseCreateDialogProps {
   open: boolean
@@ -27,6 +31,7 @@ interface ProjectDatabaseCreateDialogProps {
   onClose: () => void
   onCreated: (created?: ProjectRecord) => void
   onDetach?: () => void
+  existingProjectNumbers: readonly string[]
 }
 
 interface ProjectDatabaseCreateFormProps {
@@ -37,6 +42,7 @@ interface ProjectDatabaseCreateFormProps {
   variant: 'dialog' | 'page'
   resetToken?: unknown
   onBusyChange?: (busy: boolean) => void
+  existingProjectNumbers: readonly string[]
 }
 
 interface FormState {
@@ -77,16 +83,40 @@ export function ProjectDatabaseCreateForm({
   variant,
   resetToken,
   onBusyChange,
+  existingProjectNumbers,
 }: ProjectDatabaseCreateFormProps) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editingProjectNumber, setEditingProjectNumber] = useState(false)
+
+  const normalizedProjectNumbers = useMemo(
+    () => {
+      const trimmed = existingProjectNumbers
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+      return Array.from(new Set(trimmed))
+    },
+    [existingProjectNumbers]
+  )
+
+  const defaultProjectNumber = useMemo(
+    () => generateSequentialProjectNumber(year, normalizedProjectNumbers),
+    [year, normalizedProjectNumbers]
+  )
+
+  const defaultSubsidiary = 'Establish Records Limited'
 
   useEffect(() => {
-    setForm(EMPTY_FORM)
+    setForm({
+      ...EMPTY_FORM,
+      projectNumber: defaultProjectNumber,
+      subsidiary: defaultSubsidiary,
+    })
     setError(null)
     setSaving(false)
-  }, [resetToken])
+    setEditingProjectNumber(false)
+  }, [resetToken, defaultProjectNumber, defaultSubsidiary])
 
   useEffect(() => {
     onBusyChange?.(saving)
@@ -99,8 +129,29 @@ export function ProjectDatabaseCreateForm({
       setForm((prev) => ({ ...prev, [field]: event.target.value }))
     }
 
+  const updateProjectNumber = (value: string) => {
+    setForm((prev) => ({ ...prev, projectNumber: value }))
+  }
+
   const handleTogglePaid = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
     setForm((prev) => ({ ...prev, paid: checked }))
+  }
+
+  const commitProjectNumber = () => {
+    const trimmed = form.projectNumber.trim()
+    updateProjectNumber(trimmed.length > 0 ? trimmed : defaultProjectNumber)
+    setEditingProjectNumber(false)
+  }
+
+  const handleProjectNumberKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commitProjectNumber()
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      updateProjectNumber(defaultProjectNumber)
+      setEditingProjectNumber(false)
+    }
   }
 
   const handleSubmit = async () => {
@@ -148,7 +199,7 @@ export function ProjectDatabaseCreateForm({
 
     try {
       const response = await fetch(
-        `/api/projects-database/${encodeURIComponent(year)}`,
+        `/api/projects/${encodeURIComponent(year)}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -184,7 +235,7 @@ export function ProjectDatabaseCreateForm({
   }
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={2} sx={{ width: '100%', maxWidth: 640, mx: 'auto' }}>
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
         <Box>
           <Typography variant="h5" sx={{ fontFamily: 'Cantata One' }}>
@@ -209,29 +260,36 @@ export function ProjectDatabaseCreateForm({
           </IconButton>
         </Stack>
       </Stack>
-      {year && (
-        <Chip label={year} variant="outlined" size="small" sx={{ alignSelf: 'flex-start' }} />
-      )}
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+        {editingProjectNumber ? (
+          <TextField
+            value={form.projectNumber}
+            onChange={(event) => updateProjectNumber(event.target.value)}
+            onBlur={commitProjectNumber}
+            onKeyDown={handleProjectNumberKeyDown}
+            size="small"
+            autoFocus
+            label="Project Number"
+            sx={{ minWidth: 160 }}
+          />
+        ) : (
+          <Chip
+            label={form.projectNumber || defaultProjectNumber}
+            variant="outlined"
+            onClick={() => setEditingProjectNumber(true)}
+            sx={{ cursor: 'pointer' }}
+          />
+        )}
+        <Chip
+          label={form.subsidiary || defaultSubsidiary}
+          color="primary"
+          variant="outlined"
+          size="small"
+        />
+      </Stack>
       <Divider />
       {error && <Alert severity="error">{error}</Alert>}
       <Grid container spacing={2}>
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="Project Number"
-            value={form.projectNumber}
-            onChange={handleChange('projectNumber')}
-            fullWidth
-            required
-          />
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="Client Company"
-            value={form.clientCompany}
-            onChange={handleChange('clientCompany')}
-            fullWidth
-          />
-        </Grid>
         <Grid item xs={12}>
           <TextField
             label="Project Title"
@@ -240,7 +298,7 @@ export function ProjectDatabaseCreateForm({
             fullWidth
           />
         </Grid>
-        <Grid item xs={12}>
+        <Grid item xs={12} sm={6}>
           <TextField
             label="Project Nature"
             value={form.projectNature}
@@ -258,9 +316,9 @@ export function ProjectDatabaseCreateForm({
         </Grid>
         <Grid item xs={12} sm={6}>
           <TextField
-            label="Subsidiary"
-            value={form.subsidiary}
-            onChange={handleChange('subsidiary')}
+            label="Client Company"
+            value={form.clientCompany}
+            onChange={handleChange('clientCompany')}
             fullWidth
           />
         </Grid>
@@ -272,17 +330,6 @@ export function ProjectDatabaseCreateForm({
             onChange={handleChange('projectDate')}
             fullWidth
             InputLabelProps={{ shrink: true }}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="Paid On"
-            type="date"
-            value={form.onDate}
-            onChange={handleChange('onDate')}
-            fullWidth
-            InputLabelProps={{ shrink: true }}
-            disabled={!form.paid}
           />
         </Grid>
         <Grid item xs={12} sm={6}>
@@ -303,17 +350,38 @@ export function ProjectDatabaseCreateForm({
         </Grid>
         <Grid item xs={12} sm={6}>
           <TextField
+            label="Paid On"
+            type="date"
+            value={form.onDate}
+            onChange={handleChange('onDate')}
+            fullWidth
+            InputLabelProps={{ shrink: true }}
+            disabled={!form.paid}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <Box
+            sx={{
+              height: '100%',
+              display: 'flex',
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              justifyContent: { xs: 'flex-start', sm: 'flex-start' },
+              pt: { xs: 1.5, sm: 0 },
+            }}
+          >
+            <FormControlLabel
+              control={<Switch checked={form.paid} onChange={handleTogglePaid} />}
+              label="Paid"
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
             label="Pay To"
             value={form.paidTo}
             onChange={handleChange('paidTo')}
             fullWidth
             disabled={!form.paid}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          <FormControlLabel
-            control={<Switch checked={form.paid} onChange={handleTogglePaid} />}
-            label="Paid"
           />
         </Grid>
       </Grid>
@@ -336,6 +404,7 @@ export default function ProjectDatabaseCreateDialog({
   onClose,
   onCreated,
   onDetach,
+  existingProjectNumbers,
 }: ProjectDatabaseCreateDialogProps) {
   const [busy, setBusy] = useState(false)
 
@@ -347,7 +416,7 @@ export default function ProjectDatabaseCreateDialog({
     <ProjectDatabaseWindow
       open={open}
       onClose={busy ? () => {} : onClose}
-      contentSx={{ p: { xs: 2.5, sm: 3 } }}
+      contentSx={{ p: { xs: 2.5, sm: 3 }, maxWidth: 640, mx: 'auto' }}
     >
       <ProjectDatabaseCreateForm
         year={year}
@@ -357,6 +426,7 @@ export default function ProjectDatabaseCreateDialog({
         variant="dialog"
         resetToken={open}
         onBusyChange={setBusy}
+        existingProjectNumbers={existingProjectNumbers}
       />
     </ProjectDatabaseWindow>
   )

@@ -52,8 +52,8 @@ export const getServerSideProps: GetServerSideProps<BusinessesPageProps> = async
       businessLinks: [
         {
           title: 'Establish Productions Limited',
-          description: 'Projects (Database)',
-          href: '/dashboard/businesses/projects-database/select',
+          description: 'Projects',
+          href: '/dashboard/businesses/projects/select',
         },
       ],
     },

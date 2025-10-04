@@ -36,7 +36,7 @@ export default function ProjectWindowPage({ project }: ProjectWindowPageProps) {
     if (typeof window !== 'undefined') {
       window.close()
     } else {
-      void router.push('/dashboard/businesses/projects-database/select')
+      void router.push('/dashboard/businesses/projects/select')
     }
   }, [router])
 
