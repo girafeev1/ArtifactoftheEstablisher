@@ -1,7 +1,7 @@
 # PR #253 — Diff Summary
 
 - **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-- **Head (source)**: `524d3998e9db551fc0602a2b07dcd0e307f7cf39`
+- **Head (source)**: `f23e62e17529775b10d91e0d8e793ef4cda4ee06`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -51,8 +51,8 @@ A	pages/dashboard/new-ui/index.tsx
  .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
  .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
  components/projectdialog/projectFormUtils.ts       |   79 +
- context-bundle.md                                  | 7724 ++++++++++----------
- docs/context/PR-253.md                             | 4077 +++++++++++
+ context-bundle.md                                  | 7726 ++++++++++----------
+ docs/context/PR-253.md                             |    1 +
  eslint.config.mjs                                  |    3 +-
  lib/bankAccountsDirectory.ts                       |  127 +
  lib/clientDirectory.ts                             |  220 +
@@ -70,9 +70,9 @@ A	pages/dashboard/new-ui/index.tsx
  .../{projects-database => projects}/index.tsx      |    2 +-
  .../{projects-database => projects}/new-window.tsx |   38 +-
  .../{projects-database => projects}/window.tsx     |    2 +-
- pages/dashboard/new-ui/client-accounts.tsx         |  184 +
+ pages/dashboard/new-ui/client-accounts.tsx         |  247 +
  pages/dashboard/new-ui/index.tsx                   |   57 +
- 30 files changed, 9779 insertions(+), 4405 deletions(-)
+ 30 files changed, 5769 insertions(+), 4404 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -1302,23 +1302,24 @@ index 0e0a19a..6dfc761 100644
 +  return `${defaultPrefix}${String(1).padStart(defaultWidth, '0')}`
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 3adfa99..cf5423f 100644
+index 3adfa99..fcedf9d 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
-@@ -1,4075 +1,4077 @@
+@@ -1,4075 +1,4081 @@
 -# PR #252 — Diff Summary
 +# PR #253 — Diff Summary
  
 -- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 -- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 +- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-+- **Head (source)**: `5fa7f58525d04b5c3ced155c8df4058c9ab3a90b`
++- **Head (source)**: `524d3998e9db551fc0602a2b07dcd0e307f7cf39`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
  
  ```txt
 -M	.github/workflows/context-bundle-pr.yml
++A	.eslintignore
  M	.github/workflows/deploy-to-vercel-prod.yml
 -M	.github/workflows/pr-diff-file.yml
 -M	.github/workflows/pr-diff-refresh.yml
@@ -1353,6 +1354,7 @@ index 3adfa99..cf5423f 100644
 -A	styles/project-dialog.css
 -A	vercel.json
 +A	docs/context/PR-253.md
++M	eslint.config.mjs
 +A	lib/bankAccountsDirectory.ts
 +A	lib/clientDirectory.ts
 +M	package-lock.json
@@ -1404,6 +1406,7 @@ index 3adfa99..cf5423f 100644
 - styles/project-dialog.css                          |   20 +
 - vercel.json                                        |    6 +
 - 27 files changed, 9401 insertions(+), 1020 deletions(-)
++ .eslintignore                                      |    3 +
 + .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
 + components/SidebarLayout.tsx                       |   75 +-
 + components/clientdialog/NewClientDialog.tsx        |   17 +-
@@ -1412,12 +1415,13 @@ index 3adfa99..cf5423f 100644
 + .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
 + .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
 + components/projectdialog/projectFormUtils.ts       |   79 +
-+ context-bundle.md                                  | 7720 ++++++++++----------
-+ docs/context/PR-253.md                             | 4073 +++++++++++
++ context-bundle.md                                  | 7724 ++++++++++----------
++ docs/context/PR-253.md                             | 4077 +++++++++++
++ eslint.config.mjs                                  |    3 +-
 + lib/bankAccountsDirectory.ts                       |  127 +
 + lib/clientDirectory.ts                             |  220 +
-+ package-lock.json                                  | 1650 ++++-
-+ package.json                                       |    6 +
++ package-lock.json                                  |  162 +-
++ package.json                                       |    2 +
 + pages/api/client-directory/[clientId].ts           |   49 +
 + pages/api/client-directory/index.ts                |   53 +
 + .../[year]/[projectId].ts                          |    0
@@ -1432,7 +1436,7 @@ index 3adfa99..cf5423f 100644
 + .../{projects-database => projects}/window.tsx     |    2 +-
 + pages/dashboard/new-ui/client-accounts.tsx         |  184 +
 + pages/dashboard/new-ui/index.tsx                   |   57 +
-+ 28 files changed, 11201 insertions(+), 4461 deletions(-)
++ 30 files changed, 9779 insertions(+), 4405 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1482,6 +1486,15 @@ index 3adfa99..cf5423f 100644
 -+            echo "- PR: #${{ github.event.number }}"
 -+            echo "- File: docs/context/PR-${{ github.event.number }}.md"
 -+          } >> "$GITHUB_STEP_SUMMARY"
++diff --git a/.eslintignore b/.eslintignore
++new file mode 100644
++index 0000000..ad0bb9f
++--- /dev/null
+++++ b/.eslintignore
++@@ -0,0 +1,3 @@
+++node_modules/
+++.next/
+++coverage/
  diff --git a/.github/workflows/deploy-to-vercel-prod.yml b/.github/workflows/deploy-to-vercel-prod.yml
 -index 542388b..abbe8c4 100644
 +index abbe8c4..e5d0142 100644
@@ -1811,12 +1824,7 @@ index 3adfa99..cf5423f 100644
 -@@ -6,7 +6,13 @@ import '@testing-library/jest-dom'
 - import { render, screen, waitFor } from '@testing-library/react'
 - import PaymentHistory from './PaymentHistory'
-+diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
-+index 3ba283a..648d575 100644
-+--- a/components/SidebarLayout.tsx
-++++ b/components/SidebarLayout.tsx
-+@@ -2,11 +2,13 @@
-  
+- 
 --jest.mock('./PaymentModal', () => () => <div />)
 -+jest.mock('./PaymentModal', () => {
 -+  function PaymentModalMock() {
@@ -1838,7 +1846,12 @@ index 3adfa99..cf5423f 100644
 - import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 -+import * as firestore from 'firebase/firestore'
 -+import * as erlDirectory from '../../lib/erlDirectory'
-- 
++diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
++index 3ba283a..648d575 100644
++--- a/components/SidebarLayout.tsx
+++++ b/components/SidebarLayout.tsx
++@@ -2,11 +2,13 @@
+  
 - jest.mock('../../lib/erlDirectory', () => ({
 -   listBanks: jest
 -@@ -46,6 +48,9 @@ jest.mock('../../lib/liveRefresh', () => ({ writeSummaryFromCache: jest.fn() }))
@@ -2589,15 +2602,15 @@ index 3adfa99..cf5423f 100644
 ++
 ++  const handleCloseAddDialog = () => {
 ++    setAddDialogOpen(false)
-++  }
-++
-++  const handleNewClientSubmitted = () => {
-++    setAddDialogOpen(false)
-++    router.replace(router.asPath)
  +  }
  +
 -+  return createPortal(
 -+    <Fade in={open} appear unmountOnExit>
+++  const handleNewClientSubmitted = () => {
+++    setAddDialogOpen(false)
+++    router.replace(router.asPath)
+++  }
+++
 ++  return (
 ++    <SidebarLayout>
  +      <Box
@@ -3520,10 +3533,19 @@ index 3adfa99..cf5423f 100644
  +
 -+  if (!project || !form) {
 -+    return null
--+  }
 ++  const preferred = trimmedYear.length
 ++    ? chooseCandidate(parsed.filter((candidate) => candidate.matchesYear))
 ++    : null
+++
+++  const fallback = chooseCandidate(parsed)
+++
+++  const target = preferred ?? fallback
+++
+++  if (target) {
+++    const nextValue = target.value + 1
+++    const padded = String(nextValue).padStart(target.width, '0')
+++    return `${target.prefix}${padded}`
+ +  }
  +
 -+  return (
 -+    <Dialog open={open} onClose={disabled ? undefined : onClose} fullWidth maxWidth="sm">
@@ -3651,29 +3673,19 @@ index 3adfa99..cf5423f 100644
 -+      </DialogActions>
 -+    </Dialog>
 -+  )
-++  const fallback = chooseCandidate(parsed)
-++
-++  const target = preferred ?? fallback
-++
-++  if (target) {
-++    const nextValue = target.value + 1
-++    const padded = String(nextValue).padStart(target.width, '0')
-++    return `${target.prefix}${padded}`
-++  }
-++
 ++  const defaultPrefix = trimmedYear ? `${trimmedYear}-` : ''
 ++  const defaultWidth = trimmedYear ? 3 : 3
 ++  return `${defaultPrefix}${String(1).padStart(defaultWidth, '0')}`
  +}
  diff --git a/context-bundle.md b/context-bundle.md
 -index 8756e36..6a287ad 100644
-+index 3adfa99..c5c4993 100644
++index 3adfa99..cf5423f 100644
  --- a/context-bundle.md
  +++ b/context-bundle.md
 -@@ -1,810 +1,4071 @@
 --# PR #249 — Diff Summary
 -+# PR #252 — Diff Summary
-+@@ -1,4075 +1,4073 @@
++@@ -1,4075 +1,4077 @@
 +-# PR #252 — Diff Summary
 ++# PR #253 — Diff Summary
   
@@ -3684,7 +3696,7 @@ index 3adfa99..cf5423f 100644
 +-- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 +-- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 ++- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-++- **Head (source)**: `f58b2126d675afd824cec484a03197f31dcd2db1`
+++- **Head (source)**: `5fa7f58525d04b5c3ced155c8df4058c9ab3a90b`
   - **Repo**: `girafeev1/ArtifactoftheEstablisher`
   
   ## Changed Files
@@ -3759,6 +3771,7 @@ index 3adfa99..cf5423f 100644
 ++A	lib/bankAccountsDirectory.ts
 ++A	lib/clientDirectory.ts
 ++M	package-lock.json
+++M	package.json
 ++A	pages/api/client-directory/[clientId].ts
 ++A	pages/api/client-directory/index.ts
 ++R100	pages/api/projects-database/[year]/[projectId].ts	pages/api/projects/[year]/[projectId].ts
@@ -3771,7 +3784,8 @@ index 3adfa99..cf5423f 100644
 ++R078	pages/dashboard/businesses/projects-database/index.tsx	pages/dashboard/businesses/projects/index.tsx
 ++R068	pages/dashboard/businesses/projects-database/new-window.tsx	pages/dashboard/businesses/projects/new-window.tsx
 ++R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/businesses/projects/window.tsx
-++A	pages/dashboard/new-ui.tsx
+++A	pages/dashboard/new-ui/client-accounts.tsx
+++A	pages/dashboard/new-ui/index.tsx
   ```
   
   ## Stats
@@ -3847,12 +3861,13 @@ index 3adfa99..cf5423f 100644
 ++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
 ++ components/projectdialog/projectFormUtils.ts       |   79 +
 ++ context-bundle.md                                  | 7720 ++++++++++----------
-++ docs/context/PR-253.md                             | 4071 +++++++++++
+++ docs/context/PR-253.md                             | 4073 +++++++++++
 ++ lib/bankAccountsDirectory.ts                       |  127 +
 ++ lib/clientDirectory.ts                             |  220 +
-++ package-lock.json                                  |    2 -
+++ package-lock.json                                  | 1650 ++++-
+++ package.json                                       |    6 +
 ++ pages/api/client-directory/[clientId].ts           |   49 +
-++ pages/api/client-directory/index.ts                |   42 +
+++ pages/api/client-directory/index.ts                |   53 +
 ++ .../[year]/[projectId].ts                          |    0
 ++ .../[year]/index.ts                                |    0
 ++ pages/dashboard/businesses/[fileId].tsx            |  403 -
@@ -3863,8 +3878,9 @@ index 3adfa99..cf5423f 100644
 ++ .../{projects-database => projects}/index.tsx      |    2 +-
 ++ .../{projects-database => projects}/new-window.tsx |   38 +-
 ++ .../{projects-database => projects}/window.tsx     |    2 +-
-++ pages/dashboard/new-ui.tsx                         |   53 +
-++ 26 files changed, 9416 insertions(+), 4391 deletions(-)
+++ pages/dashboard/new-ui/client-accounts.tsx         |  184 +
+++ pages/dashboard/new-ui/index.tsx                   |   57 +
+++ 28 files changed, 11201 insertions(+), 4461 deletions(-)
   ```
   
   ## Unified Diff (truncated to first 4000 lines)
@@ -4062,20 +4078,4 @@ index 3adfa99..cf5423f 100644
 --+
 --+export interface ProjectRecord {
 --+  id: string
---+  year: string
---+  amount: number | null
---+  clientCompany: string | null
---+  invoice: string | null
---+  onDateDisplay: string | null
---+  onDateIso: string | null
---+  paid: boolean | null
---+  paidTo: string | null
---+  presenterWorkType: string | null
---+  projectDateDisplay: string | null
---+  projectDateIso: string | null
---+  projectNature: string | null
---+  projectNumber: string
---+  projectTitle: string | null
---+  subsidiary: string | null
---+}
 ```
