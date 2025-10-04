@@ -12,7 +12,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import { Cormorant_Infant } from 'next/font/google'
-import { fetchBankAccountsDirectory } from '../../lib/bankAccountsDirectory'
+import { fetchBankAccountsDirectory, buildBankAccountLabel } from '../../lib/bankAccountsDirectory'
 
 import type { ProjectRecord } from '../../lib/projectsDatabase'
 import type { ReactNode } from 'react'
@@ -79,10 +79,7 @@ const getBankAccountLabelMap = async (): Promise<Map<string, string>> => {
     bankAccountLabelPromise = fetchBankAccountsDirectory().then((records) => {
       const map = new Map<string, string>()
       records.forEach((record) => {
-        const label = record.accountType
-          ? `${record.bankName} - ${record.accountType} Account`
-          : record.bankName
-        map.set(record.accountId, label)
+        map.set(record.accountId, buildBankAccountLabel(record))
       })
       bankAccountLabelCache = map
       return map
@@ -90,6 +87,8 @@ const getBankAccountLabelMap = async (): Promise<Map<string, string>> => {
   }
   return bankAccountLabelPromise
 }
+
+void getBankAccountLabelMap()
 
 interface ProjectDatabaseDetailContentProps {
   project: ProjectRecord
@@ -104,7 +103,11 @@ export default function ProjectDatabaseDetailContent({
   onClose,
   onEdit,
 }: ProjectDatabaseDetailContentProps) {
-  const [payToLabel, setPayToLabel] = useState<string | null>(null)
+  const [payToLabel, setPayToLabel] = useState<string | null>(() =>
+    project.paidTo && bankAccountLabelCache?.has(project.paidTo)
+      ? bankAccountLabelCache.get(project.paidTo) ?? null
+      : null
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -114,6 +117,11 @@ export default function ProjectDatabaseDetailContent({
         if (!cancelled) {
           setPayToLabel(null)
         }
+        return
+      }
+
+      if (bankAccountLabelCache?.has(project.paidTo)) {
+        setPayToLabel(bankAccountLabelCache.get(project.paidTo) ?? null)
         return
       }
 

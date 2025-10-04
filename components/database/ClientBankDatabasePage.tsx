@@ -131,6 +131,7 @@ export function ClientBankDatabasePage({
   const [filteredClients, setFilteredClients] = useState<ClientDirectoryRecord[]>(clients)
   const [selectedClient, setSelectedClient] = useState<ClientDirectoryRecord | null>(null)
   const [editableClient, setEditableClient] = useState<EditDialogClient | null>(null)
+  const [editingClientId, setEditingClientId] = useState<string | null>(null)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -138,6 +139,12 @@ export function ClientBankDatabasePage({
   useEffect(() => {
     setView(initialView)
   }, [initialView])
+
+  useEffect(() => {
+    if (view === 'bank') {
+      setSelectedLetter(null)
+    }
+  }, [view])
 
   const uniqueLetters = useMemo(
     () => Array.from(new Set(clients.map((client) => client.companyName.charAt(0).toUpperCase()))).sort(),
@@ -213,6 +220,7 @@ export function ClientBankDatabasePage({
     if (!selectedClient) return
     setViewDialogOpen(false)
     setEditableClient(convertToEditClient(selectedClient))
+    setEditingClientId(selectedClient.companyName)
     setEditDialogOpen(true)
   }
 
@@ -220,6 +228,7 @@ export function ClientBankDatabasePage({
     setEditDialogOpen(false)
     setEditableClient(null)
     setSelectedClient(null)
+    setEditingClientId(null)
   }
 
   const handleClientChange = (client: EditDialogClient) => {
@@ -227,11 +236,37 @@ export function ClientBankDatabasePage({
   }
 
   const handleSaveClient = async () => {
-    alert('Editing clients in Firestore is not yet implemented.')
-    setEditDialogOpen(false)
-    setEditableClient(null)
-    setSelectedClient(null)
-    router.replace(router.asPath)
+    if (!editableClient || !editingClientId) {
+      return
+    }
+
+    try {
+      const payload = {
+        ...editableClient,
+        name: editableClient.nameAddressed,
+      }
+
+      const response = await fetch(`/api/client-directory/${encodeURIComponent(editingClientId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates: payload }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Failed to update client')
+      }
+
+      setEditDialogOpen(false)
+      setEditableClient(null)
+      setSelectedClient(null)
+      setEditingClientId(null)
+      router.replace(router.asPath)
+      alert('Client updated successfully')
+    } catch (err) {
+      console.error('[ClientBankDatabasePage] failed to update client:', err)
+      alert(err instanceof Error ? err.message : 'Failed to update client')
+    }
   }
 
   const handleOpenAddDialog = () => {
@@ -249,9 +284,25 @@ export function ClientBankDatabasePage({
 
   return (
     <SidebarLayout>
-      <Typography variant='h4' gutterBottom>
-        {view === 'clients' ? 'Client Accounts (Database)' : 'Company Bank Accounts (Database)'}
-      </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 2,
+          mb: 2,
+        }}
+      >
+        <Typography variant='h4'>
+          {view === 'clients' ? 'Client Accounts (Database)' : 'Company Bank Accounts (Database)'}
+        </Typography>
+        {view === 'clients' && (
+          <Button variant='contained' onClick={handleOpenAddDialog}>
+            Add Client
+          </Button>
+        )}
+      </Box>
       {error && (
         <Alert severity='error' sx={{ mb: 2 }}>
           Error: {error}
@@ -283,11 +334,6 @@ export function ClientBankDatabasePage({
                 {letter}
               </Button>
             ))}
-          </Box>
-          <Box sx={{ mb: 2 }}>
-            <Button variant='contained' onClick={handleOpenAddDialog}>
-              Add Client
-            </Button>
           </Box>
           {filteredClients.length === 0 ? (
             <Typography>No client data found.</Typography>

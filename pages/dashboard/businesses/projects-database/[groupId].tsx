@@ -261,7 +261,6 @@ export default function ProjectsDatabasePage({
                     <Typography variant="h6" sx={headingSx} gutterBottom>
                       Establish Productions Limited
                     </Typography>
-                    <Typography sx={valueSx}>{selectedYear} Projects</Typography>
                   </CardContent>
                 </Card>
               </Grid>
@@ -283,7 +282,6 @@ export default function ProjectsDatabasePage({
                     <Typography variant="h6" sx={headingSx} gutterBottom>
                       {year}
                     </Typography>
-                    <Typography sx={valueSx}>Project Collection</Typography>
                   </CardContent>
                 </Card>
               </Grid>

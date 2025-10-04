@@ -122,3 +122,6 @@ export const fetchBankAccountsDirectory = async (): Promise<BankAccountDirectory
     return a.accountId.localeCompare(b.accountId)
   })
 }
+
+export const buildBankAccountLabel = (record: BankAccountDirectoryRecord) =>
+  record.accountType ? `${record.bankName} - ${record.accountType} Account` : record.bankName

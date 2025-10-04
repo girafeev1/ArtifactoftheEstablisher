@@ -52,10 +52,23 @@ export default function NewClientDialog({ open, onClose, onSubmitted }: NewClien
 
   const handleSubmit = async () => {
     try {
-      const resp = await fetch('/api/clients', {
+      const resp = await fetch('/api/client-directory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: newClient }),
+        body: JSON.stringify({
+          client: {
+            companyName: newClient.companyName,
+            title: newClient.title,
+            nameAddressed: newClient.nameAddressed,
+            emailAddress: newClient.emailAddress,
+            addressLine1: newClient.addressLine1,
+            addressLine2: newClient.addressLine2,
+            addressLine3: newClient.addressLine3,
+            addressLine4: newClient.addressLine4,
+            addressLine5: newClient.addressLine5,
+            name: newClient.nameAddressed,
+          },
+        }),
       });
       if (!resp.ok) {
         const errJson = await resp.json().catch(() => ({}));
