@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/router';
 import { useSession, signOut } from 'next-auth/react';
-import { Box, Typography, Button, Divider, Menu, MenuItem } from '@mui/material';
+import { Box, Typography, Button, Divider, Menu, MenuItem, Stack } from '@mui/material';
 
 export default function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
+  const router = useRouter();
   const firstName = session?.user?.name?.split(' ')[0] || 'User';
   const [businessAnchorEl, setBusinessAnchorEl] = useState<null | HTMLElement>(null);
   const [databaseAnchorEl, setDatabaseAnchorEl] = useState<null | HTMLElement>(null);
@@ -98,9 +100,19 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
           </MenuItem>
         </Menu>
         </Box>
-        <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
-          Sign Out
-        </Button>
+        <Stack direction="row" spacing={1} sx={{ mt: 3 }}>
+          <Button
+            variant="outlined"
+            fullWidth
+            onClick={() => router.push('/dashboard/new-ui')}
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            New UI
+          </Button>
+          <Button color="secondary" onClick={() => signOut()} fullWidth sx={{ justifyContent: 'flex-start' }}>
+            Sign Out
+          </Button>
+        </Stack>
       </Box>
       <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
         {children}
