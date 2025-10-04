@@ -416,7 +416,7 @@ export default function ProjectDatabaseCreateDialog({
     <ProjectDatabaseWindow
       open={open}
       onClose={busy ? () => {} : onClose}
-      contentSx={{ p: { xs: 2.5, sm: 3 } }}
+      contentSx={{ p: { xs: 2.5, sm: 3 }, maxWidth: 640, mx: 'auto' }}
     >
       <ProjectDatabaseCreateForm
         year={year}

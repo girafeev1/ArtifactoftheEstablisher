@@ -80,7 +80,7 @@ const getBankAccountLabelMap = async (): Promise<Map<string, string>> => {
       const map = new Map<string, string>()
       records.forEach((record) => {
         const label = record.accountType
-          ? `${record.bankName} - ${record.accountType}`
+          ? `${record.bankName} - ${record.accountType} Account`
           : record.bankName
         map.set(record.accountId, label)
       })

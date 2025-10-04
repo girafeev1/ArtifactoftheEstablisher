@@ -36,14 +36,24 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
     const companyName = sanitizeString(data.companyName) ?? doc.id
     const title = sanitizeString(data.title)
     const name = sanitizeString(data.name)
+    let nameAddressed = sanitizeString(data.nameAddressed)
+
+    if (!nameAddressed) {
+      nameAddressed = name ?? null
+    }
+
+    if (title && nameAddressed) {
+      const normalizedTitle = title.toLowerCase()
+      if (nameAddressed.toLowerCase().startsWith(normalizedTitle)) {
+        nameAddressed = nameAddressed.slice(title.length).trimStart()
+      }
+    }
 
     return {
       companyName,
       title,
       name,
-      nameAddressed:
-        sanitizeString(data.nameAddressed) ??
-        (([title, name].filter(Boolean).join(' ') || null) as string | null),
+      nameAddressed,
       emailAddress: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
       phone: sanitizeString(data.phone),
       addressLine1: sanitizeString(data.addressLine1),
