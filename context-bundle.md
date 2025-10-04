@@ -1,7 +1,7 @@
 # PR #253 — Diff Summary
 
 - **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-- **Head (source)**: `cbdc4f0c8a85845928e65e7b1892ce455dc32fc2`
+- **Head (source)**: `f58b2126d675afd824cec484a03197f31dcd2db1`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -32,21 +32,22 @@ R095	pages/dashboard/businesses/projects-database/[groupId].tsx	pages/dashboard/
 R078	pages/dashboard/businesses/projects-database/index.tsx	pages/dashboard/businesses/projects/index.tsx
 R068	pages/dashboard/businesses/projects-database/new-window.tsx	pages/dashboard/businesses/projects/new-window.tsx
 R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/businesses/projects/window.tsx
+A	pages/dashboard/new-ui.tsx
 ```
 
 ## Stats
 
 ```txt
  .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
- components/SidebarLayout.tsx                       |   55 +-
+ components/SidebarLayout.tsx                       |   75 +-
  components/clientdialog/NewClientDialog.tsx        |   17 +-
  components/database/ClientBankDatabasePage.tsx     |  443 ++
  .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  162 +-
  .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
  .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
  components/projectdialog/projectFormUtils.ts       |   79 +
- context-bundle.md                                  | 7696 ++++++++++----------
- docs/context/PR-253.md                             | 4057 +++++++++++
+ context-bundle.md                                  | 7720 ++++++++++----------
+ docs/context/PR-253.md                             | 4071 +++++++++++
  lib/bankAccountsDirectory.ts                       |  127 +
  lib/clientDirectory.ts                             |  220 +
  package-lock.json                                  |    2 -
@@ -62,7 +63,8 @@ R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/bus
  .../{projects-database => projects}/index.tsx      |    2 +-
  .../{projects-database => projects}/new-window.tsx |   38 +-
  .../{projects-database => projects}/window.tsx     |    2 +-
- 25 files changed, 9314 insertions(+), 4382 deletions(-)
+ pages/dashboard/new-ui.tsx                         |   53 +
+ 26 files changed, 9416 insertions(+), 4391 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -100,10 +102,25 @@ index abbe8c4..e5d0142 100644
      steps:
        - uses: actions/checkout@v4
 diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
-index 3ba283a..04fb245 100644
+index 3ba283a..648d575 100644
 --- a/components/SidebarLayout.tsx
 +++ b/components/SidebarLayout.tsx
-@@ -56,19 +56,12 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
+@@ -2,11 +2,13 @@
+ 
+ import Link from 'next/link';
+ import { useState } from 'react';
++import { useRouter } from 'next/router';
+ import { useSession, signOut } from 'next-auth/react';
+-import { Box, Typography, Button, Divider, Menu, MenuItem } from '@mui/material';
++import { Box, Typography, Button, Divider, Menu, MenuItem, Stack } from '@mui/material';
+ 
+ export default function SidebarLayout({ children }: { children: React.ReactNode }) {
+   const { data: session } = useSession();
++  const router = useRouter();
+   const firstName = session?.user?.name?.split(' ')[0] || 'User';
+   const [businessAnchorEl, setBusinessAnchorEl] = useState<null | HTMLElement>(null);
+   const [databaseAnchorEl, setDatabaseAnchorEl] = useState<null | HTMLElement>(null);
+@@ -56,19 +58,12 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
            </Button>
            <Menu anchorEl={businessAnchorEl} open={Boolean(businessAnchorEl)} onClose={handleBusinessClose}>
              <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
@@ -124,7 +141,7 @@ index 3ba283a..04fb245 100644
              <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
                <Link href="/dashboard/businesses/coaching-sessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
                  <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-@@ -77,25 +70,33 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
+@@ -77,29 +72,47 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
                </Link>
              </MenuItem>
            </Menu>
@@ -147,9 +164,12 @@ index 3ba283a..04fb245 100644
 -              </Link>
 -            </MenuItem>
 -          </Menu>
+-        </Box>
+-        <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
+-          Sign Out
 +        <Button fullWidth onClick={handleDatabaseClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
 +          Database
-+        </Button>
+         </Button>
 +        <Menu anchorEl={databaseAnchorEl} open={Boolean(databaseAnchorEl)} onClose={handleDatabaseClose}>
 +          <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
 +            <Link
@@ -174,9 +194,23 @@ index 3ba283a..04fb245 100644
 +            </Link>
 +          </MenuItem>
 +        </Menu>
-         </Box>
-         <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
-           Sign Out
++        </Box>
++        <Stack direction="row" spacing={1} sx={{ mt: 3 }}>
++          <Button
++            variant="outlined"
++            fullWidth
++            onClick={() => router.push('/dashboard/new-ui')}
++            sx={{ justifyContent: 'flex-start' }}
++          >
++            New UI
++          </Button>
++          <Button color="secondary" onClick={() => signOut()} fullWidth sx={{ justifyContent: 'flex-start' }}>
++            Sign Out
++          </Button>
++        </Stack>
+       </Box>
+       <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+         {children}
 diff --git a/components/clientdialog/NewClientDialog.tsx b/components/clientdialog/NewClientDialog.tsx
 index 93e3c87..eadb78a 100644
 --- a/components/clientdialog/NewClientDialog.tsx
@@ -1251,17 +1285,17 @@ index 0e0a19a..6dfc761 100644
 +  return `${defaultPrefix}${String(1).padStart(defaultWidth, '0')}`
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 3adfa99..9942dc7 100644
+index 3adfa99..aeb8607 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
-@@ -1,4075 +1,4057 @@
+@@ -1,4075 +1,4071 @@
 -# PR #252 — Diff Summary
 +# PR #253 — Diff Summary
  
 -- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 -- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 +- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-+- **Head (source)**: `a5960aac7a557d05a4dbdf62350ecef55665c58f`
++- **Head (source)**: `cbdc4f0c8a85845928e65e7b1892ce455dc32fc2`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -1285,6 +1319,7 @@ index 3adfa99..9942dc7 100644
 +A	components/database/ClientBankDatabasePage.tsx
 +M	components/projectdialog/ProjectDatabaseCreateDialog.tsx
 +M	components/projectdialog/ProjectDatabaseDetailContent.tsx
++M	components/projectdialog/ProjectDatabaseEditDialog.tsx
 +M	components/projectdialog/projectFormUtils.ts
  M	context-bundle.md
 -M	cypress/e2e/add_payment_cascade.cy.tsx
@@ -1296,19 +1331,26 @@ index 3adfa99..9942dc7 100644
 -A	lib/projectsDatabaseSelection.ts
 -M	pages/_app.tsx
 -A	pages/api/projects-database/[year]/[projectId].ts
+-M	pages/dashboard/businesses/projects-database/[groupId].tsx
+-A	pages/dashboard/businesses/projects-database/window.tsx
+-A	styles/project-dialog.css
+-A	vercel.json
 +A	docs/context/PR-253.md
 +A	lib/bankAccountsDirectory.ts
 +A	lib/clientDirectory.ts
 +M	package-lock.json
 +A	pages/api/client-directory/[clientId].ts
 +A	pages/api/client-directory/index.ts
++R100	pages/api/projects-database/[year]/[projectId].ts	pages/api/projects/[year]/[projectId].ts
++R100	pages/api/projects-database/[year]/index.ts	pages/api/projects/[year]/index.ts
++D	pages/dashboard/businesses/[fileId].tsx
 +A	pages/dashboard/businesses/client-accounts-database/index.tsx
 +A	pages/dashboard/businesses/company-bank-accounts-database/index.tsx
- M	pages/dashboard/businesses/projects-database/[groupId].tsx
--A	pages/dashboard/businesses/projects-database/window.tsx
--A	styles/project-dialog.css
--A	vercel.json
-+M	pages/dashboard/businesses/projects-database/new-window.tsx
++M	pages/dashboard/businesses/index.tsx
++R095	pages/dashboard/businesses/projects-database/[groupId].tsx	pages/dashboard/businesses/projects/[groupId].tsx
++R078	pages/dashboard/businesses/projects-database/index.tsx	pages/dashboard/businesses/projects/index.tsx
++R068	pages/dashboard/businesses/projects-database/new-window.tsx	pages/dashboard/businesses/projects/new-window.tsx
++R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/businesses/projects/window.tsx
  ```
  
  ## Stats
@@ -1343,24 +1385,31 @@ index 3adfa99..9942dc7 100644
 - vercel.json                                        |    6 +
 - 27 files changed, 9401 insertions(+), 1020 deletions(-)
 + .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
-+ components/SidebarLayout.tsx                       |   46 +-
++ components/SidebarLayout.tsx                       |   55 +-
 + components/clientdialog/NewClientDialog.tsx        |   17 +-
 + components/database/ClientBankDatabasePage.tsx     |  443 ++
-+ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  160 +-
++ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  162 +-
 + .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
 + components/projectdialog/projectFormUtils.ts       |   79 +
-+ context-bundle.md                                  | 7666 ++++++++++----------
++ context-bundle.md                                  | 7696 ++++++++++----------
 + docs/context/PR-253.md                             | 4057 +++++++++++
 + lib/bankAccountsDirectory.ts                       |  127 +
 + lib/clientDirectory.ts                             |  220 +
 + package-lock.json                                  |    2 -
 + pages/api/client-directory/[clientId].ts           |   49 +
 + pages/api/client-directory/index.ts                |   42 +
++ .../[year]/[projectId].ts                          |    0
++ .../[year]/index.ts                                |    0
++ pages/dashboard/businesses/[fileId].tsx            |  403 -
 + .../businesses/client-accounts-database/index.tsx  |   62 +
 + .../company-bank-accounts-database/index.tsx       |   62 +
-+ .../businesses/projects-database/[groupId].tsx     |    7 +-
-+ .../businesses/projects-database/new-window.tsx    |   38 +-
-+ 18 files changed, 9287 insertions(+), 3945 deletions(-)
++ pages/dashboard/businesses/index.tsx               |    4 +-
++ .../{projects-database => projects}/[groupId].tsx  |   17 +-
++ .../{projects-database => projects}/index.tsx      |    2 +-
++ .../{projects-database => projects}/new-window.tsx |   38 +-
++ .../{projects-database => projects}/window.tsx     |    2 +-
++ 25 files changed, 9314 insertions(+), 4382 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1796,10 +1845,31 @@ index 3adfa99..9942dc7 100644
 -     fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
 -     fireEvent.change(getByTestId('ref-input'), { target: { value: 'R1' } })
 +diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
-+index 3ba283a..4e66713 100644
++index 3ba283a..04fb245 100644
 +--- a/components/SidebarLayout.tsx
 ++++ b/components/SidebarLayout.tsx
-+@@ -77,25 +77,33 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
++@@ -56,19 +56,12 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
++           </Button>
++           <Menu anchorEl={businessAnchorEl} open={Boolean(businessAnchorEl)} onClose={handleBusinessClose}>
++             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
++-              <Link href="/dashboard/businesses/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+++              <Link href="/dashboard/businesses/projects/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
++                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
++                   Projects
++                 </Button>
++               </Link>
++             </MenuItem>
++-            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
++-              <Link href="/dashboard/businesses/projects-database/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
++-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
++-                  Projects (Database)
++-                </Button>
++-              </Link>
++-            </MenuItem>
++             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
++               <Link href="/dashboard/businesses/coaching-sessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
++                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
++@@ -77,25 +70,33 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
 +               </Link>
 +             </MenuItem>
 +           </Menu>
@@ -2642,7 +2712,7 @@ index 3adfa99..9942dc7 100644
 ++
 ++export default ClientBankDatabasePage
 +diff --git a/components/projectdialog/ProjectDatabaseCreateDialog.tsx b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
-+index 8152e21..c11fd9e 100644
++index 8152e21..1b9e67f 100644
 +--- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
 ++++ b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
 +@@ -19,7 +19,11 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -2749,6 +2819,15 @@ index 3adfa99..9942dc7 100644
 +   const handleSubmit = async () => {
 +     if (!year) {
 +       setError('Select a year before creating a project')
++@@ -148,7 +199,7 @@ export function ProjectDatabaseCreateForm({
++ 
++     try {
++       const response = await fetch(
++-        `/api/projects-database/${encodeURIComponent(year)}`,
+++        `/api/projects/${encodeURIComponent(year)}`,
++         {
++           method: 'POST',
++           headers: { 'Content-Type': 'application/json' },
 +@@ -184,7 +235,7 @@ export function ProjectDatabaseCreateForm({
 +   }
 + 
@@ -3176,11 +3255,11 @@ index 3adfa99..9942dc7 100644
 -+
 -+  const handleSubmit = async () => {
 -+    if (!project || !form) return
--+
--+    setSaving(true)
--+    setError(null)
 ++    load()
  +
+-+    setSaving(true)
+-+    setError(null)
+-+
 -+    const amountValue = form.amount.trim()
 -+    const parsedAmount = amountValue.length > 0 ? Number(amountValue) : null
 -+    if (amountValue.length > 0 && Number.isNaN(parsedAmount)) {
@@ -3279,6 +3358,19 @@ index 3adfa99..9942dc7 100644
 +           </Typography>
 +           <Typography variant='body1' color='text.secondary'>
 +             {textOrNA(project.projectNature)}
++diff --git a/components/projectdialog/ProjectDatabaseEditDialog.tsx b/components/projectdialog/ProjectDatabaseEditDialog.tsx
++index 566400f..5789e9e 100644
++--- a/components/projectdialog/ProjectDatabaseEditDialog.tsx
+++++ b/components/projectdialog/ProjectDatabaseEditDialog.tsx
++@@ -125,7 +125,7 @@ export default function ProjectDatabaseEditDialog({
++ 
++     try {
++       const response = await fetch(
++-        `/api/projects-database/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
+++        `/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
++         {
++           method: 'PATCH',
++           headers: { 'Content-Type': 'application/json' },
 +diff --git a/components/projectdialog/projectFormUtils.ts b/components/projectdialog/projectFormUtils.ts
 +index 0e0a19a..6dfc761 100644
 +--- a/components/projectdialog/projectFormUtils.ts
@@ -3521,7 +3613,7 @@ index 3adfa99..9942dc7 100644
  +}
  diff --git a/context-bundle.md b/context-bundle.md
 -index 8756e36..6a287ad 100644
-+index 3adfa99..668d184 100644
++index 3adfa99..9942dc7 100644
  --- a/context-bundle.md
  +++ b/context-bundle.md
 -@@ -1,810 +1,4071 @@
@@ -3538,7 +3630,7 @@ index 3adfa99..9942dc7 100644
 +-- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 +-- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 ++- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-++- **Head (source)**: `ac80177b5b08ea1e9726f6d5a4efdbd0a49e3a97`
+++- **Head (source)**: `a5960aac7a557d05a4dbdf62350ecef55665c58f`
   - **Repo**: `girafeev1/ArtifactoftheEstablisher`
   
   ## Changed Files
@@ -3684,14 +3776,14 @@ index 3adfa99..9942dc7 100644
 +- vercel.json                                        |    6 +
 +- 27 files changed, 9401 insertions(+), 1020 deletions(-)
 ++ .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
-++ components/SidebarLayout.tsx                       |   22 +
+++ components/SidebarLayout.tsx                       |   46 +-
 ++ components/clientdialog/NewClientDialog.tsx        |   17 +-
 ++ components/database/ClientBankDatabasePage.tsx     |  443 ++
 ++ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  160 +-
-++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  143 +-
+++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
 ++ components/projectdialog/projectFormUtils.ts       |   79 +
-++ context-bundle.md                                  | 7736 ++++++++++----------
-++ docs/context/PR-253.md                             |    1 +
+++ context-bundle.md                                  | 7666 ++++++++++----------
+++ docs/context/PR-253.md                             | 4057 +++++++++++
 ++ lib/bankAccountsDirectory.ts                       |  127 +
 ++ lib/clientDirectory.ts                             |  220 +
 ++ package-lock.json                                  |    2 -
@@ -3701,7 +3793,7 @@ index 3adfa99..9942dc7 100644
 ++ .../company-bank-accounts-database/index.tsx       |   62 +
 ++ .../businesses/projects-database/[groupId].tsx     |    7 +-
 ++ .../businesses/projects-database/new-window.tsx    |   38 +-
-++ 18 files changed, 5254 insertions(+), 3966 deletions(-)
+++ 18 files changed, 9287 insertions(+), 3945 deletions(-)
   ```
   
   ## Unified Diff (truncated to first 4000 lines)
@@ -3978,94 +4070,4 @@ index 3adfa99..9942dc7 100644
 -+-      # Pull environment (Production)
 -+-      - name: Link Vercel project (prod)
 -++      - name: Pull production environment
--+         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
--+         env:
--+           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
--+           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
--+ 
--+-      # Build locally using Vercel build (produces .vercel/output)
--+       - name: Build
--+         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
--+         env:
--+           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
--+           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
--+ 
--+-      # Deploy the prebuilt output as Production
--+       - name: Deploy to Production
--+         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
--+         env:
--+diff --git a/.github/workflows/pr-diff-file.yml b/.github/workflows/pr-diff-file.yml
--+index e341d18..c7b5809 100644
--+--- a/.github/workflows/pr-diff-file.yml
--++++ b/.github/workflows/pr-diff-file.yml
--+@@ -99,54 +99,3 @@ jobs:
--+           fi
--+           # Capture post-commit SHA so Snapshot points to the commit that actually contains the file
--+           echo "post_commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
--+-
--+-      - name: Compose links
--+-        id: links
--+-        shell: bash
--+-        env:
--+-          OWNER_REPO: ${{ github.repository }}
--+-          BRANCH: ${{ github.event.pull_request.head.ref }}
--+-          PR_NUMBER: ${{ github.event.number }}
--+-          HEAD_SHA: ${{ steps.diff.outputs.head_sha }}          # pre-commit head
--+-          POST_SHA: ${{ steps.commit.outputs.post_commit_sha }} # post-commit head (if same-repo)
--+-        run: |
--+-          FILE="docs/context/PR-${PR_NUMBER}.md"
--+-          echo "evergreen=https://github.com/${OWNER_REPO}/blob/${BRANCH}/${FILE}" >> "$GITHUB_OUTPUT"
--+-          SNAP="${POST_SHA:-$HEAD_SHA}"
--+-          echo "snapshot=https://raw.githubusercontent.com/${OWNER_REPO}/${SNAP}/${FILE}" >> "$GITHUB_OUTPUT"
--+-
--+-      - name: Post sticky comment with links (or inline preview for forks)
--+-        uses: actions/github-script@v7
--+-        env:
--+-          EVERGREEN: ${{ steps.links.outputs.evergreen }}
--+-          SNAPSHOT: ${{ steps.links.outputs.snapshot }}
--+-          FROM_SAME_REPO: ${{ steps.ownership.outputs.same_repo }}
--+-        with:
--+-          script: |
--+-            const pr = context.payload.pull_request;
--+-            const sameRepo = process.env.FROM_SAME_REPO === 'true';
--+-
--+-            // Small inline preview (first 250 lines)
--+-            const fs = require('fs');
--+-            let inline = '';
--+-            try {
--+-              const preview = fs.readFileSync(`docs/context/PR-${pr.number}.md`, 'utf8')
--+-                .split('\n').slice(0, 250).join('\n');
--+-              inline = `\n<details><summary>Preview (first 250 lines)</summary>\n\n\`\`\`md\n${preview}\n\`\`\`\n\n</details>\n`;
--+-            } catch {}
--+-
--+-            const marker = '<!-- pr-diff-file-sticky -->';
--+-            const body = sameRepo
--+-              ? `**Diff file generated** ✅\n\n- **Evergreen:** ${process.env.EVERGREEN}\n- **Snapshot:** ${process.env.SNAPSHOT}\n\n_File path:_ \`docs/context/PR-${pr.number}.md\`${inline}\n${marker}`
--+-              : `**Diff generated (fork PR)** ⚠️\nWorkflows cannot push files back to fork branches.\n${inline}\n${marker}`;
--+-
--+-            const { data: comments } = await github.rest.issues.listComments({
--+-              ...context.repo, issue_number: pr.number, per_page: 100
--+-            });
--+-
--+-            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
--+-            if (existing) {
--+-              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
--+-            } else {
--+-              await github.rest.issues.createComment({ ...context.repo, issue_number: pr.number, body });
--+-            }
--+diff --git a/.github/workflows/pr-diff-refresh.yml b/.github/workflows/pr-diff-refresh.yml
--+index b45ba7a..e33b1cb 100644
--+--- a/.github/workflows/pr-diff-refresh.yml
--++++ b/.github/workflows/pr-diff-refresh.yml
--+@@ -158,74 +158,13 @@ jobs:
--+             /tmp/diff.patch
--+           if-no-files-found: ignore
--+ 
--+-      - name: Compose links
--+-        id: links
--+-        env:
--+-          OWNER_REPO: ${{ github.repository }}
--+-          BRANCH: ${{ needs.resolve.outputs.head_ref }}
--+-          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
--+-          # Prefer the new commit SHA if we made one, else the original head SHA
 ```
