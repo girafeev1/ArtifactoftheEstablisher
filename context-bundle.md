@@ -1,7 +1,7 @@
 # PR #253 — Diff Summary
 
 - **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-- **Head (source)**: `a5960aac7a557d05a4dbdf62350ecef55665c58f`
+- **Head (source)**: `cbdc4f0c8a85845928e65e7b1892ce455dc32fc2`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -13,6 +13,7 @@ M	components/clientdialog/NewClientDialog.tsx
 A	components/database/ClientBankDatabasePage.tsx
 M	components/projectdialog/ProjectDatabaseCreateDialog.tsx
 M	components/projectdialog/ProjectDatabaseDetailContent.tsx
+M	components/projectdialog/ProjectDatabaseEditDialog.tsx
 M	components/projectdialog/projectFormUtils.ts
 M	context-bundle.md
 A	docs/context/PR-253.md
@@ -21,34 +22,47 @@ A	lib/clientDirectory.ts
 M	package-lock.json
 A	pages/api/client-directory/[clientId].ts
 A	pages/api/client-directory/index.ts
+R100	pages/api/projects-database/[year]/[projectId].ts	pages/api/projects/[year]/[projectId].ts
+R100	pages/api/projects-database/[year]/index.ts	pages/api/projects/[year]/index.ts
+D	pages/dashboard/businesses/[fileId].tsx
 A	pages/dashboard/businesses/client-accounts-database/index.tsx
 A	pages/dashboard/businesses/company-bank-accounts-database/index.tsx
-M	pages/dashboard/businesses/projects-database/[groupId].tsx
-M	pages/dashboard/businesses/projects-database/new-window.tsx
+M	pages/dashboard/businesses/index.tsx
+R095	pages/dashboard/businesses/projects-database/[groupId].tsx	pages/dashboard/businesses/projects/[groupId].tsx
+R078	pages/dashboard/businesses/projects-database/index.tsx	pages/dashboard/businesses/projects/index.tsx
+R068	pages/dashboard/businesses/projects-database/new-window.tsx	pages/dashboard/businesses/projects/new-window.tsx
+R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/businesses/projects/window.tsx
 ```
 
 ## Stats
 
 ```txt
  .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
- components/SidebarLayout.tsx                       |   46 +-
+ components/SidebarLayout.tsx                       |   55 +-
  components/clientdialog/NewClientDialog.tsx        |   17 +-
  components/database/ClientBankDatabasePage.tsx     |  443 ++
- .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  160 +-
+ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  162 +-
  .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
+ .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
  components/projectdialog/projectFormUtils.ts       |   79 +
- context-bundle.md                                  | 7666 ++++++++++----------
+ context-bundle.md                                  | 7696 ++++++++++----------
  docs/context/PR-253.md                             | 4057 +++++++++++
  lib/bankAccountsDirectory.ts                       |  127 +
  lib/clientDirectory.ts                             |  220 +
  package-lock.json                                  |    2 -
  pages/api/client-directory/[clientId].ts           |   49 +
  pages/api/client-directory/index.ts                |   42 +
+ .../[year]/[projectId].ts                          |    0
+ .../[year]/index.ts                                |    0
+ pages/dashboard/businesses/[fileId].tsx            |  403 -
  .../businesses/client-accounts-database/index.tsx  |   62 +
  .../company-bank-accounts-database/index.tsx       |   62 +
- .../businesses/projects-database/[groupId].tsx     |    7 +-
- .../businesses/projects-database/new-window.tsx    |   38 +-
- 18 files changed, 9287 insertions(+), 3945 deletions(-)
+ pages/dashboard/businesses/index.tsx               |    4 +-
+ .../{projects-database => projects}/[groupId].tsx  |   17 +-
+ .../{projects-database => projects}/index.tsx      |    2 +-
+ .../{projects-database => projects}/new-window.tsx |   38 +-
+ .../{projects-database => projects}/window.tsx     |    2 +-
+ 25 files changed, 9314 insertions(+), 4382 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -86,10 +100,31 @@ index abbe8c4..e5d0142 100644
      steps:
        - uses: actions/checkout@v4
 diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
-index 3ba283a..4e66713 100644
+index 3ba283a..04fb245 100644
 --- a/components/SidebarLayout.tsx
 +++ b/components/SidebarLayout.tsx
-@@ -77,25 +77,33 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
+@@ -56,19 +56,12 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
+           </Button>
+           <Menu anchorEl={businessAnchorEl} open={Boolean(businessAnchorEl)} onClose={handleBusinessClose}>
+             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
+-              <Link href="/dashboard/businesses/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
++              <Link href="/dashboard/businesses/projects/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+                   Projects
+                 </Button>
+               </Link>
+             </MenuItem>
+-            <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
+-              <Link href="/dashboard/businesses/projects-database/select" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+-                  Projects (Database)
+-                </Button>
+-              </Link>
+-            </MenuItem>
+             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
+               <Link href="/dashboard/businesses/coaching-sessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+@@ -77,25 +70,33 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
                </Link>
              </MenuItem>
            </Menu>
@@ -622,7 +657,7 @@ index 0000000..62dbf53
 +
 +export default ClientBankDatabasePage
 diff --git a/components/projectdialog/ProjectDatabaseCreateDialog.tsx b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
-index 8152e21..c11fd9e 100644
+index 8152e21..1b9e67f 100644
 --- a/components/projectdialog/ProjectDatabaseCreateDialog.tsx
 +++ b/components/projectdialog/ProjectDatabaseCreateDialog.tsx
 @@ -19,7 +19,11 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -729,6 +764,15 @@ index 8152e21..c11fd9e 100644
    const handleSubmit = async () => {
      if (!year) {
        setError('Select a year before creating a project')
+@@ -148,7 +199,7 @@ export function ProjectDatabaseCreateForm({
+ 
+     try {
+       const response = await fetch(
+-        `/api/projects-database/${encodeURIComponent(year)}`,
++        `/api/projects/${encodeURIComponent(year)}`,
+         {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
 @@ -184,7 +235,7 @@ export function ProjectDatabaseCreateForm({
    }
  
@@ -1106,6 +1150,19 @@ index e136869..417bafe 100644
            </Typography>
            <Typography variant='body1' color='text.secondary'>
              {textOrNA(project.projectNature)}
+diff --git a/components/projectdialog/ProjectDatabaseEditDialog.tsx b/components/projectdialog/ProjectDatabaseEditDialog.tsx
+index 566400f..5789e9e 100644
+--- a/components/projectdialog/ProjectDatabaseEditDialog.tsx
++++ b/components/projectdialog/ProjectDatabaseEditDialog.tsx
+@@ -125,7 +125,7 @@ export default function ProjectDatabaseEditDialog({
+ 
+     try {
+       const response = await fetch(
+-        `/api/projects-database/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
++        `/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
+         {
+           method: 'PATCH',
+           headers: { 'Content-Type': 'application/json' },
 diff --git a/components/projectdialog/projectFormUtils.ts b/components/projectdialog/projectFormUtils.ts
 index 0e0a19a..6dfc761 100644
 --- a/components/projectdialog/projectFormUtils.ts
@@ -1194,7 +1251,7 @@ index 0e0a19a..6dfc761 100644
 +  return `${defaultPrefix}${String(1).padStart(defaultWidth, '0')}`
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 3adfa99..668d184 100644
+index 3adfa99..9942dc7 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
 @@ -1,4075 +1,4057 @@
@@ -1204,7 +1261,7 @@ index 3adfa99..668d184 100644
 -- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 -- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 +- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-+- **Head (source)**: `ac80177b5b08ea1e9726f6d5a4efdbd0a49e3a97`
++- **Head (source)**: `a5960aac7a557d05a4dbdf62350ecef55665c58f`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -1286,14 +1343,14 @@ index 3adfa99..668d184 100644
 - vercel.json                                        |    6 +
 - 27 files changed, 9401 insertions(+), 1020 deletions(-)
 + .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
-+ components/SidebarLayout.tsx                       |   22 +
++ components/SidebarLayout.tsx                       |   46 +-
 + components/clientdialog/NewClientDialog.tsx        |   17 +-
 + components/database/ClientBankDatabasePage.tsx     |  443 ++
 + .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  160 +-
-+ .../projectdialog/ProjectDatabaseDetailContent.tsx |  143 +-
++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
 + components/projectdialog/projectFormUtils.ts       |   79 +
-+ context-bundle.md                                  | 7736 ++++++++++----------
-+ docs/context/PR-253.md                             |    1 +
++ context-bundle.md                                  | 7666 ++++++++++----------
++ docs/context/PR-253.md                             | 4057 +++++++++++
 + lib/bankAccountsDirectory.ts                       |  127 +
 + lib/clientDirectory.ts                             |  220 +
 + package-lock.json                                  |    2 -
@@ -1303,7 +1360,7 @@ index 3adfa99..668d184 100644
 + .../company-bank-accounts-database/index.tsx       |   62 +
 + .../businesses/projects-database/[groupId].tsx     |    7 +-
 + .../businesses/projects-database/new-window.tsx    |   38 +-
-+ 18 files changed, 5254 insertions(+), 3966 deletions(-)
++ 18 files changed, 9287 insertions(+), 3945 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1682,45 +1739,7 @@ index 3adfa99..668d184 100644
 -@@ -6,7 +6,13 @@ import '@testing-library/jest-dom'
 - import { render, screen, waitFor } from '@testing-library/react'
 - import PaymentHistory from './PaymentHistory'
-+diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
-+index 3ba283a..abcdf45 100644
-+--- a/components/SidebarLayout.tsx
-++++ b/components/SidebarLayout.tsx
-+@@ -95,6 +95,28 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
-+                 </Button>
-+               </Link>
-+             </MenuItem>
-++            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
-++              <Link
-++                href="/dashboard/businesses/client-accounts-database"
-++                passHref
-++                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
-++              >
-++                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-++                  Client Accounts (Database)
-++                </Button>
-++              </Link>
-++            </MenuItem>
-++            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
-++              <Link
-++                href="/dashboard/businesses/company-bank-accounts-database"
-++                passHref
-++                style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
-++              >
-++                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-++                  Company Bank Accounts (Database)
-++                </Button>
-++              </Link>
-++            </MenuItem>
-+           </Menu>
-+         </Box>
-+         <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
-+diff --git a/components/clientdialog/NewClientDialog.tsx b/components/clientdialog/NewClientDialog.tsx
-+index 93e3c87..eadb78a 100644
-+--- a/components/clientdialog/NewClientDialog.tsx
-++++ b/components/clientdialog/NewClientDialog.tsx
-+@@ -52,10 +52,23 @@ export default function NewClientDialog({ open, onClose, onSubmitted }: NewClien
-  
+- 
 --jest.mock('./PaymentModal', () => () => <div />)
 -+jest.mock('./PaymentModal', () => {
 -+  function PaymentModalMock() {
@@ -1776,7 +1795,69 @@ index 3adfa99..668d184 100644
 -@@ -83,10 +84,10 @@ describe('PaymentModal ERL cascade', () => {
 -     fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
 -     fireEvent.change(getByTestId('ref-input'), { target: { value: 'R1' } })
-- 
++diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
++index 3ba283a..4e66713 100644
++--- a/components/SidebarLayout.tsx
+++++ b/components/SidebarLayout.tsx
++@@ -77,25 +77,33 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
++               </Link>
++             </MenuItem>
++           </Menu>
++-          <Button fullWidth onClick={handleDatabaseClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
++-            Database
++-          </Button>
++-          <Menu anchorEl={databaseAnchorEl} open={Boolean(databaseAnchorEl)} onClose={handleDatabaseClose}>
++-            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
++-              <Link href="/dashboard/database?view=clients" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
++-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
++-                  Client Accounts
++-                </Button>
++-              </Link>
++-            </MenuItem>
++-            <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
++-              <Link href="/dashboard/database?view=bank" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
++-                <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
++-                  Company Bank Accounts
++-                </Button>
++-              </Link>
++-            </MenuItem>
++-          </Menu>
+++        <Button fullWidth onClick={handleDatabaseClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
+++          Database
+++        </Button>
+++        <Menu anchorEl={databaseAnchorEl} open={Boolean(databaseAnchorEl)} onClose={handleDatabaseClose}>
+++          <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
+++            <Link
+++              href="/dashboard/businesses/client-accounts-database"
+++              passHref
+++              style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
+++            >
+++              <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+++                Client Accounts
+++              </Button>
+++            </Link>
+++          </MenuItem>
+++          <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
+++            <Link
+++              href="/dashboard/businesses/company-bank-accounts-database"
+++              passHref
+++              style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
+++            >
+++              <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
+++                Company Bank Accounts
+++              </Button>
+++            </Link>
+++          </MenuItem>
+++        </Menu>
++         </Box>
++         <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
++           Sign Out
++diff --git a/components/clientdialog/NewClientDialog.tsx b/components/clientdialog/NewClientDialog.tsx
++index 93e3c87..eadb78a 100644
++--- a/components/clientdialog/NewClientDialog.tsx
+++++ b/components/clientdialog/NewClientDialog.tsx
++@@ -52,10 +52,23 @@ export default function NewClientDialog({ open, onClose, onSubmitted }: NewClien
+  
 --    expect(require('firebase/firestore').addDoc).not.toHaveBeenCalled()
 -+    expect(mockedFirestore.addDoc).not.toHaveBeenCalled()
 -     fireEvent.click(getByTestId('submit-payment'))
@@ -2204,12 +2285,7 @@ index 3adfa99..668d184 100644
 ++      setFilteredClients(clients)
  +    }
 ++  }, [selectedLetter, clients])
- +
--+    const node = contentRef.current
--+    const viewportWidth = window.innerWidth || 1024
--+    const viewportHeight = window.innerHeight || 768
--+    const horizontalPadding = 64
--+    const verticalPadding = 96
+++
 ++  const groupedBankAccounts = useMemo(() => {
 ++    const map = new Map<
 ++      string,
@@ -2221,8 +2297,11 @@ index 3adfa99..668d184 100644
 ++      }
 ++    >()
  +
--+    const measuredWidth = node.scrollWidth + horizontalPadding
--+    const measuredHeight = node.scrollHeight + verticalPadding
+-+    const node = contentRef.current
+-+    const viewportWidth = window.innerWidth || 1024
+-+    const viewportHeight = window.innerHeight || 768
+-+    const horizontalPadding = 64
+-+    const verticalPadding = 96
 ++    bankAccounts.forEach((account) => {
 ++      const key = `${account.bankName}__${account.bankCode ?? 'unknown'}`
 ++      if (!map.has(key)) {
@@ -2240,16 +2319,8 @@ index 3adfa99..668d184 100644
 ++      }
 ++    })
  +
--+    const width = clamp(
--+      measuredWidth,
--+      MIN_WIDTH,
--+      Math.max(MIN_WIDTH, viewportWidth - 48)
--+    )
--+    const height = clamp(
--+      measuredHeight,
--+      MIN_HEIGHT,
--+      Math.max(MIN_HEIGHT, viewportHeight - 48)
--+    )
+-+    const measuredWidth = node.scrollWidth + horizontalPadding
+-+    const measuredHeight = node.scrollHeight + verticalPadding
 ++    return Array.from(map.values()).sort((a, b) => {
 ++      if (a.active !== b.active) {
 ++        return a.active ? -1 : 1
@@ -2262,6 +2333,20 @@ index 3adfa99..668d184 100644
 ++      return a.bankName.localeCompare(b.bankName)
 ++    })
 ++  }, [bankAccounts])
+ +
+-+    const width = clamp(
+-+      measuredWidth,
+-+      MIN_WIDTH,
+-+      Math.max(MIN_WIDTH, viewportWidth - 48)
+-+    )
+-+    const height = clamp(
+-+      measuredHeight,
+-+      MIN_HEIGHT,
+-+      Math.max(MIN_HEIGHT, viewportHeight - 48)
+-+    )
+++  const handleToggleView = (newView: 'clients' | 'bank') => {
+++    setView(newView)
+++  }
  +
 -+    const x = Math.max(24, Math.round((viewportWidth - width) / 2))
 -+    const y = Math.max(32, Math.round((viewportHeight - height) / 2))
@@ -2282,31 +2367,34 @@ index 3adfa99..668d184 100644
 -+    const height = elementRef.offsetHeight
 -+    setSize({ width, height })
 -+    setPosition(nextPosition)
-++  const handleToggleView = (newView: 'clients' | 'bank') => {
-++    setView(newView)
- +  }
- +
--+  const handleDragStop: RndDragCallback = (_event, data) => {
--+    setPosition({ x: data.x, y: data.y })
 ++  const handleClientClick = (client: ClientDirectoryRecord) => {
 ++    setSelectedClient(client)
 ++    setViewDialogOpen(true)
  +  }
  +
--+  const portalTarget = useMemo(() => (mounted ? document.body : null), [mounted])
+-+  const handleDragStop: RndDragCallback = (_event, data) => {
+-+    setPosition({ x: data.x, y: data.y })
 ++  const handleCloseViewDialog = () => {
 ++    setViewDialogOpen(false)
 ++    setSelectedClient(null)
-++  }
+ +  }
  +
--+  if (!project || !open || !portalTarget) {
--+    return null
+-+  const portalTarget = useMemo(() => (mounted ? document.body : null), [mounted])
 ++  const handleEditFromView = () => {
 ++    if (!selectedClient) return
 ++    setViewDialogOpen(false)
 ++    setEditableClient(convertToEditClient(selectedClient))
 ++    setEditingClientId(selectedClient.companyName)
 ++    setEditDialogOpen(true)
+++  }
+ +
+-+  if (!project || !open || !portalTarget) {
+-+    return null
+++  const handleCloseEditDialog = () => {
+++    setEditDialogOpen(false)
+++    setEditableClient(null)
+++    setSelectedClient(null)
+++    setEditingClientId(null)
  +  }
  +
 -+  if (isSmallScreen) {
@@ -2334,13 +2422,6 @@ index 3adfa99..668d184 100644
 -+      </Fade>,
 -+      portalTarget
 -+    )
-++  const handleCloseEditDialog = () => {
-++    setEditDialogOpen(false)
-++    setEditableClient(null)
-++    setSelectedClient(null)
-++    setEditingClientId(null)
-++  }
-++
 ++  const handleClientChange = (client: EditDialogClient) => {
 ++    setEditableClient(client)
 ++  }
@@ -2377,8 +2458,10 @@ index 3adfa99..668d184 100644
 ++      console.error('[ClientBankDatabasePage] failed to update client:', err)
 ++      alert(err instanceof Error ? err.message : 'Failed to update client')
 ++    }
-++  }
-++
+ +  }
+ +
+-+  return createPortal(
+-+    <Fade in={open} appear unmountOnExit>
 ++  const handleOpenAddDialog = () => {
 ++    setAddDialogOpen(true)
 ++  }
@@ -2390,10 +2473,8 @@ index 3adfa99..668d184 100644
 ++  const handleNewClientSubmitted = () => {
 ++    setAddDialogOpen(false)
 ++    router.replace(router.asPath)
- +  }
- +
--+  return createPortal(
--+    <Fade in={open} appear unmountOnExit>
+++  }
+++
 ++  return (
 ++    <SidebarLayout>
  +      <Box
@@ -2886,7 +2967,7 @@ index 3adfa99..668d184 100644
 +     </ProjectDatabaseWindow>
 +   )
 +diff --git a/components/projectdialog/ProjectDatabaseDetailContent.tsx b/components/projectdialog/ProjectDatabaseDetailContent.tsx
-+index e136869..ddf58ab 100644
++index e136869..417bafe 100644
 +--- a/components/projectdialog/ProjectDatabaseDetailContent.tsx
 ++++ b/components/projectdialog/ProjectDatabaseDetailContent.tsx
 +@@ -1,4 +1,4 @@
@@ -2973,7 +3054,7 @@ index 3adfa99..668d184 100644
 + const textOrNA = (value: string | null | undefined) =>
 +   value && value.trim().length > 0 ? value : 'N/A'
 + 
-+@@ -42,6 +68,28 @@ const valueSx = {
++@@ -42,6 +68,30 @@ const valueSx = {
 +   lineHeight: 1.3,
 + } as const
 + 
@@ -3005,8 +3086,9 @@ index 3adfa99..668d184 100644
 -+const sanitizeText = (value: string) => {
 -+  const trimmed = value.trim()
 -+  return trimmed.length === 0 ? null : trimmed
--+}
-++void getBankAccountLabelMap()
+++if (typeof window !== 'undefined') {
+++  void getBankAccountLabelMap()
+ +}
  +
 -+export default function ProjectDatabaseEditDialog({
 -+  open,
@@ -3020,7 +3102,7 @@ index 3adfa99..668d184 100644
 + interface ProjectDatabaseDetailContentProps {
 +   project: ProjectRecord
 +   headerActions?: ReactNode
-+@@ -55,6 +103,48 @@ export default function ProjectDatabaseDetailContent({
++@@ -55,6 +105,48 @@ export default function ProjectDatabaseDetailContent({
 +   onClose,
 +   onEdit,
 + }: ProjectDatabaseDetailContentProps) {
@@ -3094,11 +3176,11 @@ index 3adfa99..668d184 100644
 -+
 -+  const handleSubmit = async () => {
 -+    if (!project || !form) return
-++    load()
- +
+-+
 -+    setSaving(true)
 -+    setError(null)
--+
+++    load()
+ +
 -+    const amountValue = form.amount.trim()
 -+    const parsedAmount = amountValue.length > 0 ? Number(amountValue) : null
 -+    if (amountValue.length > 0 && Number.isNaN(parsedAmount)) {
@@ -3124,7 +3206,7 @@ index 3adfa99..668d184 100644
 +   const detailItems = useMemo(() => {
 +     const invoiceValue: ReactNode = project.invoice
 +       ? project.invoice.startsWith('http')
-+@@ -83,20 +173,20 @@ export default function ProjectDatabaseDetailContent({
++@@ -83,20 +175,20 @@ export default function ProjectDatabaseDetailContent({
 +         label: 'Paid On',
 +         value: project.paid ? project.onDateDisplay ?? '-' : '-',
 +       },
@@ -3155,7 +3237,7 @@ index 3adfa99..668d184 100644
 + 
 +   return (
 +     <Stack spacing={1.2}>
-+@@ -121,19 +211,32 @@ export default function ProjectDatabaseDetailContent({
++@@ -121,19 +213,32 @@ export default function ProjectDatabaseDetailContent({
 +               </IconButton>
 +             )}
 +           </Stack>
@@ -3439,13 +3521,13 @@ index 3adfa99..668d184 100644
  +}
  diff --git a/context-bundle.md b/context-bundle.md
 -index 8756e36..6a287ad 100644
-+index 3adfa99..d490d89 100644
++index 3adfa99..668d184 100644
  --- a/context-bundle.md
  +++ b/context-bundle.md
 -@@ -1,810 +1,4071 @@
 --# PR #249 — Diff Summary
 -+# PR #252 — Diff Summary
-+@@ -1,4075 +1,4047 @@
++@@ -1,4075 +1,4057 @@
 +-# PR #252 — Diff Summary
 ++# PR #253 — Diff Summary
   
@@ -3456,7 +3538,7 @@ index 3adfa99..668d184 100644
 +-- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 +-- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 ++- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-++- **Head (source)**: `f7a6c25336c28868c6a3fd5d9c0a6c9d4e57fee2`
+++- **Head (source)**: `ac80177b5b08ea1e9726f6d5a4efdbd0a49e3a97`
   - **Repo**: `girafeev1/ArtifactoftheEstablisher`
   
   ## Changed Files
@@ -3507,6 +3589,8 @@ index 3adfa99..668d184 100644
 +-A	components/projectdialog/ProjectDatabaseDetailDialog.tsx
 +-A	components/projectdialog/ProjectDatabaseEditDialog.tsx
 ++M	components/SidebarLayout.tsx
+++M	components/clientdialog/NewClientDialog.tsx
+++A	components/database/ClientBankDatabasePage.tsx
 ++M	components/projectdialog/ProjectDatabaseCreateDialog.tsx
 ++M	components/projectdialog/ProjectDatabaseDetailContent.tsx
 ++M	components/projectdialog/projectFormUtils.ts
@@ -3523,6 +3607,9 @@ index 3adfa99..668d184 100644
 ++A	docs/context/PR-253.md
 ++A	lib/bankAccountsDirectory.ts
 ++A	lib/clientDirectory.ts
+++M	package-lock.json
+++A	pages/api/client-directory/[clientId].ts
+++A	pages/api/client-directory/index.ts
 ++A	pages/dashboard/businesses/client-accounts-database/index.tsx
 ++A	pages/dashboard/businesses/company-bank-accounts-database/index.tsx
 + M	pages/dashboard/businesses/projects-database/[groupId].tsx
@@ -3598,18 +3685,23 @@ index 3adfa99..668d184 100644
 +- 27 files changed, 9401 insertions(+), 1020 deletions(-)
 ++ .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
 ++ components/SidebarLayout.tsx                       |   22 +
-++ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  158 +-
-++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  135 +-
+++ components/clientdialog/NewClientDialog.tsx        |   17 +-
+++ components/database/ClientBankDatabasePage.tsx     |  443 ++
+++ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  160 +-
+++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  143 +-
 ++ components/projectdialog/projectFormUtils.ts       |   79 +
-++ context-bundle.md                                  | 7762 ++++++++++----------
+++ context-bundle.md                                  | 7736 ++++++++++----------
 ++ docs/context/PR-253.md                             |    1 +
-++ lib/bankAccountsDirectory.ts                       |  124 +
-++ lib/clientDirectory.ts                             |   59 +
-++ .../businesses/client-accounts-database/index.tsx  |  244 +
-++ .../company-bank-accounts-database/index.tsx       |  236 +
-++ .../businesses/projects-database/[groupId].tsx     |    5 +
+++ lib/bankAccountsDirectory.ts                       |  127 +
+++ lib/clientDirectory.ts                             |  220 +
+++ package-lock.json                                  |    2 -
+++ pages/api/client-directory/[clientId].ts           |   49 +
+++ pages/api/client-directory/index.ts                |   42 +
+++ .../businesses/client-accounts-database/index.tsx  |   62 +
+++ .../company-bank-accounts-database/index.tsx       |   62 +
+++ .../businesses/projects-database/[groupId].tsx     |    7 +-
 ++ .../businesses/projects-database/new-window.tsx    |   38 +-
-++ 13 files changed, 4902 insertions(+), 3971 deletions(-)
+++ 18 files changed, 5254 insertions(+), 3966 deletions(-)
   ```
   
   ## Unified Diff (truncated to first 4000 lines)
@@ -3976,82 +4068,4 @@ index 3adfa99..668d184 100644
 -+-          BRANCH: ${{ needs.resolve.outputs.head_ref }}
 -+-          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
 -+-          # Prefer the new commit SHA if we made one, else the original head SHA
--+-          HEAD_SHA: ${{ steps.commit.outputs.head_after || needs.resolve.outputs.head_sha }}
--++      - name: Log diff refresh location
--+         run: |
--+-          FILE="docs/context/PR-${PR_NUMBER}.md"
--+-          echo "evergreen=https://github.com/${OWNER_REPO}/blob/${BRANCH}/${FILE}" >> "$GITHUB_OUTPUT"
--+-          echo "snapshot=https://raw.githubusercontent.com/${OWNER_REPO}/${HEAD_SHA}/${FILE}" >> "$GITHUB_OUTPUT"
--+-          echo "run_url=https://github.com/${OWNER_REPO}/actions/runs/${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
--+-
--+-      - name: Post sticky comment
--+-        uses: actions/github-script@v7
--+-        env:
--+-          EVERGREEN: ${{ steps.links.outputs.evergreen }}
--+-          SNAPSHOT:  ${{ steps.links.outputs.snapshot }}
--+-          RUN_URL:   ${{ steps.links.outputs.run_url }}
--+-          IS_SAME:   ${{ needs.resolve.outputs.same_repo }}
--+-        with:
--+-          script: |
--+-            const prNumber = Number("${{ needs.resolve.outputs.pr_number }}");
--+-            const marker = "<!-- pr-diff-refresh-sticky -->";
--+-
--+-            let body;
--+-            if (process.env.IS_SAME === 'true') {
--+-              body = [
--+-                `**Diff file refreshed** ✅`,
--+-                ``,
--+-                `- Evergreen: ${process.env.EVERGREEN}`,
--+-                `- Snapshot: ${process.env.SNAPSHOT}`,
--+-                ``,
--+-                `_File path:_ docs/context/PR-${prNumber}.md`,
--+-                marker
--+-              ].join('\n');
--+-            } else {
--+-              body = [
--+-                `**Diff refreshed (fork PR)** ⚠️`,
--+-                `Artifacts (download): ${process.env.RUN_URL}`,
--+-                ``,
--+-                `_Note:_ Workflows cannot push files back to fork branches.`,
--+-                marker
--+-              ].join('\n');
--+-            }
--+-
--+-            const { data: comments } = await github.rest.issues.listComments({
--+-              owner: context.repo.owner,
--+-              repo: context.repo.repo,
--+-              issue_number: prNumber
--+-            });
--+-            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
--+-            if (existing) {
--+-              await github.rest.issues.updateComment({
--+-                owner: context.repo.owner,
--+-                repo: context.repo.repo,
--+-                comment_id: existing.id,
--+-                body
--+-              });
--+-            } else {
--+-              await github.rest.issues.createComment({
--+-                owner: context.repo.owner,
--+-                repo: context.repo.repo,
--+-                issue_number: prNumber,
--+-                body
--+-              });
--+-            }
--++          {
--++            echo "## Diff refreshed"
--++            echo "- PR: #${{ needs.resolve.outputs.pr_number }}"
--++            echo "- File: docs/context/PR-${{ needs.resolve.outputs.pr_number }}.md"
--++          } >> "$GITHUB_STEP_SUMMARY"
--+ 
--+       - name: Inline preview (append to comment when possible)
--+         if: always()
--+diff --git a/.gitignore b/.gitignore
--+index 588810e..2587906 100644
--+--- a/.gitignore
--++++ b/.gitignore
--+@@ -8,3 +8,4 @@
--+ *.DS_Store
--+ Invoice.JSON
--+ tsconfig.tsbuildinfo
 ```
