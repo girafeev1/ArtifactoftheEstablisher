@@ -9,7 +9,6 @@ import {
   type GetListResponse,
 } from '@refinedev/core'
 import routerProvider from '@refinedev/nextjs-router'
-import { RefineSnackbarProvider, RefineThemes } from '@refinedev/mui'
 import {
   Box,
   Card,
@@ -23,6 +22,7 @@ import {
   TableRow,
   ThemeProvider,
   Typography,
+  createTheme,
 } from '@mui/material'
 import type { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
@@ -127,32 +127,32 @@ const ClientAccountsTable = memo(() => {
 
 ClientAccountsTable.displayName = 'ClientAccountsTable'
 
+const theme = createTheme({ palette: { mode: 'light' } })
+
 const ClientAccountsShell = () => (
-  <ThemeProvider theme={RefineThemes.Blue}>
+  <ThemeProvider theme={theme}>
     <CssBaseline />
-    <RefineSnackbarProvider>
-      <Refine
-        dataProvider={refineDataProvider}
-        routerProvider={routerProvider}
-        resources={[{ name: 'client-directory' }]}
-        options={{ syncWithLocation: false }}
-      >
-        <Box sx={{ p: 4 }}>
-          <Typography variant="h4" sx={{ mb: 2 }}>
-            Client Accounts
-          </Typography>
-          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-            This preview uses Refine’s data hooks and MUI components to render your Firestore-backed directory. The
-            table below mirrors the legacy layout while adopting Refine patterns for future CRUD flows.
-          </Typography>
-          <Card>
-            <CardContent>
-              <ClientAccountsTable />
-            </CardContent>
-          </Card>
-        </Box>
-      </Refine>
-    </RefineSnackbarProvider>
+    <Refine
+      dataProvider={refineDataProvider}
+      routerProvider={routerProvider}
+      resources={[{ name: 'client-directory' }]}
+      options={{ syncWithLocation: false }}
+    >
+      <Box sx={{ p: 4 }}>
+        <Typography variant="h4" sx={{ mb: 2 }}>
+          Client Accounts
+        </Typography>
+        <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+          This preview uses Refine’s data hooks and MUI components to render your Firestore-backed directory. The
+          table below mirrors the legacy layout while adopting Refine patterns for future CRUD flows.
+        </Typography>
+        <Card>
+          <CardContent>
+            <ClientAccountsTable />
+          </CardContent>
+        </Card>
+      </Box>
+    </Refine>
   </ThemeProvider>
 )
 
