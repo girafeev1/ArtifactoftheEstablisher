@@ -95,10 +95,6 @@ const ClientAccountsGallery = memo(() => {
 
   const [search, setSearch] = useState("")
 
-  if (query.isLoading) {
-    return <LinearProgress sx={{ width: "100%" }} />
-  }
-
   const rows = result.data ?? []
 
   const filtered = useMemo(() => {
@@ -122,6 +118,10 @@ const ClientAccountsGallery = memo(() => {
       return haystack.includes(needle)
     })
   }, [rows, search])
+
+  if (query.isLoading) {
+    return <LinearProgress sx={{ width: "100%" }} />
+  }
 
   return (
     <Stack spacing={3}>

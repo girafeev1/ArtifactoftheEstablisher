@@ -76,9 +76,9 @@ export default function ProjectCreateWindow({
 
 export const getServerSideProps: GetServerSideProps<ProjectCreateWindowProps> = async (ctx) => {
   const session = await getSession(ctx)
-  if (!session?.accessToken) {
+  if (!session?.user) {
     return {
-      redirect: { destination: '/api/auth/signin', permanent: false },
+      redirect: { destination: '/auth/signin', permanent: false },
     }
   }
 

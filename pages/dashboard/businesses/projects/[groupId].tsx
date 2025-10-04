@@ -407,8 +407,8 @@ export const getServerSideProps: GetServerSideProps<ProjectsDatabasePageProps> =
   ctx
 ) => {
   const session = await getSession(ctx)
-  if (!session?.accessToken) {
-    return { redirect: { destination: '/api/auth/signin', permanent: false } }
+  if (!session?.user) {
+    return { redirect: { destination: '/auth/signin', permanent: false } }
   }
 
   const groupParam = ctx.params?.groupId as string | undefined

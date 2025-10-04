@@ -28,9 +28,9 @@ export default function CompanyBankAccountsDatabasePage({
 
 export const getServerSideProps: GetServerSideProps<CompanyBankAccountsDatabasePageProps> = async (ctx) => {
   const session = await getSession(ctx)
-  if (!session?.accessToken) {
+  if (!session?.user) {
     return {
-      redirect: { destination: '/api/auth/signin', permanent: false },
+      redirect: { destination: '/auth/signin', permanent: false },
     }
   }
 
