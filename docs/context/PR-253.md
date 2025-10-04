@@ -1,7 +1,7 @@
 # PR #253 — Diff Summary
 
 - **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-- **Head (source)**: `f58b2126d675afd824cec484a03197f31dcd2db1`
+- **Head (source)**: `5fa7f58525d04b5c3ced155c8df4058c9ab3a90b`
 - **Repo**: `girafeev1/ArtifactoftheEstablisher`
 
 ## Changed Files
@@ -20,6 +20,7 @@ A	docs/context/PR-253.md
 A	lib/bankAccountsDirectory.ts
 A	lib/clientDirectory.ts
 M	package-lock.json
+M	package.json
 A	pages/api/client-directory/[clientId].ts
 A	pages/api/client-directory/index.ts
 R100	pages/api/projects-database/[year]/[projectId].ts	pages/api/projects/[year]/[projectId].ts
@@ -32,7 +33,8 @@ R095	pages/dashboard/businesses/projects-database/[groupId].tsx	pages/dashboard/
 R078	pages/dashboard/businesses/projects-database/index.tsx	pages/dashboard/businesses/projects/index.tsx
 R068	pages/dashboard/businesses/projects-database/new-window.tsx	pages/dashboard/businesses/projects/new-window.tsx
 R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/businesses/projects/window.tsx
-A	pages/dashboard/new-ui.tsx
+A	pages/dashboard/new-ui/client-accounts.tsx
+A	pages/dashboard/new-ui/index.tsx
 ```
 
 ## Stats
@@ -47,12 +49,13 @@ A	pages/dashboard/new-ui.tsx
  .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
  components/projectdialog/projectFormUtils.ts       |   79 +
  context-bundle.md                                  | 7720 ++++++++++----------
- docs/context/PR-253.md                             | 4071 +++++++++++
+ docs/context/PR-253.md                             | 4073 +++++++++++
  lib/bankAccountsDirectory.ts                       |  127 +
  lib/clientDirectory.ts                             |  220 +
- package-lock.json                                  |    2 -
+ package-lock.json                                  | 1650 ++++-
+ package.json                                       |    6 +
  pages/api/client-directory/[clientId].ts           |   49 +
- pages/api/client-directory/index.ts                |   42 +
+ pages/api/client-directory/index.ts                |   53 +
  .../[year]/[projectId].ts                          |    0
  .../[year]/index.ts                                |    0
  pages/dashboard/businesses/[fileId].tsx            |  403 -
@@ -63,8 +66,9 @@ A	pages/dashboard/new-ui.tsx
  .../{projects-database => projects}/index.tsx      |    2 +-
  .../{projects-database => projects}/new-window.tsx |   38 +-
  .../{projects-database => projects}/window.tsx     |    2 +-
- pages/dashboard/new-ui.tsx                         |   53 +
- 26 files changed, 9416 insertions(+), 4391 deletions(-)
+ pages/dashboard/new-ui/client-accounts.tsx         |  184 +
+ pages/dashboard/new-ui/index.tsx                   |   57 +
+ 28 files changed, 11201 insertions(+), 4461 deletions(-)
 ```
 
 ## Unified Diff (truncated to first 4000 lines)
@@ -1285,17 +1289,17 @@ index 0e0a19a..6dfc761 100644
 +  return `${defaultPrefix}${String(1).padStart(defaultWidth, '0')}`
 +}
 diff --git a/context-bundle.md b/context-bundle.md
-index 3adfa99..aeb8607 100644
+index 3adfa99..c5c4993 100644
 --- a/context-bundle.md
 +++ b/context-bundle.md
-@@ -1,4075 +1,4071 @@
+@@ -1,4075 +1,4073 @@
 -# PR #252 — Diff Summary
 +# PR #253 — Diff Summary
  
 -- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 -- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 +- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-+- **Head (source)**: `cbdc4f0c8a85845928e65e7b1892ce455dc32fc2`
++- **Head (source)**: `f58b2126d675afd824cec484a03197f31dcd2db1`
  - **Repo**: `girafeev1/ArtifactoftheEstablisher`
  
  ## Changed Files
@@ -1351,6 +1355,7 @@ index 3adfa99..aeb8607 100644
 +R078	pages/dashboard/businesses/projects-database/index.tsx	pages/dashboard/businesses/projects/index.tsx
 +R068	pages/dashboard/businesses/projects-database/new-window.tsx	pages/dashboard/businesses/projects/new-window.tsx
 +R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/businesses/projects/window.tsx
++A	pages/dashboard/new-ui.tsx
  ```
  
  ## Stats
@@ -1385,15 +1390,15 @@ index 3adfa99..aeb8607 100644
 - vercel.json                                        |    6 +
 - 27 files changed, 9401 insertions(+), 1020 deletions(-)
 + .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
-+ components/SidebarLayout.tsx                       |   55 +-
++ components/SidebarLayout.tsx                       |   75 +-
 + components/clientdialog/NewClientDialog.tsx        |   17 +-
 + components/database/ClientBankDatabasePage.tsx     |  443 ++
 + .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  162 +-
 + .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
 + .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
 + components/projectdialog/projectFormUtils.ts       |   79 +
-+ context-bundle.md                                  | 7696 ++++++++++----------
-+ docs/context/PR-253.md                             | 4057 +++++++++++
++ context-bundle.md                                  | 7720 ++++++++++----------
++ docs/context/PR-253.md                             | 4071 +++++++++++
 + lib/bankAccountsDirectory.ts                       |  127 +
 + lib/clientDirectory.ts                             |  220 +
 + package-lock.json                                  |    2 -
@@ -1409,7 +1414,8 @@ index 3adfa99..aeb8607 100644
 + .../{projects-database => projects}/index.tsx      |    2 +-
 + .../{projects-database => projects}/new-window.tsx |   38 +-
 + .../{projects-database => projects}/window.tsx     |    2 +-
-+ 25 files changed, 9314 insertions(+), 4382 deletions(-)
++ pages/dashboard/new-ui.tsx                         |   53 +
++ 26 files changed, 9416 insertions(+), 4391 deletions(-)
  ```
  
  ## Unified Diff (truncated to first 4000 lines)
@@ -1788,7 +1794,12 @@ index 3adfa99..aeb8607 100644
 -@@ -6,7 +6,13 @@ import '@testing-library/jest-dom'
 - import { render, screen, waitFor } from '@testing-library/react'
 - import PaymentHistory from './PaymentHistory'
-- 
++diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
++index 3ba283a..648d575 100644
++--- a/components/SidebarLayout.tsx
+++++ b/components/SidebarLayout.tsx
++@@ -2,11 +2,13 @@
+  
 --jest.mock('./PaymentModal', () => () => <div />)
 -+jest.mock('./PaymentModal', () => {
 -+  function PaymentModalMock() {
@@ -1814,7 +1825,13 @@ index 3adfa99..aeb8607 100644
 - jest.mock('../../lib/erlDirectory', () => ({
 -   listBanks: jest
 -@@ -46,6 +48,9 @@ jest.mock('../../lib/liveRefresh', () => ({ writeSummaryFromCache: jest.fn() }))
-- 
++ import Link from 'next/link';
++ import { useState } from 'react';
+++import { useRouter } from 'next/router';
++ import { useSession, signOut } from 'next-auth/react';
++-import { Box, Typography, Button, Divider, Menu, MenuItem } from '@mui/material';
+++import { Box, Typography, Button, Divider, Menu, MenuItem, Stack } from '@mui/material';
+  
 - const noop = () => {}
 - 
 -+const mockedErlDirectory = jest.mocked(erlDirectory, { shallow: false })
@@ -1844,11 +1861,13 @@ index 3adfa99..aeb8607 100644
 -@@ -83,10 +84,10 @@ describe('PaymentModal ERL cascade', () => {
 -     fireEvent.change(getByTestId('method-select'), { target: { value: 'FPS' } })
 -     fireEvent.change(getByTestId('ref-input'), { target: { value: 'R1' } })
-+diff --git a/components/SidebarLayout.tsx b/components/SidebarLayout.tsx
-+index 3ba283a..04fb245 100644
-+--- a/components/SidebarLayout.tsx
-++++ b/components/SidebarLayout.tsx
-+@@ -56,19 +56,12 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
++ export default function SidebarLayout({ children }: { children: React.ReactNode }) {
++   const { data: session } = useSession();
+++  const router = useRouter();
++   const firstName = session?.user?.name?.split(' ')[0] || 'User';
++   const [businessAnchorEl, setBusinessAnchorEl] = useState<null | HTMLElement>(null);
++   const [databaseAnchorEl, setDatabaseAnchorEl] = useState<null | HTMLElement>(null);
++@@ -56,19 +58,12 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
 +           </Button>
 +           <Menu anchorEl={businessAnchorEl} open={Boolean(businessAnchorEl)} onClose={handleBusinessClose}>
 +             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
@@ -1869,7 +1888,7 @@ index 3adfa99..aeb8607 100644
 +             <MenuItem onClick={handleBusinessClose} sx={{ p: 0 }}>
 +               <Link href="/dashboard/businesses/coaching-sessions" passHref style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
 +                 <Button fullWidth sx={{ textTransform: 'none', justifyContent: 'flex-start', py: 1 }}>
-+@@ -77,25 +70,33 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
++@@ -77,29 +72,47 @@ export default function SidebarLayout({ children }: { children: React.ReactNode
 +               </Link>
 +             </MenuItem>
 +           </Menu>
@@ -1892,9 +1911,12 @@ index 3adfa99..aeb8607 100644
 +-              </Link>
 +-            </MenuItem>
 +-          </Menu>
++-        </Box>
++-        <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
++-          Sign Out
 ++        <Button fullWidth onClick={handleDatabaseClick} sx={{ justifyContent: 'flex-start', mb: 1 }}>
 ++          Database
-++        </Button>
++         </Button>
 ++        <Menu anchorEl={databaseAnchorEl} open={Boolean(databaseAnchorEl)} onClose={handleDatabaseClose}>
 ++          <MenuItem onClick={handleDatabaseClose} sx={{ p: 0 }}>
 ++            <Link
@@ -1919,9 +1941,23 @@ index 3adfa99..aeb8607 100644
 ++            </Link>
 ++          </MenuItem>
 ++        </Menu>
-+         </Box>
-+         <Button color="secondary" onClick={() => signOut()} sx={{ mt: 3, justifyContent: 'flex-start' }}>
-+           Sign Out
+++        </Box>
+++        <Stack direction="row" spacing={1} sx={{ mt: 3 }}>
+++          <Button
+++            variant="outlined"
+++            fullWidth
+++            onClick={() => router.push('/dashboard/new-ui')}
+++            sx={{ justifyContent: 'flex-start' }}
+++          >
+++            New UI
+++          </Button>
+++          <Button color="secondary" onClick={() => signOut()} fullWidth sx={{ justifyContent: 'flex-start' }}>
+++            Sign Out
+++          </Button>
+++        </Stack>
++       </Box>
++       <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
++         {children}
 +diff --git a/components/clientdialog/NewClientDialog.tsx b/components/clientdialog/NewClientDialog.tsx
 +index 93e3c87..eadb78a 100644
 +--- a/components/clientdialog/NewClientDialog.tsx
@@ -2355,7 +2391,12 @@ index 3adfa99..aeb8607 100644
 ++      setFilteredClients(clients)
  +    }
 ++  }, [selectedLetter, clients])
-++
+ +
+-+    const node = contentRef.current
+-+    const viewportWidth = window.innerWidth || 1024
+-+    const viewportHeight = window.innerHeight || 768
+-+    const horizontalPadding = 64
+-+    const verticalPadding = 96
 ++  const groupedBankAccounts = useMemo(() => {
 ++    const map = new Map<
 ++      string,
@@ -2367,11 +2408,8 @@ index 3adfa99..aeb8607 100644
 ++      }
 ++    >()
  +
--+    const node = contentRef.current
--+    const viewportWidth = window.innerWidth || 1024
--+    const viewportHeight = window.innerHeight || 768
--+    const horizontalPadding = 64
--+    const verticalPadding = 96
+-+    const measuredWidth = node.scrollWidth + horizontalPadding
+-+    const measuredHeight = node.scrollHeight + verticalPadding
 ++    bankAccounts.forEach((account) => {
 ++      const key = `${account.bankName}__${account.bankCode ?? 'unknown'}`
 ++      if (!map.has(key)) {
@@ -2389,8 +2427,16 @@ index 3adfa99..aeb8607 100644
 ++      }
 ++    })
  +
--+    const measuredWidth = node.scrollWidth + horizontalPadding
--+    const measuredHeight = node.scrollHeight + verticalPadding
+-+    const width = clamp(
+-+      measuredWidth,
+-+      MIN_WIDTH,
+-+      Math.max(MIN_WIDTH, viewportWidth - 48)
+-+    )
+-+    const height = clamp(
+-+      measuredHeight,
+-+      MIN_HEIGHT,
+-+      Math.max(MIN_HEIGHT, viewportHeight - 48)
+-+    )
 ++    return Array.from(map.values()).sort((a, b) => {
 ++      if (a.active !== b.active) {
 ++        return a.active ? -1 : 1
@@ -2403,20 +2449,6 @@ index 3adfa99..aeb8607 100644
 ++      return a.bankName.localeCompare(b.bankName)
 ++    })
 ++  }, [bankAccounts])
- +
--+    const width = clamp(
--+      measuredWidth,
--+      MIN_WIDTH,
--+      Math.max(MIN_WIDTH, viewportWidth - 48)
--+    )
--+    const height = clamp(
--+      measuredHeight,
--+      MIN_HEIGHT,
--+      Math.max(MIN_HEIGHT, viewportHeight - 48)
--+    )
-++  const handleToggleView = (newView: 'clients' | 'bank') => {
-++    setView(newView)
-++  }
  +
 -+    const x = Math.max(24, Math.round((viewportWidth - width) / 2))
 -+    const y = Math.max(32, Math.round((viewportHeight - height) / 2))
@@ -2437,34 +2469,31 @@ index 3adfa99..aeb8607 100644
 -+    const height = elementRef.offsetHeight
 -+    setSize({ width, height })
 -+    setPosition(nextPosition)
+++  const handleToggleView = (newView: 'clients' | 'bank') => {
+++    setView(newView)
+ +  }
+ +
+-+  const handleDragStop: RndDragCallback = (_event, data) => {
+-+    setPosition({ x: data.x, y: data.y })
 ++  const handleClientClick = (client: ClientDirectoryRecord) => {
 ++    setSelectedClient(client)
 ++    setViewDialogOpen(true)
  +  }
  +
--+  const handleDragStop: RndDragCallback = (_event, data) => {
--+    setPosition({ x: data.x, y: data.y })
+-+  const portalTarget = useMemo(() => (mounted ? document.body : null), [mounted])
 ++  const handleCloseViewDialog = () => {
 ++    setViewDialogOpen(false)
 ++    setSelectedClient(null)
- +  }
+++  }
  +
--+  const portalTarget = useMemo(() => (mounted ? document.body : null), [mounted])
+-+  if (!project || !open || !portalTarget) {
+-+    return null
 ++  const handleEditFromView = () => {
 ++    if (!selectedClient) return
 ++    setViewDialogOpen(false)
 ++    setEditableClient(convertToEditClient(selectedClient))
 ++    setEditingClientId(selectedClient.companyName)
 ++    setEditDialogOpen(true)
-++  }
- +
--+  if (!project || !open || !portalTarget) {
--+    return null
-++  const handleCloseEditDialog = () => {
-++    setEditDialogOpen(false)
-++    setEditableClient(null)
-++    setSelectedClient(null)
-++    setEditingClientId(null)
  +  }
  +
 -+  if (isSmallScreen) {
@@ -2492,6 +2521,13 @@ index 3adfa99..aeb8607 100644
 -+      </Fade>,
 -+      portalTarget
 -+    )
+++  const handleCloseEditDialog = () => {
+++    setEditDialogOpen(false)
+++    setEditableClient(null)
+++    setSelectedClient(null)
+++    setEditingClientId(null)
+++  }
+++
 ++  const handleClientChange = (client: EditDialogClient) => {
 ++    setEditableClient(client)
 ++  }
@@ -2528,10 +2564,8 @@ index 3adfa99..aeb8607 100644
 ++      console.error('[ClientBankDatabasePage] failed to update client:', err)
 ++      alert(err instanceof Error ? err.message : 'Failed to update client')
 ++    }
- +  }
- +
--+  return createPortal(
--+    <Fade in={open} appear unmountOnExit>
+++  }
+++
 ++  const handleOpenAddDialog = () => {
 ++    setAddDialogOpen(true)
 ++  }
@@ -2543,8 +2577,10 @@ index 3adfa99..aeb8607 100644
 ++  const handleNewClientSubmitted = () => {
 ++    setAddDialogOpen(false)
 ++    router.replace(router.asPath)
-++  }
-++
+ +  }
+ +
+-+  return createPortal(
+-+    <Fade in={open} appear unmountOnExit>
 ++  return (
 ++    <SidebarLayout>
  +      <Box
@@ -3467,19 +3503,10 @@ index 3adfa99..aeb8607 100644
  +
 -+  if (!project || !form) {
 -+    return null
+-+  }
 ++  const preferred = trimmedYear.length
 ++    ? chooseCandidate(parsed.filter((candidate) => candidate.matchesYear))
 ++    : null
-++
-++  const fallback = chooseCandidate(parsed)
-++
-++  const target = preferred ?? fallback
-++
-++  if (target) {
-++    const nextValue = target.value + 1
-++    const padded = String(nextValue).padStart(target.width, '0')
-++    return `${target.prefix}${padded}`
- +  }
  +
 -+  return (
 -+    <Dialog open={open} onClose={disabled ? undefined : onClose} fullWidth maxWidth="sm">
@@ -3607,19 +3634,29 @@ index 3adfa99..aeb8607 100644
 -+      </DialogActions>
 -+    </Dialog>
 -+  )
+++  const fallback = chooseCandidate(parsed)
+++
+++  const target = preferred ?? fallback
+++
+++  if (target) {
+++    const nextValue = target.value + 1
+++    const padded = String(nextValue).padStart(target.width, '0')
+++    return `${target.prefix}${padded}`
+++  }
+++
 ++  const defaultPrefix = trimmedYear ? `${trimmedYear}-` : ''
 ++  const defaultWidth = trimmedYear ? 3 : 3
 ++  return `${defaultPrefix}${String(1).padStart(defaultWidth, '0')}`
  +}
  diff --git a/context-bundle.md b/context-bundle.md
 -index 8756e36..6a287ad 100644
-+index 3adfa99..9942dc7 100644
++index 3adfa99..aeb8607 100644
  --- a/context-bundle.md
  +++ b/context-bundle.md
 -@@ -1,810 +1,4071 @@
 --# PR #249 — Diff Summary
 -+# PR #252 — Diff Summary
-+@@ -1,4075 +1,4057 @@
++@@ -1,4075 +1,4071 @@
 +-# PR #252 — Diff Summary
 ++# PR #253 — Diff Summary
   
@@ -3630,7 +3667,7 @@ index 3adfa99..aeb8607 100644
 +-- **Base (target)**: `69d0bc468dcdc9a62c3286d72a60fc6fb84dd4d2`
 +-- **Head (source)**: `2a053e23f15309c445dcb84277e01827d6ad2eb4`
 ++- **Base (target)**: `7b9894aa8b8fb7fe78d46cf4b6d0cf752f0ad3da`
-++- **Head (source)**: `a5960aac7a557d05a4dbdf62350ecef55665c58f`
+++- **Head (source)**: `cbdc4f0c8a85845928e65e7b1892ce455dc32fc2`
   - **Repo**: `girafeev1/ArtifactoftheEstablisher`
   
   ## Changed Files
@@ -3685,6 +3722,7 @@ index 3adfa99..aeb8607 100644
 ++A	components/database/ClientBankDatabasePage.tsx
 ++M	components/projectdialog/ProjectDatabaseCreateDialog.tsx
 ++M	components/projectdialog/ProjectDatabaseDetailContent.tsx
+++M	components/projectdialog/ProjectDatabaseEditDialog.tsx
 ++M	components/projectdialog/projectFormUtils.ts
 + M	context-bundle.md
 +-M	cypress/e2e/add_payment_cascade.cy.tsx
@@ -3696,19 +3734,26 @@ index 3adfa99..aeb8607 100644
 +-A	lib/projectsDatabaseSelection.ts
 +-M	pages/_app.tsx
 +-A	pages/api/projects-database/[year]/[projectId].ts
++-M	pages/dashboard/businesses/projects-database/[groupId].tsx
++-A	pages/dashboard/businesses/projects-database/window.tsx
++-A	styles/project-dialog.css
++-A	vercel.json
 ++A	docs/context/PR-253.md
 ++A	lib/bankAccountsDirectory.ts
 ++A	lib/clientDirectory.ts
 ++M	package-lock.json
 ++A	pages/api/client-directory/[clientId].ts
 ++A	pages/api/client-directory/index.ts
+++R100	pages/api/projects-database/[year]/[projectId].ts	pages/api/projects/[year]/[projectId].ts
+++R100	pages/api/projects-database/[year]/index.ts	pages/api/projects/[year]/index.ts
+++D	pages/dashboard/businesses/[fileId].tsx
 ++A	pages/dashboard/businesses/client-accounts-database/index.tsx
 ++A	pages/dashboard/businesses/company-bank-accounts-database/index.tsx
-+ M	pages/dashboard/businesses/projects-database/[groupId].tsx
-+-A	pages/dashboard/businesses/projects-database/window.tsx
-+-A	styles/project-dialog.css
-+-A	vercel.json
-++M	pages/dashboard/businesses/projects-database/new-window.tsx
+++M	pages/dashboard/businesses/index.tsx
+++R095	pages/dashboard/businesses/projects-database/[groupId].tsx	pages/dashboard/businesses/projects/[groupId].tsx
+++R078	pages/dashboard/businesses/projects-database/index.tsx	pages/dashboard/businesses/projects/index.tsx
+++R068	pages/dashboard/businesses/projects-database/new-window.tsx	pages/dashboard/businesses/projects/new-window.tsx
+++R098	pages/dashboard/businesses/projects-database/window.tsx	pages/dashboard/businesses/projects/window.tsx
   ```
   
   ## Stats
@@ -3776,24 +3821,31 @@ index 3adfa99..aeb8607 100644
 +- vercel.json                                        |    6 +
 +- 27 files changed, 9401 insertions(+), 1020 deletions(-)
 ++ .github/workflows/deploy-to-vercel-prod.yml        |   10 +-
-++ components/SidebarLayout.tsx                       |   46 +-
+++ components/SidebarLayout.tsx                       |   55 +-
 ++ components/clientdialog/NewClientDialog.tsx        |   17 +-
 ++ components/database/ClientBankDatabasePage.tsx     |  443 ++
-++ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  160 +-
+++ .../projectdialog/ProjectDatabaseCreateDialog.tsx  |  162 +-
 ++ .../projectdialog/ProjectDatabaseDetailContent.tsx |  145 +-
+++ .../projectdialog/ProjectDatabaseEditDialog.tsx    |    2 +-
 ++ components/projectdialog/projectFormUtils.ts       |   79 +
-++ context-bundle.md                                  | 7666 ++++++++++----------
+++ context-bundle.md                                  | 7696 ++++++++++----------
 ++ docs/context/PR-253.md                             | 4057 +++++++++++
 ++ lib/bankAccountsDirectory.ts                       |  127 +
 ++ lib/clientDirectory.ts                             |  220 +
 ++ package-lock.json                                  |    2 -
 ++ pages/api/client-directory/[clientId].ts           |   49 +
 ++ pages/api/client-directory/index.ts                |   42 +
+++ .../[year]/[projectId].ts                          |    0
+++ .../[year]/index.ts                                |    0
+++ pages/dashboard/businesses/[fileId].tsx            |  403 -
 ++ .../businesses/client-accounts-database/index.tsx  |   62 +
 ++ .../company-bank-accounts-database/index.tsx       |   62 +
-++ .../businesses/projects-database/[groupId].tsx     |    7 +-
-++ .../businesses/projects-database/new-window.tsx    |   38 +-
-++ 18 files changed, 9287 insertions(+), 3945 deletions(-)
+++ pages/dashboard/businesses/index.tsx               |    4 +-
+++ .../{projects-database => projects}/[groupId].tsx  |   17 +-
+++ .../{projects-database => projects}/index.tsx      |    2 +-
+++ .../{projects-database => projects}/new-window.tsx |   38 +-
+++ .../{projects-database => projects}/window.tsx     |    2 +-
+++ 25 files changed, 9314 insertions(+), 4382 deletions(-)
   ```
   
   ## Unified Diff (truncated to first 4000 lines)
@@ -4022,52 +4074,4 @@ index 3adfa99..aeb8607 100644
 -+-      - main
 -+-      - shwdtf-*          # your Codex PRs
 -+-      - codex/*           # additional Codex-style branches
--+-    # BLACKLIST ONLY: if a push changes ONLY these paths, the job won't run
--+-    paths-ignore:
--+-      - 'docs/**'
--+-      - 'prompts/**'
--+-      - '.github/**'      # editing workflows should NOT deploy your app
--+-      - '**/*.md'         # any markdown-only change (README, etc.)
--+-
--+-  # keep manual runs available (optional)
--+-  workflow_dispatch: {}
--++  pull_request:
--++    types: [opened, synchronize, reopened, ready_for_review]
--+ 
--+ permissions:
--+   contents: read
--+   deployments: write
--+ 
--+ concurrency:
--+-  group: vercel-prod-${{ github.ref }}
--++  group: vercel-prod-${{ github.event.pull_request.number }}
--+   cancel-in-progress: true
--+ 
--+ jobs:
--+   deploy:
--+-      if: |
--+-      !contains(github.event.head_commit.message, 'chore(context)') &&
--+-      !contains(github.event.head_commit.message, 'archive PR')
--+-    runs-on: ubuntu-latest
--+-    steps:
--++    if: >-
--++      github.event.pull_request.head.repo.full_name == github.repository &&
--++      github.event.pull_request.draft == false
--+     runs-on: ubuntu-latest
--+     steps:
--+       - uses: actions/checkout@v4
--+@@ -39,27 +25,24 @@ jobs:
--+         with:
--+           node-version: 20
--+ 
--+-      - name: Install deps
--++      - name: Install dependencies
--+         run: npm ci
--+ 
--+       - name: Install Vercel CLI
--+         run: npm i -g vercel@latest
--+ 
--+-      # Pull environment (Production)
--+-      - name: Link Vercel project (prod)
--++      - name: Pull production environment
 ```
