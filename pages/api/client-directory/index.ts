@@ -1,15 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 
-import { addClientToDirectory } from '../../../lib/clientDirectory'
+import { addClientToDirectory, fetchClientsDirectory } from '../../../lib/clientDirectory'
 import { getAuthOptions } from '../auth/[...nextauth]'
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST')
+  if (!['GET', 'POST'].includes(req.method ?? '')) {
+    res.setHeader('Allow', 'GET, POST')
     return res.status(405).json({ error: 'Method Not Allowed' })
   }
 
@@ -18,6 +18,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!session?.user) {
     return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  if (req.method === 'GET') {
+    try {
+      const clients = await fetchClientsDirectory()
+      const shaped = clients.map((client) => ({ id: client.companyName, ...client }))
+      return res.status(200).json({ data: shaped, total: shaped.length })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load clients'
+      return res.status(500).json({ error: message })
+    }
   }
 
   if (!isObject(req.body) || !isObject((req.body as any).client)) {
