@@ -234,7 +234,7 @@ export default function ClientAccountsPage() {
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getSession(ctx)
-  if (!session?.accessToken) {
+  if (!session?.user) {
     return {
       redirect: {
         destination: "/api/auth/signin",
