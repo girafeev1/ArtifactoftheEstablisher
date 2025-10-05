@@ -9,19 +9,20 @@ const firebaseConfig = {
   projectId:            process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
   storageBucket:        process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
   messagingSenderId:    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
-  appId:                process.env.NEXT_PUBLIC_FIREBASE_APP_ID!
+  appId:                process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 }
-
-console.log('🔥 Firebase config:', firebaseConfig)
-Object.entries(firebaseConfig).forEach(([k, v]) => {
-  console.log(`   ${k}: ${v}`)
-})
 
 const DEFAULT_DATABASE_ID = 'mel-sessions'
 const PROJECTS_DATABASE_ID = 'epl-projects'
 
-console.log('📚 Firestore database ID:', DEFAULT_DATABASE_ID)
-console.log('📚 Firestore projects database ID:', PROJECTS_DATABASE_ID)
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🔥 Firebase config:', firebaseConfig)
+  Object.entries(firebaseConfig).forEach(([k, v]) => {
+    console.log(`   ${k}: ${v}`)
+  })
+  console.log('📚 Firestore database ID:', DEFAULT_DATABASE_ID)
+  console.log('📚 Firestore projects database ID:', PROJECTS_DATABASE_ID)
+}
 
 export const app = !getApps().length
   ? initializeApp(firebaseConfig)
