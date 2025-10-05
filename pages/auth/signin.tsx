@@ -84,15 +84,15 @@ export default function SignInPage() {
 
       const messageParts: string[] = []
 
-      if (data.message) {
+      if ('message' in data && data.message) {
         messageParts.push(data.message)
       }
 
-      if (data.code) {
+      if ('code' in data && data.code) {
         messageParts.push(`(code: ${data.code})`)
       }
 
-      if (data.config) {
+      if ('config' in data && data.config) {
         if (data.config.credentialSource !== 'service-account') {
           messageParts.push(
             'Firebase Admin is running without service-account credentials. Set FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, and FIREBASE_ADMIN_PRIVATE_KEY.'
@@ -109,7 +109,7 @@ export default function SignInPage() {
         }
       }
 
-      return messageParts.join(' ')
+      return messageParts.length ? messageParts.join(' ') : null
     } catch (diagnosticError) {
       console.error('[auth] Failed to run Firebase diagnostics', diagnosticError)
       return null
@@ -134,13 +134,11 @@ export default function SignInPage() {
 
     if (response.error) {
       console.error('[auth] NextAuth credential exchange failed', response)
-      let mappedError = response.error
-
-      if (response.error === 'CredentialsSignin') {
-        mappedError =
-          (await diagnoseCredentialFailure(params.idToken)) ??
-          'Google sign-in was rejected by the server. Please verify the Firebase Admin environment variables.'
-      }
+      const diagnosticMessage = await diagnoseCredentialFailure(params.idToken)
+      const mappedError =
+        diagnosticMessage ??
+        response.error ??
+        'Google sign-in was rejected by the server. Please verify the Firebase Admin environment variables.'
 
       throw new Error(mappedError)
     }
