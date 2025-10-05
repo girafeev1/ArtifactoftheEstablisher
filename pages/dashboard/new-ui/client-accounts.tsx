@@ -1,41 +1,285 @@
 import Head from "next/head"
 import dynamic from "next/dynamic"
-import { memo, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import {
   Refine,
-  useList,
-  type DataProvider,
+  useMenu,
   type BaseRecord,
+  type CrudFilters,
+  type CrudSorting,
+  type DataProvider,
   type GetListResponse,
+  type HttpError,
 } from "@refinedev/core"
+import { List, FilterDropdown, useTable } from "@refinedev/antd"
 import routerProvider from "@refinedev/nextjs-router"
 import {
+  App as AntdApp,
   Avatar,
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  CssBaseline,
+  Badge,
+  Button,
+  ConfigProvider,
+  Drawer,
+  Form,
   Grid,
-  InputAdornment,
-  LinearProgress,
-  Stack,
-  TextField,
-  ThemeProvider,
+  Input,
+  Layout,
+  Menu,
+  Pagination,
+  Radio,
+  Select,
+  Space,
+  Spin,
+  Table,
+  type TableProps,
+  Tag,
+  Tooltip,
   Typography,
-  createTheme,
-} from "@mui/material"
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded"
+} from "antd"
+import {
+  ApartmentOutlined,
+  AppstoreOutlined,
+  BarsOutlined,
+  BellOutlined,
+  CalendarOutlined,
+  CheckCircleOutlined,
+  EllipsisOutlined,
+  EyeOutlined,
+  FileTextOutlined,
+  MailOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  MinusCircleOutlined,
+  PhoneOutlined,
+  PlayCircleFilled,
+  PlayCircleOutlined,
+  PlusCircleOutlined,
+  SearchOutlined,
+  SettingOutlined,
+  TeamOutlined,
+  ThunderboltFilled,
+  UnorderedListOutlined,
+} from "@ant-design/icons"
+import debounce from "lodash.debounce"
 import type { GetServerSideProps } from "next"
 import { getSession } from "next-auth/react"
 
 import type { ClientDirectoryRecord } from "../../../lib/clientDirectory"
 
+const { Header, Content, Sider } = Layout
+const { Text } = Typography
+
+const clientStatuses = [
+  "QUALIFIED",
+  "NEGOTIATION",
+  "CONTACTED",
+  "INTERESTED",
+  "NEW",
+  "UNQUALIFIED",
+  "LOST",
+  "WON",
+  "CHURNED",
+] as const
+
+type ContactStatus = (typeof clientStatuses)[number]
+
+type ClientAccountRow = {
+  id: string
+  name: string
+  email: string
+  jobTitle: string
+  phone: string
+  region: string
+  status: ContactStatus
+  company: { id: string; name: string }
+  avatarSeed: string
+}
+
+const directoryCache: { records: ClientAccountRow[] } = { records: [] }
+
+type ClientFilter = CrudFilters[number]
+
+const isFieldFilter = (filter: ClientFilter): filter is ClientFilter & { field: string } =>
+  typeof filter === "object" && filter !== null && "field" in filter
+
+const formatNullable = (value: string | null | undefined, fallback = "N/A") => {
+  if (!value) return fallback
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : fallback
+}
+
+const toCompanyId = (name: string, index: number) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "company"}-${index}`
+
+const hashString = (value: string) => {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i)
+    hash |= 0
+  }
+  return hash
+}
+
+const getStatusForRecord = (record: ClientDirectoryRecord, index: number): ContactStatus => {
+  const seed = `${record.companyName ?? "client"}-${record.region ?? "region"}-${index}`
+  const paletteIndex = Math.abs(hashString(seed)) % clientStatuses.length
+  return clientStatuses[paletteIndex]
+}
+
+const getAvatarColor = (seed: string) => {
+  const base = Math.abs(hashString(seed))
+  const r = (base & 0xff0000) >> 16
+  const g = (base & 0x00ff00) >> 8
+  const b = base & 0x0000ff
+  return `rgb(${(r % 156) + 80}, ${(g % 156) + 80}, ${(b % 156) + 80})`
+}
+
+const getInitials = (value: string) => {
+  const pieces = value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+  if (pieces.length === 0) return "NA"
+  if (pieces.length === 1) return pieces[0].slice(0, 2).toUpperCase()
+  return `${pieces[0][0] ?? ""}${pieces[1][0] ?? ""}`.toUpperCase()
+}
+
+const statusStyles: Record<
+  ContactStatus,
+  { color: string; icon: ReactNode; label: string }
+> = {
+  QUALIFIED: { color: "green", icon: <PlayCircleFilled />, label: "Qualified" },
+  NEGOTIATION: { color: "blue", icon: <PlayCircleFilled />, label: "Negotiation" },
+  CONTACTED: { color: "cyan", icon: <PlayCircleOutlined />, label: "Contacted" },
+  INTERESTED: { color: "cyan", icon: <PlayCircleOutlined />, label: "Interested" },
+  NEW: { color: "geekblue", icon: <PlayCircleOutlined />, label: "New" },
+  UNQUALIFIED: { color: "red", icon: <PlayCircleOutlined />, label: "Unqualified" },
+  LOST: { color: "red", icon: <MinusCircleOutlined />, label: "Lost" },
+  WON: { color: "green", icon: <CheckCircleOutlined />, label: "Won" },
+  CHURNED: { color: "volcano", icon: <MinusCircleOutlined />, label: "Churned" },
+}
+
+const normalizeRecord = (
+  raw: ClientDirectoryRecord & { id: string | undefined },
+  index: number,
+): ClientAccountRow => {
+  const safeCompany = formatNullable(raw.companyName, "N/A")
+  const companyId = raw.id && raw.id.trim().length > 0 ? raw.id : toCompanyId(safeCompany, index)
+  const name = formatNullable(raw.nameAddressed ?? raw.name ?? raw.companyName, "N/A")
+  return {
+    id: companyId,
+    name,
+    email: formatNullable(raw.emailAddress, "N/A"),
+    jobTitle: formatNullable(raw.title, "N/A"),
+    phone: formatNullable(raw.phone, "N/A"),
+    region: formatNullable(raw.region, "N/A"),
+    company: {
+      id: companyId,
+      name: safeCompany,
+    },
+    status: getStatusForRecord(raw, index),
+    avatarSeed: name,
+  }
+}
+
+const applyFilters = (rows: ClientAccountRow[], filters?: CrudFilters): ClientAccountRow[] => {
+  if (!filters) return rows
+  return filters.reduce<ClientAccountRow[]>((result, filter) => {
+    if (!filter) return result
+    if (!isFieldFilter(filter)) {
+      return result
+    }
+    const { field, value } = filter
+    if (value == null || (Array.isArray(value) && value.length === 0)) {
+      return result
+    }
+    switch (field) {
+      case "name":
+        if (typeof value === "string" && value.trim().length > 0) {
+          const needle = value.trim().toLowerCase()
+          return result.filter((row) =>
+            [row.name, row.company.name, row.email, row.region]
+              .join(" ")
+              .toLowerCase()
+              .includes(needle),
+          )
+        }
+        return result
+      case "email":
+        if (typeof value === "string" && value.trim().length > 0) {
+          const needle = value.trim().toLowerCase()
+          return result.filter((row) => row.email.toLowerCase().includes(needle))
+        }
+        return result
+      case "companyName":
+      case "company.id":
+        if (typeof value === "string" && value.trim().length > 0) {
+          const match = value.trim().toLowerCase()
+          return result.filter((row) =>
+            row.company.id.toLowerCase() === match || row.company.name.toLowerCase() === match,
+          )
+        }
+        return result
+      case "jobTitle":
+        if (typeof value === "string" && value.trim().length > 0) {
+          const needle = value.trim().toLowerCase()
+          return result.filter((row) => row.jobTitle.toLowerCase().includes(needle))
+        }
+        return result
+      case "status":
+        if (Array.isArray(value)) {
+          const allowed = new Set(value.map((item) => String(item).toUpperCase()))
+          return result.filter((row) => allowed.has(row.status))
+        }
+        if (typeof value === "string" && value.trim().length > 0) {
+          return result.filter((row) => row.status === value.trim().toUpperCase())
+        }
+        return result
+      default:
+        return result
+    }
+  }, rows)
+}
+
+const applySorting = (rows: ClientAccountRow[], sorters?: CrudSorting): ClientAccountRow[] => {
+  if (!sorters || sorters.length === 0) return rows
+  const [{ field, order }] = sorters
+  if (!order) return rows
+  return [...rows].sort((a, b) => {
+    const direction = order === "asc" ? 1 : -1
+    const getValue = (record: ClientAccountRow) => {
+      switch (field) {
+        case "name":
+          return record.name
+        case "email":
+          return record.email
+        case "jobTitle":
+          return record.jobTitle
+        case "status":
+          return record.status
+        case "companyName":
+        case "company.id":
+        case "company.name":
+          return record.company.name
+        default:
+          return record.name
+      }
+    }
+    const aValue = getValue(a)
+    const bValue = getValue(b)
+    return aValue.localeCompare(bValue, undefined, { sensitivity: "base" }) * direction
+  })
+}
+
 const refineDataProvider: DataProvider = {
   getApiUrl: () => "/api",
-  getList: async <TData extends BaseRecord = BaseRecord>({ resource, pagination, sorters }) => {
+  getList: async <TData extends BaseRecord = BaseRecord>({
+    resource,
+    pagination,
+    sorters,
+    filters,
+  }) => {
     if (resource !== "client-directory") {
-      return { data: [], total: 0 }
+      return { data: [], total: 0 } as GetListResponse<TData>
     }
 
     const response = await fetch("/api/client-directory", { credentials: "include" })
@@ -44,35 +288,22 @@ const refineDataProvider: DataProvider = {
     }
 
     const payload = await response.json()
-    const items: Array<ClientDirectoryRecord & { id: string }> = payload.data ?? []
-    const total = typeof payload.total === "number" ? payload.total : items.length
+    const rawItems: Array<ClientDirectoryRecord & { id?: string }> = payload.data ?? []
+    const normalized = rawItems.map((entry, index) => normalizeRecord({ ...entry, id: entry.id }, index))
+    directoryCache.records = normalized
 
-    const current = typeof pagination?.current === "number" ? pagination.current : 1
-    const pageSize = typeof pagination?.pageSize === "number" ? pagination.pageSize : total
+    const filtered = applyFilters(normalized, filters)
+    const sorted = applySorting(filtered, sorters)
+
+    const current = pagination?.current ?? 1
+    const pageSize = pagination?.pageSize ?? 12
     const start = (current - 1) * pageSize
-    const end = start + pageSize
-
-    let sorted = items
-    if (sorters && sorters.length > 0) {
-      const [{ field, order }] = sorters
-      sorted = [...items].sort((a: any, b: any) => {
-        const aValue = a[field as keyof typeof a]
-        const bValue = b[field as keyof typeof b]
-        if (aValue == null && bValue == null) return 0
-        if (aValue == null) return order === "asc" ? -1 : 1
-        if (bValue == null) return order === "asc" ? 1 : -1
-        if (aValue < bValue) return order === "asc" ? -1 : 1
-        if (aValue > bValue) return order === "asc" ? 1 : -1
-        return 0
-      })
-    }
-
-    const page = sorted.slice(start, end)
+    const paginated = sorted.slice(start, start + pageSize)
 
     return {
-      data: page as unknown as TData[],
-      total,
-    } as GetListResponse<TData>
+      data: paginated as unknown as TData[],
+      total: sorted.length,
+    }
   },
   getOne: () => Promise.reject(new Error("Not implemented")),
   getMany: () => Promise.reject(new Error("Not implemented")),
@@ -84,140 +315,663 @@ const refineDataProvider: DataProvider = {
   createMany: () => Promise.reject(new Error("Not implemented")),
 }
 
-const ClientAccountsGallery = memo(() => {
-  const { query, result } = useList<ClientDirectoryRecord & { id: string }>({
-    resource: "client-directory",
-    pagination: {
-      pageSize: 25,
-    },
-    sorters: [{ field: "companyName", order: "asc" }],
+const ContactStatusTag = ({ status }: { status: ContactStatus }) => {
+  const style = statusStyles[status]
+  return (
+    <Tag color={style.color} style={{ textTransform: "capitalize" }}>
+      <Space size={4}>
+        {style.icon}
+        {style.label}
+      </Space>
+    </Tag>
+  )
+}
+
+const CustomAvatar = ({ seed, name }: { seed: string; name: string }) => (
+  <Avatar style={{ backgroundColor: getAvatarColor(seed) }}>{getInitials(name)}</Avatar>
+)
+
+type ViewMode = "table" | "card"
+
+type TableViewProps = {
+  tableProps: TableProps<ClientAccountRow>
+  companyOptions: Array<{ value: string; label: string }>
+}
+
+const ClientAccountsTable = ({ tableProps, companyOptions }: TableViewProps) => (
+  <List
+    breadcrumb={false}
+    contentProps={{
+      style: {
+        marginTop: 28,
+      },
+    }}
+    title={<AddClientAction />}
+  >
+      <TableContent tableProps={tableProps} companyOptions={companyOptions} />
+  </List>
+)
+
+type TableContentProps = {
+  tableProps: TableProps<ClientAccountRow>
+  companyOptions: Array<{ value: string; label: string }>
+}
+
+const TableContent = ({ tableProps, companyOptions }: TableContentProps) => (
+  <Table<ClientAccountRow>
+    {...tableProps}
+    rowKey="id"
+    pagination={{
+      ...tableProps.pagination,
+      pageSizeOptions: ["12", "24", "48", "96"],
+      showTotal: (total) => <PaginationSummary total={total} />, 
+    }}
+  >
+    <Table.Column<ClientAccountRow>
+      dataIndex="name"
+      title="Name"
+      width={220}
+      render={(_, record) => (
+        <Space>
+          <CustomAvatar seed={record.avatarSeed} name={record.name} />
+          <div>
+            <Text strong>{record.name}</Text>
+            <div>
+              <Text type="secondary">{record.email}</Text>
+            </div>
+          </div>
+        </Space>
+      )}
+      filterDropdown={(props) => (
+        <FilterDropdown {...props}>
+          <Input placeholder="Search Name" />
+        </FilterDropdown>
+      )}
+    />
+    <Table.Column<ClientAccountRow>
+      dataIndex="email"
+      title="Email"
+      filterDropdown={(props) => (
+        <FilterDropdown {...props}>
+          <Input placeholder="Search Email" />
+        </FilterDropdown>
+      )}
+      render={(_, record) => <Text>{record.email}</Text>}
+    />
+    <Table.Column<ClientAccountRow>
+      dataIndex={["company", "name"]}
+      title="Company"
+      filterDropdown={(props) => (
+        <FilterDropdown {...props}>
+          <Select
+            placeholder="Search Company"
+            style={{ width: 220 }}
+            showSearch
+            options={companyOptions}
+            filterOption={(input, option) =>
+              (option?.label as string).toLowerCase().includes(input.toLowerCase())
+            }
+          />
+        </FilterDropdown>
+      )}
+    />
+    <Table.Column<ClientAccountRow>
+      dataIndex="jobTitle"
+      title="Title"
+      filterDropdown={(props) => (
+        <FilterDropdown {...props}>
+          <Input placeholder="Search Title" />
+        </FilterDropdown>
+      )}
+      render={(_, record) => <Text>{record.jobTitle}</Text>}
+    />
+    <Table.Column<ClientAccountRow>
+      dataIndex="status"
+      title="Status"
+      filterDropdown={(props) => (
+        <FilterDropdown {...props}>
+          <Select
+            mode="multiple"
+            allowClear
+            style={{ width: 240 }}
+            placeholder="Filter Status"
+            options={clientStatuses.map((status) => ({
+              label: statusStyles[status].label,
+              value: status,
+            }))}
+          />
+        </FilterDropdown>
+      )}
+      render={(value: ContactStatus) => <ContactStatusTag status={value} />}
+    />
+    <Table.Column<ClientAccountRow>
+      title="Actions"
+      fixed="right"
+      align="right"
+      render={(_, record) => (
+        <Space>
+          <Tooltip title="View details">
+            <Button type="text" size="small" icon={<EyeOutlined />} />
+          </Tooltip>
+          <Tooltip title="Send email">
+            <Button type="text" size="small" icon={<MailOutlined />} />
+          </Tooltip>
+          <Tooltip title="Call">
+            <Button type="text" size="small" icon={<PhoneOutlined />} />
+          </Tooltip>
+        </Space>
+      )}
+    />
+  </Table>
+)
+
+type CardGridProps = {
+  tableProps: TableProps<ClientAccountRow>
+  setCurrentPage: (page: number) => void
+  setPageSize: (size: number) => void
+}
+
+const ClientCards = ({
+  tableProps: { dataSource, pagination, loading },
+  setCurrentPage,
+  setPageSize,
+}: CardGridProps) => {
+  const data = useMemo(() => dataSource ?? [], [dataSource])
+  const isLoading = useMemo(() => {
+    if (typeof loading === "boolean") {
+      return loading
+    }
+    if (!loading) {
+      return false
+    }
+    if (typeof loading === "object" && "spinning" in loading) {
+      return Boolean(loading.spinning)
+    }
+    return Boolean(loading)
+  }, [loading])
+  const paginationConfig = pagination && typeof pagination === "object" ? pagination : undefined
+  const current = paginationConfig?.current ?? 1
+  const pageSize = paginationConfig?.pageSize ?? 12
+  const total = paginationConfig?.total ?? data.length
+
+  return (
+    <List
+      breadcrumb={false}
+      title={<AddClientAction />}
+      contentProps={{
+        style: {
+          marginTop: 28,
+        },
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gap: 24,
+          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+        }}
+      >
+        {(isLoading
+          ? Array.from({ length: 12 }).map((_, index) => ({ ...placeholderCard, id: `placeholder-${index}` }))
+          : data
+        ).map(
+          (record) => (
+            <ClientCard key={record.id} record={record} loading={isLoading} />
+          ),
+        )}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: 24,
+        }}
+      >
+        <Pagination
+          current={current}
+          pageSize={pageSize}
+          total={total}
+          hideOnSinglePage
+          pageSizeOptions={["12", "24", "48"]}
+          showLessItems
+          showSizeChanger
+          showTotal={(count) => <PaginationSummary total={count} />}
+          onChange={(page, nextPageSize) => {
+            setCurrentPage(page)
+            setPageSize(nextPageSize ?? pageSize)
+          }}
+        />
+      </div>
+    </List>
+  )
+}
+
+const placeholderCard: ClientAccountRow = {
+  id: "placeholder",
+  name: "Loading",
+  email: "loading@example.com",
+  jobTitle: "Loading",
+  phone: "N/A",
+  region: "N/A",
+  company: { id: "placeholder", name: "Loading" },
+  status: "NEW",
+  avatarSeed: "Loading",
+}
+
+type ClientCardProps = {
+  record: ClientAccountRow
+  loading?: boolean
+}
+
+const CardSection = ({ title, value }: { title: string; value: string }) => (
+  <div>
+    <Text type="secondary" style={{ display: "block", textTransform: "uppercase", fontSize: 12 }}>
+      {title}
+    </Text>
+    <Text strong>{value}</Text>
+  </div>
+)
+
+const ClientCard = ({ record, loading }: ClientCardProps) => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      borderRadius: 12,
+      background: "#fff",
+      boxShadow: "0 12px 24px rgba(15, 23, 42, 0.08)",
+      minHeight: 260,
+      position: "relative",
+      overflow: "hidden",
+    }}
+  >
+    <div
+      style={{
+        position: "absolute",
+        top: 12,
+        right: 12,
+      }}
+    >
+      <Tooltip title="More actions">
+        <Button type="text" icon={<EllipsisOutlined />} />
+      </Tooltip>
+    </div>
+    <div
+      style={{
+        padding: "32px 24px 16px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 12,
+        textAlign: "center",
+      }}
+    >
+      <Avatar size={64} style={{ backgroundColor: getAvatarColor(record.avatarSeed) }}>
+        {getInitials(record.name)}
+      </Avatar>
+      <div>
+        <Text strong style={{ fontSize: 18 }}>
+          {loading ? "Loading" : record.name}
+        </Text>
+        <div>
+          <Text type="secondary">{loading ? "" : record.email}</Text>
+        </div>
+      </div>
+      <ContactStatusTag status={record.status} />
+    </div>
+    <div
+      style={{
+        padding: "16px 24px",
+        borderTop: "1px solid #edf1f4",
+        display: "grid",
+        gap: 12,
+      }}
+    >
+      <CardSection title="Job title" value={loading ? "N/A" : record.jobTitle} />
+      <CardSection title="Company" value={record.company.name} />
+      <CardSection title="Phone" value={record.phone} />
+    </div>
+  </div>
+)
+
+const PaginationSummary = ({ total }: { total: number }) => (
+  <span style={{ marginLeft: 16 }}>
+    <Text strong>{total}</Text> client accounts in total
+  </span>
+)
+
+const AddClientAction = () => (
+  <Button type="primary" size="large" icon={<PlusCircleOutlined />}>
+    Add new client account
+  </Button>
+)
+
+const NavigationSider = ({ collapsed, onCollapse }: { collapsed: boolean; onCollapse: (value: boolean) => void }) => {
+  const { menuItems, selectedKey } = useMenu()
+  const breakpoint = Grid.useBreakpoint()
+  const isMobile = typeof breakpoint.lg === "undefined" ? false : !breakpoint.lg
+
+  const items = menuItems.map((item) => {
+    const key = item.key ?? item.name
+    return {
+      key,
+      icon: iconForMenu(item.name ?? ""),
+      label: item.label,
+      route: item.route ?? item.list ?? "#",
+    }
   })
 
-  const [search, setSearch] = useState("")
+  const content = (
+    <>
+      <div
+        style={{
+          height: 64,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: collapsed ? "0 16px" : "0 24px",
+          borderBottom: "1px solid #e5e7eb",
+        }}
+      >
+        <Avatar shape="square" size={36} style={{ backgroundColor: "#2563eb" }}>
+          <ThunderboltFilled />
+        </Avatar>
+        {!collapsed ? (
+          <Text strong style={{ fontSize: 18 }}>
+            The Establishers
+          </Text>
+        ) : null}
+      </div>
+      <Menu
+        mode="inline"
+        selectedKeys={selectedKey ? [selectedKey] : []}
+        items={items.map((item) => ({
+          key: item.key,
+          icon: item.icon,
+          label: <a href={item.route}>{item.label}</a>,
+        }))}
+        style={{
+          borderInlineEnd: "none",
+        }}
+      />
+    </>
+  )
 
-  const rows = result.data ?? []
-
-  const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase()
-    if (!needle) {
-      return rows
-    }
-
-    return rows.filter((row) => {
-      const haystack = [
-        row.companyName,
-        row.nameAddressed,
-        row.name,
-        row.emailAddress,
-        row.phone,
-        row.region,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-      return haystack.includes(needle)
-    })
-  }, [rows, search])
-
-  if (query.isLoading) {
-    return <LinearProgress sx={{ width: "100%" }} />
+  if (isMobile) {
+    return (
+      <>
+        <Button
+          type="primary"
+          icon={<BarsOutlined />}
+          style={{ position: "fixed", top: 72, left: 0, zIndex: 1300, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+          onClick={() => onCollapse(!collapsed)}
+        />
+        <Drawer
+          placement="left"
+          open={!collapsed}
+          onClose={() => onCollapse(true)}
+          width={256}
+          bodyStyle={{ padding: 0 }}
+        >
+          {content}
+        </Drawer>
+      </>
+    )
   }
 
   return (
-    <Stack spacing={3}>
-      <TextField
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search clients"
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchRoundedIcon color="action" />
-            </InputAdornment>
-          ),
-        }}
-      />
-
-      <Grid container spacing={2}>
-        {filtered.map((row) => (
-          <Grid item key={row.id} xs={12} sm={6} lg={4}>
-            <Card variant="outlined" sx={{ height: "100%" }}>
-              <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Avatar sx={{ bgcolor: "primary.light", color: "primary.dark" }}>
-                    {row.companyName.slice(0, 2).toUpperCase()}
-                  </Avatar>
-                  <Box>
-                    <Typography variant="subtitle1" fontWeight={600}>
-                      {row.companyName}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {row.title ?? "—"}
-                    </Typography>
-                  </Box>
-                </Stack>
-
-                <Stack spacing={0.5}>
-                  <Typography variant="body2" color="text.secondary">
-                    Contact
-                  </Typography>
-                  <Typography variant="body1">
-                    {row.nameAddressed ?? row.name ?? "—"}
-                  </Typography>
-                </Stack>
-
-                <Stack spacing={0.5}>
-                  <Typography variant="body2" color="text.secondary">
-                    Email
-                  </Typography>
-                  <Typography variant="body1">{row.emailAddress ?? "—"}</Typography>
-                </Stack>
-
-                <Stack spacing={0.5}>
-                  <Typography variant="body2" color="text.secondary">
-                    Phone
-                  </Typography>
-                  <Typography variant="body1">{row.phone ?? "—"}</Typography>
-                </Stack>
-
-                <Box>
-                  <Chip label={row.region ?? "Region unknown"} size="small" />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-    </Stack>
-  )
-})
-
-ClientAccountsGallery.displayName = "ClientAccountsGallery"
-
-const theme = createTheme({ palette: { mode: "light" } })
-
-const ClientAccountsShell = () => (
-  <ThemeProvider theme={theme}>
-    <CssBaseline />
-    <Refine
-      dataProvider={refineDataProvider}
-      routerProvider={routerProvider}
-      resources={[{ name: "client-directory" }]}
-      options={{ syncWithLocation: false }}
+    <Sider
+      width={256}
+      collapsible
+      collapsed={collapsed}
+      onCollapse={onCollapse}
+      trigger={null}
+      style={{
+        borderRight: "1px solid #e5e7eb",
+        background: "#fff",
+        position: "sticky",
+        top: 0,
+        height: "100vh",
+      }}
     >
-      <Box sx={{ p: 4 }}>
-        <Typography variant="h4" sx={{ mb: 2 }}>
-          Client Accounts
-        </Typography>
-        <Card>
-          <CardContent>
-            <ClientAccountsGallery />
-          </CardContent>
-        </Card>
-      </Box>
-    </Refine>
-  </ThemeProvider>
+      {content}
+      <div
+        style={{
+          borderTop: "1px solid #e5e7eb",
+          padding: 16,
+          display: "flex",
+          justifyContent: "center",
+          gap: 12,
+        }}
+      >
+        <Button shape="circle" icon={<MenuUnfoldOutlined />} onClick={() => onCollapse(false)} />
+        <Button shape="circle" icon={<MenuFoldOutlined />} onClick={() => onCollapse(true)} />
+      </div>
+    </Sider>
+  )
+}
+
+const iconForMenu = (name: string) => {
+  switch (name) {
+    case "dashboard":
+      return <AppstoreOutlined />
+    case "calendar":
+      return <CalendarOutlined />
+    case "scrumboard":
+      return <AppstoreOutlined />
+    case "companies":
+      return <ApartmentOutlined />
+    case "client-directory":
+      return <TeamOutlined />
+    case "quotes":
+      return <FileTextOutlined />
+    case "administration":
+      return <SettingOutlined />
+    default:
+      return <UnorderedListOutlined />
+  }
+}
+
+const TopHeader = () => (
+  <Header
+    style={{
+      background: "#fff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "0 24px",
+      position: "sticky",
+      top: 0,
+      zIndex: 1000,
+      height: 64,
+      borderBottom: "1px solid #e5e7eb",
+    }}
+  >
+    <Input
+      allowClear
+      placeholder="Search"
+      prefix={<SearchOutlined />}
+      style={{ maxWidth: 320 }}
+    />
+    <Space size="large" align="center">
+      <Tooltip title="Notifications">
+        <Badge dot>
+          <Button type="text" icon={<BellOutlined />} />
+        </Badge>
+      </Tooltip>
+      <Avatar style={{ backgroundColor: "#1e3a8a", color: "#fff" }}>TE</Avatar>
+    </Space>
+  </Header>
 )
+
+const ClientAccountsContent = () => {
+  const [view, setView] = useState<ViewMode>("table")
+  const [searchForm] = Form.useForm()
+  const screens = Grid.useBreakpoint()
+
+  const {
+    tableProps,
+    searchFormProps,
+    setCurrentPage,
+    setPageSize,
+    tableQuery: tableQueryResult,
+  } = useTable<ClientAccountRow, HttpError, { name?: string }>({
+    resource: "client-directory",
+    pagination: {
+      pageSize: 12,
+    },
+    sorters: {
+      initial: [
+        {
+          field: "companyName",
+          order: "asc",
+        },
+      ],
+    },
+    filters: {
+      initial: [
+        { field: "name", operator: "contains", value: undefined },
+        { field: "email", operator: "contains", value: undefined },
+        { field: "company.id", operator: "eq", value: undefined },
+        { field: "jobTitle", operator: "contains", value: undefined },
+        { field: "status", operator: "in", value: undefined },
+      ],
+    },
+    onSearch: (values) => [
+      {
+        field: "name",
+        operator: "contains",
+        value: values.name,
+      },
+    ],
+    syncWithLocation: false,
+  })
+
+  const debouncedSearch = useMemo(() => debounce((value: string) => {
+    searchFormProps?.onFinish?.({ name: value })
+  }, 400), [searchFormProps])
+
+  useEffect(() => () => debouncedSearch.cancel(), [debouncedSearch])
+
+  const handleViewChange = (next: ViewMode) => {
+    setView(next)
+    searchFormProps?.form?.resetFields()
+    searchForm?.resetFields()
+  }
+
+  const companyOptions = useMemo(() => {
+    const unique = new Map<string, string>()
+    directoryCache.records.forEach((record) => {
+      if (!unique.has(record.company.id)) {
+        unique.set(record.company.id, record.company.name)
+      }
+    })
+    return Array.from(unique.entries()).map(([value, label]) => ({ value, label }))
+  }, [tableQueryResult.data?.data])
+
+  return (
+    <div style={{ padding: 32, minHeight: "100%", background: "#f5f7fb" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: screens.md ? "row" : "column",
+          justifyContent: "space-between",
+          alignItems: screens.md ? "center" : "stretch",
+          gap: 16,
+          marginBottom: 24,
+        }}
+      >
+        <Form form={searchForm} {...searchFormProps} layout="inline" style={{ flex: 1 }}>
+          <Form.Item name="name" style={{ flex: 1 }}>
+            <Input
+              size="large"
+              placeholder="Search by name"
+              prefix={<SearchOutlined className="anticon tertiary" />}
+              suffix={<Spin size="small" spinning={tableQueryResult.isFetching} />}
+              onChange={(event) => debouncedSearch(event.target.value)}
+            />
+          </Form.Item>
+        </Form>
+        {screens.md ? (
+          <Radio.Group
+            size="large"
+            value={view}
+            onChange={(event) => handleViewChange(event.target.value)}
+          >
+            <Radio.Button value="table">
+              <UnorderedListOutlined />
+            </Radio.Button>
+            <Radio.Button value="card">
+              <AppstoreOutlined />
+            </Radio.Button>
+          </Radio.Group>
+        ) : null}
+      </div>
+
+      {view === "table" ? (
+        <ClientAccountsTable tableProps={tableProps} companyOptions={companyOptions} />
+      ) : (
+        <ClientCards tableProps={tableProps} setCurrentPage={setCurrentPage} setPageSize={setPageSize} />
+      )}
+    </div>
+  )
+}
+
+const ClientAccountsShell = () => {
+  const [collapsed, setCollapsed] = useState(true)
+  const screens = Grid.useBreakpoint()
+  const isDesktop = typeof screens.lg === "undefined" ? true : screens.lg
+  const contentMargin = isDesktop ? (collapsed ? 80 : 256) : 0
+
+  return (
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: "#2563eb",
+          borderRadius: 10,
+          fontFamily: "'Newsreader', serif",
+        },
+        components: {
+          Button: {
+            fontWeight: 600,
+            borderRadius: 999,
+          },
+        },
+      }}
+    >
+      <AntdApp>
+        <Refine
+          dataProvider={refineDataProvider}
+          routerProvider={routerProvider}
+          resources={[
+            { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
+            { name: "calendar", list: "/dashboard/calendar", meta: { label: "Calendar" } },
+            { name: "scrumboard", list: "/dashboard/scrumboard", meta: { label: "Scrumboard" } },
+            { name: "companies", list: "/dashboard/companies", meta: { label: "Companies" } },
+            {
+              name: "client-directory",
+              list: "/dashboard/new-ui/client-accounts",
+              meta: { label: "Client Accounts" },
+            },
+            { name: "quotes", list: "/dashboard/quotes", meta: { label: "Quotes" } },
+            { name: "administration", list: "/dashboard/administration", meta: { label: "Administration" } },
+          ]}
+          options={{ syncWithLocation: false }}
+          >
+            <Layout style={{ minHeight: "100vh" }}>
+              <NavigationSider collapsed={collapsed} onCollapse={(value) => setCollapsed(value)} />
+              <Layout style={{ marginLeft: contentMargin, transition: "margin 0.3s ease" }}>
+                <TopHeader />
+                <Content>
+                  <ClientAccountsContent />
+              </Content>
+            </Layout>
+          </Layout>
+        </Refine>
+      </AntdApp>
+    </ConfigProvider>
+  )
+}
 
 const ClientAccountsNoSSR = dynamic(() => Promise.resolve(ClientAccountsShell), { ssr: false })
 
@@ -234,7 +988,7 @@ export default function ClientAccountsPage() {
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getSession(ctx)
-  if (!session?.accessToken) {
+  if (!session?.user) {
     return {
       redirect: {
         destination: "/api/auth/signin",
