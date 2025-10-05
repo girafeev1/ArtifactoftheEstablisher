@@ -2,7 +2,10 @@ import type { NextAuthOptions } from 'next-auth'
 import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 
-import { firebaseAdminAuth } from '../../../lib/firebaseAdmin'
+import {
+  firebaseAdminAuth,
+  firebaseAdminConfigStatus,
+} from '../../../lib/firebaseAdmin'
 import { loadSecrets } from '../../../lib/server/secretManager'
 
 async function buildAuthOptions(): Promise<NextAuthOptions> {
@@ -20,6 +23,12 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
         async authorize(credentials) {
           if (!credentials?.idToken) {
             throw new Error('Missing Firebase ID token')
+          }
+
+          if (firebaseAdminConfigStatus.credentialSource !== 'service-account') {
+            throw new Error(
+              'Firebase Admin credentials are missing or incomplete. Please configure FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, and FIREBASE_ADMIN_PRIVATE_KEY.'
+            )
           }
 
           try {
