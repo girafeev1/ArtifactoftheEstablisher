@@ -134,13 +134,11 @@ export default function SignInPage() {
 
     if (response.error) {
       console.error('[auth] NextAuth credential exchange failed', response)
-      let mappedError = response.error
-
-      if (response.error === 'CredentialsSignin') {
-        mappedError =
-          (await diagnoseCredentialFailure(params.idToken)) ??
-          'Google sign-in was rejected by the server. Please verify the Firebase Admin environment variables.'
-      }
+      const diagnosticMessage = await diagnoseCredentialFailure(params.idToken)
+      const mappedError =
+        diagnosticMessage ??
+        response.error ??
+        'Google sign-in was rejected by the server. Please verify the Firebase Admin environment variables.'
 
       throw new Error(mappedError)
     }
