@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 import {
@@ -20,6 +20,20 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+
+type FirebaseDiagnosticsResponse =
+  | { ok: true; uid: string; projectId: string | null }
+  | {
+      ok: false
+      message: string
+      code?: string
+      config: {
+        hasProjectId: boolean
+        hasClientEmail: boolean
+        hasPrivateKey: boolean
+        credentialSource: 'service-account' | 'default'
+      }
+    }
 
 const buttonStyles = {
   height: 48,
@@ -50,6 +64,60 @@ export default function SignInPage() {
     return provider
   }, [])
 
+  const diagnoseCredentialFailure = useCallback(async (idToken: string) => {
+    try {
+      const response = await fetch('/api/auth/firebase-diagnostics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      })
+
+      if (!response.ok) {
+        return null
+      }
+
+      const data = (await response.json()) as FirebaseDiagnosticsResponse
+
+      if (data.ok) {
+        return 'Firebase Admin accepted the token when retried directly, but NextAuth still rejected the exchange. Check the server logs for additional context.'
+      }
+
+      const failure = data as Extract<FirebaseDiagnosticsResponse, { ok: false }>
+      const messageParts: string[] = []
+
+      if (failure.message) {
+        messageParts.push(failure.message)
+      }
+
+      if (failure.code) {
+        messageParts.push(`(code: ${failure.code})`)
+      }
+
+      const { config } = failure
+      if (config) {
+        if (config.credentialSource !== 'service-account') {
+          messageParts.push(
+            'Firebase Admin is running without service-account credentials. Set FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, and FIREBASE_ADMIN_PRIVATE_KEY.'
+          )
+        } else {
+          const missing: string[] = []
+          if (!config.hasProjectId) missing.push('FIREBASE_ADMIN_PROJECT_ID')
+          if (!config.hasClientEmail) missing.push('FIREBASE_ADMIN_CLIENT_EMAIL')
+          if (!config.hasPrivateKey) missing.push('FIREBASE_ADMIN_PRIVATE_KEY')
+
+          if (missing.length) {
+            messageParts.push(`Missing environment variables: ${missing.join(', ')}`)
+          }
+        }
+      }
+
+      return messageParts.join(' ')
+    } catch (diagnosticError) {
+      console.error('[auth] Failed to run Firebase diagnostics', diagnosticError)
+      return null
+    }
+  }, [])
+
   const completeNextAuth = async (params: {
     idToken: string
     accessToken?: string | null
@@ -62,11 +130,24 @@ export default function SignInPage() {
       redirect: false,
     })
 
-    if (response?.error) {
-      throw new Error(response.error)
+    if (!response) {
+      throw new Error('No response from authentication service')
     }
 
-    await router.replace('/')
+    if (response.error) {
+      console.error('[auth] NextAuth credential exchange failed', response)
+      let mappedError = response.error
+
+      if (response.error === 'CredentialsSignin') {
+        mappedError =
+          (await diagnoseCredentialFailure(params.idToken)) ??
+          'Google sign-in was rejected by the server. Please verify the Firebase Admin environment variables.'
+      }
+
+      throw new Error(mappedError)
+    }
+
+    await router.replace(response.url ?? '/')
   }
 
   const handleGoogleSignIn = async () => {
