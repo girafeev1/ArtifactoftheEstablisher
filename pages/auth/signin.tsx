@@ -62,8 +62,17 @@ export default function SignInPage() {
       redirect: false,
     })
 
-    if (response?.error) {
-      throw new Error(response.error)
+    if (!response) {
+      throw new Error('No response from authentication service')
+    }
+
+    if (response.error) {
+      console.error('[auth] NextAuth credential exchange failed', response)
+      const mappedError =
+        response.error === 'CredentialsSignin'
+          ? 'Google sign-in was rejected by the server. Please verify the Firebase Admin environment variables.'
+          : response.error
+      throw new Error(mappedError)
     }
 
     await router.replace('/')

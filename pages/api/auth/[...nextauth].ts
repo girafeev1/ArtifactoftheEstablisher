@@ -22,25 +22,34 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
             throw new Error('Missing Firebase ID token')
           }
 
-          const decoded = await firebaseAdminAuth.verifyIdToken(credentials.idToken)
-          const userRecord = await firebaseAdminAuth
-            .getUser(decoded.uid)
-            .catch(() => null)
+          try {
+            const decoded = await firebaseAdminAuth.verifyIdToken(credentials.idToken)
+            const userRecord = await firebaseAdminAuth
+              .getUser(decoded.uid)
+              .catch(() => null)
 
-          return {
-            id: decoded.uid,
-            name: userRecord?.displayName ?? decoded.name ?? null,
-            email: userRecord?.email ?? decoded.email ?? null,
-            image: userRecord?.photoURL ?? decoded.picture ?? null,
-            firebase: {
-              claims: decoded,
-              idToken: credentials.idToken,
-            },
-            google: {
-              accessToken: credentials.accessToken ?? null,
-              refreshToken: credentials.refreshToken ?? null,
-            },
-          } as any
+            return {
+              id: decoded.uid,
+              name: userRecord?.displayName ?? decoded.name ?? null,
+              email: userRecord?.email ?? decoded.email ?? null,
+              image: userRecord?.photoURL ?? decoded.picture ?? null,
+              firebase: {
+                claims: decoded,
+                idToken: credentials.idToken,
+              },
+              google: {
+                accessToken: credentials.accessToken ?? null,
+                refreshToken: credentials.refreshToken ?? null,
+              },
+            } as any
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error
+                ? `Firebase token verification failed: ${error.message}`
+                : 'Firebase token verification failed'
+            console.error('[auth] Failed to verify Firebase ID token', error)
+            throw new Error(errorMessage)
+          }
         },
       }),
     ],
