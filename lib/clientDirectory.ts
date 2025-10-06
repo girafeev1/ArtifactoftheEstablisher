@@ -1,6 +1,7 @@
 // lib/clientDirectory.ts
 
 import {
+  Timestamp,
   addDoc,
   collection,
   doc,
@@ -11,7 +12,7 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 
-import { getFirestoreForDatabase } from './firebase'
+import { getFirestoreForDatabase, getFirebaseDiagnosticsSnapshot } from './firebase'
 
 export interface ClientDirectoryRecord {
   companyName: string
@@ -26,6 +27,7 @@ export interface ClientDirectoryRecord {
   addressLine4: string | null
   addressLine5: string | null
   region: string | null
+  createdAt: string | null
 }
 
 const sanitizeString = (value: unknown): string | null => {
@@ -37,44 +39,75 @@ const sanitizeString = (value: unknown): string | null => {
 }
 
 export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> => {
-  const directoryDb = getFirestoreForDatabase('epl-directory')
-  const snap = await getDocs(collection(directoryDb, 'clients'))
-
-  const records: ClientDirectoryRecord[] = snap.docs.map((doc) => {
-    const data = doc.data() as Record<string, unknown>
-    const companyName = sanitizeString(data.companyName) ?? doc.id
-    const title = sanitizeString(data.title)
-    const name = sanitizeString(data.name)
-    let nameAddressed = sanitizeString(data.nameAddressed)
-
-    if (!nameAddressed) {
-      nameAddressed = name ?? null
-    }
-
-    if (title && nameAddressed) {
-      const normalizedTitle = title.toLowerCase()
-      if (nameAddressed.toLowerCase().startsWith(normalizedTitle)) {
-        nameAddressed = nameAddressed.slice(title.length).trimStart()
-      }
-    }
-
-    return {
-      companyName,
-      title,
-      name,
-      nameAddressed,
-      emailAddress: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
-      phone: sanitizeString(data.phone),
-      addressLine1: sanitizeString(data.addressLine1),
-      addressLine2: sanitizeString(data.addressLine2),
-      addressLine3: sanitizeString(data.addressLine3),
-      addressLine4: sanitizeString(data.addressLine4),
-      addressLine5: sanitizeString(data.addressLine5),
-      region: sanitizeString(data.region),
-    }
+  console.info('[client-directory] Fetching clients from Firestore', {
+    databaseId: 'epl-directory',
   })
 
-  return records.sort((a, b) => a.companyName.localeCompare(b.companyName))
+  try {
+    const directoryDb = getFirestoreForDatabase('epl-directory')
+    const snap = await getDocs(collection(directoryDb, 'clients'))
+
+    const records: ClientDirectoryRecord[] = snap.docs.map((doc) => {
+      const data = doc.data() as Record<string, unknown>
+      const companyName = sanitizeString(data.companyName) ?? doc.id
+      const title = sanitizeString(data.title)
+      const name = sanitizeString(data.name)
+      let nameAddressed = sanitizeString(data.nameAddressed)
+
+      if (!nameAddressed) {
+        nameAddressed = name ?? null
+      }
+
+      if (title && nameAddressed) {
+        const normalizedTitle = title.toLowerCase()
+        if (nameAddressed.toLowerCase().startsWith(normalizedTitle)) {
+          nameAddressed = nameAddressed.slice(title.length).trimStart()
+        }
+      }
+
+      let createdAt: string | null = null
+      const rawCreatedAt = data.createdAt
+      if (rawCreatedAt instanceof Timestamp) {
+        createdAt = rawCreatedAt.toDate().toISOString()
+      } else if (typeof rawCreatedAt === 'string') {
+        const parsed = new Date(rawCreatedAt)
+        createdAt = Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+      }
+
+      return {
+        companyName,
+        title,
+        name,
+        nameAddressed,
+        emailAddress: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
+        phone: sanitizeString(data.phone),
+        addressLine1: sanitizeString(data.addressLine1),
+        addressLine2: sanitizeString(data.addressLine2),
+        addressLine3: sanitizeString(data.addressLine3),
+        addressLine4: sanitizeString(data.addressLine4),
+        addressLine5: sanitizeString(data.addressLine5),
+        region: sanitizeString(data.region),
+        createdAt,
+      }
+    })
+
+    const sorted = records.sort((a, b) => a.companyName.localeCompare(b.companyName))
+    console.info('[client-directory] Successfully fetched clients', {
+      count: sorted.length,
+    })
+
+    return sorted
+  } catch (error) {
+    const diagnostics = getFirebaseDiagnosticsSnapshot()
+    console.error('[client-directory] Failed to fetch clients', {
+      error:
+        error instanceof Error
+          ? { message: error.message, stack: error.stack }
+          : { message: 'Unknown error', raw: error },
+      firebase: diagnostics,
+    })
+    throw error
+  }
 }
 
 export interface ClientDirectoryWriteInput {
