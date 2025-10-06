@@ -35,6 +35,26 @@ type FirebaseDiagnosticsResponse =
       }
     }
 
+type FirebaseDiagnosticsResult =
+  | { status: 'success'; projectId: string | null }
+  | { status: 'failure'; message: string }
+  | { status: 'unavailable' }
+
+type NextAuthDiagnosticsResponse =
+  | { ok: true }
+  | { ok: false; message?: string; name?: string }
+
+type NextAuthDiagnosticsResult =
+  | { status: 'success' }
+  | { status: 'failure'; message: string }
+  | { status: 'unavailable' }
+
+type CredentialExchangeParams = {
+  idToken: string
+  accessToken?: string | null
+  refreshToken?: string | null
+}
+
 const buttonStyles = {
   height: 48,
   justifyContent: 'center',
@@ -64,7 +84,7 @@ export default function SignInPage() {
     return provider
   }, [])
 
-  const diagnoseCredentialFailure = useCallback(async (idToken: string) => {
+  const runFirebaseDiagnostics = useCallback(async (idToken: string): Promise<FirebaseDiagnosticsResult> => {
     try {
       const response = await fetch('/api/auth/firebase-diagnostics', {
         method: 'POST',
@@ -73,26 +93,26 @@ export default function SignInPage() {
       })
 
       if (!response.ok) {
-        return null
+        return { status: 'unavailable' }
       }
 
       const data = (await response.json()) as FirebaseDiagnosticsResponse
 
       if (data.ok) {
-        return 'Firebase Admin accepted the token when retried directly, but NextAuth still rejected the exchange. Check the server logs for additional context.'
+        return { status: 'success', projectId: data.projectId ?? null }
       }
 
       const messageParts: string[] = []
 
-      if (data.message) {
+      if ('message' in data && data.message) {
         messageParts.push(data.message)
       }
 
-      if (data.code) {
+      if ('code' in data && data.code) {
         messageParts.push(`(code: ${data.code})`)
       }
 
-      if (data.config) {
+      if ('config' in data && data.config) {
         if (data.config.credentialSource !== 'service-account') {
           messageParts.push(
             'Firebase Admin is running without service-account credentials. Set FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, and FIREBASE_ADMIN_PRIVATE_KEY.'
@@ -109,18 +129,103 @@ export default function SignInPage() {
         }
       }
 
-      return messageParts.join(' ')
+      if (messageParts.length) {
+        return { status: 'failure', message: messageParts.join(' ') }
+      }
+
+      return {
+        status: 'failure',
+        message: 'Firebase diagnostics returned an error without details.',
+      }
     } catch (diagnosticError) {
       console.error('[auth] Failed to run Firebase diagnostics', diagnosticError)
-      return null
+      return { status: 'unavailable' }
     }
   }, [])
 
-  const completeNextAuth = async (params: {
-    idToken: string
-    accessToken?: string | null
-    refreshToken?: string | null
-  }) => {
+  const runNextAuthDiagnostics = useCallback(
+    async (params: CredentialExchangeParams): Promise<NextAuthDiagnosticsResult> => {
+      try {
+        const response = await fetch('/api/auth/nextauth-credentials-diagnostics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idToken: params.idToken,
+            accessToken: params.accessToken ?? undefined,
+            refreshToken: params.refreshToken ?? undefined,
+          }),
+        })
+
+        if (!response.ok) {
+          return { status: 'unavailable' }
+        }
+
+        const data = (await response.json()) as NextAuthDiagnosticsResponse
+
+        if (data.ok) {
+          return { status: 'success' }
+        }
+
+        const messageParts: string[] = []
+        if ('message' in data && data.message) {
+          messageParts.push(data.message)
+        }
+
+        if ('name' in data && data.name) {
+          messageParts.push(`(${data.name})`)
+        }
+
+        if (messageParts.length) {
+          return { status: 'failure', message: messageParts.join(' ') }
+        }
+
+        return {
+          status: 'failure',
+          message: 'NextAuth diagnostics returned an error without details.',
+        }
+      } catch (diagnosticError) {
+        console.error('[auth] Failed to run NextAuth diagnostics', diagnosticError)
+        return { status: 'unavailable' }
+      }
+    },
+    []
+  )
+
+  const diagnoseCredentialFailure = useCallback(
+    async (params: CredentialExchangeParams, responseError?: string | null) => {
+      const [nextAuthDiagnostics, firebaseDiagnostics] = await Promise.all([
+        runNextAuthDiagnostics(params),
+        runFirebaseDiagnostics(params.idToken),
+      ])
+
+      if (nextAuthDiagnostics.status === 'failure') {
+        return nextAuthDiagnostics.message
+      }
+
+      if (firebaseDiagnostics.status === 'failure') {
+        return firebaseDiagnostics.message
+      }
+
+      const quotedError = responseError ? `"${responseError}"` : 'an unspecified error'
+
+      if (nextAuthDiagnostics.status === 'success' && firebaseDiagnostics.status === 'success') {
+        return `NextAuth authorize() and Firebase Admin both accepted the credentials when retried directly, but the sign-in endpoint still responded with ${quotedError}. Check the server logs for callback or session errors.`
+      }
+
+      if (nextAuthDiagnostics.status === 'success') {
+        return `NextAuth authorize() accepted the credentials when retried directly, but the sign-in endpoint still responded with ${quotedError}. Check the server logs for callback or session errors.`
+      }
+
+      if (firebaseDiagnostics.status === 'success') {
+        return 'Firebase Admin accepted the token when retried directly, but NextAuth still rejected the exchange. Check the server logs for additional context.'
+      }
+
+      return null
+    },
+    [runFirebaseDiagnostics, runNextAuthDiagnostics]
+  )
+
+  const completeNextAuth = async (params: CredentialExchangeParams) => {
     const response = await signIn('credentials', {
       idToken: params.idToken,
       accessToken: params.accessToken ?? '',
@@ -134,13 +239,11 @@ export default function SignInPage() {
 
     if (response.error) {
       console.error('[auth] NextAuth credential exchange failed', response)
-      let mappedError = response.error
-
-      if (response.error === 'CredentialsSignin') {
-        mappedError =
-          (await diagnoseCredentialFailure(params.idToken)) ??
-          'Google sign-in was rejected by the server. Please verify the Firebase Admin environment variables.'
-      }
+      const diagnosticMessage = await diagnoseCredentialFailure(params, response.error)
+      const mappedError =
+        diagnosticMessage ??
+        response.error ??
+        'Google sign-in was rejected by the server. Please verify the Firebase Admin environment variables.'
 
       throw new Error(mappedError)
     }
