@@ -22,11 +22,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'GET') {
     try {
+      console.info('[api/client-directory] GET directory request received', {
+        user: session.user.email ?? session.user.name ?? 'unknown',
+      })
       const clients = await fetchClientsDirectory()
       const shaped = clients.map((client) => ({ id: client.companyName, ...client }))
       return res.status(200).json({ data: shaped, total: shaped.length })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load clients'
+      console.error('[api/client-directory] Failed to respond to GET request', {
+        error: err instanceof Error ? { message: err.message, stack: err.stack } : err,
+      })
       return res.status(500).json({ error: message })
     }
   }
