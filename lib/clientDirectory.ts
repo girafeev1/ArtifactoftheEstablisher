@@ -1,6 +1,7 @@
 // lib/clientDirectory.ts
 
 import {
+  Timestamp,
   addDoc,
   collection,
   doc,
@@ -11,9 +12,11 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 
-import { getFirestoreForDatabase } from './firebase'
+import { getFirestoreForDatabase, getFirebaseDiagnosticsSnapshot } from './firebase'
+import { fetchProjectsFromDatabase } from './projectsDatabase'
 
 export interface ClientDirectoryRecord {
+  documentId: string
   companyName: string
   title: string | null
   name: string | null
@@ -26,6 +29,8 @@ export interface ClientDirectoryRecord {
   addressLine4: string | null
   addressLine5: string | null
   region: string | null
+  createdAt: string | null
+  hasOverduePayment: boolean
 }
 
 const sanitizeString = (value: unknown): string | null => {
@@ -36,45 +41,123 @@ const sanitizeString = (value: unknown): string | null => {
   return null
 }
 
-export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> => {
-  const directoryDb = getFirestoreForDatabase('epl-directory')
-  const snap = await getDocs(collection(directoryDb, 'clients'))
+const normalizeCompanyKey = (value: string | null | undefined) => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed.toLowerCase() : null
+}
 
-  const records: ClientDirectoryRecord[] = snap.docs.map((doc) => {
-    const data = doc.data() as Record<string, unknown>
-    const companyName = sanitizeString(data.companyName) ?? doc.id
-    const title = sanitizeString(data.title)
-    const name = sanitizeString(data.name)
-    let nameAddressed = sanitizeString(data.nameAddressed)
+const computeOverdueCompanySet = async (): Promise<Set<string>> => {
+  try {
+    const { projects } = await fetchProjectsFromDatabase()
+    const overdue = new Set<string>()
 
-    if (!nameAddressed) {
-      nameAddressed = name ?? null
-    }
-
-    if (title && nameAddressed) {
-      const normalizedTitle = title.toLowerCase()
-      if (nameAddressed.toLowerCase().startsWith(normalizedTitle)) {
-        nameAddressed = nameAddressed.slice(title.length).trimStart()
+    projects.forEach((project) => {
+      if (project.paid === false) {
+        const key = normalizeCompanyKey(project.clientCompany)
+        if (key) {
+          overdue.add(key)
+        }
       }
-    }
+    })
 
-    return {
-      companyName,
-      title,
-      name,
-      nameAddressed,
-      emailAddress: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
-      phone: sanitizeString(data.phone),
-      addressLine1: sanitizeString(data.addressLine1),
-      addressLine2: sanitizeString(data.addressLine2),
-      addressLine3: sanitizeString(data.addressLine3),
-      addressLine4: sanitizeString(data.addressLine4),
-      addressLine5: sanitizeString(data.addressLine5),
-      region: sanitizeString(data.region),
-    }
+    return overdue
+  } catch (error) {
+    console.error('[client-directory] Failed to compute payment diagnostics from projects database', {
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+    })
+    return new Set<string>()
+  }
+}
+
+export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> => {
+  console.info('[client-directory] Fetching clients from Firestore', {
+    databaseId: 'epl-directory',
   })
 
-  return records.sort((a, b) => a.companyName.localeCompare(b.companyName))
+  try {
+    const directoryDb = getFirestoreForDatabase('epl-directory')
+    const [overdueCompanies, snap] = await Promise.all([
+      computeOverdueCompanySet(),
+      getDocs(collection(directoryDb, 'clients')),
+    ])
+
+    const records: ClientDirectoryRecord[] = snap.docs.map((doc) => {
+      const data = doc.data() as Record<string, unknown>
+      const documentId = doc.id
+      const companyName = sanitizeString(data.companyName) ?? doc.id
+      const title = sanitizeString(data.title)
+      const name = sanitizeString(data.name)
+      let nameAddressed = sanitizeString(data.nameAddressed)
+
+      if (!nameAddressed) {
+        nameAddressed = name ?? null
+      }
+
+      if (title && nameAddressed) {
+        const normalizedTitle = title.toLowerCase()
+        if (nameAddressed.toLowerCase().startsWith(normalizedTitle)) {
+          nameAddressed = nameAddressed.slice(title.length).trimStart()
+        }
+      }
+
+      let createdAt: string | null = null
+      const rawCreatedAt = data.createdAt
+      if (rawCreatedAt instanceof Timestamp) {
+        createdAt = rawCreatedAt.toDate().toISOString()
+      } else if (typeof rawCreatedAt === 'string') {
+        const parsed = new Date(rawCreatedAt)
+        createdAt = Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+      }
+
+      return {
+        documentId,
+        companyName,
+        title,
+        name,
+        nameAddressed,
+        emailAddress: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
+        phone: sanitizeString(data.phone),
+        addressLine1: sanitizeString(data.addressLine1),
+        addressLine2: sanitizeString(data.addressLine2),
+        addressLine3: sanitizeString(data.addressLine3),
+        addressLine4: sanitizeString(data.addressLine4),
+        addressLine5: sanitizeString(data.addressLine5) ?? sanitizeString(data.region),
+        region: sanitizeString(data.region),
+        createdAt,
+        hasOverduePayment: false,
+      }
+    })
+
+    const sorted = records.sort((a, b) => a.companyName.localeCompare(b.companyName))
+    const enriched = sorted.map((record) => {
+      const key =
+        normalizeCompanyKey(record.companyName) ?? normalizeCompanyKey(record.documentId)
+      return {
+        ...record,
+        hasOverduePayment: key ? overdueCompanies.has(key) : false,
+      }
+    })
+
+    console.info('[client-directory] Successfully fetched clients', {
+      count: enriched.length,
+      overdueCompanies: overdueCompanies.size,
+    })
+
+    return enriched
+  } catch (error) {
+    const diagnostics = getFirebaseDiagnosticsSnapshot()
+    console.error('[client-directory] Failed to fetch clients', {
+      error:
+        error instanceof Error
+          ? { message: error.message, stack: error.stack }
+          : { message: 'Unknown error', raw: error },
+      firebase: diagnostics,
+    })
+    throw error
+  }
 }
 
 export interface ClientDirectoryWriteInput {
