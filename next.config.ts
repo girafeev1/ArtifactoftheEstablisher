@@ -1,7 +1,10 @@
 import path from "path";
 import type { NextConfig } from "next";
 
-const CLASSNAMES_FRAGMENT = "/antd/node_modules/classnames/index.js";
+const CLASSNAMES_FRAGMENTS = [
+  "/antd/node_modules/classnames/index.js",
+  "/rc-pagination/node_modules/classnames/index.js",
+];
 
 const config: NextConfig = {
   eslint: {
@@ -35,7 +38,9 @@ const config: NextConfig = {
     webpackConfig.module.rules = webpackConfig.module.rules ?? [];
     webpackConfig.module.rules.push({
       test: (resource: string) =>
-        resource.replace(/\\/g, "/").endsWith(CLASSNAMES_FRAGMENT),
+        CLASSNAMES_FRAGMENTS.some((fragment) =>
+          resource.replace(/\\/g, "/").endsWith(fragment),
+        ),
       enforce: "post",
       use: [
         {
