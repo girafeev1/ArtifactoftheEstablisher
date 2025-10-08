@@ -43,7 +43,7 @@ type DirectoryApiRecord = ClientDirectoryRecord & { id: string }
 
 const { Text } = Typography
 
-const ALLOWED_MENU_KEYS = ["dashboard", "client-directory"] as const
+const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects"] as const
 
 if (typeof window === "undefined") {
   console.info("[client-accounts] Module loaded", {
@@ -1419,6 +1419,11 @@ const ClientAccountsShell = () => (
         name: "client-directory",
         list: "/dashboard/new-ui/client-accounts",
         meta: { label: "Client Accounts" },
+      },
+      {
+        name: "projects",
+        list: "/dashboard/new-ui/projects",
+        meta: { label: "Projects" },
       },
     ]}
     allowedMenuKeys={ALLOWED_MENU_KEYS}

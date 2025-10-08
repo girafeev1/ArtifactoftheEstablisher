@@ -81,16 +81,16 @@ type NavigationSiderProps = {
   collapsed: boolean
   onCollapse: (value: boolean) => void
   allowedMenuKeys: ReadonlySet<string>
+  isMobile: boolean
 }
 
 const NavigationSider = ({
   collapsed,
   onCollapse,
   allowedMenuKeys,
+  isMobile,
 }: NavigationSiderProps) => {
   const { menuItems, selectedKey } = useMenu()
-  const breakpoint = Grid.useBreakpoint()
-  const isMobile = typeof breakpoint.lg === "undefined" ? false : !breakpoint.lg
 
   const navigationItems = useMemo(() => {
     return menuItems
@@ -172,6 +172,26 @@ const NavigationSider = ({
           }}
           items={menuEntries}
         />
+        <div
+          style={{
+            borderTop: "1px solid #e5e7eb",
+            padding: 16,
+            display: isMobile ? "none" : "flex",
+            justifyContent: collapsed ? "center" : "flex-start",
+          }}
+        >
+          <Button
+            type="text"
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => onCollapse(!collapsed)}
+            style={{
+              fontFamily: "'Newsreader'",
+              fontWeight: 500,
+            }}
+          >
+            {collapsed ? "Expand" : "Collapse"}
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -218,13 +238,21 @@ const NavigationSider = ({
   )
 }
 
-const TopHeader = () => (
+const TopHeader = ({
+  collapsed,
+  onToggle,
+  isMobile,
+}: {
+  collapsed: boolean
+  onToggle: () => void
+  isMobile: boolean
+}) => (
   <Header
     style={{
       background: "#fff",
       display: "flex",
       alignItems: "center",
-      justifyContent: "flex-end",
+      justifyContent: "space-between",
       padding: `0 ${HEADER_HORIZONTAL_PADDING}px`,
       position: "sticky",
       top: 0,
@@ -233,6 +261,22 @@ const TopHeader = () => (
       borderBottom: "1px solid #e5e7eb",
     }}
   >
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {!isMobile ? (
+        <Button
+          type="text"
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={onToggle}
+          style={{
+            width: 36,
+            height: 36,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        />
+      ) : null}
+    </div>
     <Space size="large" align="center">
       <Tooltip title="Notifications">
         <Badge dot>
@@ -265,7 +309,9 @@ const AppShell = ({
   resources,
   allowedMenuKeys,
 }: AppShellProps) => {
-  const [collapsed, setCollapsed] = useState(true)
+  const [collapsed, setCollapsed] = useState(false)
+  const screens = Grid.useBreakpoint()
+  const isMobile = typeof screens.lg === "undefined" ? false : !screens.lg
 
   const allowedKeys = useMemo(() => {
     if (allowedMenuKeys && allowedMenuKeys.length > 0) {
@@ -289,9 +335,14 @@ const AppShell = ({
           options={{ syncWithLocation: false }}
         >
           <Layout style={{ minHeight: "100vh", background: "#fff" }}>
-            <NavigationSider collapsed={collapsed} onCollapse={setCollapsed} allowedMenuKeys={allowedKeys} />
+            <NavigationSider
+              collapsed={collapsed}
+              onCollapse={setCollapsed}
+              allowedMenuKeys={allowedKeys}
+              isMobile={isMobile}
+            />
             <Layout style={{ background: "#fff" }}>
-              <TopHeader />
+              <TopHeader collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} isMobile={isMobile} />
               <Content>{children}</Content>
             </Layout>
           </Layout>

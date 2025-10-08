@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react"
+import { useCallback, useEffect, useMemo, type ChangeEvent } from "react"
+import { useRouter } from "next/router"
 import {
   type BaseRecord,
   type CrudFilters,
@@ -8,25 +9,22 @@ import {
   type HttpError,
 } from "@refinedev/core"
 import { useTable } from "@refinedev/antd"
-import {
-  App as AntdApp,
-  Button,
-  Drawer,
-  Form,
-  Grid,
-  Input,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-} from "antd"
+import { App as AntdApp, Button, Form, Grid, Input, Select, Table, Tag, Typography } from "antd"
 import type { FormInstance } from "antd/es/form"
-import { ArrowLeftOutlined, EyeOutlined, SearchOutlined } from "@ant-design/icons"
+import { EyeOutlined, SearchOutlined } from "@ant-design/icons"
 import debounce from "lodash.debounce"
 
 import type { ProjectRecord } from "../../lib/projectsDatabase"
 import AppShell from "../new-ui/AppShell"
+import {
+  amountText,
+  normalizeProject,
+  paidDateText,
+  paymentChipColor,
+  paymentChipLabel,
+  stringOrNA,
+  type NormalizedProject,
+} from "./projectUtils"
 
 if (typeof window === "undefined") {
   console.info("[projects] Module loaded", {
@@ -36,7 +34,7 @@ if (typeof window === "undefined") {
 
 const { Text, Title } = Typography
 
-const ALLOWED_MENU_KEYS = ["dashboard", "projects"] as const
+const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects"] as const
 
 const projectsCache: {
   years: string[]
@@ -48,13 +46,7 @@ const projectsCache: {
 
 type ProjectsFilter = CrudFilters[number]
 
-type ProjectRow = ProjectRecord & {
-  projectNumber: string
-  projectTitle: string | null
-  clientCompany: string | null
-  subsidiary: string | null
-  searchIndex: string
-}
+type ProjectRow = NormalizedProject
 
 type ProjectsTableHook = {
   tableProps: any
@@ -76,79 +68,6 @@ type ProjectFiltersForm = {
 type ProjectsListResponse = {
   data?: ProjectRecord[]
   years?: string[]
-}
-
-const stringOrNA = (value: string | null | undefined) => {
-  if (typeof value !== "string") {
-    return "N/A"
-  }
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : "N/A"
-}
-
-const amountText = (value: number | null | undefined) => {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "-"
-  }
-  return `HK$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })}`
-}
-
-const paidStatusText = (value: boolean | null | undefined) => {
-  if (value === null || value === undefined) {
-    return "N/A"
-  }
-  return value ? "Paid" : "Unpaid"
-}
-
-const paidStatusColor = (value: boolean | null | undefined) => {
-  if (value === null || value === undefined) {
-    return "default"
-  }
-  return value ? "green" : "red"
-}
-
-const paidDateText = (
-  paid: boolean | null | undefined,
-  date: string | null | undefined,
-) => {
-  if (!paid) {
-    return "-"
-  }
-  if (!date) {
-    return "-"
-  }
-  const trimmed = date.trim()
-  return trimmed.length > 0 ? trimmed : "-"
-}
-
-const normalizeProject = (record: ProjectRecord): ProjectRow => {
-  const projectNumber = record.projectNumber?.trim() ?? record.id
-  const projectTitle = record.projectTitle ? record.projectTitle.trim() || null : null
-  const clientCompany = record.clientCompany ? record.clientCompany.trim() || null : null
-  const subsidiary = record.subsidiary ? record.subsidiary.trim() || null : null
-  const searchIndex = [
-    projectNumber,
-    projectTitle ?? "",
-    clientCompany ?? "",
-    subsidiary ?? "",
-    record.invoice ?? "",
-    record.projectNature ?? "",
-    record.presenterWorkType ?? "",
-  ]
-    .join(" ")
-    .toLowerCase()
-
-  return {
-    ...record,
-    projectNumber,
-    projectTitle,
-    clientCompany,
-    subsidiary,
-    searchIndex,
-  }
 }
 
 const isFieldFilter = (filter: ProjectsFilter): filter is ProjectsFilter & { field: string } =>
@@ -329,73 +248,32 @@ const refineDataProvider: DataProvider = {
   createMany: () => Promise.reject(new Error("Not implemented")),
 }
 
+export const projectsDataProvider = refineDataProvider
+
 const tableHeadingStyle = { fontFamily: "'Cantata One'", fontWeight: 400 }
 const tableCellStyle = { fontFamily: "'Newsreader'", fontWeight: 500 }
-
-const ProjectDetailsDrawer = ({
-  project,
-  open,
-  onClose,
-}: {
-  project: ProjectRow | null
-  open: boolean
-  onClose: () => void
-}) => {
-  const handleClose = () => {
-    onClose()
-  }
-
-  return (
-    <Drawer
-      open={open}
-      onClose={handleClose}
-      width={480}
-      title={<span style={{ fontFamily: "'Cantata One'", fontWeight: 400 }}>Project Details</span>}
-      destroyOnClose
-      bodyStyle={{ padding: 24, background: "#fff" }}
-      headerStyle={{ borderBottom: "1px solid #e5e7eb" }}
-      footer={null}
-    >
-      <Button type="text" icon={<ArrowLeftOutlined />} onClick={handleClose} style={{ marginBottom: 16 }}>
-        Close
-      </Button>
-      {project ? (
-        <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          <DetailField label="Project Number" value={stringOrNA(project.projectNumber)} />
-          <DetailField label="Project Title" value={stringOrNA(project.projectTitle)} />
-          <DetailField label="Client Company" value={stringOrNA(project.clientCompany)} />
-          <DetailField label="Subsidiary" value={stringOrNA(project.subsidiary)} />
-          <DetailField label="Year" value={stringOrNA(project.year)} />
-          <DetailField label="Project Date" value={project.projectDateDisplay ?? "-"} />
-          <DetailField label="On Date" value={paidDateText(project.paid, project.onDateDisplay)} />
-          <DetailField label="Invoice" value={stringOrNA(project.invoice)} />
-          <DetailField label="Paid Status" value={paidStatusText(project.paid)} />
-          <DetailField label="Paid To" value={stringOrNA(project.paidTo)} />
-          <DetailField label="Amount" value={amountText(project.amount)} />
-          <DetailField label="Project Nature" value={stringOrNA(project.projectNature)} />
-          <DetailField label="Presenter Work Type" value={stringOrNA(project.presenterWorkType)} />
-        </Space>
-      ) : (
-        <Text style={tableCellStyle}>Select a project to view details.</Text>
-      )}
-    </Drawer>
-  )
+const primaryRowTextStyle = { ...tableCellStyle, fontSize: 16, color: "#0f172a" }
+const secondaryRowTextStyle = { fontFamily: "'Newsreader'", fontWeight: 300, fontSize: 13, color: "#475569" }
+const captionRowTextStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 300,
+  fontSize: 12,
+  color: "#64748b",
+  textTransform: "uppercase" as const,
+  letterSpacing: 0.8,
 }
-
-const DetailField = ({ label, value }: { label: string; value: string }) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-    <span style={{ fontFamily: "'Newsreader'", fontWeight: 200 }}>{label}:</span>
-    <span style={tableCellStyle}>{value}</span>
-  </div>
-)
+const paymentTagStyles: Record<string, { backgroundColor: string; color: string }> = {
+  green: { backgroundColor: "#dcfce7", color: "#166534" },
+  red: { backgroundColor: "#fee2e2", color: "#b91c1c" },
+  default: { backgroundColor: "#e2e8f0", color: "#1f2937" },
+}
 
 const ProjectsContent = () => {
   const [rawFiltersForm] = Form.useForm()
   const filtersForm = rawFiltersForm as FormInstance<ProjectFiltersForm>
   const screens = Grid.useBreakpoint()
   const { message } = AntdApp.useApp()
-  const [activeProject, setActiveProject] = useState<ProjectRow | null>(null)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const router = useRouter()
 
   const tableHook = useTable({
     resource: "projects",
@@ -504,38 +382,43 @@ const ProjectsContent = () => {
     debouncedSearch(event.target.value)
   }
 
-  const handleViewDetails = useCallback((record: ProjectRow) => {
-    setActiveProject(record)
-    setIsDrawerOpen(true)
-  }, [setActiveProject, setIsDrawerOpen])
-
-  const handleCloseDrawer = useCallback(() => {
-    setIsDrawerOpen(false)
-    setActiveProject(null)
-  }, [setActiveProject, setIsDrawerOpen])
+  const navigateToDetails = useCallback(
+    (record: ProjectRow) => {
+      router.push(`/dashboard/new-ui/projects/${record.id}`)
+    },
+    [router],
+  )
 
   const columns = useMemo(() => {
     return [
       {
-        key: "project",
-        title: <span style={tableHeadingStyle}>Project</span>,
+        key: "projectNumber",
+        title: <span style={tableHeadingStyle}>Project No.</span>,
         dataIndex: "projectNumber",
         sorter: true,
-        render: (_: unknown, record: ProjectRow) => (
+        render: (_: string, record: ProjectRow) => (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ ...tableCellStyle, fontSize: 16 }}>{stringOrNA(record.projectNumber)}</span>
-            <span style={{ ...tableCellStyle, fontSize: 13, color: "#475569" }}>
-              {stringOrNA(record.projectTitle)}
+            <span style={primaryRowTextStyle}>{stringOrNA(record.projectNumber)}</span>
+            <span style={secondaryRowTextStyle}>
+              {record.projectDateDisplay
+                ? `Project pickup date · ${record.projectDateDisplay}`
+                : "Project pickup date · -"}
             </span>
           </div>
         ),
       },
       {
-        key: "clientCompany",
-        title: <span style={tableHeadingStyle}>Client Company</span>,
-        dataIndex: "clientCompany",
+        key: "project",
+        title: <span style={tableHeadingStyle}>Project</span>,
+        dataIndex: "projectTitle",
         sorter: true,
-        render: (value: string | null) => <span style={tableCellStyle}>{stringOrNA(value)}</span>,
+        render: (_: string | null, record: ProjectRow) => (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={captionRowTextStyle}>{stringOrNA(record.presenterWorkType)}</span>
+            <span style={primaryRowTextStyle}>{stringOrNA(record.projectTitle)}</span>
+            <span style={secondaryRowTextStyle}>{stringOrNA(record.projectNature)}</span>
+          </div>
+        ),
       },
       {
         key: "amount",
@@ -544,48 +427,67 @@ const ProjectsContent = () => {
         sorter: true,
         align: "right" as const,
         render: (value: number | null) => (
-          <span style={{ ...tableCellStyle, fontVariantNumeric: "tabular-nums" }}>{amountText(value)}</span>
+          <span style={{ ...primaryRowTextStyle, fontVariantNumeric: "tabular-nums" }}>{amountText(value)}</span>
         ),
       },
       {
-        key: "projectDate",
-        title: <span style={tableHeadingStyle}>Project Date</span>,
-        dataIndex: "projectDateDisplay",
-        sorter: true,
-        render: (_: string | null, record: ProjectRow) => (
-          <span style={tableCellStyle}>{record.projectDateDisplay ?? "-"}</span>
-        ),
-      },
-      {
-        key: "paid",
-        title: <span style={tableHeadingStyle}>Paid</span>,
+        key: "paymentStatus",
+        title: <span style={tableHeadingStyle}>Payment Status</span>,
         dataIndex: "paid",
         sorter: true,
-        render: (value: boolean | null, record: ProjectRow) => (
-          <Tag color={paidStatusColor(value)} style={{ ...tableCellStyle, borderRadius: 999 }}>
-            {paidStatusText(record.paid)}
-          </Tag>
-        ),
+        render: (_: boolean | null, record: ProjectRow) => {
+          const chipKey = paymentChipColor(record.paid)
+          const palette = paymentTagStyles[chipKey] ?? paymentTagStyles.default
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={secondaryRowTextStyle}>
+                {record.onDateDisplay
+                  ? `Paid on · ${paidDateText(record.paid, record.onDateDisplay)}`
+                  : "Paid on · -"}
+              </span>
+              <Tag
+                color={palette.backgroundColor}
+                style={{
+                  ...tableCellStyle,
+                  color: palette.color,
+                  borderRadius: 999,
+                  border: "none",
+                  padding: "2px 12px",
+                  fontSize: 13,
+                }}
+              >
+                {paymentChipLabel(record.paid)}
+              </Tag>
+            </div>
+          )
+        },
       },
       {
-        key: "subsidiary",
-        title: <span style={tableHeadingStyle}>Subsidiary</span>,
-        dataIndex: "subsidiary",
+        key: "clientCompany",
+        title: <span style={tableHeadingStyle}>Client Company</span>,
+        dataIndex: "clientCompany",
         sorter: true,
-        render: (value: string | null) => <span style={tableCellStyle}>{stringOrNA(value)}</span>,
+        render: (value: string | null) => <span style={primaryRowTextStyle}>{stringOrNA(value)}</span>,
       },
       {
         key: "actions",
         title: <span style={tableHeadingStyle}>Actions</span>,
         dataIndex: "actions",
+        align: "center" as const,
         render: (_: unknown, record: ProjectRow) => (
-          <Button type="link" icon={<EyeOutlined />} onClick={() => handleViewDetails(record)}>
-            View
-          </Button>
+          <Button
+            type="text"
+            icon={<EyeOutlined />}
+            aria-label="View project details"
+            onClick={(event) => {
+              event.stopPropagation()
+              navigateToDetails(record)
+            }}
+          />
         ),
       },
     ]
-  }, [handleViewDetails])
+  }, [navigateToDetails])
 
   const yearOptions = availableYears.map((year) => ({ label: year, value: year }))
   const subsidiaryOptions = availableSubsidiaries.map((value) => ({ label: value, value }))
@@ -656,9 +558,12 @@ const ProjectsContent = () => {
           rowKey="id"
           columns={columns}
           pagination={{ ...tableProps.pagination, showSizeChanger: false }}
+          onRow={(record) => ({
+            onClick: () => navigateToDetails(record),
+            style: { cursor: "pointer" },
+          })}
         />
       </div>
-      <ProjectDetailsDrawer project={activeProject} open={isDrawerOpen} onClose={handleCloseDrawer} />
     </div>
   )
 }
@@ -668,6 +573,11 @@ const ProjectsApp = () => (
     dataProvider={refineDataProvider}
     resources={[
       { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
+      {
+        name: "client-directory",
+        list: "/dashboard/new-ui/client-accounts",
+        meta: { label: "Client Accounts" },
+      },
       {
         name: "projects",
         list: "/dashboard/new-ui/projects",
