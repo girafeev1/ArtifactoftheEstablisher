@@ -9,7 +9,19 @@ import {
   type HttpError,
 } from "@refinedev/core"
 import { useTable } from "@refinedev/antd"
-import { App as AntdApp, Button, Form, Grid, Input, Select, Table, Tag, Typography } from "antd"
+import {
+  App as AntdApp,
+  Button,
+  Form,
+  Grid,
+  Input,
+  Empty,
+  Select,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd"
 import type { FormInstance } from "antd/es/form"
 import { EyeOutlined, SearchOutlined } from "@ant-design/icons"
 import debounce from "lodash.debounce"
@@ -68,6 +80,7 @@ type ProjectFiltersForm = {
 type ProjectsListResponse = {
   data?: ProjectRecord[]
   years?: string[]
+  subsidiaries?: string[]
 }
 
 const isFieldFilter = (filter: ProjectsFilter): filter is ProjectsFilter & { field: string } =>
@@ -180,9 +193,45 @@ const refineDataProvider: DataProvider = {
       }
     }
 
+    const needsSelection = !year || !subsidiaryFilter
+
+    if (needsSelection) {
+      const metadataParams = new URLSearchParams()
+      metadataParams.set("metaOnly", "1")
+      if (year) {
+        metadataParams.set("year", year)
+      }
+      if (subsidiaryFilter) {
+        metadataParams.set("subsidiary", subsidiaryFilter)
+      }
+      const metadataQuery = metadataParams.toString()
+      const metadataUrl = metadataQuery.length > 0 ? `/api/projects?${metadataQuery}` : "/api/projects"
+      const metadataResponse = await fetch(metadataUrl, { credentials: "include" })
+      if (metadataResponse.ok) {
+        const metadata = (await metadataResponse.json()) as ProjectsListResponse
+        projectsCache.years = Array.isArray(metadata.years) ? metadata.years : []
+        projectsCache.subsidiaries = Array.isArray(metadata.subsidiaries)
+          ? metadata.subsidiaries
+          : []
+      }
+
+      return {
+        data: [] as TData[],
+        total: 0,
+        meta: {
+          years: projectsCache.years,
+          subsidiaries: projectsCache.subsidiaries,
+          requiresSelection: true,
+        },
+      }
+    }
+
     const params = new URLSearchParams()
     if (year) {
       params.set("year", year)
+    }
+    if (subsidiaryFilter) {
+      params.set("subsidiary", subsidiaryFilter)
     }
 
     const url = params.toString().length > 0 ? `/api/projects?${params.toString()}` : "/api/projects"
@@ -195,6 +244,7 @@ const refineDataProvider: DataProvider = {
     const payload = (await response.json()) as ProjectsListResponse
     const rawItems: ProjectRecord[] = payload.data ?? []
     projectsCache.years = Array.isArray(payload.years) ? payload.years : []
+    projectsCache.subsidiaries = Array.isArray(payload.subsidiaries) ? payload.subsidiaries : []
 
     let normalized = rawItems.map((entry) => normalizeProject(entry))
 
@@ -251,13 +301,18 @@ const refineDataProvider: DataProvider = {
 export const projectsDataProvider = refineDataProvider
 
 const tableHeadingStyle = { fontFamily: "'Cantata One'", fontWeight: 400 }
-const tableCellStyle = { fontFamily: "'Karla', 'Newsreader', sans-serif", fontWeight: 500 }
+const tableCellStyle = {
+  fontFamily: "'Karla', 'Newsreader', sans-serif",
+  fontWeight: 500,
+  lineHeight: 1.2,
+}
 const primaryRowTextStyle = { ...tableCellStyle, fontSize: 16, color: "#0f172a" }
 const secondaryRowTextStyle = {
   fontFamily: "'Karla', 'Newsreader', sans-serif",
   fontWeight: 400,
   fontSize: 13,
   color: "#475569",
+  lineHeight: 1.2,
 }
 const captionRowTextStyle = {
   fontFamily: "'Karla', 'Newsreader', sans-serif",
@@ -266,6 +321,18 @@ const captionRowTextStyle = {
   color: "#64748b",
   textTransform: "uppercase" as const,
   letterSpacing: 0.8,
+}
+const italicDescriptorStyle = { ...secondaryRowTextStyle, fontStyle: "italic" }
+const subsidiaryTagStyle = {
+  ...tableCellStyle,
+  borderRadius: 999,
+  border: "none",
+  backgroundColor: "#e0f2fe",
+  color: "#0c4a6e",
+  fontSize: 12,
+  padding: "2px 10px",
+  width: "fit-content" as const,
+  marginTop: 4,
 }
 
 const simpleDescriptorText = (value: string | null | undefined) => {
@@ -339,6 +406,10 @@ const ProjectsContent = () => {
   const activeYear = collectFilterValue(filters, "year")
   const activeSubsidiary = collectFilterValue(filters, "subsidiary")
   const activeSearch = collectFilterValue(filters, "search") ?? ""
+  const selectionRequired = Boolean(
+    (tableQuery?.data?.meta as { requiresSelection?: boolean } | undefined)?.requiresSelection,
+  )
+  const hasActiveSelection = Boolean(activeYear && activeSubsidiary)
 
   useEffect(() => {
     filtersForm.setFieldsValue({
@@ -413,12 +484,21 @@ const ProjectsContent = () => {
         title: <span style={tableHeadingStyle}>Project No.</span>,
         dataIndex: "projectNumber",
         sorter: true,
-        render: (_: string, record: ProjectRow) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        render: (_: string, record: ProjectRow) => {
+          const pickupDate = simpleDescriptorText(record.projectDateDisplay)
+          const hasPickupDate = pickupDate !== "-"
+          const numberContent = (
             <span style={primaryRowTextStyle}>{stringOrNA(record.projectNumber)}</span>
-            <span style={secondaryRowTextStyle}>{simpleDescriptorText(record.projectDateDisplay)}</span>
-          </div>
-        ),
+          )
+          if (!hasPickupDate) {
+            return numberContent
+          }
+          return (
+            <Tooltip title={pickupDate} placement="top">
+              <span style={{ display: "inline-flex" }}>{numberContent}</span>
+            </Tooltip>
+          )
+        },
       },
       {
         key: "project",
@@ -426,10 +506,10 @@ const ProjectsContent = () => {
         dataIndex: "projectTitle",
         sorter: true,
         render: (_: string | null, record: ProjectRow) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <span style={captionRowTextStyle}>{stringOrNA(record.presenterWorkType)}</span>
-            <span style={primaryRowTextStyle}>{stringOrNA(record.projectTitle)}</span>
-            <span style={secondaryRowTextStyle}>{stringOrNA(record.projectNature)}</span>
+            <span style={{ ...primaryRowTextStyle, lineHeight: 1.2 }}>{stringOrNA(record.projectTitle)}</span>
+            <span style={italicDescriptorStyle}>{stringOrNA(record.projectNature)}</span>
           </div>
         ),
       },
@@ -451,25 +531,28 @@ const ProjectsContent = () => {
         render: (_: boolean | null, record: ProjectRow) => {
           const chipKey = paymentChipColor(record.paid)
           const palette = paymentTagStyles[chipKey] ?? paymentTagStyles.default
-          return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={secondaryRowTextStyle}>
-                {simpleDescriptorText(paidDateText(record.paid, record.onDateDisplay))}
-              </span>
-              <Tag
-                color={palette.backgroundColor}
-                style={{
-                  ...tableCellStyle,
-                  color: palette.color,
-                  borderRadius: 999,
-                  border: "none",
-                  padding: "2px 12px",
-                  fontSize: 13,
-                }}
-              >
-                {paymentChipLabel(record.paid)}
-              </Tag>
-            </div>
+          const paidOnValue = simpleDescriptorText(paidDateText(record.paid, record.onDateDisplay))
+          const tagContent = (
+            <Tag
+              color={palette.backgroundColor}
+              style={{
+                ...tableCellStyle,
+                color: palette.color,
+                borderRadius: 999,
+                border: "none",
+                padding: "2px 12px",
+                fontSize: 13,
+              }}
+            >
+              {paymentChipLabel(record.paid)}
+            </Tag>
+          )
+          return paidOnValue === "-" ? (
+            tagContent
+          ) : (
+            <Tooltip title={paidOnValue} placement="top">
+              <span style={{ display: "inline-flex" }}>{tagContent}</span>
+            </Tooltip>
           )
         },
       },
@@ -478,7 +561,14 @@ const ProjectsContent = () => {
         title: <span style={tableHeadingStyle}>Client Company</span>,
         dataIndex: "clientCompany",
         sorter: true,
-        render: (value: string | null) => <span style={primaryRowTextStyle}>{stringOrNA(value)}</span>,
+        render: (_: string | null, record: ProjectRow) => (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={primaryRowTextStyle}>{stringOrNA(record.clientCompany)}</span>
+            {record.subsidiary ? (
+              <Tag style={subsidiaryTagStyle}>{stringOrNA(record.subsidiary)}</Tag>
+            ) : null}
+          </div>
+        ),
       },
       {
         key: "actions",
@@ -561,19 +651,38 @@ const ProjectsContent = () => {
               prefix={<SearchOutlined />}
               placeholder="Search by project, client, or invoice"
               onChange={handleSearchChange}
+              disabled={!hasActiveSelection}
             />
           </Form.Item>
         </Form>
-        <Table<ProjectRow>
-          {...tableProps}
-          rowKey="id"
-          columns={columns}
-          pagination={{ ...tableProps.pagination, showSizeChanger: false }}
-          onRow={(record) => ({
-            onClick: () => navigateToDetails(record),
-            style: { cursor: "pointer" },
-          })}
-        />
+        {selectionRequired ? (
+          <div
+            style={{
+              minHeight: 280,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#f8fafc",
+              borderRadius: 16,
+            }}
+          >
+            <Empty
+              description="Select a year and subsidiary to load projects."
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
+          </div>
+        ) : (
+          <Table<ProjectRow>
+            {...tableProps}
+            rowKey="id"
+            columns={columns}
+            pagination={{ ...tableProps.pagination, showSizeChanger: false }}
+            onRow={(record) => ({
+              onClick: () => navigateToDetails(record),
+              style: { cursor: "pointer" },
+            })}
+          />
+        )}
       </div>
     </div>
   )

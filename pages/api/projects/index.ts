@@ -29,8 +29,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const rawYear = normalizeQueryValue(req.query.year)
   const rawSubsidiary = normalizeQueryValue(req.query.subsidiary)
+  const metaOnlyFlag = normalizeQueryValue(req.query.metaOnly)
   const year = isNonEmptyString(rawYear) ? rawYear.trim() : null
   const subsidiary = isNonEmptyString(rawSubsidiary) ? rawSubsidiary.trim() : null
+  const returnMetadataOnly =
+    typeof metaOnlyFlag === "string" && ["1", "true"].includes(metaOnlyFlag.toLowerCase())
 
   try {
     const identity = session.user.email ?? session.user.name ?? "unknown"
@@ -45,18 +48,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { projects, years } = await fetchProjectsFromDatabase()
 
-    const filtered = projects.filter((project) => {
-      if (year && project.year !== year) {
-        return false
-      }
-      if (normalizedSubsidiary) {
-        const candidate = project.subsidiary?.trim().toLowerCase() ?? ""
-        if (candidate !== normalizedSubsidiary) {
-          return false
-        }
-      }
-      return true
-    })
+    const allSubsidiaries = Array.from(
+      new Set(
+        projects
+          .map((project) => project.subsidiary?.trim())
+          .filter((value): value is string => Boolean(value && value.length > 0)),
+      ),
+    ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+
+    const filtered = returnMetadataOnly
+      ? []
+      : projects.filter((project) => {
+          if (year && project.year !== year) {
+            return false
+          }
+          if (normalizedSubsidiary) {
+            const candidate = project.subsidiary?.trim().toLowerCase() ?? ""
+            if (candidate !== normalizedSubsidiary) {
+              return false
+            }
+          }
+          return true
+        })
+
+    const subsidiariesForResponse = returnMetadataOnly
+      ? allSubsidiaries
+      : Array.from(
+          new Set(
+            filtered
+              .map((project) => project.subsidiary?.trim())
+              .filter((value): value is string => Boolean(value && value.length > 0)),
+          ),
+        ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
 
     console.info("[api/projects] Responding to GET request", {
       user: identity,
@@ -65,9 +88,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         year: year ?? null,
         subsidiary: normalizedSubsidiary ?? null,
       },
+      metaOnly: returnMetadataOnly,
     })
 
-    return res.status(200).json({ data: filtered, total: filtered.length, years })
+    return res.status(200).json({
+      data: filtered,
+      total: filtered.length,
+      years,
+      subsidiaries: subsidiariesForResponse,
+    })
   } catch (error) {
     console.error("[api/projects] Failed to respond to GET request", {
       error:

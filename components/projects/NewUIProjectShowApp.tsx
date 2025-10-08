@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/router"
 import {
   App as AntdApp,
-  Breadcrumb,
   Button,
   Card,
   Col,
@@ -10,6 +9,7 @@ import {
   Divider,
   Empty,
   Row,
+  Steps,
   Space,
   Spin,
   Tag,
@@ -18,9 +18,7 @@ import {
 } from "antd"
 import {
   ArrowLeftOutlined,
-  DownloadOutlined,
   EditOutlined,
-  FilePdfOutlined,
 } from "@ant-design/icons"
 
 import type { ProjectRecord } from "../../lib/projectsDatabase"
@@ -46,6 +44,32 @@ const headingStyle = { fontFamily: "'Cantata One'", fontWeight: 400 }
 const sectionSubtitleStyle = { fontFamily: "'Newsreader'", fontWeight: 300, color: "#475569" }
 const labelStyle = { fontFamily: "'Newsreader'", fontWeight: 200, color: "#475569" }
 const valueStyle = { fontFamily: "'Newsreader'", fontWeight: 500, color: "#0f172a" }
+const descriptorTextStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 400,
+  color: "#64748b",
+  fontSize: 14,
+  lineHeight: 1.2,
+}
+const descriptorItalicTextStyle = { ...descriptorTextStyle, fontStyle: "italic" }
+const subsidiaryChipStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 500,
+  borderRadius: 999,
+  backgroundColor: "#e0f2fe",
+  color: "#0c4a6e",
+  border: "none",
+  padding: "2px 14px",
+  fontSize: 12,
+  marginTop: 8,
+  width: "fit-content" as const,
+}
+const statusStepTitleStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 500,
+  color: "#0f172a",
+  fontSize: 14,
+}
 const paymentPalette = {
   green: { backgroundColor: "#dcfce7", color: "#166534" },
   red: { backgroundColor: "#fee2e2", color: "#b91c1c" },
@@ -160,24 +184,6 @@ const ProjectsShowContent = () => {
     )
   }
 
-  const breadcrumbItems: Array<{ title: ReactNode; href?: string }> = [
-    {
-      title: <span style={{ fontFamily: "'Newsreader'", fontWeight: 400 }}>Dashboard</span>,
-      href: "/dashboard",
-    },
-    {
-      title: <span style={{ fontFamily: "'Newsreader'", fontWeight: 400 }}>Projects</span>,
-      href: "/dashboard/new-ui/projects",
-    },
-    {
-      title: (
-        <span style={{ fontFamily: "'Newsreader'", fontWeight: 500 }}>
-          {stringOrNA(project.projectNumber)}
-        </span>
-      ),
-    },
-  ]
-
   const timelineItems = [
     {
       color: "blue",
@@ -208,6 +214,22 @@ const ProjectsShowContent = () => {
     },
   ]
 
+  const normalizedInvoice = project.invoice?.trim() ?? ""
+  let progressIndex = 0
+  if (normalizedInvoice.length > 0) {
+    progressIndex = 1
+  }
+  if (project.paid) {
+    progressIndex = 3
+  }
+
+  const statusItems = [
+    { title: <span style={statusStepTitleStyle}>Project Saved</span> },
+    { title: <span style={statusStepTitleStyle}>Invoice Drafted</span> },
+    { title: <span style={statusStepTitleStyle}>Invoice Sent</span> },
+    { title: <span style={statusStepTitleStyle}>Payment Received</span> },
+  ]
+
   return (
     <div
       style={{
@@ -226,22 +248,43 @@ const ProjectsShowContent = () => {
           >
             Back to Projects
           </Button>
-          <Breadcrumb separator=">" style={{ marginTop: 8 }} items={breadcrumbItems} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <Title level={2} style={{ ...headingStyle, margin: 0 }}>
-            {stringOrNA(project.projectTitle)}
-          </Title>
-          <Text style={sectionSubtitleStyle}>
-            Project No. {stringOrNA(project.projectNumber)} · Client {stringOrNA(project.clientCompany)}
-          </Text>
-          <Space size={12} wrap>
-            <Button type="primary" icon={<EditOutlined />}>
-              Edit Project
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 16,
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 320px" }}>
+              <span style={descriptorTextStyle}>
+                Project No. {stringOrNA(project.projectNumber)}
+              </span>
+              <span style={descriptorItalicTextStyle}>{stringOrNA(project.projectNature)}</span>
+              <Title level={2} style={{ ...headingStyle, margin: 0 }}>
+                {stringOrNA(project.projectTitle)}
+              </Title>
+              {project.subsidiary ? (
+                <Tag style={subsidiaryChipStyle}>{stringOrNA(project.subsidiary)}</Tag>
+              ) : null}
+            </div>
+            <Button
+              type="default"
+              icon={<EditOutlined />}
+              style={{
+                fontFamily: "'Newsreader'",
+                fontWeight: 500,
+                background: "#fff",
+                borderColor: "#cbd5f5",
+              }}
+            >
+              Edit
             </Button>
-            <Button icon={<DownloadOutlined />}>Download Brief</Button>
-            <Button icon={<FilePdfOutlined />}>Export PDF</Button>
-          </Space>
+          </div>
+          <Steps current={progressIndex} responsive items={statusItems} />
         </div>
         <Row gutter={[24, 24]}>
           <Col xs={24} xl={16}>
@@ -250,66 +293,69 @@ const ProjectsShowContent = () => {
               bordered={false}
               style={{ borderRadius: 18 }}
             >
-              <Descriptions column={2} colon={false} labelStyle={labelStyle} contentStyle={valueStyle}>
-                <Descriptions.Item label="Project Number">
-                  {stringOrNA(project.projectNumber)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Project Nature">
-                  {stringOrNA(project.projectNature)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Presenter Work Type">
-                  {stringOrNA(project.presenterWorkType)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Project pickup date">
-                  {project.projectDateDisplay ?? "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Invoice">
-                  {stringOrNA(project.invoice)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Subsidiary">
-                  {stringOrNA(project.subsidiary)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Year">{stringOrNA(project.year)}</Descriptions.Item>
-                <Descriptions.Item label="Paid To">{stringOrNA(project.paidTo)}</Descriptions.Item>
-              </Descriptions>
-            </Card>
-
-            <Card
-              title={<span style={headingStyle}>Payment Overview</span>}
-              bordered={false}
-              style={{ borderRadius: 18, marginTop: 24 }}
-            >
-              <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                <Space size={24} wrap>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={labelStyle}>Amount</span>
-                    <span style={{ ...valueStyle, fontSize: 18 }}>{amountText(project.amount)}</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={labelStyle}>Paid On</span>
-                    <span style={valueStyle}>{paidOnText}</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={labelStyle}>Payment Status</span>
-                    <Tag
-                      color={paidChipPalette.backgroundColor}
-                      style={{
-                        ...valueStyle,
-                        color: paidChipPalette.color,
-                        borderRadius: 999,
-                        border: "none",
-                        padding: "2px 16px",
-                        fontSize: 13,
-                      }}
-                    >
-                      {paymentChipLabel(project.paid)}
-                    </Tag>
-                  </div>
-                </Space>
-                <Divider style={{ margin: "12px 0" }} />
-                <Text style={sectionSubtitleStyle}>
-                  Track receivables and reconcile cleared invoices directly from this workspace.
-                </Text>
+              <Space direction="vertical" size={24} style={{ width: "100%" }}>
+                <Descriptions column={1} colon={false} labelStyle={labelStyle} contentStyle={valueStyle}>
+                  <Descriptions.Item label="Project No.">
+                    {stringOrNA(project.projectNumber)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Project">
+                    {stringOrNA(project.presenterWorkType)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Project Title">
+                    {stringOrNA(project.projectTitle)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Work Type">
+                    {stringOrNA(project.projectNature)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Project Pickup Date">
+                    {project.projectDateDisplay ?? "-"}
+                  </Descriptions.Item>
+                </Descriptions>
+                <Divider style={{ margin: 0 }} />
+                <div>
+                  <Title level={4} style={{ ...headingStyle, marginTop: 0, marginBottom: 16 }}>
+                    Payment Overview
+                  </Title>
+                  <Row gutter={[24, 16]}>
+                    <Col xs={24} md={8}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <span style={labelStyle}>Amount</span>
+                        <span style={{ ...valueStyle, fontSize: 18 }}>{amountText(project.amount)}</span>
+                      </div>
+                    </Col>
+                    <Col xs={24} md={8}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <span style={labelStyle}>Payment Status</span>
+                        <Tag
+                          color={paidChipPalette.backgroundColor}
+                          style={{
+                            ...valueStyle,
+                            color: paidChipPalette.color,
+                            borderRadius: 999,
+                            border: "none",
+                            padding: "2px 16px",
+                            fontSize: 13,
+                          }}
+                        >
+                          {paymentChipLabel(project.paid)}
+                        </Tag>
+                      </div>
+                    </Col>
+                    <Col xs={24} md={8}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <span style={labelStyle}>Paid On</span>
+                        <span style={valueStyle}>{paidOnText}</span>
+                      </div>
+                    </Col>
+                  </Row>
+                </div>
+                <Divider style={{ margin: 0 }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Title level={4} style={{ ...headingStyle, marginTop: 0, marginBottom: 0 }}>
+                    Invoice
+                  </Title>
+                  <Text style={valueStyle}>{stringOrNA(project.invoice)}</Text>
+                </div>
               </Space>
             </Card>
 
