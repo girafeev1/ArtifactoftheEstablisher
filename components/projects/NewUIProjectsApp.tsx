@@ -251,16 +251,29 @@ const refineDataProvider: DataProvider = {
 export const projectsDataProvider = refineDataProvider
 
 const tableHeadingStyle = { fontFamily: "'Cantata One'", fontWeight: 400 }
-const tableCellStyle = { fontFamily: "'Newsreader'", fontWeight: 500 }
+const tableCellStyle = { fontFamily: "'Karla', 'Newsreader', sans-serif", fontWeight: 500 }
 const primaryRowTextStyle = { ...tableCellStyle, fontSize: 16, color: "#0f172a" }
-const secondaryRowTextStyle = { fontFamily: "'Newsreader'", fontWeight: 300, fontSize: 13, color: "#475569" }
+const secondaryRowTextStyle = {
+  fontFamily: "'Karla', 'Newsreader', sans-serif",
+  fontWeight: 400,
+  fontSize: 13,
+  color: "#475569",
+}
 const captionRowTextStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 300,
+  fontFamily: "'Karla', 'Newsreader', sans-serif",
+  fontWeight: 400,
   fontSize: 12,
   color: "#64748b",
   textTransform: "uppercase" as const,
   letterSpacing: 0.8,
+}
+
+const simpleDescriptorText = (value: string | null | undefined) => {
+  if (typeof value !== "string") {
+    return "-"
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : "-"
 }
 const paymentTagStyles: Record<string, { backgroundColor: string; color: string }> = {
   green: { backgroundColor: "#dcfce7", color: "#166534" },
@@ -384,7 +397,11 @@ const ProjectsContent = () => {
 
   const navigateToDetails = useCallback(
     (record: ProjectRow) => {
-      router.push(`/dashboard/new-ui/projects/${record.id}`)
+      if (!record?.id) {
+        return
+      }
+      const target = `/dashboard/new-ui/projects/show/${encodeURIComponent(record.id)}`
+      void router.push(target)
     },
     [router],
   )
@@ -399,11 +416,7 @@ const ProjectsContent = () => {
         render: (_: string, record: ProjectRow) => (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={primaryRowTextStyle}>{stringOrNA(record.projectNumber)}</span>
-            <span style={secondaryRowTextStyle}>
-              {record.projectDateDisplay
-                ? `Project pickup date · ${record.projectDateDisplay}`
-                : "Project pickup date · -"}
-            </span>
+            <span style={secondaryRowTextStyle}>{simpleDescriptorText(record.projectDateDisplay)}</span>
           </div>
         ),
       },
@@ -441,9 +454,7 @@ const ProjectsContent = () => {
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={secondaryRowTextStyle}>
-                {record.onDateDisplay
-                  ? `Paid on · ${paidDateText(record.paid, record.onDateDisplay)}`
-                  : "Paid on · -"}
+                {simpleDescriptorText(paidDateText(record.paid, record.onDateDisplay))}
               </span>
               <Tag
                 color={palette.backgroundColor}

@@ -4,7 +4,7 @@ import type { GetServerSideProps } from "next"
 import { getSession } from "next-auth/react"
 
 const ProjectShowApp = dynamic(
-  () => import("../../../../components/projects/NewUIProjectShowApp"),
+  () => import("../../../../../components/projects/NewUIProjectShowApp"),
   { ssr: false },
 )
 
