@@ -33,6 +33,9 @@ export default function NewUIScreen() {
           <Link href="/dashboard/new-ui/client-accounts" passHref>
             <Button variant="contained">Preview Client Accounts</Button>
           </Link>
+          <Link href="/dashboard/new-ui/projects" passHref>
+            <Button variant="contained">Preview Projects</Button>
+          </Link>
           <Link href="/" passHref>
             <Button variant="outlined">Back to Legacy UI</Button>
           </Link>
