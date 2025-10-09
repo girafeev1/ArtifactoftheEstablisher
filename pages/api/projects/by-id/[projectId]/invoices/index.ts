@@ -1,15 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 import { getServerSession } from "next-auth/next"
 
-import { fetchProjectsFromDatabase, type ProjectRecord } from "../../../../../lib/projectsDatabase"
+import { fetchProjectsFromDatabase, type ProjectRecord } from "../../../../../../lib/projectsDatabase"
 import {
   createInvoiceForProject,
   fetchInvoicesForProject,
   type InvoiceClientPayload,
   type InvoiceItemPayload,
   updateInvoiceForProject,
-} from "../../../../../lib/projectInvoices"
-import { getAuthOptions } from "../../auth/[...nextauth]"
+} from "../../../../../../lib/projectInvoices"
+import { getAuthOptions } from "../../../../auth/[...nextauth]"
 
 const toStringValue = (value: unknown): string | null => {
   if (typeof value === "string") {

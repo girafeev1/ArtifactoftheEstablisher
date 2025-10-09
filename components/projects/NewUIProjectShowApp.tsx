@@ -684,7 +684,7 @@ const ProjectsShowContent = () => {
     if (!resolvedDraft) {
       return []
     }
-    const rows = resolvedDraft.items.map((item) => ({
+    const rows: InvoiceTableRow[] = resolvedDraft.items.map((item) => ({
       key: item.key,
       kind: "item" as const,
       title: item.title,
