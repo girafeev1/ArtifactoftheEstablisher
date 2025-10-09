@@ -412,6 +412,9 @@ const ProjectsShowContent = () => {
     })
   }, [project, projectEditMode])
 
+  const hasInvoices = invoices.length > 0
+  const invoiceNumberPending = invoiceMode === "create" && !hasInvoices
+
   useEffect(() => {
     if (!invoiceNumberPending) {
       setInvoiceNumberEditing(false)
@@ -423,7 +426,6 @@ const ProjectsShowContent = () => {
   }, [router])
 
   const isEditingInvoice = invoiceMode !== "idle"
-  const hasInvoices = invoices.length > 0
 
   const currentInvoiceRecord =
     invoiceMode === "idle" && invoices.length > 0
@@ -495,8 +497,6 @@ const ProjectsShowContent = () => {
     currentInvoiceRecord?.invoiceNumber ??
     baseInvoiceNumber ??
     "N/A"
-
-  const invoiceNumberPending = invoiceMode === "create" && !hasInvoices
 
   const paidChipKey = paymentChipColor(project?.paid ?? null)
   const paidChipPalette = paymentPalette[paidChipKey] ?? paymentPalette.default
