@@ -1,24 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/router"
 import {
   App as AntdApp,
   Button,
   Card,
   Col,
-  Descriptions,
   Divider,
   Empty,
+  Input,
+  InputNumber,
   Row,
-  Steps,
   Space,
   Spin,
+  Table,
   Tag,
-  Timeline,
   Typography,
 } from "antd"
+import type { ColumnsType } from "antd/es/table"
 import {
   ArrowLeftOutlined,
+  DeleteOutlined,
   EditOutlined,
+  PlusOutlined,
 } from "@ant-design/icons"
 
 import type { ProjectRecord } from "../../lib/projectsDatabase"
@@ -40,18 +43,32 @@ type ProjectShowResponse = {
   data?: ProjectRecord
 }
 
-const headingStyle = { fontFamily: "'Cantata One'", fontWeight: 400 }
-const sectionSubtitleStyle = { fontFamily: "'Newsreader'", fontWeight: 300, color: "#475569" }
-const labelStyle = { fontFamily: "'Newsreader'", fontWeight: 200, color: "#475569" }
-const valueStyle = { fontFamily: "'Newsreader'", fontWeight: 500, color: "#0f172a" }
-const descriptorTextStyle = {
+type InvoiceItem = {
+  key: string
+  name: string
+  description: string
+  quantity: number
+  unitPrice: number
+}
+
+type InvoiceItemField = keyof Pick<InvoiceItem, "name" | "description" | "quantity" | "unitPrice">
+
+const descriptorLineStyle = {
   fontFamily: "'Newsreader'",
-  fontWeight: 400,
+  fontWeight: 300,
   color: "#64748b",
   fontSize: 14,
   lineHeight: 1.2,
 }
-const descriptorItalicTextStyle = { ...descriptorTextStyle, fontStyle: "italic" }
+const projectTitleStyle = { fontFamily: "'Cantata One'", fontWeight: 400, margin: 0 }
+const projectNatureStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 400,
+  fontStyle: "italic",
+  color: "#475569",
+  fontSize: 14,
+  lineHeight: 1.2,
+}
 const subsidiaryChipStyle = {
   fontFamily: "'Newsreader'",
   fontWeight: 500,
@@ -64,23 +81,128 @@ const subsidiaryChipStyle = {
   marginTop: 8,
   width: "fit-content" as const,
 }
-const statusStepTitleStyle = {
+const statusButtonStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 500,
+}
+const companyNameStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 600,
+  fontSize: 18,
+  color: "#0f172a",
+}
+const addressLineStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 400,
+  color: "#475569",
+  fontSize: 14,
+  lineHeight: 1.4,
+}
+const moduleLabelStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 500,
+  letterSpacing: 0.6,
+  textTransform: "uppercase" as const,
+  color: "#94a3b8",
+  fontSize: 12,
+}
+const moduleValueStyle = {
   fontFamily: "'Newsreader'",
   fontWeight: 500,
   color: "#0f172a",
-  fontSize: 14,
+  fontSize: 16,
+}
+const invoiceFallbackStyle = {
+  ...moduleValueStyle,
+  color: "#94a3b8",
+  fontStyle: "italic" as const,
+}
+const itemsHeadingStyle = { fontFamily: "'Cantata One'", fontWeight: 400, margin: 0 }
+const itemsTableHeadingStyle = { fontFamily: "'Cantata One'", fontWeight: 400 }
+const itemsInputStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 400,
+  color: "#0f172a",
 }
 const paymentPalette = {
   green: { backgroundColor: "#dcfce7", color: "#166534" },
   red: { backgroundColor: "#fee2e2", color: "#b91c1c" },
   default: { backgroundColor: "#e2e8f0", color: "#1f2937" },
 } as const
+const paymentTagBaseStyle = {
+  fontFamily: "'Newsreader'",
+  fontWeight: 500,
+  borderRadius: 999,
+  border: "none",
+  padding: "2px 16px",
+  fontSize: 13,
+}
+
+const formatProjectDateYmd = (
+  iso: string | null | undefined,
+  fallback: string | null | undefined,
+) => {
+  const attemptFormat = (value: string | null | undefined) => {
+    if (!value || value.trim().length === 0) {
+      return null
+    }
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) {
+      return null
+    }
+    const year = parsed.getFullYear()
+    const month = `${parsed.getMonth() + 1}`.padStart(2, "0")
+    const day = `${parsed.getDate()}`.padStart(2, "0")
+    return `${year}/${month}/${day}`
+  }
+
+  return attemptFormat(iso) ?? attemptFormat(fallback) ?? "-"
+}
+
+const generateInvoiceFallback = (
+  projectNumber: string | null | undefined,
+  projectDateIso: string | null | undefined,
+): string | null => {
+  if (!projectNumber || projectNumber.trim().length === 0) {
+    return null
+  }
+  if (!projectDateIso || projectDateIso.trim().length === 0) {
+    return `${projectNumber}`
+  }
+  const parsed = new Date(projectDateIso)
+  if (Number.isNaN(parsed.getTime())) {
+    return `${projectNumber}`
+  }
+  const month = `${parsed.getMonth() + 1}`.padStart(2, "0")
+  const day = `${parsed.getDate()}`.padStart(2, "0")
+  return `${projectNumber}-${month}${day}`
+}
+
+const combineLineWithRegion = (
+  line: string | null | undefined,
+  region: string | null | undefined,
+) => {
+  const normalizedLine = stringOrNA(line)
+  const normalizedRegion = stringOrNA(region)
+  if (normalizedLine === "N/A" && normalizedRegion === "N/A") {
+    return "N/A"
+  }
+  if (normalizedLine === "N/A") {
+    return normalizedRegion
+  }
+  if (normalizedRegion === "N/A") {
+    return normalizedLine
+  }
+  return `${normalizedLine}, ${normalizedRegion}`
+}
 
 const ProjectsShowContent = () => {
   const router = useRouter()
   const { message } = AntdApp.useApp()
   const [loading, setLoading] = useState(true)
   const [project, setProject] = useState<NormalizedProject | null>(null)
+  const [items, setItems] = useState<InvoiceItem[]>([])
+  const itemIdRef = useRef(0)
 
   const projectId = useMemo(() => {
     const raw = router.query.projectId
@@ -143,9 +265,187 @@ const ProjectsShowContent = () => {
     }
   }, [message, projectId, router.isReady])
 
+  const handleAddItem = useCallback(() => {
+    setItems((previous) => {
+      const nextId = itemIdRef.current + 1
+      itemIdRef.current = nextId
+      return [
+        ...previous,
+        {
+          key: `item-${nextId}`,
+          name: "",
+          description: "",
+          quantity: 1,
+          unitPrice: 0,
+        },
+      ]
+    })
+  }, [])
+
+  const handleItemChange = useCallback(
+    (key: string, field: InvoiceItemField, value: string | number) => {
+      setItems((previous) =>
+        previous.map((item) => {
+          if (item.key !== key) {
+            return item
+          }
+          if (field === "quantity" || field === "unitPrice") {
+            const numericValue =
+              typeof value === "number" && !Number.isNaN(value)
+                ? value
+                : Number(value) || 0
+            return {
+              ...item,
+              [field]: numericValue,
+            }
+          }
+          return {
+            ...item,
+            [field]: typeof value === "string" ? value : `${value}`,
+          }
+        }),
+      )
+    },
+    [],
+  )
+
+  const handleRemoveItem = useCallback((key: string) => {
+    setItems((previous) => previous.filter((item) => item.key !== key))
+  }, [])
+
+  const itemsColumns: ColumnsType<InvoiceItem> = useMemo(
+    () => [
+      {
+        key: "name",
+        dataIndex: "name",
+        title: <span style={itemsTableHeadingStyle}>Item</span>,
+        render: (_: string, record: InvoiceItem) => (
+          <Input
+            value={record.name}
+            placeholder="Item name"
+            bordered={false}
+            onChange={(event) => handleItemChange(record.key, "name", event.target.value)}
+            style={itemsInputStyle}
+          />
+        ),
+      },
+      {
+        key: "description",
+        dataIndex: "description",
+        title: <span style={itemsTableHeadingStyle}>Description</span>,
+        render: (_: string, record: InvoiceItem) => (
+          <Input
+            value={record.description}
+            placeholder="Description"
+            bordered={false}
+            onChange={(event) =>
+              handleItemChange(record.key, "description", event.target.value)
+            }
+            style={itemsInputStyle}
+          />
+        ),
+      },
+      {
+        key: "quantity",
+        dataIndex: "quantity",
+        title: <span style={itemsTableHeadingStyle}>Qty</span>,
+        width: 100,
+        render: (_: number, record: InvoiceItem) => (
+          <InputNumber
+            min={0}
+            value={record.quantity}
+            bordered={false}
+            onChange={(value) => handleItemChange(record.key, "quantity", value ?? 0)}
+            style={{ ...itemsInputStyle, width: "100%" }}
+          />
+        ),
+      },
+      {
+        key: "unitPrice",
+        dataIndex: "unitPrice",
+        title: <span style={itemsTableHeadingStyle}>Rate</span>,
+        width: 140,
+        render: (_: number, record: InvoiceItem) => (
+          <InputNumber
+            min={0}
+            value={record.unitPrice}
+            bordered={false}
+            formatter={(value) => (value !== undefined ? `${value}` : "0")}
+            onChange={(value) => handleItemChange(record.key, "unitPrice", value ?? 0)}
+            style={{ ...itemsInputStyle, width: "100%" }}
+          />
+        ),
+      },
+      {
+        key: "amount",
+        dataIndex: "amount",
+        title: <span style={itemsTableHeadingStyle}>Amount</span>,
+        align: "right",
+        render: (_: unknown, record: InvoiceItem) => {
+          const total = record.quantity * record.unitPrice
+          return <span style={itemsInputStyle}>{amountText(total)}</span>
+        },
+      },
+      {
+        key: "actions",
+        dataIndex: "actions",
+        align: "center",
+        width: 80,
+        render: (_: unknown, record: InvoiceItem) => (
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleRemoveItem(record.key)}
+          />
+        ),
+      },
+    ],
+    [handleItemChange, handleRemoveItem],
+  )
+
   const paidChipKey = paymentChipColor(project?.paid ?? null)
   const paidChipPalette = paymentPalette[paidChipKey] ?? paymentPalette.default
   const paidOnText = paidDateText(project?.paid ?? null, project?.onDateDisplay ?? null)
+
+  const formattedDescriptor = project
+    ? `${stringOrNA(project.projectNumber)} / ${formatProjectDateYmd(
+        project.projectDateIso,
+        project.projectDateDisplay,
+      )}`
+    : "-"
+
+  const normalizedInvoice = project?.invoice?.trim() ?? ""
+  const invoiceFallback = generateInvoiceFallback(
+    project?.projectNumber ?? null,
+    project?.projectDateIso ?? null,
+  )
+  const hasStoredInvoice = normalizedInvoice.length > 0
+  const invoiceDisplay = hasStoredInvoice
+    ? normalizedInvoice
+    : invoiceFallback ?? "N/A"
+  const invoiceStyle = hasStoredInvoice ? moduleValueStyle : invoiceFallbackStyle
+
+  let statusIndex = 0
+  if (hasStoredInvoice) {
+    statusIndex = 1
+  }
+  if (project?.paid) {
+    statusIndex = 2
+  }
+
+  const statusSteps = [
+    { key: "saved", label: "Project Saved" },
+    { key: "invoice", label: "Invoice Drafted" },
+    { key: "payment", label: "Payment Received" },
+  ]
+
+  const itemsTotal = useMemo(
+    () => items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+    [items],
+  )
+
+  const resolvedAmount = items.length > 0 ? itemsTotal : project?.amount ?? null
 
   if (loading) {
     return (
@@ -184,52 +484,6 @@ const ProjectsShowContent = () => {
     )
   }
 
-  const timelineItems = [
-    {
-      color: "blue",
-      children: (
-        <div>
-          <Text style={valueStyle}>Project pickup date</Text>
-          <div style={{ ...labelStyle, marginTop: 4 }}>{project.projectDateDisplay ?? "-"}</div>
-        </div>
-      ),
-    },
-    {
-      color: "green",
-      children: (
-        <div>
-          <Text style={valueStyle}>Payment status</Text>
-          <div style={{ ...labelStyle, marginTop: 4 }}>{paymentChipLabel(project.paid)}</div>
-        </div>
-      ),
-    },
-    {
-      color: "gray",
-      children: (
-        <div>
-          <Text style={valueStyle}>Subsidiary</Text>
-          <div style={{ ...labelStyle, marginTop: 4 }}>{stringOrNA(project.subsidiary)}</div>
-        </div>
-      ),
-    },
-  ]
-
-  const normalizedInvoice = project.invoice?.trim() ?? ""
-  let progressIndex = 0
-  if (normalizedInvoice.length > 0) {
-    progressIndex = 1
-  }
-  if (project.paid) {
-    progressIndex = 3
-  }
-
-  const statusItems = [
-    { title: <span style={statusStepTitleStyle}>Project Saved</span> },
-    { title: <span style={statusStepTitleStyle}>Invoice Drafted</span> },
-    { title: <span style={statusStepTitleStyle}>Invoice Sent</span> },
-    { title: <span style={statusStepTitleStyle}>Payment Received</span> },
-  ]
-
   return (
     <div
       style={{
@@ -259,14 +513,12 @@ const ProjectsShowContent = () => {
               gap: 16,
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 320px" }}>
-              <span style={descriptorTextStyle}>
-                Project No. {stringOrNA(project.projectNumber)}
-              </span>
-              <span style={descriptorItalicTextStyle}>{stringOrNA(project.projectNature)}</span>
-              <Title level={2} style={{ ...headingStyle, margin: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: "1 1 320px" }}>
+              <span style={descriptorLineStyle}>{formattedDescriptor}</span>
+              <Title level={2} style={projectTitleStyle}>
                 {stringOrNA(project.projectTitle)}
               </Title>
+              <span style={projectNatureStyle}>{stringOrNA(project.projectNature)}</span>
               {project.subsidiary ? (
                 <Tag style={subsidiaryChipStyle}>{stringOrNA(project.subsidiary)}</Tag>
               ) : null}
@@ -284,132 +536,119 @@ const ProjectsShowContent = () => {
               Edit
             </Button>
           </div>
-          <Steps current={progressIndex} responsive items={statusItems} />
+          <Space size={12} wrap>
+            {statusSteps.map((step, index) => {
+              const reached = statusIndex >= index
+              const isCurrent = statusIndex === index
+              return (
+                <Button
+                  key={step.key}
+                  type={reached ? "primary" : "default"}
+                  ghost={reached && !isCurrent}
+                  style={statusButtonStyle}
+                >
+                  {step.label}
+                </Button>
+              )
+            })}
+          </Space>
         </div>
-        <Row gutter={[24, 24]}>
-          <Col xs={24} xl={16}>
-            <Card
-              title={<span style={headingStyle}>Project Details</span>}
-              bordered={false}
-              style={{ borderRadius: 18 }}
-            >
-              <Space direction="vertical" size={24} style={{ width: "100%" }}>
-                <Descriptions column={1} colon={false} labelStyle={labelStyle} contentStyle={valueStyle}>
-                  <Descriptions.Item label="Project No.">
-                    {stringOrNA(project.projectNumber)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Project">
-                    {stringOrNA(project.presenterWorkType)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Project Title">
-                    {stringOrNA(project.projectTitle)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Work Type">
-                    {stringOrNA(project.projectNature)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Project Pickup Date">
-                    {project.projectDateDisplay ?? "-"}
-                  </Descriptions.Item>
-                </Descriptions>
-                <Divider style={{ margin: 0 }} />
-                <div>
-                  <Title level={4} style={{ ...headingStyle, marginTop: 0, marginBottom: 16 }}>
-                    Payment Overview
-                  </Title>
-                  <Row gutter={[24, 16]}>
-                    <Col xs={24} md={8}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <span style={labelStyle}>Amount</span>
-                        <span style={{ ...valueStyle, fontSize: 18 }}>{amountText(project.amount)}</span>
-                      </div>
-                    </Col>
-                    <Col xs={24} md={8}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <span style={labelStyle}>Payment Status</span>
-                        <Tag
-                          color={paidChipPalette.backgroundColor}
-                          style={{
-                            ...valueStyle,
-                            color: paidChipPalette.color,
-                            borderRadius: 999,
-                            border: "none",
-                            padding: "2px 16px",
-                            fontSize: 13,
-                          }}
-                        >
-                          {paymentChipLabel(project.paid)}
-                        </Tag>
-                      </div>
-                    </Col>
-                    <Col xs={24} md={8}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <span style={labelStyle}>Paid On</span>
-                        <span style={valueStyle}>{paidOnText}</span>
-                      </div>
-                    </Col>
-                  </Row>
+        <Card bordered={false} style={{ borderRadius: 18 }}>
+          <Space direction="vertical" size={24} style={{ width: "100%" }}>
+            <Row gutter={[24, 24]}>
+              <Col xs={24} md={12}>
+                <Space direction="vertical" size={4}>
+                  <Text style={companyNameStyle}>{stringOrNA(project.clientCompany)}</Text>
+                  <Text style={addressLineStyle}>{stringOrNA(null)}</Text>
+                  <Text style={addressLineStyle}>{stringOrNA(null)}</Text>
+                  <Text style={addressLineStyle}>
+                    {combineLineWithRegion(null, project.subsidiary)}
+                  </Text>
+                  <Text style={addressLineStyle}>{stringOrNA(project.paidTo)}</Text>
+                </Space>
+              </Col>
+              <Col
+                xs={24}
+                md={12}
+                style={{ display: "flex", justifyContent: "flex-end", width: "100%" }}
+              >
+                <Space
+                  direction="vertical"
+                  align="end"
+                  size={16}
+                  style={{ width: "100%", maxWidth: 280 }}
+                >
+                  <div style={{ textAlign: "right" }}>
+                    <div style={moduleLabelStyle}>Invoice Number</div>
+                    <div style={invoiceStyle}>{invoiceDisplay}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={moduleLabelStyle}>Amount</div>
+                    <div style={{ ...moduleValueStyle, fontSize: 18 }}>
+                      {amountText(resolvedAmount)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={moduleLabelStyle}>Payment Status</div>
+                    <Tag
+                      style={{
+                        ...paymentTagBaseStyle,
+                        backgroundColor: paidChipPalette.backgroundColor,
+                        color: paidChipPalette.color,
+                      }}
+                    >
+                      {paymentChipLabel(project.paid)}
+                    </Tag>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={moduleLabelStyle}>Paid On</div>
+                    <div style={moduleValueStyle}>{paidOnText}</div>
+                  </div>
+                </Space>
+              </Col>
+            </Row>
+            <Divider style={{ margin: 0 }} />
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 16,
+                  flexWrap: "wrap",
+                  gap: 12,
+                }}
+              >
+                <Title level={4} style={itemsHeadingStyle}>
+                  Items / Services
+                </Title>
+                <Button
+                  type="dashed"
+                  icon={<PlusOutlined />}
+                  onClick={handleAddItem}
+                  style={{ fontFamily: "'Newsreader'", fontWeight: 500 }}
+                >
+                  Add Item
+                </Button>
+              </div>
+              <Table<InvoiceItem>
+                dataSource={items}
+                columns={itemsColumns}
+                pagination={false}
+                locale={{ emptyText: "Add line items to build an invoice." }}
+                rowKey="key"
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+                <div style={{ textAlign: "right" }}>
+                  <div style={moduleLabelStyle}>Total</div>
+                  <div style={{ ...moduleValueStyle, fontSize: 18 }}>
+                    {amountText(resolvedAmount)}
+                  </div>
                 </div>
-                <Divider style={{ margin: 0 }} />
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <Title level={4} style={{ ...headingStyle, marginTop: 0, marginBottom: 0 }}>
-                    Invoice
-                  </Title>
-                  <Text style={valueStyle}>{stringOrNA(project.invoice)}</Text>
-                </div>
-              </Space>
-            </Card>
-
-            <Card
-              title={<span style={headingStyle}>Notes</span>}
-              bordered={false}
-              style={{ borderRadius: 18, marginTop: 24 }}
-            >
-              <Text style={sectionSubtitleStyle}>
-                Add engagement summaries, follow-up reminders, and client feedback. This area mirrors the Refine
-                CRM sample layout so we can iterate on the exact fields later.
-              </Text>
-            </Card>
-          </Col>
-
-          <Col xs={24} xl={8}>
-            <Card
-              title={<span style={headingStyle}>Client Company</span>}
-              bordered={false}
-              style={{ borderRadius: 18 }}
-            >
-              <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={labelStyle}>Company</span>
-                  <span style={valueStyle}>{stringOrNA(project.clientCompany)}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={labelStyle}>Primary Contact</span>
-                  <span style={valueStyle}>N/A</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={labelStyle}>Email</span>
-                  <span style={valueStyle}>N/A</span>
-                </div>
-              </Space>
-            </Card>
-
-            <Card
-              title={<span style={headingStyle}>Project Timeline</span>}
-              bordered={false}
-              style={{ borderRadius: 18, marginTop: 24 }}
-            >
-              <Timeline items={timelineItems} />
-            </Card>
-
-            <Card
-              title={<span style={headingStyle}>Attachments</span>}
-              bordered={false}
-              style={{ borderRadius: 18, marginTop: 24 }}
-            >
-              <Text style={sectionSubtitleStyle}>No files uploaded yet.</Text>
-            </Card>
-          </Col>
-        </Row>
+              </div>
+            </div>
+          </Space>
+        </Card>
       </Space>
     </div>
   )

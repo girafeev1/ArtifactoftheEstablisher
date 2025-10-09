@@ -44,7 +44,7 @@ if (typeof window === "undefined") {
   })
 }
 
-const { Text, Title } = Typography
+const { Title } = Typography
 
 const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects"] as const
 
@@ -274,13 +274,8 @@ const refineDataProvider: DataProvider = {
 
     const sorted = applySorting(normalized, sorters)
 
-    const current = pagination?.current ?? 1
-    const pageSize = pagination?.pageSize ?? 12
-    const start = (current - 1) * pageSize
-    const paginated = sorted.slice(start, start + pageSize)
-
     return {
-      data: paginated as unknown as TData[],
+      data: sorted as unknown as TData[],
       total: sorted.length,
       meta: {
         years: projectsCache.years,
@@ -562,11 +557,11 @@ const ProjectsContent = () => {
         dataIndex: "clientCompany",
         sorter: true,
         render: (_: string | null, record: ProjectRow) => (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={primaryRowTextStyle}>{stringOrNA(record.clientCompany)}</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {record.subsidiary ? (
               <Tag style={subsidiaryTagStyle}>{stringOrNA(record.subsidiary)}</Tag>
             ) : null}
+            <span style={primaryRowTextStyle}>{stringOrNA(record.clientCompany)}</span>
           </div>
         ),
       },
@@ -610,14 +605,9 @@ const ProjectsContent = () => {
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <div>
-          <Title level={2} style={{ fontFamily: "'Cantata One'", marginBottom: 8 }}>
-            Projects
-          </Title>
-          <Text style={{ fontFamily: "'Newsreader'", fontWeight: 400, color: "#475569" }}>
-            Review project activity by year, subsidiary, and payment status.
-          </Text>
-        </div>
+        <Title level={2} style={{ fontFamily: "'Cantata One'", marginBottom: 8 }}>
+          Projects
+        </Title>
         <Form
           form={filtersForm}
           layout={screens.md ? "inline" : "vertical"}
@@ -676,7 +666,7 @@ const ProjectsContent = () => {
             {...tableProps}
             rowKey="id"
             columns={columns}
-            pagination={{ ...tableProps.pagination, showSizeChanger: false }}
+            pagination={false}
             onRow={(record) => ({
               onClick: () => navigateToDetails(record),
               style: { cursor: "pointer" },
