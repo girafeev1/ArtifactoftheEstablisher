@@ -1623,9 +1623,10 @@ const ProjectsShowContent = () => {
 
         .summary-item {
           display: flex;
-          flex-direction: column;
-          gap: 4px;
-          min-width: 120px;
+          flex-direction: row;
+          align-items: center;
+          gap: 8px;
+          min-width: 160px;
         }
 
         .summary-label {
@@ -1641,6 +1642,10 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #0f172a;
+        }
+
+        .summary-item.status {
+          gap: 12px;
         }
 
         .summary-value.pending {
