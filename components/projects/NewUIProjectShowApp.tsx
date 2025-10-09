@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react"
 import { useRouter } from "next/router"
 import {
   App as AntdApp,
   Button,
   Card,
   Col,
-  Divider,
   Empty,
   Input,
   InputNumber,
@@ -101,7 +107,7 @@ type InvoiceTableRow = {
 const toNumberValue = (value: number | null | undefined) =>
   typeof value === "number" && !Number.isNaN(value) ? value : 0
 
-const formatProjectDateYmd = (
+const formatProjectDate = (
   iso: string | null | undefined,
   fallback: string | null | undefined,
 ) => {
@@ -113,10 +119,11 @@ const formatProjectDateYmd = (
     if (Number.isNaN(parsed.getTime())) {
       return null
     }
-    const year = parsed.getFullYear()
-    const month = `${parsed.getMonth() + 1}`.padStart(2, "0")
-    const day = `${parsed.getDate()}`.padStart(2, "0")
-    return `${year}/${month}/${day}`
+    return parsed.toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    })
   }
 
   return attemptFormat(iso) ?? attemptFormat(fallback) ?? "-"
@@ -284,6 +291,11 @@ const formatPercentText = (percent: number) => {
   const safe = Number(percent) || 0
   return `${safe.toFixed(2).replace(/\.00$/, "")}\u0025`
 }
+
+const toNullableString = (value: string) => {
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
 const ProjectsShowContent = () => {
   const router = useRouter()
   const { message } = AntdApp.useApp()
@@ -295,6 +307,13 @@ const ProjectsShowContent = () => {
   const [invoiceMode, setInvoiceMode] = useState<"idle" | "create" | "edit">("idle")
   const [draftInvoice, setDraftInvoice] = useState<InvoiceDraftState | null>(null)
   const [savingInvoice, setSavingInvoice] = useState(false)
+  const [projectEditMode, setProjectEditMode] = useState<"view" | "edit" | "saving">("view")
+  const [projectDraft, setProjectDraft] = useState({
+    presenterWorkType: "",
+    projectTitle: "",
+    projectNature: "",
+  })
+  const [invoiceNumberEditing, setInvoiceNumberEditing] = useState(false)
   const itemIdRef = useRef(0)
 
   const projectId = useMemo(() => {
@@ -335,8 +354,10 @@ const ProjectsShowContent = () => {
         const invoiceRecords = Array.isArray(payload.invoices) ? payload.invoices : []
 
         setProject(normalizedProject)
+        setProjectEditMode("view")
         setClient(normalizedClient)
         setInvoices(invoiceRecords)
+        setInvoiceNumberEditing(false)
 
         if (invoiceRecords.length > 0) {
           setActiveInvoiceIndex(0)
@@ -379,6 +400,23 @@ const ProjectsShowContent = () => {
       controller.abort()
     }
   }, [loadProject, router.isReady])
+
+  useEffect(() => {
+    if (!project || projectEditMode !== "view") {
+      return
+    }
+    setProjectDraft({
+      presenterWorkType: project.presenterWorkType ?? "",
+      projectTitle: project.projectTitle ?? "",
+      projectNature: project.projectNature ?? "",
+    })
+  }, [project, projectEditMode])
+
+  useEffect(() => {
+    if (!invoiceNumberPending) {
+      setInvoiceNumberEditing(false)
+    }
+  }, [invoiceNumberPending])
 
   const handleBack = useCallback(() => {
     void router.push("/dashboard/new-ui/projects")
@@ -438,10 +476,10 @@ const ProjectsShowContent = () => {
       pending: false,
     }))
     if (invoiceMode === "create" && draftInvoice) {
-      base.push({ invoiceNumber: draftInvoice.invoiceNumber, pending: !hasInvoices })
+      base.push({ invoiceNumber: draftInvoice.invoiceNumber, pending: true })
     }
     return base
-  }, [draftInvoice, hasInvoices, invoiceMode, invoices])
+  }, [draftInvoice, invoiceMode, invoices])
 
   const selectorHighlightIndex = useMemo(() => {
     if (invoiceMode === "create" && draftInvoice) {
@@ -479,6 +517,133 @@ const ProjectsShowContent = () => {
     },
     [invoiceMode, message],
   )
+
+  const startProjectEditing = useCallback(() => {
+    if (!project) {
+      return
+    }
+    setProjectDraft({
+      presenterWorkType: project.presenterWorkType ?? "",
+      projectTitle: project.projectTitle ?? "",
+      projectNature: project.projectNature ?? "",
+    })
+    setProjectEditMode("edit")
+  }, [project])
+
+  const cancelProjectEditing = useCallback(() => {
+    setProjectEditMode("view")
+    if (project) {
+      setProjectDraft({
+        presenterWorkType: project.presenterWorkType ?? "",
+        projectTitle: project.projectTitle ?? "",
+        projectNature: project.projectNature ?? "",
+      })
+    }
+  }, [project])
+
+  const handleProjectDraftChange = useCallback(
+    (field: "presenterWorkType" | "projectTitle" | "projectNature", value: string) => {
+      setProjectDraft((previous) => ({ ...previous, [field]: value }))
+    },
+    [],
+  )
+
+  const saveProjectEdits = useCallback(async () => {
+    if (!project) {
+      return
+    }
+
+    const trimmedPresenter = projectDraft.presenterWorkType.trim()
+    const trimmedTitle = projectDraft.projectTitle.trim()
+    const trimmedNature = projectDraft.projectNature.trim()
+
+    const currentPresenter = project.presenterWorkType?.trim() ?? ""
+    const currentTitle = project.projectTitle?.trim() ?? ""
+    const currentNature = project.projectNature?.trim() ?? ""
+
+    if (
+      currentPresenter === trimmedPresenter &&
+      currentTitle === trimmedTitle &&
+      currentNature === trimmedNature
+    ) {
+      setProjectEditMode("view")
+      setProjectDraft({
+        presenterWorkType: project.presenterWorkType ?? "",
+        projectTitle: project.projectTitle ?? "",
+        projectNature: project.projectNature ?? "",
+      })
+      return
+    }
+
+    const sanitizedPresenter = toNullableString(trimmedPresenter)
+    const sanitizedTitle = toNullableString(trimmedTitle)
+    const sanitizedNature = toNullableString(trimmedNature)
+
+    try {
+      setProjectEditMode("saving")
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            updates: {
+              presenterWorkType: sanitizedPresenter,
+              projectTitle: sanitizedTitle,
+              projectNature: sanitizedNature,
+            },
+          }),
+        },
+      )
+
+      const payload = (await response.json().catch(() => ({}))) as { error?: string }
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to update project")
+      }
+
+      setProject((previous) => {
+        if (!previous) {
+          return previous
+        }
+        const nextPresenter = sanitizedPresenter
+        const nextTitle = sanitizedTitle
+        const nextNature = sanitizedNature
+        const nextSearchIndex = [
+          previous.projectNumber,
+          nextTitle ?? "",
+          previous.clientCompany ?? "",
+          previous.subsidiary ?? "",
+          previous.invoice ?? "",
+          nextNature ?? "",
+          nextPresenter ?? "",
+        ]
+          .join(" ")
+          .toLowerCase()
+
+        return {
+          ...previous,
+          presenterWorkType: nextPresenter,
+          projectTitle: nextTitle,
+          projectNature: nextNature,
+          searchIndex: nextSearchIndex,
+        }
+      })
+
+      setProjectEditMode("view")
+      setProjectDraft({
+        presenterWorkType: sanitizedPresenter ?? "",
+        projectTitle: sanitizedTitle ?? "",
+        projectNature: sanitizedNature ?? "",
+      })
+      message.success("Project updated")
+    } catch (error) {
+      const description = error instanceof Error ? error.message : "Unable to update project"
+      message.error(description)
+      setProjectEditMode("edit")
+    }
+  }, [message, project, projectDraft.presenterWorkType, projectDraft.projectNature, projectDraft.projectTitle])
 
   const prepareDraft = useCallback(
     (mode: "create" | "edit") => {
@@ -577,6 +742,64 @@ const ProjectsShowContent = () => {
     })
   }, [])
 
+  const beginInvoiceNumberEdit = useCallback(() => {
+    if (!invoiceNumberPending || invoiceMode !== "create" || hasInvoices || !draftInvoice) {
+      return
+    }
+    setInvoiceNumberEditing(true)
+  }, [draftInvoice, hasInvoices, invoiceMode, invoiceNumberPending])
+
+  const handleInvoiceNumberInput = useCallback((value: string) => {
+    setDraftInvoice((previous) => {
+      if (!previous) {
+        return previous
+      }
+      return { ...previous, invoiceNumber: value, baseInvoiceNumber: value }
+    })
+  }, [])
+
+  const finalizeInvoiceNumberEdit = useCallback(() => {
+    setInvoiceNumberEditing(false)
+    setDraftInvoice((previous) => {
+      if (!previous) {
+        return previous
+      }
+      const trimmed = previous.invoiceNumber.trim()
+      if (trimmed.length === 0) {
+        const fallback =
+          generateInvoiceFallback(project?.projectNumber ?? null, project?.projectDateIso ?? null) ??
+          previous.baseInvoiceNumber ??
+          "Invoice"
+        return { ...previous, invoiceNumber: fallback, baseInvoiceNumber: fallback }
+      }
+      return { ...previous, invoiceNumber: trimmed, baseInvoiceNumber: trimmed }
+    })
+  }, [project?.projectDateIso, project?.projectNumber])
+
+  const cancelInvoiceNumberEdit = useCallback(() => {
+    setInvoiceNumberEditing(false)
+    setDraftInvoice((previous) => {
+      if (!previous) {
+        return previous
+      }
+      return { ...previous, invoiceNumber: previous.baseInvoiceNumber }
+    })
+  }, [])
+
+  const handleInvoiceNumberKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault()
+        finalizeInvoiceNumberEdit()
+      }
+      if (event.key === "Escape") {
+        event.preventDefault()
+        cancelInvoiceNumberEdit()
+      }
+    },
+    [cancelInvoiceNumberEdit, finalizeInvoiceNumberEdit],
+  )
+
   const handleCancelInvoice = useCallback(() => {
     if (!hasInvoices) {
       if (project) {
@@ -586,8 +809,10 @@ const ProjectsShowContent = () => {
         setInvoiceMode("create")
         setActiveInvoiceIndex(0)
       }
+      setInvoiceNumberEditing(false)
       return
     }
+    setInvoiceNumberEditing(false)
     setInvoiceMode("idle")
     setDraftInvoice(null)
     itemIdRef.current = 0
@@ -669,6 +894,7 @@ const ProjectsShowContent = () => {
         message.success("Invoice updated")
       }
 
+      setInvoiceNumberEditing(false)
       setInvoiceMode("idle")
       setDraftInvoice(null)
       itemIdRef.current = 0
@@ -730,7 +956,7 @@ const ProjectsShowContent = () => {
             <div className="item-edit">
               <Input
                 value={record.title}
-                placeholder="Item title"
+                placeholder="Description"
                 bordered={false}
                 onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
               />
@@ -861,6 +1087,14 @@ const ProjectsShowContent = () => {
       </div>
     )
   }
+  const isProjectEditing = projectEditMode === "edit" || projectEditMode === "saving"
+  const projectEditSaving = projectEditMode === "saving"
+  const paymentAmountValue =
+    typeof project.amount === "number" && !Number.isNaN(project.amount)
+      ? project.amount
+      : total
+  const showInvoiceCancel = invoiceMode !== "idle" && (invoiceMode === "edit" || hasInvoices)
+  const showInvoiceNumberInput = invoiceNumberEditing && invoiceNumberPending
   return (
     <div className="page-wrapper">
       <Space direction="vertical" size={24} style={{ width: "100%" }}>
@@ -877,26 +1111,84 @@ const ProjectsShowContent = () => {
             <span className="descriptor-number">{stringOrNA(project.projectNumber)}</span>
             <span className="descriptor-separator">/</span>
             <span className="descriptor-date">
-              {formatProjectDateYmd(project.projectDateIso, project.projectDateDisplay)}
+              {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
             </span>
           </div>
           <div className="title-row">
-            <div>
-              <Title level={2} className="project-title">
-                {stringOrNA(project.projectTitle)}
-              </Title>
-              <Text className="project-nature">{stringOrNA(project.projectNature)}</Text>
+            <div className="title-content">
+              {isProjectEditing ? (
+                <Input
+                  value={projectDraft.presenterWorkType}
+                  onChange={(event) =>
+                    handleProjectDraftChange("presenterWorkType", event.target.value)
+                  }
+                  placeholder="Project type"
+                  bordered={false}
+                  className="presenter-input"
+                  disabled={projectEditSaving}
+                />
+              ) : (
+                <Text className="presenter-type">{stringOrNA(project.presenterWorkType)}</Text>
+              )}
+              {isProjectEditing ? (
+                <Input
+                  value={projectDraft.projectTitle}
+                  onChange={(event) => handleProjectDraftChange("projectTitle", event.target.value)}
+                  placeholder="Project title"
+                  bordered={false}
+                  className="project-title-input"
+                  disabled={projectEditSaving}
+                />
+              ) : (
+                <Title level={2} className="project-title">
+                  {stringOrNA(project.projectTitle)}
+                </Title>
+              )}
+              {isProjectEditing ? (
+                <Input
+                  value={projectDraft.projectNature}
+                  onChange={(event) => handleProjectDraftChange("projectNature", event.target.value)}
+                  placeholder="Project nature"
+                  bordered={false}
+                  className="project-nature-input"
+                  disabled={projectEditSaving}
+                />
+              ) : (
+                <Text className="project-nature">{stringOrNA(project.projectNature)}</Text>
+              )}
               {project.subsidiary ? (
                 <Tag className="subsidiary-chip">{stringOrNA(project.subsidiary)}</Tag>
               ) : null}
             </div>
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => message.info("Project editing is available in the legacy dashboard.")}
-              className="project-edit"
-            >
-              Edit
-            </Button>
+            <div className="project-actions">
+              {projectEditMode === "view" ? (
+                <Button
+                  icon={<EditOutlined />}
+                  className="project-edit"
+                  onClick={startProjectEditing}
+                >
+                  Edit
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    className="project-cancel"
+                    onClick={cancelProjectEditing}
+                    disabled={projectEditSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="primary"
+                    className="project-save"
+                    onClick={saveProjectEdits}
+                    loading={projectEditSaving}
+                  >
+                    Save
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
         <div className="status-row">
@@ -924,22 +1216,12 @@ const ProjectsShowContent = () => {
                 </Button>
               </>
             ) : null}
-            {isEditingInvoice ? (
-              <>
-                <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
-                  Cancel
-                </Button>
-                <Button type="primary" onClick={handleSaveInvoice} loading={savingInvoice}>
-                  {invoiceMode === "create" ? "Confirm Invoice" : "Save Invoice"}
-                </Button>
-              </>
-            ) : null}
           </Space>
         </div>
-        <Card className="details-card" bordered={false}>
-          <Row gutter={[32, 32]}>
-            <Col xs={24} lg={16}>
-              <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Row gutter={[32, 32]}>
+          <Col xs={24} lg={16}>
+            <Space direction="vertical" size={24} style={{ width: "100%" }}>
+              <Card className="details-card company-card" bordered={false}>
                 <div className="company-block">
                   <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
                   <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
@@ -947,87 +1229,77 @@ const ProjectsShowContent = () => {
                   <div className="company-line">{stringOrNA(companyLine3)}</div>
                   <div className="company-line">{stringOrNA(resolvedClient?.representative)}</div>
                 </div>
-                <Divider className="section-divider" />
-                <div className="project-meta">
-                  <div className="meta-row">
-                    <span className="meta-label">Project No.</span>
-                    <span className="meta-value">{stringOrNA(project.projectNumber)}</span>
-                  </div>
-                  <div className="meta-row">
-                    <span className="meta-label">Project</span>
-                    <span className="meta-value">{stringOrNA(project.presenterWorkType)}</span>
-                  </div>
-                  <div className="meta-row">
-                    <span className="meta-label">Project Title</span>
-                    <span className="meta-value">{stringOrNA(project.projectTitle)}</span>
-                  </div>
-                  <div className="meta-row">
-                    <span className="meta-label">Work Type</span>
-                    <span className="meta-value italic">{stringOrNA(project.projectNature)}</span>
-                  </div>
-                  <div className="meta-row">
-                    <span className="meta-label">Project Pickup Date</span>
-                    <span className="meta-value">
-                      {formatProjectDateYmd(project.projectDateIso, project.projectDateDisplay)}
-                    </span>
-                  </div>
-                </div>
-                <Divider className="section-divider" />
-                <div className="payment-overview">
-                  <Title level={5} className="section-heading">
-                    Payment Overview
-                  </Title>
-                  <Row gutter={[16, 16]}>
-                    <Col xs={24} md={12}>
-                      <div className="meta-row">
-                        <span className="meta-label">Amount</span>
-                        <span className="meta-value">{amountText(total)}</span>
-                      </div>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <div className="meta-row">
-                        <span className="meta-label">Payment Status</span>
-                        <Tag
-                          color={paidChipPalette.backgroundColor}
-                          className="status-chip"
-                          style={{ color: paidChipPalette.color }}
-                        >
-                          {paymentChipLabel(project.paid)}
-                        </Tag>
-                      </div>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <div className="meta-row">
-                        <span className="meta-label">Paid On</span>
-                        <span className="meta-value">{paidOnText}</span>
-                      </div>
-                    </Col>
-                  </Row>
-                </div>
-              </Space>
-            </Col>
-            <Col xs={24} lg={8}>
-              <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                <div className="invoice-summary">
-                  <div className="summary-row">
-                    <span className="summary-label">Invoice Number</span>
-                    <span className={`summary-value ${invoiceNumberPending ? "pending" : ""}`}>
-                      {invoiceNumberDisplay}
-                    </span>
-                  </div>
-                  <div className="summary-row">
+              </Card>
+              <Card className="details-card payment-card" bordered={false}>
+                <Title level={5} className="section-heading">
+                  Payment Status
+                </Title>
+                <div className="payment-summary">
+                  <div className="summary-item">
                     <span className="summary-label">Amount</span>
-                    <span className="summary-value">{amountText(total)}</span>
+                    <span className="summary-value">{amountText(paymentAmountValue)}</span>
                   </div>
+                  <div className="summary-item status">
+                    <span className="summary-label">Status</span>
+                    <Tag
+                      color={paidChipPalette.backgroundColor}
+                      className="status-chip"
+                      style={{ color: paidChipPalette.color }}
+                    >
+                      {paymentChipLabel(project.paid)}
+                    </Tag>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Paid On</span>
+                    <span className="summary-value">{paidOnText}</span>
+                  </div>
+                </div>
+              </Card>
+            </Space>
+          </Col>
+          <Col xs={24} lg={8}>
+            <Space direction="vertical" size={24} style={{ width: "100%" }}>
+              <Card className="details-card invoice-card" bordered={false}>
+                <Title level={5} className="section-heading">
+                  Invoice
+                </Title>
+                <div className="invoice-summary">
+                  <span className="summary-label">Invoice Number</span>
+                  {invoiceNumberPending ? (
+                    showInvoiceNumberInput ? (
+                      <Input
+                        value={draftInvoice?.invoiceNumber ?? ""}
+                        onChange={(event) => handleInvoiceNumberInput(event.target.value)}
+                        onBlur={finalizeInvoiceNumberEdit}
+                        onKeyDown={handleInvoiceNumberKeyDown}
+                        autoFocus
+                        bordered={false}
+                        className="invoice-input"
+                        disabled={invoiceMode !== "create"}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="summary-value pending editable"
+                        onClick={beginInvoiceNumberEdit}
+                      >
+                        {invoiceNumberDisplay}
+                      </button>
+                    )
+                  ) : (
+                    <span className="summary-value">{invoiceNumberDisplay}</span>
+                  )}
                 </div>
                 <div className="invoice-selector">
-                  <div
-                    className="selector-highlight"
-                    style={{
-                      height: selectorHighlightHeight,
-                      transform: `translateY(${selectorHighlightIndex * 100}%)`,
-                    }}
-                  />
+                  {invoiceEntries.length > 0 ? (
+                    <div
+                      className="selector-highlight"
+                      style={{
+                        height: selectorHighlightHeight,
+                        transform: `translateY(${selectorHighlightIndex * 100}%)`,
+                      }}
+                    />
+                  ) : null}
                   {invoiceEntries.length === 0 ? (
                     <span className="selector-empty">No invoices yet</span>
                   ) : (
@@ -1035,9 +1307,9 @@ const ProjectsShowContent = () => {
                       <button
                         key={entry.invoiceNumber}
                         type="button"
-                        className={`selector-item ${index === selectorHighlightIndex ? "active" : ""} ${
-                          entry.pending ? "pending" : ""
-                        }`}
+                        className={`selector-item ${
+                          index === selectorHighlightIndex ? "active" : ""
+                        } ${entry.pending ? "pending" : ""}`}
                         onClick={() => handleSelectInvoice(index, entry.pending)}
                       >
                         {entry.invoiceNumber}
@@ -1045,50 +1317,63 @@ const ProjectsShowContent = () => {
                     ))
                   )}
                 </div>
+              </Card>
+            </Space>
+          </Col>
+        </Row>
+        <Card className="details-card items-card" bordered={false}>
+          <div className="items-header">
+            <Title level={4} className="section-heading">
+              Items / Services
+            </Title>
+          </div>
+          <Table<InvoiceTableRow>
+            dataSource={itemsRows}
+            columns={itemsColumns}
+            pagination={false}
+            rowKey="key"
+            className="invoice-items"
+          />
+          <div className="totals-panel">
+            <div className="totals-row">
+              <span className="meta-label">Sub-total</span>
+              <span className="meta-value">{amountText(subtotal)}</span>
+            </div>
+            <div className="totals-row">
+              <span className="meta-label">Tax / Discount</span>
+              {isEditingInvoice ? (
+                <InputNumber
+                  value={taxPercent}
+                  bordered={false}
+                  onChange={handleTaxChange}
+                  className="tax-input"
+                />
+              ) : (
+                <span className="meta-value">{formatPercentText(taxPercent)}</span>
+              )}
+            </div>
+            <div className="totals-row total">
+              <span className="meta-label">Total</span>
+              <span className="meta-value">{amountText(total)}</span>
+            </div>
+            {taxAmount !== 0 ? (
+              <div className="tax-hint">({amountText(taxAmount)} adjustment)</div>
+            ) : null}
+          </div>
+          {isEditingInvoice ? (
+            <div className="items-actions">
+              <Space size={12}>
+                {showInvoiceCancel ? (
+                  <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
+                    Cancel
+                  </Button>
+                ) : null}
+                <Button type="primary" onClick={handleSaveInvoice} loading={savingInvoice}>
+                  {invoiceMode === "create" ? "Confirm" : "Save"}
+                </Button>
               </Space>
-            </Col>
-          </Row>
-          <Divider className="section-divider" />
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <div className="items-header">
-              <Title level={4} className="section-heading">
-                Items / Services
-              </Title>
             </div>
-            <Table<InvoiceTableRow>
-              dataSource={itemsRows}
-              columns={itemsColumns}
-              pagination={false}
-              rowKey="key"
-              className="invoice-items"
-            />
-            <div className="totals-panel">
-              <div className="totals-row">
-                <span className="meta-label">Sub-total</span>
-                <span className="meta-value">{amountText(subtotal)}</span>
-              </div>
-              <div className="totals-row">
-                <span className="meta-label">Tax / Discount</span>
-                {isEditingInvoice ? (
-                  <InputNumber
-                    value={taxPercent}
-                    bordered={false}
-                    onChange={handleTaxChange}
-                    className="tax-input"
-                  />
-                ) : (
-                  <span className="meta-value">{formatPercentText(taxPercent)}</span>
-                )}
-              </div>
-              <div className="totals-row total">
-                <span className="meta-label">Total</span>
-                <span className="meta-value">{amountText(total)}</span>
-              </div>
-              {taxAmount !== 0 ? (
-                <div className="tax-hint">({amountText(taxAmount)} adjustment)</div>
-              ) : null}
-            </div>
-          </Space>
+          ) : null}
         </Card>
       </Space>
       {/* eslint-disable-next-line react/no-unknown-property */}
@@ -1144,6 +1429,36 @@ const ProjectsShowContent = () => {
           flex-wrap: wrap;
         }
 
+        .title-content {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .presenter-type {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        .presenter-input,
+        .project-title-input,
+        .project-nature-input,
+        .invoice-input {
+          padding: 0;
+          background: transparent;
+          font-family: ${KARLA_FONT};
+        }
+
+        .presenter-input {
+          font-weight: 600;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
         .project-title {
           margin: 0;
           font-family: ${KARLA_FONT};
@@ -1151,10 +1466,21 @@ const ProjectsShowContent = () => {
           color: #0f172a;
         }
 
+        .project-title-input {
+          font-weight: 700;
+          font-size: 28px;
+          color: #0f172a;
+        }
+
         .project-nature {
           display: block;
-          margin-top: 4px;
           font-family: ${KARLA_FONT};
+          font-weight: 500;
+          font-style: italic;
+          color: #475569;
+        }
+
+        .project-nature-input {
           font-weight: 500;
           font-style: italic;
           color: #475569;
@@ -1167,8 +1493,16 @@ const ProjectsShowContent = () => {
           color: #0c4a6e;
           border-radius: 999px;
           border: none;
-          margin-top: 8px;
+          margin-top: 6px;
           padding: 4px 14px;
+          align-self: flex-start;
+        }
+
+        .project-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
         }
 
         .project-edit {
@@ -1178,6 +1512,24 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #1e293b;
+          padding: 8px 20px;
+        }
+
+        .project-cancel {
+          background: #f1f5f9;
+          border-radius: 24px;
+          border: 1px solid #cbd5f5;
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #1e293b;
+          padding: 8px 20px;
+        }
+
+        .project-save {
+          border-radius: 24px;
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          padding: 8px 24px;
         }
 
         .status-row {
@@ -1258,71 +1610,22 @@ const ProjectsShowContent = () => {
           font-weight: 500;
         }
 
-        .project-meta {
-          display: grid;
-          gap: 12px;
+        .payment-card .section-heading {
+          margin-bottom: 16px;
         }
 
-        .meta-row {
+        .payment-summary {
           display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          gap: 12px;
+          flex-wrap: wrap;
+          gap: 24px;
+          align-items: center;
         }
 
-        .meta-label {
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-          font-size: 12px;
-        }
-
-        .meta-value {
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #0f172a;
-        }
-
-        .meta-value.italic {
-          font-style: italic;
-        }
-
-        .payment-overview {
+        .summary-item {
           display: flex;
           flex-direction: column;
-          gap: 16px;
-        }
-
-        .section-heading {
-          font-family: ${KARLA_FONT};
-          font-weight: 700;
-          margin: 0;
-          color: #0f172a;
-        }
-
-        .status-chip {
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          border-radius: 999px;
-          border: none;
-          padding: 2px 16px;
-        }
-
-        .invoice-summary {
-          background: #f8fafc;
-          border-radius: 18px;
-          padding: 16px 20px;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .summary-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
+          gap: 4px;
+          min-width: 120px;
         }
 
         .summary-label {
@@ -1336,14 +1639,42 @@ const ProjectsShowContent = () => {
 
         .summary-value {
           font-family: ${KARLA_FONT};
-          font-weight: 700;
+          font-weight: 600;
           color: #0f172a;
         }
 
         .summary-value.pending {
-          color: #94a3b8;
+          color: #64748b;
           font-style: italic;
-          animation: blink 1.2s ease-in-out infinite;
+          animation: blink 1.2s infinite;
+        }
+
+        .summary-value.editable {
+          border: none;
+          background: none;
+          padding: 0;
+          text-align: left;
+          cursor: text;
+        }
+
+        .summary-item.status .status-chip {
+          margin-top: 0;
+        }
+
+        .invoice-card .section-heading {
+          margin-bottom: 12px;
+        }
+
+        .invoice-summary {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+
+        .invoice-input {
+          font-weight: 600;
+          color: #0f172a;
         }
 
         .invoice-selector {
@@ -1351,48 +1682,62 @@ const ProjectsShowContent = () => {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          padding: 12px 16px;
-          border-radius: 18px;
-          background: #f1f5f9;
-          overflow: hidden;
+          padding: 8px 0;
         }
 
         .selector-highlight {
           position: absolute;
-          left: 8px;
-          right: 8px;
-          top: 8px;
-          border-radius: 999px;
-          background: rgba(47, 143, 157, 0.12);
-          transition: transform 0.3s ease;
+          left: 0;
+          top: 0;
+          width: 100%;
+          background: #e0f2fe;
+          border-radius: 12px;
+          transform: translateY(0);
+          transition: transform 0.2s ease;
+          pointer-events: none;
         }
 
         .selector-item {
           position: relative;
           background: none;
           border: none;
+          padding: 10px 16px;
           text-align: left;
-          padding: 8px 12px;
           font-family: ${KARLA_FONT};
           font-weight: 600;
-          color: #0f172a;
+          color: #64748b;
+          border-radius: 12px;
           z-index: 1;
-          border-radius: 999px;
-        }
-
-        .selector-item.pending {
-          color: #94a3b8;
+          cursor: pointer;
         }
 
         .selector-item.active {
           color: #0f172a;
         }
 
+        .selector-item.pending {
+          font-style: italic;
+        }
+
+        .selector-item:focus-visible {
+          outline: 2px solid #2563eb;
+          outline-offset: 2px;
+        }
+
         .selector-empty {
           font-family: ${KARLA_FONT};
           font-weight: 500;
           color: #94a3b8;
+          padding: 12px 0;
           z-index: 1;
+        }
+
+        .items-card {
+          margin-top: 0;
+        }
+
+        .items-header {
+          margin-bottom: 12px;
         }
 
         .items-heading {
@@ -1465,9 +1810,29 @@ const ProjectsShowContent = () => {
           font-size: 12px;
         }
 
-        .section-divider {
-          margin: 12px 0;
-          border-block-start-color: #e2e8f0;
+        .meta-label {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          font-size: 12px;
+        }
+
+        .meta-value {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #0f172a;
+        }
+
+        .meta-value.italic {
+          font-style: italic;
+        }
+
+        .items-actions {
+          margin-top: 16px;
+          display: flex;
+          justify-content: flex-start;
         }
 
         @keyframes blink {
