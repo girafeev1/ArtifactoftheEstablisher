@@ -59,6 +59,7 @@ const paymentPalette = {
 } as const
 
 const invoiceCollectionPattern = /^invoice-([a-z]+)$/
+const LEGACY_INVOICE_COLLECTION_IDS = new Set(["Invoice", "invoice"])
 const alphabet = "abcdefghijklmnopqrstuvwxyz"
 
 type ProjectShowResponse = {
@@ -190,6 +191,10 @@ const determineNextInvoiceIdentifiers = (
 ) => {
   const usedIndexes = new Set<number>()
   existing.forEach((invoice) => {
+    if (LEGACY_INVOICE_COLLECTION_IDS.has(invoice.collectionId)) {
+      usedIndexes.add(0)
+      return
+    }
     const match = invoice.collectionId.match(invoiceCollectionPattern)
     if (!match) {
       return

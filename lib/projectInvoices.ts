@@ -18,6 +18,10 @@ const API_TIMEOUT_MS = 15000
 const alphabet = "abcdefghijklmnopqrstuvwxyz"
 
 const invoiceCollectionPattern = /^invoice-([a-z]+)$/
+const LEGACY_INVOICE_COLLECTION_IDS = new Set(["Invoice", "invoice"])
+
+const isSupportedInvoiceCollection = (id: string): boolean =>
+  invoiceCollectionPattern.test(id) || LEGACY_INVOICE_COLLECTION_IDS.has(id)
 
 const toStringValue = (value: unknown): string | null => {
   if (typeof value === "string") {
@@ -157,7 +161,7 @@ const listInvoiceCollectionIds = async (year: string, projectId: string): Promis
     }
 
     return (
-      payload.collectionIds?.filter((id) => invoiceCollectionPattern.test(id)) ?? []
+      payload.collectionIds?.filter((id) => isSupportedInvoiceCollection(id)) ?? []
     ).sort((a, b) => a.localeCompare(b))
   } catch (error) {
     console.warn("[projectInvoices] listInvoiceCollectionIds failed", error)
@@ -303,11 +307,15 @@ export const fetchInvoicesForProject = async (
       ? ((data as any).invoiceCollections as unknown[])
       : []
     storedCollections.forEach((raw) => {
-      if (typeof raw === "string" && invoiceCollectionPattern.test(raw)) {
+      if (typeof raw === "string" && isSupportedInvoiceCollection(raw)) {
         discovered.add(raw)
       }
     })
   }
+
+  LEGACY_INVOICE_COLLECTION_IDS.forEach((id) => {
+    discovered.add(id)
+  })
 
   if (discovered.size === 0) {
     return []
@@ -465,6 +473,10 @@ const determineInvoiceIds = (
 ): { collectionId: string; invoiceNumber: string } => {
   const usedIndexes = new Set<number>()
   existingIds.forEach((id) => {
+    if (LEGACY_INVOICE_COLLECTION_IDS.has(id)) {
+      usedIndexes.add(0)
+      return
+    }
     const match = invoiceCollectionPattern.exec(id)
     if (!match) {
       return
