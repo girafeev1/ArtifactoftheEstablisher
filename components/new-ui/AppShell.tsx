@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react"
+import Head from "next/head"
 import {
   Refine,
   useMenu,
@@ -185,8 +186,8 @@ const NavigationSider = ({
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => onCollapse(!collapsed)}
             style={{
-              fontFamily: "'Newsreader'",
-              fontWeight: 500,
+              fontFamily: "'Karla', sans-serif",
+              fontWeight: 600,
             }}
           >
             {collapsed ? "Expand" : "Collapse"}
@@ -292,8 +293,7 @@ const themeConfig = {
   token: {
     colorPrimary: "#2563eb",
     borderRadius: 10,
-    fontFamily:
-      "'Inter', 'Inter var', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'",
+    fontFamily: "'Karla', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
   components: {
     Button: {
@@ -327,6 +327,12 @@ const AppShell = ({
 
   return (
     <ConfigProvider theme={themeConfig}>
+      <Head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&display=swap"
+        />
+      </Head>
       <AntdApp>
         <Refine
           dataProvider={dataProvider}

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 import { getServerSession } from "next-auth/next"
 
+import { fetchClientsDirectory, type ClientDirectoryRecord } from "../../../../lib/clientDirectory"
 import { fetchProjectsFromDatabase } from "../../../../lib/projectsDatabase"
 import { getAuthOptions } from "../../auth/[...nextauth]"
 
@@ -9,6 +10,14 @@ const toStringValue = (value: string | string[] | undefined) => {
     return value[0]
   }
   return value
+}
+
+const normalizeCompanyKey = (value: string | null | undefined) => {
+  if (typeof value !== "string") {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed.toLowerCase() : null
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -51,13 +60,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: "Project not found" })
     }
 
+    let matchedClient: ClientDirectoryRecord | null = null
+    const projectCompanyKey = normalizeCompanyKey(project.clientCompany)
+
+    if (projectCompanyKey) {
+      try {
+        const clients = await fetchClientsDirectory()
+        matchedClient =
+          clients.find((client) => {
+            const companyKey = normalizeCompanyKey(client.companyName)
+            const documentKey = normalizeCompanyKey(client.documentId)
+            return companyKey === projectCompanyKey || documentKey === projectCompanyKey
+          }) ?? null
+      } catch (clientError) {
+        console.error("[api/projects/:id] Failed to resolve client details", {
+          projectId,
+          company: project.clientCompany,
+          error:
+            clientError instanceof Error
+              ? { message: clientError.message, stack: clientError.stack }
+              : { message: "Unknown error", raw: clientError },
+        })
+      }
+    }
+
     console.info("[api/projects/:id] Project resolved", {
       user: identity,
       projectId,
       projectNumber: project.projectNumber,
     })
 
-    return res.status(200).json({ data: project })
+    return res.status(200).json({ data: project, client: matchedClient })
   } catch (error) {
     console.error("[api/projects/:id] Failed to fetch project", {
       projectId,

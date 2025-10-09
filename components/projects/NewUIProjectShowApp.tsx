@@ -24,15 +24,19 @@ import {
   PlusOutlined,
 } from "@ant-design/icons"
 
+import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
 import type { ProjectRecord } from "../../lib/projectsDatabase"
 import AppShell from "../new-ui/AppShell"
 import {
   amountText,
+  mergeLineWithRegion,
+  normalizeClient,
   normalizeProject,
   paidDateText,
   paymentChipColor,
   paymentChipLabel,
   stringOrNA,
+  type NormalizedClient,
   type NormalizedProject,
 } from "./projectUtils"
 import { projectsDataProvider } from "./NewUIProjectsApp"
@@ -41,74 +45,98 @@ const { Title, Text } = Typography
 
 type ProjectShowResponse = {
   data?: ProjectRecord
+  client?: ClientDirectoryRecord | null
 }
 
 type InvoiceItem = {
   key: string
+  type: "item"
   name: string
-  description: string
   quantity: number
   unitPrice: number
+  discount: number
 }
 
-type InvoiceItemField = keyof Pick<InvoiceItem, "name" | "description" | "quantity" | "unitPrice">
+type InvoiceTableRow = InvoiceItem | { key: string; type: "adder" }
 
-const descriptorLineStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 300,
-  color: "#64748b",
-  fontSize: 14,
+type InvoiceItemField = keyof Pick<InvoiceItem, "name" | "quantity" | "unitPrice" | "discount">
+
+const isAdderRow = (row: InvoiceTableRow): row is { key: string; type: "adder" } =>
+  (row as { type?: string }).type === "adder"
+
+const KARLA_FONT = "'Karla', sans-serif"
+
+const descriptorWrapperStyle = {
+  fontFamily: KARLA_FONT,
+  fontWeight: 500,
+  color: "#0f172a",
+  fontSize: 16,
   lineHeight: 1.2,
+  display: "flex",
+  alignItems: "baseline",
+  gap: 6,
 }
-const projectTitleStyle = { fontFamily: "'Cantata One'", fontWeight: 400, margin: 0 }
+const descriptorNumberStyle = {
+  fontFamily: KARLA_FONT,
+  fontWeight: 600,
+  color: "#0f172a",
+}
+const descriptorSeparatorStyle = {
+  fontFamily: KARLA_FONT,
+  fontWeight: 500,
+  color: "#94a3b8",
+}
+const descriptorDateStyle = {
+  fontFamily: KARLA_FONT,
+  fontWeight: 500,
+  fontStyle: "italic" as const,
+  color: "#64748b",
+}
+const projectTitleStyle = { fontFamily: KARLA_FONT, fontWeight: 700, margin: 0, color: "#0f172a" }
 const projectNatureStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 400,
+  fontFamily: KARLA_FONT,
+  fontWeight: 500,
   fontStyle: "italic",
   color: "#475569",
   fontSize: 14,
   lineHeight: 1.2,
 }
 const subsidiaryChipStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 500,
+  fontFamily: KARLA_FONT,
+  fontWeight: 600,
   borderRadius: 999,
   backgroundColor: "#e0f2fe",
   color: "#0c4a6e",
   border: "none",
-  padding: "2px 14px",
+  padding: "4px 14px",
   fontSize: 12,
-  marginTop: 8,
+  marginTop: 6,
   width: "fit-content" as const,
 }
-const statusButtonStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 500,
-}
 const companyNameStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 600,
+  fontFamily: KARLA_FONT,
+  fontWeight: 700,
   fontSize: 18,
   color: "#0f172a",
 }
 const addressLineStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 400,
+  fontFamily: KARLA_FONT,
+  fontWeight: 500,
   color: "#475569",
   fontSize: 14,
   lineHeight: 1.4,
 }
 const moduleLabelStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 500,
-  letterSpacing: 0.6,
+  fontFamily: KARLA_FONT,
+  fontWeight: 600,
+  letterSpacing: 0.5,
   textTransform: "uppercase" as const,
   color: "#94a3b8",
   fontSize: 12,
 }
 const moduleValueStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 500,
+  fontFamily: KARLA_FONT,
+  fontWeight: 600,
   color: "#0f172a",
   fontSize: 16,
 }
@@ -117,11 +145,11 @@ const invoiceFallbackStyle = {
   color: "#94a3b8",
   fontStyle: "italic" as const,
 }
-const itemsHeadingStyle = { fontFamily: "'Cantata One'", fontWeight: 400, margin: 0 }
-const itemsTableHeadingStyle = { fontFamily: "'Cantata One'", fontWeight: 400 }
+const itemsHeadingStyle = { fontFamily: KARLA_FONT, fontWeight: 700, margin: 0, color: "#0f172a" }
+const itemsTableHeadingStyle = { fontFamily: KARLA_FONT, fontWeight: 600, color: "#1f2937" }
 const itemsInputStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 400,
+  fontFamily: KARLA_FONT,
+  fontWeight: 500,
   color: "#0f172a",
 }
 const paymentPalette = {
@@ -130,8 +158,8 @@ const paymentPalette = {
   default: { backgroundColor: "#e2e8f0", color: "#1f2937" },
 } as const
 const paymentTagBaseStyle = {
-  fontFamily: "'Newsreader'",
-  fontWeight: 500,
+  fontFamily: KARLA_FONT,
+  fontWeight: 600,
   borderRadius: 999,
   border: "none",
   padding: "2px 16px",
@@ -178,29 +206,12 @@ const generateInvoiceFallback = (
   return `${projectNumber}-${month}${day}`
 }
 
-const combineLineWithRegion = (
-  line: string | null | undefined,
-  region: string | null | undefined,
-) => {
-  const normalizedLine = stringOrNA(line)
-  const normalizedRegion = stringOrNA(region)
-  if (normalizedLine === "N/A" && normalizedRegion === "N/A") {
-    return "N/A"
-  }
-  if (normalizedLine === "N/A") {
-    return normalizedRegion
-  }
-  if (normalizedRegion === "N/A") {
-    return normalizedLine
-  }
-  return `${normalizedLine}, ${normalizedRegion}`
-}
-
 const ProjectsShowContent = () => {
   const router = useRouter()
   const { message } = AntdApp.useApp()
   const [loading, setLoading] = useState(true)
   const [project, setProject] = useState<NormalizedProject | null>(null)
+  const [client, setClient] = useState<NormalizedClient | null>(null)
   const [items, setItems] = useState<InvoiceItem[]>([])
   const itemIdRef = useRef(0)
 
@@ -243,6 +254,8 @@ const ProjectsShowContent = () => {
         }
 
         setProject(normalizeProject(payload.data))
+        setClient(payload.client ? normalizeClient(payload.client) : null)
+        setItems([])
       } catch (error) {
         if (controller.signal.aborted) {
           return
@@ -251,6 +264,7 @@ const ProjectsShowContent = () => {
           error instanceof Error ? error.message : "Unable to retrieve project details"
         message.error(description)
         setProject(null)
+        setClient(null)
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false)
@@ -273,10 +287,11 @@ const ProjectsShowContent = () => {
         ...previous,
         {
           key: `item-${nextId}`,
+          type: "item" as const,
           name: "",
-          description: "",
           quantity: 1,
           unitPrice: 0,
+          discount: 0,
         },
       ]
     })
@@ -289,7 +304,7 @@ const ProjectsShowContent = () => {
           if (item.key !== key) {
             return item
           }
-          if (field === "quantity" || field === "unitPrice") {
+          if (field === "quantity" || field === "unitPrice" || field === "discount") {
             const numericValue =
               typeof value === "number" && !Number.isNaN(value)
                 ? value
@@ -313,107 +328,141 @@ const ProjectsShowContent = () => {
     setItems((previous) => previous.filter((item) => item.key !== key))
   }, [])
 
-  const itemsColumns: ColumnsType<InvoiceItem> = useMemo(
+  const itemsColumns: ColumnsType<InvoiceTableRow> = useMemo(
     () => [
       {
         key: "name",
         dataIndex: "name",
-        title: <span style={itemsTableHeadingStyle}>Item</span>,
-        render: (_: string, record: InvoiceItem) => (
-          <Input
-            value={record.name}
-            placeholder="Item name"
-            bordered={false}
-            onChange={(event) => handleItemChange(record.key, "name", event.target.value)}
-            style={itemsInputStyle}
-          />
-        ),
-      },
-      {
-        key: "description",
-        dataIndex: "description",
-        title: <span style={itemsTableHeadingStyle}>Description</span>,
-        render: (_: string, record: InvoiceItem) => (
-          <Input
-            value={record.description}
-            placeholder="Description"
-            bordered={false}
-            onChange={(event) =>
-              handleItemChange(record.key, "description", event.target.value)
-            }
-            style={itemsInputStyle}
-          />
-        ),
-      },
-      {
-        key: "quantity",
-        dataIndex: "quantity",
-        title: <span style={itemsTableHeadingStyle}>Qty</span>,
-        width: 100,
-        render: (_: number, record: InvoiceItem) => (
-          <InputNumber
-            min={0}
-            value={record.quantity}
-            bordered={false}
-            onChange={(value) => handleItemChange(record.key, "quantity", value ?? 0)}
-            style={{ ...itemsInputStyle, width: "100%" }}
-          />
-        ),
+        title: <span style={itemsTableHeadingStyle}>Title</span>,
+        onCell: (record) => (isAdderRow(record) ? { colSpan: 5, className: "invoice-add-row" } : {}),
+        render: (_: string, record: InvoiceTableRow) => {
+          if (isAdderRow(record)) {
+            return (
+              <Button
+                type="text"
+                icon={<PlusOutlined />}
+                onClick={handleAddItem}
+                className="add-item-trigger"
+              >
+                Add new item
+              </Button>
+            )
+          }
+          return (
+            <div className="item-title-cell">
+              <Input
+                value={record.name}
+                placeholder="Item title"
+                bordered={false}
+                onChange={(event) => handleItemChange(record.key, "name", event.target.value)}
+                style={{ ...itemsInputStyle, flex: 1 }}
+              />
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleRemoveItem(record.key)}
+                className="remove-item-button"
+              />
+            </div>
+          )
+        },
       },
       {
         key: "unitPrice",
         dataIndex: "unitPrice",
-        title: <span style={itemsTableHeadingStyle}>Rate</span>,
+        title: <span style={itemsTableHeadingStyle}>Unit Price</span>,
         width: 140,
-        render: (_: number, record: InvoiceItem) => (
-          <InputNumber
-            min={0}
-            value={record.unitPrice}
-            bordered={false}
-            formatter={(value) => (value !== undefined ? `${value}` : "0")}
-            onChange={(value) => handleItemChange(record.key, "unitPrice", value ?? 0)}
-            style={{ ...itemsInputStyle, width: "100%" }}
-          />
-        ),
-      },
-      {
-        key: "amount",
-        dataIndex: "amount",
-        title: <span style={itemsTableHeadingStyle}>Amount</span>,
         align: "right",
-        render: (_: unknown, record: InvoiceItem) => {
-          const total = record.quantity * record.unitPrice
-          return <span style={itemsInputStyle}>{amountText(total)}</span>
+        onCell: (record) => (isAdderRow(record) ? { colSpan: 0 } : {}),
+        render: (_: number, record: InvoiceTableRow) => {
+          if (isAdderRow(record)) {
+            return null
+          }
+          return (
+            <InputNumber
+              min={0}
+              value={record.unitPrice}
+              bordered={false}
+              formatter={(value) => (value !== undefined ? `${value}` : "0")}
+              onChange={(value) => handleItemChange(record.key, "unitPrice", value ?? 0)}
+              style={{ ...itemsInputStyle, width: "100%" }}
+            />
+          )
         },
       },
       {
-        key: "actions",
-        dataIndex: "actions",
-        align: "center",
-        width: 80,
-        render: (_: unknown, record: InvoiceItem) => (
-          <Button
-            type="text"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleRemoveItem(record.key)}
-          />
-        ),
+        key: "quantity",
+        dataIndex: "quantity",
+        title: <span style={itemsTableHeadingStyle}>Quantity</span>,
+        width: 120,
+        align: "right",
+        onCell: (record) => (isAdderRow(record) ? { colSpan: 0 } : {}),
+        render: (_: number, record: InvoiceTableRow) => {
+          if (isAdderRow(record)) {
+            return null
+          }
+          return (
+            <InputNumber
+              min={0}
+              value={record.quantity}
+              bordered={false}
+              onChange={(value) => handleItemChange(record.key, "quantity", value ?? 0)}
+              style={{ ...itemsInputStyle, width: "100%" }}
+            />
+          )
+        },
+      },
+      {
+        key: "discount",
+        dataIndex: "discount",
+        title: <span style={itemsTableHeadingStyle}>Discount</span>,
+        width: 140,
+        align: "right",
+        onCell: (record) => (isAdderRow(record) ? { colSpan: 0 } : {}),
+        render: (_: number, record: InvoiceTableRow) => {
+          if (isAdderRow(record)) {
+            return null
+          }
+          return (
+            <InputNumber
+              min={0}
+              value={record.discount}
+              bordered={false}
+              formatter={(value) => (value !== undefined ? `${value}` : "0")}
+              onChange={(value) => handleItemChange(record.key, "discount", value ?? 0)}
+              style={{ ...itemsInputStyle, width: "100%" }}
+            />
+          )
+        },
+      },
+      {
+        key: "total",
+        dataIndex: "total",
+        title: <span style={itemsTableHeadingStyle}>Total Price</span>,
+        align: "right",
+        onCell: (record) => (isAdderRow(record) ? { colSpan: 0 } : {}),
+        render: (_: unknown, record: InvoiceTableRow) => {
+          if (isAdderRow(record)) {
+            return null
+          }
+          const lineTotal = record.quantity * record.unitPrice - record.discount
+          const safeTotal = lineTotal >= 0 ? lineTotal : 0
+          return <span style={itemsInputStyle}>{amountText(safeTotal)}</span>
+        },
       },
     ],
-    [handleItemChange, handleRemoveItem],
+    [handleAddItem, handleItemChange, handleRemoveItem],
+  )
+
+  const tableData = useMemo<InvoiceTableRow[]>(
+    () => [...items, { key: "add-row", type: "adder" as const }],
+    [items],
   )
 
   const paidChipKey = paymentChipColor(project?.paid ?? null)
   const paidChipPalette = paymentPalette[paidChipKey] ?? paymentPalette.default
   const paidOnText = paidDateText(project?.paid ?? null, project?.onDateDisplay ?? null)
-
-  const formattedDescriptor = project
-    ? `${stringOrNA(project.projectNumber)} / ${formatProjectDateYmd(
-        project.projectDateIso,
-        project.projectDateDisplay,
-      )}`
-    : "-"
 
   const normalizedInvoice = project?.invoice?.trim() ?? ""
   const invoiceFallback = generateInvoiceFallback(
@@ -441,7 +490,12 @@ const ProjectsShowContent = () => {
   ]
 
   const itemsTotal = useMemo(
-    () => items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+    () =>
+      items.reduce((sum, item) => {
+        const lineTotal = item.quantity * item.unitPrice - item.discount
+        const safeTotal = lineTotal >= 0 ? lineTotal : 0
+        return sum + safeTotal
+      }, 0),
     [items],
   )
 
@@ -484,12 +538,21 @@ const ProjectsShowContent = () => {
     )
   }
 
+  const descriptorNumber = stringOrNA(project.projectNumber)
+  const descriptorDate = formatProjectDateYmd(project.projectDateIso, project.projectDateDisplay)
+  const companyDisplay = client?.companyName ?? project.clientCompany
+  const addressLine1 = client?.addressLine1 ?? null
+  const addressLine2 = client?.addressLine2 ?? null
+  const addressLine3 = mergeLineWithRegion(client?.addressLine3 ?? null, client?.region ?? null)
+  const representativeDisplay = client?.representative ?? null
+
   return (
     <div
       style={{
         padding: "32px 24px",
         minHeight: "100%",
         background: "#f8fafc",
+        fontFamily: KARLA_FONT,
       }}
     >
       <Space direction="vertical" size={24} style={{ width: "100%" }}>
@@ -498,7 +561,12 @@ const ProjectsShowContent = () => {
             type="text"
             icon={<ArrowLeftOutlined />}
             onClick={handleBack}
-            style={{ paddingLeft: 0, fontFamily: "'Newsreader'", fontWeight: 500 }}
+            style={{
+              paddingLeft: 0,
+              fontFamily: KARLA_FONT,
+              fontWeight: 600,
+              color: "#2563eb",
+            }}
           >
             Back to Projects
           </Button>
@@ -514,7 +582,11 @@ const ProjectsShowContent = () => {
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: "1 1 320px" }}>
-              <span style={descriptorLineStyle}>{formattedDescriptor}</span>
+              <div style={descriptorWrapperStyle}>
+                <span style={descriptorNumberStyle}>{descriptorNumber}</span>
+                <span style={descriptorSeparatorStyle}>/</span>
+                <span style={descriptorDateStyle}>{descriptorDate}</span>
+              </div>
               <Title level={2} style={projectTitleStyle}>
                 {stringOrNA(project.projectTitle)}
               </Title>
@@ -527,44 +599,52 @@ const ProjectsShowContent = () => {
               type="default"
               icon={<EditOutlined />}
               style={{
-                fontFamily: "'Newsreader'",
-                fontWeight: 500,
+                fontFamily: KARLA_FONT,
+                fontWeight: 600,
                 background: "#fff",
-                borderColor: "#cbd5f5",
+                borderColor: "#dbeafe",
+                color: "#1d4ed8",
               }}
             >
               Edit
             </Button>
           </div>
-          <Space size={12} wrap>
+          <div className="status-flow">
             {statusSteps.map((step, index) => {
-              const reached = statusIndex >= index
               const isCurrent = statusIndex === index
+              const isCompleted = statusIndex > index
+              const classes = ["status-step"]
+              if (index === 0) {
+                classes.push("first")
+              }
+              if (index === statusSteps.length - 1) {
+                classes.push("last")
+              }
+              if (isCurrent) {
+                classes.push("current")
+              } else if (isCompleted) {
+                classes.push("completed")
+              }
               return (
-                <Button
-                  key={step.key}
-                  type={reached ? "primary" : "default"}
-                  ghost={reached && !isCurrent}
-                  style={statusButtonStyle}
-                >
-                  {step.label}
-                </Button>
+                <div key={step.key} className={classes.join(" ")}>
+                  <span>{step.label}</span>
+                </div>
               )
             })}
-          </Space>
+          </div>
         </div>
         <Card bordered={false} style={{ borderRadius: 18 }}>
           <Space direction="vertical" size={24} style={{ width: "100%" }}>
             <Row gutter={[24, 24]}>
               <Col xs={24} md={12}>
                 <Space direction="vertical" size={4}>
-                  <Text style={companyNameStyle}>{stringOrNA(project.clientCompany)}</Text>
-                  <Text style={addressLineStyle}>{stringOrNA(null)}</Text>
-                  <Text style={addressLineStyle}>{stringOrNA(null)}</Text>
-                  <Text style={addressLineStyle}>
-                    {combineLineWithRegion(null, project.subsidiary)}
-                  </Text>
-                  <Text style={addressLineStyle}>{stringOrNA(project.paidTo)}</Text>
+                  <Text style={companyNameStyle}>{stringOrNA(companyDisplay)}</Text>
+                  {addressLine1 ? <Text style={addressLineStyle}>{addressLine1}</Text> : null}
+                  {addressLine2 ? <Text style={addressLineStyle}>{addressLine2}</Text> : null}
+                  {addressLine3 ? <Text style={addressLineStyle}>{addressLine3}</Text> : null}
+                  {representativeDisplay ? (
+                    <Text style={addressLineStyle}>{representativeDisplay}</Text>
+                  ) : null}
                 </Space>
               </Col>
               <Col
@@ -622,21 +702,15 @@ const ProjectsShowContent = () => {
                 <Title level={4} style={itemsHeadingStyle}>
                   Items / Services
                 </Title>
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  onClick={handleAddItem}
-                  style={{ fontFamily: "'Newsreader'", fontWeight: 500 }}
-                >
-                  Add Item
-                </Button>
               </div>
-              <Table<InvoiceItem>
-                dataSource={items}
+              <Table<InvoiceTableRow>
+                className="invoice-items-table"
+                dataSource={tableData}
                 columns={itemsColumns}
                 pagination={false}
-                locale={{ emptyText: "Add line items to build an invoice." }}
+                locale={{ emptyText: null }}
                 rowKey="key"
+                rowClassName={(record) => (isAdderRow(record) ? "invoice-add-row" : "")}
               />
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
                 <div style={{ textAlign: "right" }}>
@@ -650,6 +724,171 @@ const ProjectsShowContent = () => {
           </Space>
         </Card>
       </Space>
+      {/* eslint-disable-next-line react/no-unknown-property */}
+      <style jsx>{`
+        .status-flow {
+          display: flex;
+          flex-wrap: nowrap;
+          font-family: 'Karla', sans-serif;
+          font-weight: 600;
+          overflow-x: auto;
+        }
+
+        .status-step {
+          position: relative;
+          padding: 10px 28px;
+          background: #f1f5f9;
+          color: #1e293b;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 150px;
+          text-align: center;
+          line-height: 1.2;
+        }
+
+        .status-step span {
+          position: relative;
+          z-index: 1;
+          white-space: nowrap;
+        }
+
+        .status-step + .status-step {
+          margin-left: -18px;
+        }
+
+        .status-step.first {
+          border-radius: 999px 0 0 999px;
+          padding-left: 32px;
+        }
+
+        .status-step.last {
+          border-radius: 0 999px 999px 0;
+          padding-right: 32px;
+        }
+
+        .status-step::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          box-shadow: inset 0 0 0 1px #cbd5f5;
+        }
+
+        .status-step::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          right: -32px;
+          width: 32px;
+          height: 100%;
+          background: inherit;
+          clip-path: polygon(0 0, 100% 50%, 0 100%);
+          box-shadow: inset -1px 0 0 0 #cbd5f5;
+        }
+
+        .status-step.last::after {
+          display: none;
+        }
+
+        .status-step.current {
+          background: #2563eb;
+          color: #ffffff;
+        }
+
+        .status-step.current::before {
+          box-shadow: none;
+        }
+
+        .status-step.current::after {
+          background: #2563eb;
+          box-shadow: none;
+        }
+
+        .status-step.completed {
+          background: #eff6ff;
+          color: #1d4ed8;
+        }
+
+        .status-step.completed::before,
+        .status-step.completed::after {
+          box-shadow: none;
+        }
+      `}</style>
+      {/* eslint-disable-next-line react/no-unknown-property */}
+      <style jsx global>{`
+        .invoice-items-table .ant-table {
+          border-radius: 18px;
+        }
+
+        .invoice-items-table .ant-table-container {
+          border: 1px solid #e2e8f0;
+          border-radius: 18px;
+        }
+
+        .invoice-items-table .ant-table-thead > tr > th {
+          background: #f8fafc;
+          font-family: 'Karla', sans-serif;
+          font-weight: 600;
+          color: #0f172a;
+          padding: 14px 16px;
+        }
+
+        .invoice-items-table .ant-table-tbody > tr > td {
+          font-family: 'Karla', sans-serif;
+          font-weight: 500;
+          color: #0f172a;
+          padding: 12px 16px;
+        }
+
+        .invoice-items-table .ant-table-thead > tr > th:first-child {
+          border-top-left-radius: 18px;
+        }
+
+        .invoice-items-table .ant-table-thead > tr > th:last-child {
+          border-top-right-radius: 18px;
+        }
+
+        .invoice-items-table .ant-input,
+        .invoice-items-table .ant-input-number-input {
+          font-family: 'Karla', sans-serif;
+        }
+
+        .invoice-items-table .ant-input-number {
+          width: 100%;
+        }
+
+        .invoice-items-table .invoice-add-row > td {
+          border-top: 1px solid #e2e8f0;
+        }
+
+        .invoice-items-table .add-item-trigger {
+          font-family: 'Karla', sans-serif;
+          font-weight: 600;
+          color: #2563eb;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .invoice-items-table .add-item-trigger .anticon {
+          font-size: 14px;
+        }
+
+        .invoice-items-table .item-title-cell {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .invoice-items-table .remove-item-button {
+          color: #ef4444;
+        }
+
+        .invoice-items-table .remove-item-button:hover {
+          color: #dc2626;
+        }
+      `}</style>
     </div>
   )
 }

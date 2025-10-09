@@ -295,23 +295,25 @@ const refineDataProvider: DataProvider = {
 
 export const projectsDataProvider = refineDataProvider
 
-const tableHeadingStyle = { fontFamily: "'Cantata One'", fontWeight: 400 }
+const KARLA_FONT = "'Karla', sans-serif"
+
+const tableHeadingStyle = { fontFamily: KARLA_FONT, fontWeight: 700, color: "#0f172a" }
 const tableCellStyle = {
-  fontFamily: "'Karla', 'Newsreader', sans-serif",
+  fontFamily: KARLA_FONT,
   fontWeight: 500,
   lineHeight: 1.2,
 }
 const primaryRowTextStyle = { ...tableCellStyle, fontSize: 16, color: "#0f172a" }
 const secondaryRowTextStyle = {
-  fontFamily: "'Karla', 'Newsreader', sans-serif",
-  fontWeight: 400,
+  fontFamily: KARLA_FONT,
+  fontWeight: 500,
   fontSize: 13,
   color: "#475569",
   lineHeight: 1.2,
 }
 const captionRowTextStyle = {
-  fontFamily: "'Karla', 'Newsreader', sans-serif",
-  fontWeight: 400,
+  fontFamily: KARLA_FONT,
+  fontWeight: 600,
   fontSize: 12,
   color: "#64748b",
   textTransform: "uppercase" as const,
@@ -602,10 +604,14 @@ const ProjectsContent = () => {
         padding: screens.md ? "32px 0 32px 24px" : "24px 16px",
         minHeight: "100%",
         background: "#fff",
+        fontFamily: KARLA_FONT,
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <Title level={2} style={{ fontFamily: "'Cantata One'", marginBottom: 8 }}>
+        <Title
+          level={2}
+          style={{ fontFamily: KARLA_FONT, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}
+        >
           Projects
         </Title>
         <Form

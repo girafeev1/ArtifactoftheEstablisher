@@ -1,3 +1,4 @@
+import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
 import type { ProjectRecord } from "../../lib/projectsDatabase"
 
 export type NormalizedProject = ProjectRecord & {
@@ -6,6 +7,23 @@ export type NormalizedProject = ProjectRecord & {
   clientCompany: string | null
   subsidiary: string | null
   searchIndex: string
+}
+
+export type NormalizedClient = {
+  companyName: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  addressLine3: string | null
+  region: string | null
+  representative: string | null
+}
+
+const trimOrNull = (value: string | null | undefined) => {
+  if (typeof value !== "string") {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
 export const stringOrNA = (value: string | null | undefined) => {
@@ -93,4 +111,37 @@ export const normalizeProject = (record: ProjectRecord): NormalizedProject => {
     subsidiary,
     searchIndex,
   }
+}
+
+export const normalizeClient = (record: ClientDirectoryRecord): NormalizedClient => {
+  const companyName = trimOrNull(record.companyName)
+  const representative = trimOrNull(record.nameAddressed) ?? trimOrNull(record.name)
+
+  return {
+    companyName,
+    addressLine1: trimOrNull(record.addressLine1),
+    addressLine2: trimOrNull(record.addressLine2),
+    addressLine3: trimOrNull(record.addressLine3),
+    region: trimOrNull(record.region ?? record.addressLine5 ?? null),
+    representative,
+  }
+}
+
+export const mergeLineWithRegion = (
+  line: string | null | undefined,
+  region: string | null | undefined,
+): string | null => {
+  const normalizedLine = trimOrNull(line)
+  const normalizedRegion = trimOrNull(region)
+
+  if (!normalizedLine && !normalizedRegion) {
+    return null
+  }
+  if (!normalizedLine) {
+    return normalizedRegion
+  }
+  if (!normalizedRegion) {
+    return normalizedLine
+  }
+  return `${normalizedLine}, ${normalizedRegion}`
 }
