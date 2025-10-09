@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth/next"
 
 import { fetchClientsDirectory, type ClientDirectoryRecord } from "../../../../lib/clientDirectory"
 import { fetchProjectsFromDatabase } from "../../../../lib/projectsDatabase"
+import {
+  fetchInvoicesForProject,
+  type ProjectInvoiceRecord,
+} from "../../../../lib/projectInvoices"
 import { getAuthOptions } from "../../auth/[...nextauth]"
 
 const toStringValue = (value: string | string[] | undefined) => {
@@ -60,6 +64,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: "Project not found" })
     }
 
+    let invoices: ProjectInvoiceRecord[] = []
+
+    try {
+      invoices = await fetchInvoicesForProject(project.year, project.id)
+    } catch (invoiceError) {
+      console.error("[api/projects/:id] Failed to fetch invoices", {
+        projectId,
+        error:
+          invoiceError instanceof Error
+            ? { message: invoiceError.message, stack: invoiceError.stack }
+            : { message: "Unknown error", raw: invoiceError },
+      })
+    }
+
     let matchedClient: ClientDirectoryRecord | null = null
     const projectCompanyKey = normalizeCompanyKey(project.clientCompany)
 
@@ -90,7 +108,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       projectNumber: project.projectNumber,
     })
 
-    return res.status(200).json({ data: project, client: matchedClient })
+    return res.status(200).json({ data: project, client: matchedClient, invoices })
   } catch (error) {
     console.error("[api/projects/:id] Failed to fetch project", {
       projectId,

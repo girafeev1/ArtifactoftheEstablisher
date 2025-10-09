@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 import { getServerSession } from "next-auth/next"
 
 import { fetchProjectsFromDatabase } from "../../../lib/projectsDatabase"
+import { fetchPrimaryInvoiceSummary } from "../../../lib/projectInvoices"
 import { getAuthOptions } from "../auth/[...nextauth]"
 
 const isNonEmptyString = (value: unknown): value is string =>
@@ -71,6 +72,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return true
         })
 
+    const enriched = returnMetadataOnly
+      ? []
+      : await Promise.all(
+          filtered.map(async (project) => {
+            try {
+              const summary = await fetchPrimaryInvoiceSummary(project.year, project.id)
+              if (summary) {
+                return {
+                  ...project,
+                  invoice: summary.invoiceNumber ?? project.invoice,
+                  amount: summary.amount ?? project.amount,
+                  clientCompany: summary.clientCompany ?? project.clientCompany,
+                }
+              }
+            } catch (summaryError) {
+              console.error("[api/projects] Failed to resolve invoice summary", {
+                projectId: project.id,
+                error:
+                  summaryError instanceof Error
+                    ? { message: summaryError.message, stack: summaryError.stack }
+                    : { message: "Unknown error", raw: summaryError },
+              })
+            }
+            return project
+          }),
+        )
+
     const subsidiariesForResponse = returnMetadataOnly
       ? allSubsidiaries
       : Array.from(
@@ -92,7 +120,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     return res.status(200).json({
-      data: filtered,
+      data: enriched,
       total: filtered.length,
       years,
       subsidiaries: subsidiariesForResponse,
