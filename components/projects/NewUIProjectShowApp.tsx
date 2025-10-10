@@ -482,13 +482,16 @@ const ProjectsShowContent = () => {
       invoiceNumber: invoice.invoiceNumber,
       pending: false,
     }))
-    if (invoiceMode === "create" && draftInvoice) {
+    if (invoiceMode === "create" && draftInvoice && hasInvoices) {
       base.push({ invoiceNumber: draftInvoice.invoiceNumber, pending: true })
     }
     return base
-  }, [draftInvoice, invoiceMode, invoices])
+  }, [draftInvoice, hasInvoices, invoiceMode, invoices])
 
   const selectorHighlightIndex = useMemo(() => {
+    if (invoiceEntries.length === 0) {
+      return 0
+    }
     if (invoiceMode === "create" && draftInvoice) {
       return invoiceEntries.length - 1
     }
@@ -502,6 +505,11 @@ const ProjectsShowContent = () => {
     currentInvoiceRecord?.invoiceNumber ??
     baseInvoiceNumber ??
     "N/A"
+
+  const formattedInvoiceNumber =
+    invoiceNumberDisplay && invoiceNumberDisplay !== "N/A"
+      ? `#${invoiceNumberDisplay.replace(/^#/, "")}`
+      : invoiceNumberDisplay
 
   const paidChipKey = paymentChipColor(project?.paid ?? null)
   const paidChipPalette = paymentPalette[paidChipKey] ?? paymentPalette.default
@@ -1131,6 +1139,7 @@ const ProjectsShowContent = () => {
                   bordered={false}
                   className="presenter-input"
                   disabled={projectEditSaving}
+                  style={{ width: "100%", maxWidth: 560 }}
                 />
               ) : (
                 <Text className="presenter-type">{stringOrNA(project.presenterWorkType)}</Text>
@@ -1143,6 +1152,7 @@ const ProjectsShowContent = () => {
                   bordered={false}
                   className="project-title-input"
                   disabled={projectEditSaving}
+                  style={{ width: "100%", maxWidth: 760 }}
                 />
               ) : (
                 <Title level={2} className="project-title">
@@ -1157,6 +1167,7 @@ const ProjectsShowContent = () => {
                   bordered={false}
                   className="project-nature-input"
                   disabled={projectEditSaving}
+                  style={{ width: "100%", maxWidth: 560 }}
                 />
               ) : (
                 <Text className="project-nature">{stringOrNA(project.projectNature)}</Text>
@@ -1270,30 +1281,38 @@ const ProjectsShowContent = () => {
                 </Title>
                 <div className="invoice-summary">
                   <span className="summary-label">Invoice Number</span>
-                  {invoiceNumberPending ? (
-                    showInvoiceNumberInput ? (
-                      <Input
-                        value={draftInvoice?.invoiceNumber ?? ""}
-                        onChange={(event) => handleInvoiceNumberInput(event.target.value)}
-                        onBlur={finalizeInvoiceNumberEdit}
-                        onKeyDown={handleInvoiceNumberKeyDown}
-                        autoFocus
-                        bordered={false}
-                        className="invoice-input"
-                        disabled={invoiceMode !== "create"}
-                      />
+                  <div
+                    className={`invoice-number-shell ${
+                      invoiceNumberPending ? "pending" : ""
+                    }`}
+                  >
+                    {invoiceNumberPending ? (
+                      showInvoiceNumberInput ? (
+                        <Input
+                          value={draftInvoice?.invoiceNumber ?? ""}
+                          onChange={(event) => handleInvoiceNumberInput(event.target.value)}
+                          onBlur={finalizeInvoiceNumberEdit}
+                          onKeyDown={handleInvoiceNumberKeyDown}
+                          autoFocus
+                          bordered={false}
+                          className="invoice-input"
+                          disabled={invoiceMode !== "create"}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="invoice-number-edit"
+                          onClick={beginInvoiceNumberEdit}
+                        >
+                          {formattedInvoiceNumber}
+                        </button>
+                      )
                     ) : (
-                      <button
-                        type="button"
-                        className="summary-value pending editable"
-                        onClick={beginInvoiceNumberEdit}
-                      >
-                        {invoiceNumberDisplay}
-                      </button>
-                    )
-                  ) : (
-                    <span className="summary-value">{invoiceNumberDisplay}</span>
-                  )}
+                      <span className="summary-value invoice-number-text">
+                        {formattedInvoiceNumber}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="invoice-selector">
                   {invoiceEntries.length > 0 ? (
@@ -1429,7 +1448,7 @@ const ProjectsShowContent = () => {
         .title-row {
           display: flex;
           justify-content: space-between;
-          align-items: flex-start;
+          align-items: stretch;
           gap: 24px;
           flex-wrap: wrap;
         }
@@ -1437,7 +1456,9 @@ const ProjectsShowContent = () => {
         .title-content {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 2px;
+          flex: 1 1 320px;
+          max-width: 100%;
         }
 
         .presenter-type {
@@ -1446,6 +1467,7 @@ const ProjectsShowContent = () => {
           color: #475569;
           text-transform: uppercase;
           letter-spacing: 0.08em;
+          line-height: 1.2;
         }
 
         .presenter-input,
@@ -1455,6 +1477,8 @@ const ProjectsShowContent = () => {
           padding: 0;
           background: transparent;
           font-family: ${KARLA_FONT};
+          line-height: 1.2;
+          height: auto;
         }
 
         .presenter-input {
@@ -1469,12 +1493,14 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 700;
           color: #0f172a;
+          line-height: 1.15;
         }
 
         .project-title-input {
           font-weight: 700;
           font-size: 28px;
           color: #0f172a;
+          line-height: 1.15;
         }
 
         .project-nature {
@@ -1483,12 +1509,14 @@ const ProjectsShowContent = () => {
           font-weight: 500;
           font-style: italic;
           color: #475569;
+          line-height: 1.2;
         }
 
         .project-nature-input {
           font-weight: 500;
           font-style: italic;
           color: #475569;
+          line-height: 1.2;
         }
 
         .subsidiary-chip {
@@ -1496,11 +1524,12 @@ const ProjectsShowContent = () => {
           font-weight: 600;
           background: #e0f2fe;
           color: #0c4a6e;
-          border-radius: 999px;
+          border-radius: 9999px;
           border: none;
-          margin-top: 6px;
-          padding: 4px 14px;
+          margin-top: 4px;
+          padding: 6px 18px;
           align-self: flex-start;
+          line-height: 1;
         }
 
         .project-actions {
@@ -1508,6 +1537,7 @@ const ProjectsShowContent = () => {
           align-items: center;
           gap: 12px;
           flex-wrap: wrap;
+          align-self: flex-start;
         }
 
         .project-edit {
@@ -1653,20 +1683,6 @@ const ProjectsShowContent = () => {
           gap: 12px;
         }
 
-        .summary-value.pending {
-          color: #64748b;
-          font-style: italic;
-          animation: blink 1.2s infinite;
-        }
-
-        .summary-value.editable {
-          border: none;
-          background: none;
-          padding: 0;
-          text-align: left;
-          cursor: text;
-        }
-
         .summary-item.status .status-chip {
           margin-top: 0;
         }
@@ -1683,8 +1699,46 @@ const ProjectsShowContent = () => {
         }
 
         .invoice-input {
-          font-weight: 600;
+          font-weight: 700;
           color: #0f172a;
+          width: 100%;
+        }
+
+        .invoice-number-shell {
+          display: inline-flex;
+          align-items: center;
+          padding: 8px 16px;
+          border-radius: 18px;
+          background: #e7f2ff;
+          min-width: 0;
+        }
+
+        .invoice-number-shell.pending {
+          background: #f1f5f9;
+          border: 1px dashed #94a3b8;
+        }
+
+        .invoice-number-text {
+          font-weight: 700;
+          font-family: ${KARLA_FONT};
+        }
+
+        .invoice-number-edit {
+          border: none;
+          background: none;
+          padding: 0;
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #64748b;
+          font-style: italic;
+          animation: blink 1.2s infinite;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .invoice-number-edit:focus-visible {
+          outline: 2px solid #2563eb;
+          outline-offset: 2px;
         }
 
         .invoice-selector {
