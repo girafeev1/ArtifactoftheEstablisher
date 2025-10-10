@@ -7,6 +7,7 @@ const API_TIMEOUT_MS = 15000
 const alphabet = "abcdefghijklmnopqrstuvwxyz"
 
 const invoiceCollectionPattern = /^invoice-([a-z]+)$/
+const legacyInvoiceDocumentIdPattern = /^\d{4}-\d{3}-\d{4}(?:-?[a-z]+)?$/i
 const LEGACY_INVOICE_COLLECTION_IDS = new Set(["Invoice", "invoice"])
 
 const isSupportedInvoiceCollection = (id: string): boolean =>
@@ -224,11 +225,20 @@ const buildInvoiceRecord = (
   invoiceNumber: string,
   data: Record<string, unknown>,
 ): ProjectInvoiceRecord => {
-  const suffixMatch = invoiceNumber.match(/-([a-z]+)$/)
-  const suffix = suffixMatch ? suffixMatch[1] : ""
-  const baseInvoiceNumber = suffixMatch
-    ? invoiceNumber.slice(0, Math.max(0, invoiceNumber.length - suffix.length - 1))
-    : invoiceNumber
+  let suffix = ""
+  let baseInvoiceNumber = invoiceNumber
+
+  const hyphenatedMatch = invoiceNumber.match(/^(.*?)-([a-z]+)$/i)
+  if (hyphenatedMatch) {
+    baseInvoiceNumber = hyphenatedMatch[1]
+    suffix = hyphenatedMatch[2]
+  } else {
+    const trailingMatch = invoiceNumber.match(/^(\d{4}-\d{3}-\d{4})([a-z]+)$/i)
+    if (trailingMatch) {
+      baseInvoiceNumber = trailingMatch[1]
+      suffix = trailingMatch[2]
+    }
+  }
 
   const subtotal = toNumberValue(data.subtotal) ?? null
   const taxOrDiscountPercent = toNumberValue(data.taxOrDiscountPercent) ?? null
@@ -296,6 +306,12 @@ export const fetchInvoicesForProject = async (
       const collectionRef = collection(projectRef, collectionId)
       const snapshot = await getDocs(collectionRef)
       snapshot.forEach((document) => {
+        if (
+          LEGACY_INVOICE_COLLECTION_IDS.has(collectionId) &&
+          !legacyInvoiceDocumentIdPattern.test(document.id)
+        ) {
+          return
+        }
         invoices.push(buildInvoiceRecord(collectionId, document.id, document.data()))
       })
     } catch (error) {
