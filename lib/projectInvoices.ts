@@ -1,15 +1,4 @@
-import {
-  arrayUnion,
-  collection,
-  deleteField,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  setDoc,
-  Timestamp,
-  updateDoc,
-} from "firebase/firestore"
+import { collection, deleteField, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp, updateDoc } from "firebase/firestore"
 
 import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from "./firebase"
 
@@ -280,38 +269,17 @@ export const fetchInvoicesForProject = async (
 ): Promise<ProjectInvoiceRecord[]> => {
   const projectRef = doc(projectsDb, year, projectId)
 
-  const [listedIds, projectSnapshot] = await Promise.all([
-    listInvoiceCollectionIds(year, projectId).catch((error) => {
-      console.warn("[projectInvoices] listInvoiceCollectionIds failed", { error })
-      return [] as string[]
-    }),
-    getDoc(projectRef).catch((error) => {
-      console.warn("[projectInvoices] Failed to read project while fetching invoices", {
-        projectId,
-        error,
-      })
-      return null
-    }),
-  ])
+  const listedIds = await listInvoiceCollectionIds(year, projectId).catch((error) => {
+    console.warn("[projectInvoices] listInvoiceCollectionIds failed", { error })
+    return [] as string[]
+  })
 
   const discovered = new Set<string>()
   listedIds.forEach((id) => {
-    if (invoiceCollectionPattern.test(id)) {
+    if (isSupportedInvoiceCollection(id)) {
       discovered.add(id)
     }
   })
-
-  if (projectSnapshot?.exists()) {
-    const data = projectSnapshot.data()
-    const storedCollections = Array.isArray((data as any).invoiceCollections)
-      ? ((data as any).invoiceCollections as unknown[])
-      : []
-    storedCollections.forEach((raw) => {
-      if (typeof raw === "string" && isSupportedInvoiceCollection(raw)) {
-        discovered.add(raw)
-      }
-    })
-  }
 
   LEGACY_INVOICE_COLLECTION_IDS.forEach((id) => {
     discovered.add(id)
@@ -535,16 +503,6 @@ export const createInvoiceForProject = async (
 
   await setDoc(documentRef, payload)
 
-  try {
-    await updateDoc(projectRef, { invoiceCollections: arrayUnion(collectionId) })
-  } catch (error) {
-    console.warn("[projectInvoices] Failed to update invoiceCollections", {
-      projectId: input.projectId,
-      collectionId,
-      error,
-    })
-  }
-
   const snapshot = await getDoc(documentRef)
   if (!snapshot.exists()) {
     throw new Error("Failed to read created invoice")
@@ -588,16 +546,6 @@ export const updateInvoiceForProject = async (
   payload.updatedAt = serverTimestamp()
 
   await updateDoc(documentRef, payload)
-
-  try {
-    await updateDoc(projectRef, { invoiceCollections: arrayUnion(input.collectionId) })
-  } catch (error) {
-    console.warn("[projectInvoices] Failed to ensure invoiceCollections membership", {
-      projectId: input.projectId,
-      collectionId: input.collectionId,
-      error,
-    })
-  }
 
   const refreshed = await getDoc(documentRef)
   if (!refreshed.exists()) {

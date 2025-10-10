@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   Col,
+  DatePicker,
   Empty,
   Input,
   InputNumber,
@@ -33,6 +34,8 @@ import {
 import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
 import type { ProjectRecord } from "../../lib/projectsDatabase"
 import type { ProjectInvoiceRecord } from "../../lib/projectInvoices"
+import dayjs, { type Dayjs } from "dayjs"
+
 import AppShell from "../new-ui/AppShell"
 import {
   amountText,
@@ -93,6 +96,14 @@ type InvoiceDraftState = {
   client: InvoiceClientState
   items: InvoiceDraftItem[]
   taxOrDiscountPercent: number
+}
+
+type ProjectDraftState = {
+  presenterWorkType: string
+  projectTitle: string
+  projectNature: string
+  projectNumber: string
+  projectDateIso: string | null
 }
 
 type InvoiceTableRow = {
@@ -313,10 +324,12 @@ const ProjectsShowContent = () => {
   const [draftInvoice, setDraftInvoice] = useState<InvoiceDraftState | null>(null)
   const [savingInvoice, setSavingInvoice] = useState(false)
   const [projectEditMode, setProjectEditMode] = useState<"view" | "edit" | "saving">("view")
-  const [projectDraft, setProjectDraft] = useState({
+  const [projectDraft, setProjectDraft] = useState<ProjectDraftState>({
     presenterWorkType: "",
     projectTitle: "",
     projectNature: "",
+    projectNumber: "",
+    projectDateIso: null,
   })
   const [invoiceNumberEditing, setInvoiceNumberEditing] = useState(false)
   const itemIdRef = useRef(0)
@@ -414,6 +427,8 @@ const ProjectsShowContent = () => {
       presenterWorkType: project.presenterWorkType ?? "",
       projectTitle: project.projectTitle ?? "",
       projectNature: project.projectNature ?? "",
+      projectNumber: project.projectNumber ?? "",
+      projectDateIso: project.projectDateIso ?? null,
     })
   }, [project, projectEditMode])
 
@@ -499,6 +514,7 @@ const ProjectsShowContent = () => {
   }, [activeInvoiceIndex, draftInvoice, invoiceEntries.length, invoiceMode])
 
   const selectorHighlightHeight = invoiceEntries.length > 0 ? `${100 / invoiceEntries.length}%` : "0%"
+  const showSelectorHighlight = invoiceEntries.length > 1
 
   const invoiceNumberDisplay =
     resolvedDraft?.invoiceNumber ??
@@ -539,6 +555,8 @@ const ProjectsShowContent = () => {
       presenterWorkType: project.presenterWorkType ?? "",
       projectTitle: project.projectTitle ?? "",
       projectNature: project.projectNature ?? "",
+      projectNumber: project.projectNumber ?? "",
+      projectDateIso: project.projectDateIso ?? null,
     })
     setProjectEditMode("edit")
   }, [project])
@@ -550,16 +568,32 @@ const ProjectsShowContent = () => {
         presenterWorkType: project.presenterWorkType ?? "",
         projectTitle: project.projectTitle ?? "",
         projectNature: project.projectNature ?? "",
+        projectNumber: project.projectNumber ?? "",
+        projectDateIso: project.projectDateIso ?? null,
       })
     }
   }, [project])
 
   const handleProjectDraftChange = useCallback(
-    (field: "presenterWorkType" | "projectTitle" | "projectNature", value: string) => {
+    (
+      field:
+        | "presenterWorkType"
+        | "projectTitle"
+        | "projectNature"
+        | "projectNumber",
+      value: string,
+    ) => {
       setProjectDraft((previous) => ({ ...previous, [field]: value }))
     },
     [],
   )
+
+  const handleProjectDateChange = useCallback((value: Dayjs | null) => {
+    setProjectDraft((previous) => ({
+      ...previous,
+      projectDateIso: value ? value.toDate().toISOString() : null,
+    }))
+  }, [])
 
   const saveProjectEdits = useCallback(async () => {
     if (!project) {
@@ -569,28 +603,84 @@ const ProjectsShowContent = () => {
     const trimmedPresenter = projectDraft.presenterWorkType.trim()
     const trimmedTitle = projectDraft.projectTitle.trim()
     const trimmedNature = projectDraft.projectNature.trim()
+    const trimmedNumber = projectDraft.projectNumber.trim()
+
+    if (trimmedNumber.length === 0) {
+      message.error("Project number is required")
+      return
+    }
+
+    const normalizeIso = (value: string | null | undefined) => {
+      if (!value) {
+        return null
+      }
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) {
+        return null
+      }
+      return parsed.toISOString()
+    }
+
+    const draftDateIso = normalizeIso(projectDraft.projectDateIso)
+    if (projectDraft.projectDateIso && !draftDateIso) {
+      message.error("Invalid project pickup date")
+      return
+    }
 
     const currentPresenter = project.presenterWorkType?.trim() ?? ""
     const currentTitle = project.projectTitle?.trim() ?? ""
     const currentNature = project.projectNature?.trim() ?? ""
+    const currentNumber = project.projectNumber?.trim() ?? ""
+    const currentDateIso = normalizeIso(project.projectDateIso)
 
-    if (
-      currentPresenter === trimmedPresenter &&
-      currentTitle === trimmedTitle &&
-      currentNature === trimmedNature
-    ) {
+    const sanitizedPresenter = toNullableString(trimmedPresenter)
+    const sanitizedTitle = toNullableString(trimmedTitle)
+    const sanitizedNature = toNullableString(trimmedNature)
+
+    const updatesPayload: Record<string, unknown> = {}
+
+    if (currentPresenter !== trimmedPresenter) {
+      updatesPayload.presenterWorkType = sanitizedPresenter
+    }
+    if (currentTitle !== trimmedTitle) {
+      updatesPayload.projectTitle = sanitizedTitle
+    }
+    if (currentNature !== trimmedNature) {
+      updatesPayload.projectNature = sanitizedNature
+    }
+    if (currentNumber !== trimmedNumber) {
+      updatesPayload.projectNumber = trimmedNumber
+    }
+    if (currentDateIso !== draftDateIso) {
+      updatesPayload.projectDate = draftDateIso
+    }
+
+    if (Object.keys(updatesPayload).length === 0) {
       setProjectEditMode("view")
       setProjectDraft({
         presenterWorkType: project.presenterWorkType ?? "",
         projectTitle: project.projectTitle ?? "",
         projectNature: project.projectNature ?? "",
+        projectNumber: project.projectNumber ?? "",
+        projectDateIso: project.projectDateIso ?? null,
       })
       return
     }
 
-    const sanitizedPresenter = toNullableString(trimmedPresenter)
-    const sanitizedTitle = toNullableString(trimmedTitle)
-    const sanitizedNature = toNullableString(trimmedNature)
+    const displayFromIso = (value: string | null | undefined) => {
+      if (!value) {
+        return null
+      }
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) {
+        return null
+      }
+      return parsed.toLocaleDateString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+      })
+    }
 
     try {
       setProjectEditMode("saving")
@@ -601,11 +691,7 @@ const ProjectsShowContent = () => {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            updates: {
-              presenterWorkType: sanitizedPresenter,
-              projectTitle: sanitizedTitle,
-              projectNature: sanitizedNature,
-            },
+            updates: updatesPayload,
           }),
         },
       )
@@ -620,11 +706,18 @@ const ProjectsShowContent = () => {
         if (!previous) {
           return previous
         }
-        const nextPresenter = sanitizedPresenter
-        const nextTitle = sanitizedTitle
-        const nextNature = sanitizedNature
+        const nextPresenter =
+          "presenterWorkType" in updatesPayload ? sanitizedPresenter ?? null : previous.presenterWorkType
+        const nextTitle = "projectTitle" in updatesPayload ? sanitizedTitle ?? null : previous.projectTitle
+        const nextNature = "projectNature" in updatesPayload ? sanitizedNature ?? null : previous.projectNature
+        const nextNumber = "projectNumber" in updatesPayload ? trimmedNumber : previous.projectNumber
+        const nextDateIso =
+          "projectDate" in updatesPayload ? draftDateIso : previous.projectDateIso ?? null
+        const nextDateDisplay =
+          "projectDate" in updatesPayload ? displayFromIso(draftDateIso) : previous.projectDateDisplay ?? null
+
         const nextSearchIndex = [
-          previous.projectNumber,
+          nextNumber,
           nextTitle ?? "",
           previous.clientCompany ?? "",
           previous.subsidiary ?? "",
@@ -640,6 +733,9 @@ const ProjectsShowContent = () => {
           presenterWorkType: nextPresenter,
           projectTitle: nextTitle,
           projectNature: nextNature,
+          projectNumber: nextNumber,
+          projectDateIso: nextDateIso,
+          projectDateDisplay: nextDateDisplay,
           searchIndex: nextSearchIndex,
         }
       })
@@ -649,6 +745,8 @@ const ProjectsShowContent = () => {
         presenterWorkType: sanitizedPresenter ?? "",
         projectTitle: sanitizedTitle ?? "",
         projectNature: sanitizedNature ?? "",
+        projectNumber: trimmedNumber,
+        projectDateIso: draftDateIso,
       })
       message.success("Project updated")
     } catch (error) {
@@ -656,7 +754,15 @@ const ProjectsShowContent = () => {
       message.error(description)
       setProjectEditMode("edit")
     }
-  }, [message, project, projectDraft.presenterWorkType, projectDraft.projectNature, projectDraft.projectTitle])
+  }, [
+    message,
+    project,
+    projectDraft.presenterWorkType,
+    projectDraft.projectNature,
+    projectDraft.projectTitle,
+    projectDraft.projectNumber,
+    projectDraft.projectDateIso,
+  ])
 
   const prepareDraft = useCallback(
     (mode: "create" | "edit") => {
@@ -1121,11 +1227,36 @@ const ProjectsShowContent = () => {
         </Button>
         <div className="header-block">
           <div className="descriptor-line">
-            <span className="descriptor-number">{stringOrNA(project.projectNumber)}</span>
+            {isProjectEditing ? (
+              <Input
+                value={projectDraft.projectNumber}
+                onChange={(event) => handleProjectDraftChange("projectNumber", event.target.value)}
+                placeholder="Project number"
+                bordered={false}
+                className="descriptor-input"
+                disabled={projectEditSaving}
+                style={{ maxWidth: 240 }}
+              />
+            ) : (
+              <span className="descriptor-number">{stringOrNA(project.projectNumber)}</span>
+            )}
             <span className="descriptor-separator">/</span>
-            <span className="descriptor-date">
-              {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
-            </span>
+            {isProjectEditing ? (
+              <DatePicker
+                value={projectDraft.projectDateIso ? dayjs(projectDraft.projectDateIso) : null}
+                onChange={handleProjectDateChange}
+                format="MMM DD, YYYY"
+                allowClear
+                bordered={false}
+                className="descriptor-picker"
+                disabled={projectEditSaving}
+                style={{ minWidth: 160 }}
+              />
+            ) : (
+              <span className="descriptor-date">
+                {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
+              </span>
+            )}
           </div>
           <div className="title-row">
             <div className="title-content">
@@ -1316,30 +1447,30 @@ const ProjectsShowContent = () => {
                 </div>
                 <div className="invoice-selector">
                   {invoiceEntries.length > 0 ? (
-                    <div
-                      className="selector-highlight"
-                      style={{
-                        height: selectorHighlightHeight,
-                        transform: `translateY(${selectorHighlightIndex * 100}%)`,
-                      }}
-                    />
+                    <>
+                      {showSelectorHighlight ? (
+                        <div
+                          className="selector-highlight"
+                          style={{
+                            height: selectorHighlightHeight,
+                            transform: `translateY(${selectorHighlightIndex * 100}%)`,
+                          }}
+                        />
+                      ) : null}
+                      {invoiceEntries.map((entry, index) => (
+                        <button
+                          key={entry.invoiceNumber}
+                          type="button"
+                          className={`selector-item ${
+                            index === selectorHighlightIndex ? "active" : ""
+                          } ${entry.pending ? "pending" : ""}`}
+                          onClick={() => handleSelectInvoice(index, entry.pending)}
+                        >
+                          {entry.invoiceNumber}
+                        </button>
+                      ))}
+                    </>
                   ) : null}
-                  {invoiceEntries.length === 0 ? (
-                    <span className="selector-empty">No invoices yet</span>
-                  ) : (
-                    invoiceEntries.map((entry, index) => (
-                      <button
-                        key={entry.invoiceNumber}
-                        type="button"
-                        className={`selector-item ${
-                          index === selectorHighlightIndex ? "active" : ""
-                        } ${entry.pending ? "pending" : ""}`}
-                        onClick={() => handleSelectInvoice(index, entry.pending)}
-                      >
-                        {entry.invoiceNumber}
-                      </button>
-                    ))
-                  )}
                 </div>
               </Card>
             </Space>
@@ -1436,12 +1567,42 @@ const ProjectsShowContent = () => {
           font-size: 18px;
         }
 
+        .descriptor-input {
+          padding: 0;
+          background: transparent;
+          border: none;
+          box-shadow: none;
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #0f172a;
+          font-size: 18px;
+          height: auto;
+        }
+
         .descriptor-separator {
           color: #94a3b8;
         }
 
         .descriptor-date {
           color: #64748b;
+          font-style: italic;
+        }
+
+        .descriptor-picker,
+        .descriptor-picker:hover,
+        .descriptor-picker:focus {
+          background: transparent;
+        }
+
+        .descriptor-picker .ant-picker-input > input {
+          font-family: ${KARLA_FONT};
+          color: #64748b;
+          font-style: italic;
+          font-weight: 500;
+        }
+
+        .descriptor-picker .ant-picker-input > input::placeholder {
+          color: #94a3b8;
           font-style: italic;
         }
 
@@ -1786,14 +1947,6 @@ const ProjectsShowContent = () => {
         .selector-item:focus-visible {
           outline: 2px solid #2563eb;
           outline-offset: 2px;
-        }
-
-        .selector-empty {
-          font-family: ${KARLA_FONT};
-          font-weight: 500;
-          color: #94a3b8;
-          padding: 12px 0;
-          z-index: 1;
         }
 
         .items-card {
