@@ -1475,14 +1475,45 @@ const ProjectsShowContent = () => {
     <div className="page-wrapper">
       <div className="page-inner">
         <Space direction="vertical" size={24} style={{ width: "100%" }}>
-          <Button
-            type="text"
-            icon={<ArrowLeftOutlined />}
-            onClick={handleBack}
-            style={{ fontFamily: KARLA_FONT, fontWeight: 600 }}
-          >
-            Back to Projects
-          </Button>
+          <div className="top-row">
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
+              onClick={handleBack}
+              style={{ fontFamily: KARLA_FONT, fontWeight: 600 }}
+            >
+              Back to Projects
+            </Button>
+            <div className="project-actions top-actions">
+              {projectEditMode === "view" ? (
+                <Button
+                  icon={<EditOutlined />}
+                  className="project-edit"
+                  onClick={startProjectEditing}
+                >
+                  Edit
+                </Button>
+              ) : (
+                <Space size={8}>
+                  <Button
+                    className="project-cancel"
+                    onClick={cancelProjectEditing}
+                    disabled={projectEditSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="primary"
+                    className="project-save"
+                    onClick={saveProjectEdits}
+                    loading={projectEditSaving}
+                  >
+                    Save
+                  </Button>
+                </Space>
+              )}
+            </div>
+          </div>
         <div className="header-block">
           <div className="descriptor-line">
             {isProjectEditing ? (
@@ -1568,35 +1599,6 @@ const ProjectsShowContent = () => {
                   </Tag>
                 ) : null}
               </div>
-            </div>
-            <div className={`project-actions ${projectEditMode !== "view" ? "editing" : ""}`}>
-              {projectEditMode === "view" ? (
-                <Button
-                  icon={<EditOutlined />}
-                  className="project-edit"
-                  onClick={startProjectEditing}
-                >
-                  Edit
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    className="project-cancel"
-                    onClick={cancelProjectEditing}
-                    disabled={projectEditSaving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="primary"
-                    className="project-save"
-                    onClick={saveProjectEdits}
-                    loading={projectEditSaving}
-                  >
-                    Save
-                  </Button>
-                </>
-              )}
             </div>
           </div>
         </div>
@@ -1841,7 +1843,7 @@ const ProjectsShowContent = () => {
         }
 
         .page-inner {
-          max-width: 1120px;
+          max-width: 1040px;
           margin: 0 auto;
           width: 100%;
         }
@@ -1852,6 +1854,14 @@ const ProjectsShowContent = () => {
           align-items: center;
           justify-content: center;
           padding: 64px 16px;
+        }
+
+        .top-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          flex-wrap: wrap;
         }
 
         .header-block {
