@@ -1473,15 +1473,16 @@ const ProjectsShowContent = () => {
   const showInvoiceCancel = invoiceMode !== "idle" && (invoiceMode === "edit" || hasInvoices)
   return (
     <div className="page-wrapper">
-      <Space direction="vertical" size={24} style={{ width: "100%" }}>
-        <Button
-          type="text"
-          icon={<ArrowLeftOutlined />}
-          onClick={handleBack}
-          style={{ fontFamily: KARLA_FONT, fontWeight: 600 }}
-        >
-          Back to Projects
-        </Button>
+      <div className="page-inner">
+        <Space direction="vertical" size={24} style={{ width: "100%" }}>
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={handleBack}
+            style={{ fontFamily: KARLA_FONT, fontWeight: 600 }}
+          >
+            Back to Projects
+          </Button>
         <div className="header-block">
           <div className="descriptor-line">
             {isProjectEditing ? (
@@ -1527,7 +1528,7 @@ const ProjectsShowContent = () => {
                   bordered={false}
                   className="presenter-input"
                   disabled={projectEditSaving}
-                  style={{ width: "100%", maxWidth: 560 }}
+                  style={{ width: "100%", maxWidth: 480 }}
                 />
               ) : (
                 <Text className="presenter-type">{stringOrNA(project.presenterWorkType)}</Text>
@@ -1540,31 +1541,35 @@ const ProjectsShowContent = () => {
                   bordered={false}
                   className="project-title-input"
                   disabled={projectEditSaving}
-                  style={{ width: "100%", maxWidth: 760 }}
+                  style={{ width: "100%", maxWidth: 620 }}
                 />
               ) : (
                 <Title level={2} className="project-title">
                   {stringOrNA(project.projectTitle)}
                 </Title>
               )}
-              {isProjectEditing ? (
-                <Input
-                  value={projectDraft.projectNature}
-                  onChange={(event) => handleProjectDraftChange("projectNature", event.target.value)}
-                  placeholder="Project nature"
-                  bordered={false}
-                  className="project-nature-input"
-                  disabled={projectEditSaving}
-                  style={{ width: "100%", maxWidth: 560 }}
-                />
-              ) : (
-                <Text className="project-nature">{stringOrNA(project.projectNature)}</Text>
-              )}
-              {project.subsidiary ? (
-                <Tag className="subsidiary-chip">{stringOrNA(project.subsidiary)}</Tag>
-              ) : null}
+              <div className={`nature-row ${isProjectEditing ? "editing" : ""}`}>
+                {isProjectEditing ? (
+                  <Input
+                    value={projectDraft.projectNature}
+                    onChange={(event) => handleProjectDraftChange("projectNature", event.target.value)}
+                    placeholder="Project nature"
+                    bordered={false}
+                    className="project-nature-input"
+                    disabled={projectEditSaving}
+                    style={{ width: "100%", maxWidth: 560 }}
+                  />
+                ) : (
+                  <Text className="project-nature">{stringOrNA(project.projectNature)}</Text>
+                )}
+                {project.subsidiary ? (
+                  <Tag className="subsidiary-chip" style={{ width: "fit-content" }}>
+                    {stringOrNA(project.subsidiary)}
+                  </Tag>
+                ) : null}
+              </div>
             </div>
-            <div className="project-actions">
+            <div className={`project-actions ${projectEditMode !== "view" ? "editing" : ""}`}>
               {projectEditMode === "view" ? (
                 <Button
                   icon={<EditOutlined />}
@@ -1760,7 +1765,11 @@ const ProjectsShowContent = () => {
                   <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
                   <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
                   <div className="company-line">{stringOrNA(companyLine3)}</div>
-                  <div className="company-line">{stringOrNA(resolvedClient?.representative)}</div>
+                  {resolvedClient?.representative ? (
+                    <div className="company-line client-attn">
+                      <strong>Attn: {resolvedClient.representative}</strong>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1821,6 +1830,7 @@ const ProjectsShowContent = () => {
           ) : null}
         </Card>
       </Space>
+      </div>
       {/* eslint-disable-next-line react/no-unknown-property */}
       <style jsx>{`
         .page-wrapper {
@@ -1828,6 +1838,12 @@ const ProjectsShowContent = () => {
           background: #f8fafc;
           min-height: 100%;
           font-family: ${KARLA_FONT};
+        }
+
+        .page-inner {
+          max-width: 1120px;
+          margin: 0 auto;
+          width: 100%;
         }
 
         .loading-state {
@@ -1841,7 +1857,7 @@ const ProjectsShowContent = () => {
         .header-block {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 10px;
         }
 
         .descriptor-line {
@@ -1850,6 +1866,7 @@ const ProjectsShowContent = () => {
           gap: 8px;
           font-family: ${KARLA_FONT};
           font-weight: 600;
+          margin-bottom: 8px;
         }
 
         .descriptor-number {
@@ -1907,7 +1924,7 @@ const ProjectsShowContent = () => {
         .title-content {
           display: flex;
           flex-direction: column;
-          gap: 0;
+          gap: 6px;
           flex: 1 1 320px;
           max-width: 100%;
         }
@@ -1919,7 +1936,7 @@ const ProjectsShowContent = () => {
           text-transform: uppercase;
           letter-spacing: 0.08em;
           line-height: 1;
-          margin: 0 0 2px;
+          margin: 0;
         }
 
         .presenter-input,
@@ -1970,15 +1987,26 @@ const ProjectsShowContent = () => {
           font-weight: 500;
           font-style: italic;
           color: #475569;
-          line-height: 1.02;
-          margin: 4px 0 0;
+          line-height: 1.1;
+          margin: 0;
         }
 
         .project-nature-input {
           font-weight: 500;
           font-style: italic;
           color: #475569;
-          line-height: 1.02;
+          line-height: 1.1;
+        }
+
+        .nature-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .nature-row.editing {
+          align-items: flex-start;
         }
 
         .subsidiary-chip {
@@ -1988,22 +2016,28 @@ const ProjectsShowContent = () => {
           color: #0c4a6e;
           border-radius: 9999px;
           border: none;
-          margin-top: 4px;
           padding: 4px 14px;
-          align-self: flex-start;
           line-height: 1;
           display: inline-flex;
           align-items: center;
-          width: max-content;
-          max-width: max-content;
+          width: fit-content;
+          max-width: 100%;
+          white-space: nowrap;
         }
 
         .project-actions {
           display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 8px;
-          flex: 0 0 auto;
+          flex-direction: row;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 10px;
+          flex-wrap: wrap;
+          min-width: 120px;
+          align-self: flex-start;
+        }
+
+        .project-actions.editing {
+          align-items: center;
         }
 
         .project-edit {
@@ -2109,6 +2143,16 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           color: #475569;
           font-weight: 500;
+        }
+
+        .client-attn {
+          margin-top: 4px;
+        }
+
+        .client-attn strong {
+          font-family: ${KARLA_FONT};
+          font-weight: 700;
+          color: #0f172a;
         }
 
         .summary-item {
