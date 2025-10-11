@@ -482,28 +482,47 @@ const ProjectsShowContent = () => {
   const taxPercent = resolvedDraft?.taxOrDiscountPercent ?? 0
   const { taxAmount, total } = computeTotals(subtotal, taxPercent)
 
+  const { clearedCount, totalInvoiceCount, outstandingCount, lastPaidIso, lastPaidDisplay } =
+    useMemo(() => {
+      let cleared = 0
+      let latestIso: string | null = null
+      let latestDisplay: string | null = null
+      let latestIsoTime = Number.NEGATIVE_INFINITY
+
+      invoices.forEach((invoice) => {
+        if (invoice.paid === true) {
+          cleared += 1
+          if (invoice.paidOnIso) {
+            const parsed = new Date(invoice.paidOnIso)
+            const timestamp = parsed.getTime()
+            if (!Number.isNaN(timestamp) && timestamp >= latestIsoTime) {
+              latestIso = invoice.paidOnIso
+              latestIsoTime = timestamp
+              latestDisplay = invoice.paidOnDisplay ?? invoice.paidOnIso
+            } else if (latestIso === null && invoice.paidOnDisplay) {
+              latestDisplay = invoice.paidOnDisplay
+            }
+          } else if (latestIso === null && invoice.paidOnDisplay) {
+            latestDisplay = invoice.paidOnDisplay
+          }
+        }
+      })
+
+      return {
+        clearedCount: cleared,
+        totalInvoiceCount: invoices.length,
+        outstandingCount: Math.max(invoices.length - cleared, 0),
+        lastPaidIso: latestIso,
+        lastPaidDisplay: latestDisplay,
+      }
+    }, [invoices])
+
   const projectPaidState = useMemo(() => {
-    if (invoices.some((entry) => entry.paid === true)) {
-      return true
-    }
-    if (invoices.some((entry) => entry.paid === false)) {
-      return false
+    if (totalInvoiceCount > 0) {
+      return outstandingCount === 0
     }
     return project?.paid ?? null
-  }, [invoices, project?.paid])
-
-  const invoiceWithPaidInfo = useMemo(() => {
-    if (invoices.length === 0) {
-      return null
-    }
-    return (
-      invoices.find(
-        (entry) => entry.paid === true && (entry.paidOnIso || entry.paidOnDisplay),
-      ) ??
-      invoices.find((entry) => entry.paidOnIso || entry.paidOnDisplay) ??
-      null
-    )
-  }, [invoices])
+  }, [outstandingCount, project?.paid, totalInvoiceCount])
 
   const paymentStatusIndex = useMemo(() => {
     let index = 0
@@ -601,12 +620,23 @@ const ProjectsShowContent = () => {
 
   const paidChipKey = paymentChipColor(projectPaidState)
   const paidChipPalette = paymentPalette[paidChipKey] ?? paymentPalette.default
-  const paidOnDisplay = formatProjectDate(
-    invoiceWithPaidInfo?.paidOnIso ?? project?.onDateIso ?? null,
-    invoiceWithPaidInfo?.paidOnDisplay ?? project?.onDateDisplay ?? null,
-  )
-  const paidOnText =
-    projectPaidState === true && paidOnDisplay !== "-" ? paidOnDisplay : "-"
+
+  const totalStatusLabel = useMemo(() => {
+    if (totalInvoiceCount === 0) {
+      return "-"
+    }
+    if (outstandingCount === 0) {
+      return "Cleared"
+    }
+    return `${outstandingCount}/${totalInvoiceCount} Due`
+  }, [outstandingCount, totalInvoiceCount])
+
+  const totalPaidOnText = useMemo(() => {
+    if (clearedCount === 0) {
+      return "-"
+    }
+    return formatProjectDate(lastPaidIso, lastPaidDisplay)
+  }, [clearedCount, lastPaidDisplay, lastPaidIso])
 
   const companyLine3 = mergeLineWithRegion(resolvedClient?.addressLine3, resolvedClient?.region)
 
@@ -1480,44 +1510,31 @@ const ProjectsShowContent = () => {
             ))}
           </div>
         </div>
-        <Row gutter={[32, 32]} align="stretch">
-          <Col xs={24} lg={12}>
-            <Card className="details-card company-card fill-card" bordered={false}>
-              <div className="company-block">
-                <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
-                <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
-                <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
-                <div className="company-line">{stringOrNA(companyLine3)}</div>
-                <div className="company-line">{stringOrNA(resolvedClient?.representative)}</div>
-              </div>
-            </Card>
-          </Col>
-          <Col xs={24} lg={12}>
-            <Card className="details-card billing-card fill-card" bordered={false}>
-              <div className="billing-card-content">
-                <div className="billing-top">
-                  <Title level={5} className="section-heading">
-                    Billing &amp; Payments
-                  </Title>
-                  <div className="billing-summary">
-                    <div className="summary-item">
-                      <span className="summary-label">Project Total</span>
-                      <span className="summary-value">{amountText(projectTotalValue)}</span>
-                    </div>
-                    <div className="summary-item status">
-                      <span className="summary-label">Status</span>
-                      <Tag
-                        color={paidChipPalette.backgroundColor}
-                        className="status-chip"
-                        style={{ color: paidChipPalette.color }}
-                      >
-                        {paymentChipLabel(projectPaidState)}
-                      </Tag>
-                    </div>
-                    <div className="summary-item">
-                      <span className="summary-label">Paid On</span>
-                      <span className="summary-value">{paidOnText}</span>
-                    </div>
+        <Card className="details-card billing-card" bordered={false}>
+          <div className="billing-card-content">
+            <div className="billing-header">
+              <div className="billing-summary-block">
+                <Title level={5} className="section-heading">
+                  Billing &amp; Payments
+                </Title>
+                <div className="billing-summary-grid">
+                  <div className="summary-item">
+                    <span className="summary-label">Project Total</span>
+                    <span className="summary-value">{amountText(projectTotalValue)}</span>
+                  </div>
+                  <div className="summary-item status">
+                    <span className="summary-label">Status</span>
+                    <Tag
+                      color={paidChipPalette.backgroundColor}
+                      className="status-chip"
+                      style={{ color: paidChipPalette.color }}
+                    >
+                      {paymentChipLabel(projectPaidState)}
+                    </Tag>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Paid On</span>
+                    <span className="summary-value">{totalPaidOnText}</span>
                   </div>
                 </div>
                 {showInvoiceSummaryNumber ? (
@@ -1559,73 +1576,93 @@ const ProjectsShowContent = () => {
                     </div>
                   </div>
                 ) : null}
-                <div className="billing-entries">
-                  {invoiceEntries.length > 0 ? (
-                    invoiceEntries.map((entry, index) => (
-                      <button
-                        key={`${entry.invoiceNumber}-${index}`}
-                        type="button"
-                        className={`billing-entry ${
-                          index === activeEntryIndex ? "active" : ""
-                        } ${entry.pending ? "pending" : ""}`}
-                        onClick={() => handleSelectInvoice(index, entry.pending)}
-                      >
-                        <div className="billing-entry-main">
-                          <span className="invoice-label">{entry.invoiceNumber}</span>
-                          <span className="invoice-amount">
-                            {amountText(entry.amount)}
-                          </span>
-                        </div>
-                        <div className="billing-entry-meta">
-                          {entry.pending ? (
-                            <span className="draft-pill">Draft</span>
-                          ) : (
-                            <Tag
-                              color={paymentPalette[entry.statusColor].backgroundColor}
-                              className="status-chip"
-                              style={{ color: paymentPalette[entry.statusColor].color }}
-                            >
-                              {entry.statusLabel}
-                            </Tag>
-                          )}
-                          {entry.paidOnText ? (
-                            <span className="paid-on-text">Paid on {entry.paidOnText}</span>
-                          ) : null}
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="billing-empty">No invoices yet.</div>
-                  )}
-                </div>
-                {invoiceMode === "idle" && hasInvoices ? (
-                  <div className="billing-actions">
-                    <Space size={12} wrap>
-                      <Button onClick={() => prepareDraft("edit")} icon={<EditOutlined />}>
-                        Edit Invoice
-                      </Button>
-                      <Button type="primary" onClick={() => prepareDraft("create")}>
-                        Add Additional Invoice
-                      </Button>
-                    </Space>
-                  </div>
-                ) : null}
-                {invoiceMode === "create" && hasInvoices ? (
-                  <div className="billing-actions">
-                    <Space size={12} wrap>
-                      <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
-                        Cancel
-                      </Button>
-                      <Button type="primary" disabled>
-                        Add Additional Invoice
-                      </Button>
-                    </Space>
-                  </div>
-                ) : null}
               </div>
-            </Card>
-          </Col>
-        </Row>
+              <div className="client-panel">
+                <span className="summary-label client-label">Client</span>
+                <div className="company-block">
+                  <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
+                  <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
+                  <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
+                  <div className="company-line">{stringOrNA(companyLine3)}</div>
+                  <div className="company-line">{stringOrNA(resolvedClient?.representative)}</div>
+                </div>
+              </div>
+            </div>
+            <div className="invoice-table">
+              <div className="invoice-row head">
+                <span className="invoice-cell heading">Invoice #</span>
+                <span className="invoice-cell heading align-right">Amount</span>
+                <span className="invoice-cell heading">Status</span>
+                <span className="invoice-cell heading">Paid On</span>
+              </div>
+              {invoiceEntries.length > 0 ? (
+                invoiceEntries.map((entry, index) => (
+                  <button
+                    key={`${entry.invoiceNumber}-${index}`}
+                    type="button"
+                    className={`invoice-row selectable-row ${
+                      index === activeEntryIndex ? "active" : ""
+                    } ${entry.pending ? "pending" : ""}`}
+                    onClick={() => handleSelectInvoice(index, entry.pending)}
+                  >
+                    <span className="invoice-cell number">{entry.invoiceNumber}</span>
+                    <span className="invoice-cell amount align-right">
+                      {amountText(entry.amount)}
+                    </span>
+                    <span className="invoice-cell status">
+                      {entry.pending ? (
+                        <span className="draft-pill">Draft</span>
+                      ) : (
+                        <Tag
+                          color={paymentPalette[entry.statusColor].backgroundColor}
+                          className="status-chip"
+                          style={{ color: paymentPalette[entry.statusColor].color }}
+                        >
+                          {entry.statusLabel}
+                        </Tag>
+                      )}
+                    </span>
+                    <span className="invoice-cell paid-on">{entry.paidOnText ?? "-"}</span>
+                  </button>
+                ))
+              ) : (
+                <div className="invoice-empty-row">No invoices yet.</div>
+              )}
+              <div className="invoice-row total" role="row">
+                <span className="invoice-cell number total-label">Total:</span>
+                <span className="invoice-cell amount align-right">
+                  {amountText(projectTotalValue)}
+                </span>
+                <span className="invoice-cell status total-status">{totalStatusLabel}</span>
+                <span className="invoice-cell paid-on">{totalPaidOnText}</span>
+              </div>
+            </div>
+            {invoiceMode === "idle" && hasInvoices ? (
+              <div className="billing-actions">
+                <Space size={12} wrap>
+                  <Button onClick={() => prepareDraft("edit")} icon={<EditOutlined />}>
+                    Edit Invoice
+                  </Button>
+                  <Button type="primary" onClick={() => prepareDraft("create")}>
+                    Add Additional Invoice
+                  </Button>
+                </Space>
+              </div>
+            ) : null}
+            {invoiceMode === "create" && hasInvoices ? (
+              <div className="billing-actions">
+                <Space size={12} wrap>
+                  <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
+                    Cancel
+                  </Button>
+                  <Button type="primary" disabled>
+                    Add Additional Invoice
+                  </Button>
+                </Space>
+              </div>
+            ) : null}
+          </div>
+        </Card>
         <Card className="details-card items-card" bordered={false}>
           <div className="items-header">
             <Title level={4} className="section-heading">
@@ -1949,16 +1986,6 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
         }
 
-        .fill-card {
-          height: 100%;
-        }
-
-        .fill-card :global(.ant-card-body) {
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-        }
-
         .company-block {
           display: flex;
           flex-direction: column;
@@ -2074,99 +2101,160 @@ const ProjectsShowContent = () => {
 
         .billing-card :global(.ant-card-body) {
           display: flex;
-          flex: 1;
+          flex-direction: column;
+          gap: 16px;
+          height: 100%;
         }
 
         .billing-card-content {
           display: flex;
           flex-direction: column;
+          gap: 24px;
+          flex: 1;
+        }
+
+        .billing-header {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+
+        @media (min-width: 992px) {
+          .billing-header {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: flex-start;
+          }
+        }
+
+        .billing-summary-block {
+          display: flex;
+          flex-direction: column;
           gap: 16px;
           flex: 1;
         }
 
-        .billing-top {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        .billing-summary {
+        .billing-summary-grid {
           display: flex;
           flex-wrap: wrap;
           gap: 24px;
           align-items: center;
         }
 
-        .billing-entries {
+        .client-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          min-width: 220px;
+        }
+
+        .client-label {
+          font-size: 11px;
+        }
+
+        .invoice-table {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          flex: 1;
         }
 
-        .billing-entry {
-          border: none;
-          background: #f8fafc;
-          border-radius: 16px;
-          padding: 12px 16px;
+        .invoice-row {
+          display: grid;
+          grid-template-columns: minmax(140px, 1.2fr) minmax(120px, 0.8fr) minmax(140px, 1fr) minmax(
+              140px,
+              1fr
+            );
+          align-items: center;
+          gap: 12px;
           font-family: ${KARLA_FONT};
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          text-align: left;
-          transition: border-color 0.2s ease, background 0.2s ease;
-          border: 1px solid transparent;
-          cursor: pointer;
-          width: 100%;
         }
 
-        .billing-entry:hover {
+        .invoice-row.head {
+          padding: 0 8px;
+        }
+
+        .invoice-row.head .invoice-cell {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          font-size: 12px;
+        }
+
+        .invoice-cell {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #0f172a;
+        }
+
+        .invoice-cell.align-right {
+          text-align: right;
+          justify-self: end;
+        }
+
+        .invoice-cell.status {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .invoice-row.selectable-row {
+          border: 1px solid transparent;
+          border-radius: 16px;
+          background: #f8fafc;
+          padding: 12px 16px;
+          transition: border-color 0.2s ease, background 0.2s ease;
+          cursor: pointer;
+        }
+
+        .invoice-row.selectable-row:hover {
           border-color: #cbd5f5;
         }
 
-        .billing-entry.active {
+        .invoice-row.selectable-row.active {
           background: #e0f2fe;
           border-color: #93c5fd;
         }
 
-        .billing-entry.pending {
+        .invoice-row.selectable-row.pending {
           cursor: default;
         }
 
-        .billing-entry.pending:hover {
+        .invoice-row.selectable-row.pending:hover {
           border-color: transparent;
         }
 
-        .billing-entry:focus-visible {
+        .invoice-row.selectable-row:focus-visible {
           outline: 2px solid #2563eb;
           outline-offset: 2px;
         }
 
-        .billing-entry-main {
-          display: flex;
-          align-items: baseline;
-          justify-content: space-between;
-          gap: 16px;
+        .invoice-row.total {
+          border-radius: 16px;
+          background: #0f172a;
+          padding: 14px 16px;
         }
 
-        .invoice-label {
-          font-family: ${KARLA_FONT};
+        .invoice-row.total .invoice-cell {
+          color: #ffffff;
+          font-weight: 700;
+        }
+
+        .invoice-row.total .total-label {
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        .invoice-row.total .total-status {
           font-weight: 600;
-          color: #0f172a;
         }
 
-        .invoice-amount {
+        .invoice-empty-row {
           font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #0f172a;
-          white-space: nowrap;
-        }
-
-        .billing-entry-meta {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 12px;
+          font-weight: 500;
+          color: #94a3b8;
+          padding: 16px 0;
         }
 
         .draft-pill {
@@ -2175,19 +2263,6 @@ const ProjectsShowContent = () => {
           color: #475569;
           font-style: italic;
           animation: blink 1.2s infinite;
-        }
-
-        .paid-on-text {
-          font-family: ${KARLA_FONT};
-          font-weight: 500;
-          color: #475569;
-        }
-
-        .billing-empty {
-          font-family: ${KARLA_FONT};
-          font-weight: 500;
-          color: #94a3b8;
-          padding: 12px 0;
         }
 
         .billing-actions {

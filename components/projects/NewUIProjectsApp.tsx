@@ -193,7 +193,7 @@ const refineDataProvider: DataProvider = {
       }
     }
 
-    const needsSelection = !year || !subsidiaryFilter
+    const needsSelection = !year
 
     if (needsSelection) {
       const metadataParams = new URLSearchParams()
@@ -407,7 +407,7 @@ const ProjectsContent = () => {
   const selectionRequired = Boolean(
     (tableQuery?.data?.meta as { requiresSelection?: boolean } | undefined)?.requiresSelection,
   )
-  const hasActiveSelection = Boolean(activeYear && activeSubsidiary)
+  const hasActiveSelection = Boolean(activeYear)
 
   useEffect(() => {
     filtersForm.setFieldsValue({
@@ -439,18 +439,27 @@ const ProjectsContent = () => {
 
   useEffect(() => () => debouncedSearch.cancel(), [debouncedSearch])
 
-  const updateFilter = (field: string, value: string | undefined) => {
-    setCurrentPage(1)
-    setFilters((previous: any[]) => {
-      const base = (previous ?? []).filter(
-        (entry: any) => !(entry && typeof entry === "object" && entry.field === field),
-      )
-      if (!value || value.trim().length === 0) {
-        return base
-      }
-      return [...base, { field, operator: field === "search" ? "contains" : "eq", value }]
-    })
-  }
+  const updateFilter = useCallback(
+    (field: string, value: string | undefined) => {
+      setCurrentPage(1)
+      setFilters((previous: any[]) => {
+        const base = (previous ?? []).filter(
+          (entry: any) => !(entry && typeof entry === "object" && entry.field === field),
+        )
+        if (!value || value.trim().length === 0) {
+          return base
+        }
+        return [...base, { field, operator: field === "search" ? "contains" : "eq", value }]
+      })
+    },
+    [setCurrentPage, setFilters],
+  )
+
+  useEffect(() => {
+    if (!activeYear && availableYears.length > 0 && selectionRequired) {
+      updateFilter("year", availableYears[0])
+    }
+  }, [activeYear, availableYears, selectionRequired, updateFilter])
 
   const handleYearChange = (value: string | undefined) => {
     updateFilter("year", value)
@@ -663,10 +672,7 @@ const ProjectsContent = () => {
               borderRadius: 16,
             }}
           >
-            <Empty
-              description="Select a year and subsidiary to load projects."
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
+            <Empty description="Select a year to load projects." image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </div>
         ) : (
           <Table<ProjectRow>
