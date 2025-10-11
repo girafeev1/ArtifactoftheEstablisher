@@ -100,6 +100,20 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
     return rows
   }
 
+  const resolveOrder = (value: string | undefined) => {
+    if (!value) {
+      return 1
+    }
+    const normalized = value.toLowerCase()
+    if (normalized === "asc" || normalized === "ascend") {
+      return 1
+    }
+    if (normalized === "desc" || normalized === "descend") {
+      return -1
+    }
+    return 1
+  }
+
   const mapValue = (row: ProjectRow, field: string): string | number | null => {
     switch (field) {
       case "projectDateIso": {
@@ -151,7 +165,7 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
   return [...rows].sort((a, b) => {
     for (const sorter of activeSorters) {
       const field = sorter.field as string
-      const order = sorter.order === "asc" ? 1 : -1
+      const order = resolveOrder(sorter.order as string | undefined)
       const result = compare(mapValue(a, field), mapValue(b, field))
       if (result !== 0) {
         return result * order
