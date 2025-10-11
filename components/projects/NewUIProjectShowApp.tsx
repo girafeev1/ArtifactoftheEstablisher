@@ -42,7 +42,6 @@ import {
   mergeLineWithRegion,
   normalizeClient,
   normalizeProject,
-  paidDateText,
   paymentChipColor,
   paymentChipLabel,
   stringOrNA,
@@ -483,16 +482,39 @@ const ProjectsShowContent = () => {
   const taxPercent = resolvedDraft?.taxOrDiscountPercent ?? 0
   const { taxAmount, total } = computeTotals(subtotal, taxPercent)
 
+  const projectPaidState = useMemo(() => {
+    if (invoices.some((entry) => entry.paid === true)) {
+      return true
+    }
+    if (invoices.some((entry) => entry.paid === false)) {
+      return false
+    }
+    return project?.paid ?? null
+  }, [invoices, project?.paid])
+
+  const invoiceWithPaidInfo = useMemo(() => {
+    if (invoices.length === 0) {
+      return null
+    }
+    return (
+      invoices.find(
+        (entry) => entry.paid === true && (entry.paidOnIso || entry.paidOnDisplay),
+      ) ??
+      invoices.find((entry) => entry.paidOnIso || entry.paidOnDisplay) ??
+      null
+    )
+  }, [invoices])
+
   const paymentStatusIndex = useMemo(() => {
     let index = 0
     if (hasInvoices) {
       index = 1
     }
-    if (project?.paid) {
+    if (projectPaidState === true) {
       index = 2
     }
     return index
-  }, [hasInvoices, project?.paid])
+  }, [hasInvoices, projectPaidState])
 
   const baseInvoiceNumber = useMemo(() => {
     if (draftInvoice?.baseInvoiceNumber) {
@@ -509,28 +531,58 @@ const ProjectsShowContent = () => {
   }, [draftInvoice?.baseInvoiceNumber, project])
 
   const invoiceEntries = useMemo(() => {
-    const entries = invoices.map((invoice) => ({
-      invoiceNumber: invoice.invoiceNumber,
-      pending: false,
-    }))
+    const entries = invoices.map((invoice) => {
+      const amountValue =
+        typeof invoice.total === "number" && !Number.isNaN(invoice.total)
+          ? invoice.total
+          : typeof invoice.amount === "number" && !Number.isNaN(invoice.amount)
+          ? invoice.amount
+          : null
+      const paid = typeof invoice.paid === "boolean" ? invoice.paid : null
+      let statusColor: keyof typeof paymentPalette = "default"
+      if (paid === true) {
+        statusColor = "green"
+      } else if (paid === false) {
+        statusColor = "red"
+      }
+      const paidOnFormatted = formatProjectDate(
+        invoice.paidOnIso ?? null,
+        invoice.paidOnDisplay ?? null,
+      )
+      const paidOnText = paidOnFormatted !== "-" ? paidOnFormatted : null
+      return {
+        invoiceNumber: invoice.invoiceNumber,
+        pending: false,
+        amount: amountValue,
+        paid,
+        statusLabel: invoice.paymentStatus ?? paymentChipLabel(paid),
+        statusColor,
+        paidOnText,
+      }
+    })
     if (invoiceMode === "create" && draftInvoice) {
-      entries.push({ invoiceNumber: draftInvoice.invoiceNumber, pending: true })
+      entries.push({
+        invoiceNumber: draftInvoice.invoiceNumber,
+        pending: true,
+        amount: total,
+        paid: null,
+        statusLabel: "Draft",
+        statusColor: "default" as const,
+        paidOnText: null,
+      })
     }
     return entries
-  }, [draftInvoice, invoiceMode, invoices])
+  }, [draftInvoice, invoiceMode, invoices, total])
 
-  const selectorHighlightIndex = useMemo(() => {
+  const activeEntryIndex = useMemo(() => {
     if (invoiceEntries.length === 0) {
-      return 0
+      return -1
     }
     if (invoiceMode === "create" && draftInvoice) {
       return invoiceEntries.length - 1
     }
     return Math.min(activeInvoiceIndex, invoiceEntries.length - 1)
   }, [activeInvoiceIndex, draftInvoice, invoiceEntries.length, invoiceMode])
-
-  const selectorHighlightHeight = invoiceEntries.length > 0 ? `${100 / invoiceEntries.length}%` : "0%"
-  const showSelectorHighlight = invoiceEntries.length > 1
 
   const showInvoiceSummaryNumber = invoiceMode !== "idle" || invoiceEntries.length === 0
 
@@ -545,11 +597,16 @@ const ProjectsShowContent = () => {
       ? `#${invoiceNumberDisplay.replace(/^#/, "")}`
       : invoiceNumberDisplay
 
-  const paymentAmountValue = hasAggregatedInvoiceAmount ? aggregatedInvoiceTotal : total
+  const projectTotalValue = hasAggregatedInvoiceAmount ? aggregatedInvoiceTotal : total
 
-  const paidChipKey = paymentChipColor(project?.paid ?? null)
+  const paidChipKey = paymentChipColor(projectPaidState)
   const paidChipPalette = paymentPalette[paidChipKey] ?? paymentPalette.default
-  const paidOnText = paidDateText(project?.paid ?? null, project?.onDateDisplay ?? null)
+  const paidOnDisplay = formatProjectDate(
+    invoiceWithPaidInfo?.paidOnIso ?? project?.onDateIso ?? null,
+    invoiceWithPaidInfo?.paidOnDisplay ?? project?.onDateDisplay ?? null,
+  )
+  const paidOnText =
+    projectPaidState === true && paidOnDisplay !== "-" ? paidOnDisplay : "-"
 
   const companyLine3 = mergeLineWithRegion(resolvedClient?.addressLine3, resolvedClient?.region)
 
@@ -968,6 +1025,10 @@ const ProjectsShowContent = () => {
       const primary = nextInvoices[0]
       let aggregated = 0
       let hasAmount = false
+      let aggregatedPaid: boolean | null = null
+      let aggregatedPaidOnDisplay: string | null = null
+      let aggregatedPaidOnIso: string | null = null
+      let aggregatedPaidTo: string | null = null
       nextInvoices.forEach((entry) => {
         if (typeof entry.total === "number" && !Number.isNaN(entry.total)) {
           aggregated += entry.total
@@ -976,12 +1037,51 @@ const ProjectsShowContent = () => {
           aggregated += entry.amount
           hasAmount = true
         }
+        if (entry.paid === true) {
+          aggregatedPaid = true
+          if (!aggregatedPaidOnDisplay && entry.paidOnDisplay) {
+            aggregatedPaidOnDisplay = entry.paidOnDisplay
+          }
+          if (!aggregatedPaidOnIso && entry.paidOnIso) {
+            aggregatedPaidOnIso = entry.paidOnIso
+          }
+          if (!aggregatedPaidTo && entry.paidTo) {
+            aggregatedPaidTo = entry.paidTo
+          }
+        } else if (entry.paid === false && aggregatedPaid === null) {
+          aggregatedPaid = false
+          if (!aggregatedPaidOnDisplay && entry.paidOnDisplay) {
+            aggregatedPaidOnDisplay = entry.paidOnDisplay
+          }
+          if (!aggregatedPaidOnIso && entry.paidOnIso) {
+            aggregatedPaidOnIso = entry.paidOnIso
+          }
+          if (!aggregatedPaidTo && entry.paidTo) {
+            aggregatedPaidTo = entry.paidTo
+          }
+        } else {
+          if (!aggregatedPaidOnDisplay && entry.paidOnDisplay) {
+            aggregatedPaidOnDisplay = entry.paidOnDisplay
+          }
+          if (!aggregatedPaidOnIso && entry.paidOnIso) {
+            aggregatedPaidOnIso = entry.paidOnIso
+          }
+          if (!aggregatedPaidTo && entry.paidTo) {
+            aggregatedPaidTo = entry.paidTo
+          }
+        }
       })
+      const resolvedOnIso = aggregatedPaidOnIso ?? previous.onDateIso ?? null
+      const resolvedOnDisplay = aggregatedPaidOnDisplay ?? previous.onDateDisplay ?? null
       return {
         ...previous,
         invoice: primary?.invoiceNumber ?? previous.invoice,
         amount: hasAmount ? aggregated : previous.amount,
         clientCompany: primary?.companyName ?? previous.clientCompany,
+        paid: aggregatedPaid ?? previous.paid,
+        paidTo: aggregatedPaidTo ?? previous.paidTo,
+        onDateIso: resolvedOnIso,
+        onDateDisplay: resolvedOnDisplay,
       }
     })
   }, [])
@@ -1380,51 +1480,46 @@ const ProjectsShowContent = () => {
             ))}
           </div>
         </div>
-        <Row gutter={[32, 32]}>
-          <Col xs={24} lg={16}>
-            <Space direction="vertical" size={24} style={{ width: "100%" }}>
-              <Card className="details-card company-card" bordered={false}>
-                <div className="company-block">
-                  <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
-                  <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
-                  <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
-                  <div className="company-line">{stringOrNA(companyLine3)}</div>
-                  <div className="company-line">{stringOrNA(resolvedClient?.representative)}</div>
-                </div>
-              </Card>
-              <Card className="details-card payment-card" bordered={false}>
-                <Title level={5} className="section-heading">
-                  Payment Status
-                </Title>
-                <div className="payment-summary">
-                  <div className="summary-item">
-                    <span className="summary-label">Amount</span>
-                    <span className="summary-value">{amountText(paymentAmountValue)}</span>
-                  </div>
-                  <div className="summary-item status">
-                    <span className="summary-label">Status</span>
-                    <Tag
-                      color={paidChipPalette.backgroundColor}
-                      className="status-chip"
-                      style={{ color: paidChipPalette.color }}
-                    >
-                      {paymentChipLabel(project.paid)}
-                    </Tag>
-                  </div>
-                  <div className="summary-item">
-                    <span className="summary-label">Paid On</span>
-                    <span className="summary-value">{paidOnText}</span>
-                  </div>
-                </div>
-              </Card>
-            </Space>
+        <Row gutter={[32, 32]} align="stretch">
+          <Col xs={24} lg={12}>
+            <Card className="details-card company-card fill-card" bordered={false}>
+              <div className="company-block">
+                <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
+                <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
+                <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
+                <div className="company-line">{stringOrNA(companyLine3)}</div>
+                <div className="company-line">{stringOrNA(resolvedClient?.representative)}</div>
+              </div>
+            </Card>
           </Col>
-          <Col xs={24} lg={8}>
-            <Space direction="vertical" size={24} style={{ width: "100%" }}>
-              <Card className="details-card invoice-card" bordered={false}>
-                <Title level={5} className="section-heading">
-                  Invoice
-                </Title>
+          <Col xs={24} lg={12}>
+            <Card className="details-card billing-card fill-card" bordered={false}>
+              <div className="billing-card-content">
+                <div className="billing-top">
+                  <Title level={5} className="section-heading">
+                    Billing &amp; Payments
+                  </Title>
+                  <div className="billing-summary">
+                    <div className="summary-item">
+                      <span className="summary-label">Project Total</span>
+                      <span className="summary-value">{amountText(projectTotalValue)}</span>
+                    </div>
+                    <div className="summary-item status">
+                      <span className="summary-label">Status</span>
+                      <Tag
+                        color={paidChipPalette.backgroundColor}
+                        className="status-chip"
+                        style={{ color: paidChipPalette.color }}
+                      >
+                        {paymentChipLabel(projectPaidState)}
+                      </Tag>
+                    </div>
+                    <div className="summary-item">
+                      <span className="summary-label">Paid On</span>
+                      <span className="summary-value">{paidOnText}</span>
+                    </div>
+                  </div>
+                </div>
                 {showInvoiceSummaryNumber ? (
                   <div className="invoice-summary">
                     <span className="summary-label">Invoice Number</span>
@@ -1464,35 +1559,47 @@ const ProjectsShowContent = () => {
                     </div>
                   </div>
                 ) : null}
-                <div className="invoice-selector">
+                <div className="billing-entries">
                   {invoiceEntries.length > 0 ? (
-                    <>
-                      {showSelectorHighlight ? (
-                        <div
-                          className="selector-highlight"
-                          style={{
-                            height: selectorHighlightHeight,
-                            transform: `translateY(${selectorHighlightIndex * 100}%)`,
-                          }}
-                        />
-                      ) : null}
-                      {invoiceEntries.map((entry, index) => (
-                        <button
-                          key={`${entry.invoiceNumber}-${index}`}
-                          type="button"
-                          className={`selector-item ${
-                            index === selectorHighlightIndex ? "active" : ""
-                          } ${entry.pending ? "pending" : ""}`}
-                          onClick={() => handleSelectInvoice(index, entry.pending)}
-                        >
-                          {entry.invoiceNumber}
-                        </button>
-                      ))}
-                    </>
-                  ) : null}
+                    invoiceEntries.map((entry, index) => (
+                      <button
+                        key={`${entry.invoiceNumber}-${index}`}
+                        type="button"
+                        className={`billing-entry ${
+                          index === activeEntryIndex ? "active" : ""
+                        } ${entry.pending ? "pending" : ""}`}
+                        onClick={() => handleSelectInvoice(index, entry.pending)}
+                      >
+                        <div className="billing-entry-main">
+                          <span className="invoice-label">{entry.invoiceNumber}</span>
+                          <span className="invoice-amount">
+                            {amountText(entry.amount)}
+                          </span>
+                        </div>
+                        <div className="billing-entry-meta">
+                          {entry.pending ? (
+                            <span className="draft-pill">Draft</span>
+                          ) : (
+                            <Tag
+                              color={paymentPalette[entry.statusColor].backgroundColor}
+                              className="status-chip"
+                              style={{ color: paymentPalette[entry.statusColor].color }}
+                            >
+                              {entry.statusLabel}
+                            </Tag>
+                          )}
+                          {entry.paidOnText ? (
+                            <span className="paid-on-text">Paid on {entry.paidOnText}</span>
+                          ) : null}
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="billing-empty">No invoices yet.</div>
+                  )}
                 </div>
                 {invoiceMode === "idle" && hasInvoices ? (
-                  <div className="invoice-actions">
+                  <div className="billing-actions">
                     <Space size={12} wrap>
                       <Button onClick={() => prepareDraft("edit")} icon={<EditOutlined />}>
                         Edit Invoice
@@ -1504,7 +1611,7 @@ const ProjectsShowContent = () => {
                   </div>
                 ) : null}
                 {invoiceMode === "create" && hasInvoices ? (
-                  <div className="invoice-actions">
+                  <div className="billing-actions">
                     <Space size={12} wrap>
                       <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
                         Cancel
@@ -1515,8 +1622,8 @@ const ProjectsShowContent = () => {
                     </Space>
                   </div>
                 ) : null}
-              </Card>
-            </Space>
+              </div>
+            </Card>
           </Col>
         </Row>
         <Card className="details-card items-card" bordered={false}>
@@ -1842,6 +1949,16 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
         }
 
+        .fill-card {
+          height: 100%;
+        }
+
+        .fill-card :global(.ant-card-body) {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
         .company-block {
           display: flex;
           flex-direction: column;
@@ -1859,17 +1976,6 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           color: #475569;
           font-weight: 500;
-        }
-
-        .payment-card .section-heading {
-          margin-bottom: 16px;
-        }
-
-        .payment-summary {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 24px;
-          align-items: center;
         }
 
         .summary-item {
@@ -1901,10 +2007,6 @@ const ProjectsShowContent = () => {
 
         .summary-item.status .status-chip {
           margin-top: 0;
-        }
-
-        .invoice-card .section-heading {
-          margin-bottom: 12px;
         }
 
         .invoice-summary {
@@ -1966,65 +2068,133 @@ const ProjectsShowContent = () => {
           outline-offset: 2px;
         }
 
-        .invoice-selector {
-          position: relative;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          padding: 8px 0;
-        }
-
-        .selector-highlight {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
-          background: #e0f2fe;
-          border-radius: 12px;
-          transform: translateY(0);
-          transition: transform 0.2s ease;
-          pointer-events: none;
-        }
-
-        .selector-item {
-          position: relative;
-          background: none;
-          border: none;
-          padding: 10px 16px;
-          text-align: left;
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #64748b;
-          border-radius: 12px;
-          z-index: 1;
-          cursor: pointer;
-        }
-
-        .selector-item.active {
-          color: #0f172a;
-        }
-
-        .selector-item.pending {
-          font-style: italic;
-          color: #475569;
-          animation: blink 1.2s infinite;
-          cursor: default;
-        }
-
-        .selector-item:focus-visible {
-          outline: 2px solid #2563eb;
-          outline-offset: 2px;
-        }
-
         .items-card {
           margin-top: 0;
         }
 
-        .invoice-actions {
-          margin-top: 16px;
+        .billing-card :global(.ant-card-body) {
+          display: flex;
+          flex: 1;
         }
 
-        .invoice-actions :global(.ant-btn) {
+        .billing-card-content {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          flex: 1;
+        }
+
+        .billing-top {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .billing-summary {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 24px;
+          align-items: center;
+        }
+
+        .billing-entries {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          flex: 1;
+        }
+
+        .billing-entry {
+          border: none;
+          background: #f8fafc;
+          border-radius: 16px;
+          padding: 12px 16px;
+          font-family: ${KARLA_FONT};
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          text-align: left;
+          transition: border-color 0.2s ease, background 0.2s ease;
+          border: 1px solid transparent;
+          cursor: pointer;
+          width: 100%;
+        }
+
+        .billing-entry:hover {
+          border-color: #cbd5f5;
+        }
+
+        .billing-entry.active {
+          background: #e0f2fe;
+          border-color: #93c5fd;
+        }
+
+        .billing-entry.pending {
+          cursor: default;
+        }
+
+        .billing-entry.pending:hover {
+          border-color: transparent;
+        }
+
+        .billing-entry:focus-visible {
+          outline: 2px solid #2563eb;
+          outline-offset: 2px;
+        }
+
+        .billing-entry-main {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .invoice-label {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #0f172a;
+        }
+
+        .invoice-amount {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #0f172a;
+          white-space: nowrap;
+        }
+
+        .billing-entry-meta {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .draft-pill {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #475569;
+          font-style: italic;
+          animation: blink 1.2s infinite;
+        }
+
+        .paid-on-text {
+          font-family: ${KARLA_FONT};
+          font-weight: 500;
+          color: #475569;
+        }
+
+        .billing-empty {
+          font-family: ${KARLA_FONT};
+          font-weight: 500;
+          color: #94a3b8;
+          padding: 12px 0;
+        }
+
+        .billing-actions {
+          margin-top: 8px;
+        }
+
+        .billing-actions :global(.ant-btn) {
           font-family: ${KARLA_FONT};
           font-weight: 600;
         }

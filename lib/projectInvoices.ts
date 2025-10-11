@@ -6,6 +6,25 @@ const API_TIMEOUT_MS = 15000
 
 const alphabet = "abcdefghijklmnopqrstuvwxyz"
 
+const POSITIVE_PAYMENT_STATUSES = new Set([
+  "paid",
+  "cleared",
+  "received",
+  "complete",
+  "completed",
+  "settled",
+])
+
+const NEGATIVE_PAYMENT_STATUSES = new Set([
+  "unpaid",
+  "due",
+  "pending",
+  "outstanding",
+  "draft",
+  "incomplete",
+  "awaiting",
+])
+
 const invoiceCollectionPattern = /^invoice-([a-z]+)$/
 const legacyInvoiceDocumentIdPattern = /^#?\d{4}-\d{3}-\d{4}(?:-?[a-z]+)?$/i
 const LEGACY_INVOICE_COLLECTION_IDS = new Set(["Invoice", "invoice"])
@@ -65,6 +84,98 @@ const toIsoString = (value: unknown): string | null => {
   if (typeof value === "string") {
     const parsed = new Date(value)
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+  }
+  return null
+}
+
+const toBooleanValue = (value: unknown): boolean | null => {
+  if (typeof value === "boolean") {
+    return value
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase()
+    if (!normalized) {
+      return null
+    }
+    if (["true", "yes", "paid", "cleared", "1"].includes(normalized)) {
+      return true
+    }
+    if (["false", "no", "unpaid", "due", "0", "pending"].includes(normalized)) {
+      return false
+    }
+  }
+  return null
+}
+
+const formatDisplayDate = (date: Date) =>
+  date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  })
+
+const toDisplayDate = (value: unknown): string | null => {
+  const iso = toIsoString(value)
+  if (iso) {
+    const parsed = new Date(iso)
+    if (!Number.isNaN(parsed.getTime())) {
+      return formatDisplayDate(parsed)
+    }
+  }
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return null
+    }
+    return formatDisplayDate(value)
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+      return null
+    }
+    const parsed = new Date(trimmed)
+    if (!Number.isNaN(parsed.getTime())) {
+      return formatDisplayDate(parsed)
+    }
+    return trimmed
+  }
+
+  return null
+}
+
+const resolvePaidFlag = (value: unknown, status: string | null): boolean | null => {
+  const direct = toBooleanValue(value)
+  if (direct !== null) {
+    return direct
+  }
+  if (!status) {
+    return null
+  }
+  const normalized = status.trim().toLowerCase()
+  if (POSITIVE_PAYMENT_STATUSES.has(normalized)) {
+    return true
+  }
+  if (NEGATIVE_PAYMENT_STATUSES.has(normalized)) {
+    return false
+  }
+  return null
+}
+
+const sanitizePaymentStatus = (status: string | null, paid: boolean | null): string | null => {
+  if (status) {
+    const trimmed = status.trim()
+    if (trimmed.length === 0) {
+      return null
+    }
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+  }
+  if (paid === true) {
+    return "Cleared"
+  }
+  if (paid === false) {
+    return "Due"
   }
   return null
 }
@@ -182,6 +293,11 @@ export interface ProjectInvoiceRecord {
   taxOrDiscountPercent: number | null
   total: number | null
   amount: number | null
+  paid: boolean | null
+  paidOnIso: string | null
+  paidOnDisplay: string | null
+  paidTo: string | null
+  paymentStatus: string | null
   items: ProjectInvoiceItemRecord[]
   createdAt?: string | null
   updatedAt?: string | null
@@ -243,6 +359,32 @@ const buildInvoiceRecord = (
   const subtotal = toNumberValue(data.subtotal) ?? null
   const taxOrDiscountPercent = toNumberValue(data.taxOrDiscountPercent) ?? null
   const total = toNumberValue(data.total) ?? subtotal
+  const amount = toNumberValue(data.amount) ?? total
+  const rawPaymentStatus = toStringValue(
+    data.paymentStatus ??
+      data.status ??
+      data.invoiceStatus ??
+      data.payment_status ??
+      data.paymentStatusLabel ??
+      null,
+  )
+  const paid = resolvePaidFlag(
+    data.paid ?? data.paymentReceived ?? data.invoicePaid ?? data.paymentComplete,
+    rawPaymentStatus,
+  )
+  const paidOnSource =
+    data.paidOn ??
+    data.paidOnDate ??
+    data.paymentReceivedOn ??
+    data.paymentDate ??
+    data.onDate ??
+    data.paidDate ??
+    data.receivedOn
+  const paidOnIso = toIsoString(paidOnSource)
+  const paidOnDisplay =
+    toDisplayDate(data.paidOnDisplay ?? paidOnSource) ?? (paidOnIso ? toDisplayDate(paidOnIso) : null)
+  const paidTo = toStringValue(data.paidTo ?? data.paymentRecipient ?? data.payTo)
+  const paymentStatus = sanitizePaymentStatus(rawPaymentStatus, paid)
 
   return {
     collectionId,
@@ -258,7 +400,12 @@ const buildInvoiceRecord = (
     subtotal,
     taxOrDiscountPercent,
     total,
-    amount: total,
+    amount,
+    paid,
+    paidOnIso,
+    paidOnDisplay,
+    paidTo,
+    paymentStatus,
     items: buildItemsFromData(data),
     createdAt: toIsoString(data.createdAt),
     updatedAt: toIsoString(data.updatedAt),

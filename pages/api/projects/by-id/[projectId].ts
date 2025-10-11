@@ -104,6 +104,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let aggregatedAmount = 0
     let hasAggregatedAmount = false
+    let aggregatedPaid: boolean | null = null
+    let aggregatedPaidOnDisplay: string | null = null
+    let aggregatedPaidOnIso: string | null = null
+    let aggregatedPaidTo: string | null = null
+
     invoices.forEach((invoice) => {
       if (typeof invoice.total === "number" && !Number.isNaN(invoice.total)) {
         aggregatedAmount += invoice.total
@@ -112,11 +117,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         aggregatedAmount += invoice.amount
         hasAggregatedAmount = true
       }
+
+      if (invoice.paid === true) {
+        aggregatedPaid = true
+        if (!aggregatedPaidOnDisplay && invoice.paidOnDisplay) {
+          aggregatedPaidOnDisplay = invoice.paidOnDisplay
+        }
+        if (!aggregatedPaidOnIso && invoice.paidOnIso) {
+          aggregatedPaidOnIso = invoice.paidOnIso
+        }
+        if (!aggregatedPaidTo && invoice.paidTo) {
+          aggregatedPaidTo = invoice.paidTo
+        }
+      } else if (invoice.paid === false && aggregatedPaid === null) {
+        aggregatedPaid = false
+        if (!aggregatedPaidOnDisplay && invoice.paidOnDisplay) {
+          aggregatedPaidOnDisplay = invoice.paidOnDisplay
+        }
+        if (!aggregatedPaidOnIso && invoice.paidOnIso) {
+          aggregatedPaidOnIso = invoice.paidOnIso
+        }
+        if (!aggregatedPaidTo && invoice.paidTo) {
+          aggregatedPaidTo = invoice.paidTo
+        }
+      } else {
+        if (!aggregatedPaidOnDisplay && invoice.paidOnDisplay) {
+          aggregatedPaidOnDisplay = invoice.paidOnDisplay
+        }
+        if (!aggregatedPaidOnIso && invoice.paidOnIso) {
+          aggregatedPaidOnIso = invoice.paidOnIso
+        }
+        if (!aggregatedPaidTo && invoice.paidTo) {
+          aggregatedPaidTo = invoice.paidTo
+        }
+      }
     })
 
-    const projectPayload = hasAggregatedAmount
-      ? { ...project, amount: aggregatedAmount }
-      : project
+    const primaryInvoice = invoices[0]
+    const projectPayload = {
+      ...project,
+      amount: hasAggregatedAmount ? aggregatedAmount : project.amount,
+      invoice: primaryInvoice?.invoiceNumber ?? project.invoice,
+      clientCompany: primaryInvoice?.companyName ?? project.clientCompany,
+      paid: aggregatedPaid ?? project.paid,
+      onDateDisplay: aggregatedPaidOnDisplay ?? project.onDateDisplay,
+      onDateIso: aggregatedPaidOnIso ?? project.onDateIso,
+      paidTo: aggregatedPaidTo ?? project.paidTo,
+    }
 
     console.info("[api/projects/:id] Project resolved", {
       user: identity,
