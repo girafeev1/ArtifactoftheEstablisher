@@ -22,7 +22,6 @@ import {
   Tooltip,
   Typography,
 } from "antd"
-import type { FormInstance } from "antd/es/form"
 import { EyeOutlined, SearchOutlined } from "@ant-design/icons"
 import debounce from "lodash.debounce"
 
@@ -347,8 +346,7 @@ const paymentTagStyles: Record<string, { backgroundColor: string; color: string 
 }
 
 const ProjectsContent = () => {
-  const [rawFiltersForm] = Form.useForm()
-  const filtersForm = rawFiltersForm as FormInstance<ProjectFiltersForm>
+  const [filtersForm] = Form.useForm()
   const screens = Grid.useBreakpoint()
   const { message } = AntdApp.useApp()
   const router = useRouter()

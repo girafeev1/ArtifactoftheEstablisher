@@ -24,7 +24,6 @@ import {
   Tag,
   Typography,
 } from "antd"
-import type { ColumnsType } from "antd/es/table"
 import {
   ArrowLeftOutlined,
   DeleteOutlined,
@@ -588,6 +587,25 @@ const ProjectsShowContent = () => {
     return ""
   }, [draftInvoice?.baseInvoiceNumber, project])
 
+  const projectTotalValue = hasAggregatedInvoiceAmount ? aggregatedInvoiceTotal : total
+
+  const totalStatusLabel = useMemo(() => {
+    if (totalInvoiceCount === 0) {
+      return "-"
+    }
+    if (outstandingCount === 0) {
+      return "Cleared"
+    }
+    return `${outstandingCount}/${totalInvoiceCount} Due`
+  }, [outstandingCount, totalInvoiceCount])
+
+  const totalPaidOnText = useMemo(() => {
+    if (clearedCount === 0) {
+      return "-"
+    }
+    return formatProjectDate(lastPaidIso, lastPaidDisplay)
+  }, [clearedCount, lastPaidDisplay, lastPaidIso])
+
   const invoiceEntries = useMemo(() => {
     const entries = invoices.map((invoice, index) => {
       const rawAmount =
@@ -675,26 +693,35 @@ const ProjectsShowContent = () => {
     return Math.min(activeInvoiceIndex, invoiceEntries.length - 1)
   }, [activeInvoiceIndex, draftInvoice, invoiceEntries.length, invoiceMode])
 
-  const projectTotalValue = hasAggregatedInvoiceAmount ? aggregatedInvoiceTotal : total
-
-  const totalStatusLabel = useMemo(() => {
-    if (totalInvoiceCount === 0) {
-      return "-"
-    }
-    if (outstandingCount === 0) {
-      return "Cleared"
-    }
-    return `${outstandingCount}/${totalInvoiceCount} Due`
-  }, [outstandingCount, totalInvoiceCount])
-
-  const totalPaidOnText = useMemo(() => {
-    if (clearedCount === 0) {
-      return "-"
-    }
-    return formatProjectDate(lastPaidIso, lastPaidDisplay)
-  }, [clearedCount, lastPaidDisplay, lastPaidIso])
-
   const companyLine3 = mergeLineWithRegion(resolvedClient?.addressLine3, resolvedClient?.region)
+
+  const prepareDraft = useCallback(
+    (mode: "create" | "edit", targetIndex?: number) => {
+      if (!project) {
+        return
+      }
+      if (mode === "create") {
+        const draft = buildDraftForNewInvoice(invoices, project, client)
+        itemIdRef.current = draft.items.length
+        setDraftInvoice(draft)
+        setInvoiceMode("create")
+        setActiveInvoiceIndex(invoices.length)
+        return
+      }
+      const index = typeof targetIndex === "number" ? targetIndex : activeInvoiceIndex
+      const current = invoices[index]
+      if (!current) {
+        message.warning("Select an invoice to edit.")
+        return
+      }
+      const draft = buildDraftFromInvoice(current, client, project)
+      itemIdRef.current = draft.items.length
+      setDraftInvoice(draft)
+      setInvoiceMode("edit")
+      setActiveInvoiceIndex(index)
+    },
+    [activeInvoiceIndex, client, invoices, message, project],
+  )
 
   const handleSelectInvoice = useCallback(
     (index: number, pending: boolean) => {
@@ -960,34 +987,6 @@ const ProjectsShowContent = () => {
     projectDraft.projectNumber,
     projectDraft.projectDateIso,
   ])
-
-  const prepareDraft = useCallback(
-    (mode: "create" | "edit", targetIndex?: number) => {
-      if (!project) {
-        return
-      }
-      if (mode === "create") {
-        const draft = buildDraftForNewInvoice(invoices, project, client)
-        itemIdRef.current = draft.items.length
-        setDraftInvoice(draft)
-        setInvoiceMode("create")
-        setActiveInvoiceIndex(invoices.length)
-        return
-      }
-      const index = typeof targetIndex === "number" ? targetIndex : activeInvoiceIndex
-      const current = invoices[index]
-      if (!current) {
-        message.warning("Select an invoice to edit.")
-        return
-      }
-      const draft = buildDraftFromInvoice(current, client, project)
-      itemIdRef.current = draft.items.length
-      setDraftInvoice(draft)
-      setInvoiceMode("edit")
-      setActiveInvoiceIndex(index)
-    },
-    [activeInvoiceIndex, client, invoices, message, project],
-  )
 
   const handleAddItem = useCallback(() => {
     if (!draftInvoice) {
@@ -1307,7 +1306,7 @@ const ProjectsShowContent = () => {
     return rows
   }, [isEditingInvoice, resolvedDraft])
 
-  const itemsColumns: ColumnsType<InvoiceTableRow> = useMemo(
+  const itemsColumns = useMemo(
     () => [
       {
         key: "title",
