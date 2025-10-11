@@ -1,0 +1,710 @@
+import { useCallback, useEffect, useMemo, type ChangeEvent } from "react"
+import { useRouter } from "next/router"
+import {
+  type BaseRecord,
+  type CrudFilters,
+  type CrudSorting,
+  type DataProvider,
+  type GetListResponse,
+  type HttpError,
+} from "@refinedev/core"
+import { useTable } from "@refinedev/antd"
+import {
+  App as AntdApp,
+  Button,
+  Form,
+  Grid,
+  Input,
+  Empty,
+  Select,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd"
+import type { FormInstance } from "antd/es/form"
+import { EyeOutlined, SearchOutlined } from "@ant-design/icons"
+import debounce from "lodash.debounce"
+
+import type { ProjectRecord } from "../../lib/projectsDatabase"
+import AppShell from "../new-ui/AppShell"
+import {
+  amountText,
+  normalizeProject,
+  paidDateText,
+  paymentChipColor,
+  paymentChipLabel,
+  stringOrNA,
+  type NormalizedProject,
+} from "./projectUtils"
+
+if (typeof window === "undefined") {
+  console.info("[projects] Module loaded", {
+    timestamp: new Date().toISOString(),
+  })
+}
+
+const { Title } = Typography
+
+const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects"] as const
+
+const projectsCache: {
+  years: string[]
+  subsidiaries: string[]
+} = {
+  years: [],
+  subsidiaries: [],
+}
+
+type ProjectsFilter = CrudFilters[number]
+
+type ProjectRow = NormalizedProject
+
+type ProjectsTableHook = {
+  tableProps: any
+  tableQuery: {
+    data?: GetListResponse<ProjectRow> & { meta?: Record<string, unknown> }
+    error?: HttpError
+  }
+  filters: CrudFilters | undefined
+  setFilters: (updater: any) => void
+  setCurrentPage: (page: number) => void
+}
+
+type ProjectFiltersForm = {
+  year?: string
+  subsidiary?: string
+  search?: string
+}
+
+type ProjectsListResponse = {
+  data?: ProjectRecord[]
+  years?: string[]
+  subsidiaries?: string[]
+}
+
+const isFieldFilter = (filter: ProjectsFilter): filter is ProjectsFilter & { field: string } =>
+  typeof filter === "object" && filter !== null && "field" in filter
+
+const collectFilterValue = (filters: CrudFilters | undefined, field: string) => {
+  if (!filters) {
+    return undefined
+  }
+  const entry = (filters as Array<{ field?: string; value?: unknown }>).find(
+    (item) => item && typeof item === "object" && "field" in item && item.field === field,
+  )
+  return entry?.value as string | undefined
+}
+
+const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
+  if (!sorters || sorters.length === 0) {
+    return rows
+  }
+
+  const mapValue = (row: ProjectRow, field: string): string | number | null => {
+    switch (field) {
+      case "projectDateIso": {
+        const source = row.projectDateIso
+        if (!source) return null
+        const parsed = new Date(source)
+        return Number.isNaN(parsed.getTime()) ? null : parsed.getTime()
+      }
+      case "projectNumber":
+        return row.projectNumber
+      case "clientCompany":
+        return row.clientCompany ?? null
+      case "projectTitle":
+        return row.projectTitle ?? null
+      case "amount":
+        return row.amount ?? null
+      case "paid":
+        if (typeof row.paid !== "boolean") {
+          return null
+        }
+        return row.paid ? 1 : 0
+      case "subsidiary":
+        return row.subsidiary ?? null
+      case "year":
+        return row.year
+      default:
+        return null
+    }
+  }
+
+  const compare = (aVal: ReturnType<typeof mapValue>, bVal: ReturnType<typeof mapValue>) => {
+    if (aVal === bVal) return 0
+    if (aVal === null || aVal === undefined) return -1
+    if (bVal === null || bVal === undefined) return 1
+    if (typeof aVal === "number" && typeof bVal === "number") {
+      if (aVal < bVal) return -1
+      if (aVal > bVal) return 1
+      return 0
+    }
+    return `${aVal}`.localeCompare(`${bVal}`, undefined, { numeric: true, sensitivity: "base" })
+  }
+
+  const activeSorters = sorters.filter((entry) => entry && entry.field && entry.order)
+
+  if (activeSorters.length === 0) {
+    return rows
+  }
+
+  return [...rows].sort((a, b) => {
+    for (const sorter of activeSorters) {
+      const field = sorter.field as string
+      const order = sorter.order === "asc" ? 1 : -1
+      const result = compare(mapValue(a, field), mapValue(b, field))
+      if (result !== 0) {
+        return result * order
+      }
+    }
+    return 0
+  })
+}
+
+const refineDataProvider: DataProvider = {
+  getApiUrl: () => "/api",
+  getList: async <TData extends BaseRecord = ProjectRow>({
+    resource,
+    filters,
+    pagination,
+    sorters,
+  }): Promise<GetListResponse<TData>> => {
+    if (resource !== "projects") {
+      return { data: [], total: 0 }
+    }
+
+    let year: string | undefined
+    let subsidiaryFilter: string | undefined
+    let searchToken: string | undefined
+
+    if (filters) {
+      for (const filter of filters) {
+        if (!isFieldFilter(filter)) continue
+        if (filter.field === "year" && typeof filter.value === "string") {
+          year = filter.value
+        }
+        if (filter.field === "subsidiary" && typeof filter.value === "string") {
+          subsidiaryFilter = filter.value
+        }
+        if (filter.field === "search" && typeof filter.value === "string") {
+          searchToken = filter.value
+        }
+      }
+    }
+
+    const needsSelection = !year || !subsidiaryFilter
+
+    if (needsSelection) {
+      const metadataParams = new URLSearchParams()
+      metadataParams.set("metaOnly", "1")
+      if (year) {
+        metadataParams.set("year", year)
+      }
+      if (subsidiaryFilter) {
+        metadataParams.set("subsidiary", subsidiaryFilter)
+      }
+      const metadataQuery = metadataParams.toString()
+      const metadataUrl = metadataQuery.length > 0 ? `/api/projects?${metadataQuery}` : "/api/projects"
+      const metadataResponse = await fetch(metadataUrl, { credentials: "include" })
+      if (metadataResponse.ok) {
+        const metadata = (await metadataResponse.json()) as ProjectsListResponse
+        projectsCache.years = Array.isArray(metadata.years) ? metadata.years : []
+        projectsCache.subsidiaries = Array.isArray(metadata.subsidiaries)
+          ? metadata.subsidiaries
+          : []
+      }
+
+      return {
+        data: [] as TData[],
+        total: 0,
+        meta: {
+          years: projectsCache.years,
+          subsidiaries: projectsCache.subsidiaries,
+          requiresSelection: true,
+        },
+      }
+    }
+
+    const params = new URLSearchParams()
+    if (year) {
+      params.set("year", year)
+    }
+    if (subsidiaryFilter) {
+      params.set("subsidiary", subsidiaryFilter)
+    }
+
+    const url = params.toString().length > 0 ? `/api/projects?${params.toString()}` : "/api/projects"
+
+    const response = await fetch(url, { credentials: "include" })
+    if (!response.ok) {
+      throw new Error("Failed to load projects")
+    }
+
+    const payload = (await response.json()) as ProjectsListResponse
+    const rawItems: ProjectRecord[] = payload.data ?? []
+    projectsCache.years = Array.isArray(payload.years) ? payload.years : []
+    projectsCache.subsidiaries = Array.isArray(payload.subsidiaries) ? payload.subsidiaries : []
+
+    let normalized = rawItems.map((entry) => normalizeProject(entry))
+
+    const availableSubsidiaries = new Set<string>()
+    normalized.forEach((entry) => {
+      if (entry.subsidiary) {
+        availableSubsidiaries.add(entry.subsidiary)
+      }
+    })
+    projectsCache.subsidiaries = Array.from(availableSubsidiaries).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    )
+
+    if (subsidiaryFilter) {
+      const normalizedFilter = subsidiaryFilter.toLowerCase()
+      normalized = normalized.filter(
+        (entry) => (entry.subsidiary ?? "").toLowerCase() === normalizedFilter,
+      )
+    }
+
+    if (searchToken) {
+      const token = searchToken.trim().toLowerCase()
+      if (token.length > 0) {
+        normalized = normalized.filter((entry) => entry.searchIndex.includes(token))
+      }
+    }
+
+    const sorted = applySorting(normalized, sorters)
+
+    return {
+      data: sorted as unknown as TData[],
+      total: sorted.length,
+      meta: {
+        years: projectsCache.years,
+        subsidiaries: projectsCache.subsidiaries,
+      },
+    }
+  },
+  getOne: () => Promise.reject(new Error("Not implemented")),
+  getMany: () => Promise.reject(new Error("Not implemented")),
+  create: () => Promise.reject(new Error("Not implemented")),
+  update: () => Promise.reject(new Error("Not implemented")),
+  deleteOne: () => Promise.reject(new Error("Not implemented")),
+  deleteMany: () => Promise.reject(new Error("Not implemented")),
+  updateMany: () => Promise.reject(new Error("Not implemented")),
+  createMany: () => Promise.reject(new Error("Not implemented")),
+}
+
+export const projectsDataProvider = refineDataProvider
+
+const KARLA_FONT = "'Karla', sans-serif"
+
+const tableHeadingStyle = { fontFamily: KARLA_FONT, fontWeight: 700, color: "#0f172a" }
+const tableCellStyle = {
+  fontFamily: KARLA_FONT,
+  fontWeight: 500,
+  lineHeight: 1.2,
+}
+const primaryRowTextStyle = { ...tableCellStyle, fontSize: 16, color: "#0f172a" }
+const secondaryRowTextStyle = {
+  fontFamily: KARLA_FONT,
+  fontWeight: 500,
+  fontSize: 13,
+  color: "#475569",
+  lineHeight: 1.2,
+}
+const captionRowTextStyle = {
+  fontFamily: KARLA_FONT,
+  fontWeight: 600,
+  fontSize: 12,
+  color: "#64748b",
+  textTransform: "uppercase" as const,
+  letterSpacing: 0.8,
+}
+const italicDescriptorStyle = { ...secondaryRowTextStyle, fontStyle: "italic" }
+const subsidiaryTagStyle = {
+  ...tableCellStyle,
+  borderRadius: 9999,
+  border: "none",
+  backgroundColor: "#e0f2fe",
+  color: "#0c4a6e",
+  fontSize: 12,
+  padding: "2px 10px",
+  width: "fit-content" as const,
+  marginTop: 4,
+  display: "inline-flex",
+  alignItems: "center",
+} as const
+const simpleDescriptorText = (value: string | null | undefined) => {
+  if (typeof value !== "string") {
+    return "-"
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : "-"
+}
+const paymentTagStyles: Record<string, { backgroundColor: string; color: string }> = {
+  green: { backgroundColor: "#dcfce7", color: "#166534" },
+  red: { backgroundColor: "#fee2e2", color: "#b91c1c" },
+  default: { backgroundColor: "#e2e8f0", color: "#1f2937" },
+}
+
+const ProjectsContent = () => {
+  const [rawFiltersForm] = Form.useForm()
+  const filtersForm = rawFiltersForm as FormInstance<ProjectFiltersForm>
+  const screens = Grid.useBreakpoint()
+  const { message } = AntdApp.useApp()
+  const router = useRouter()
+
+  const tableHook = useTable({
+    resource: "projects",
+    pagination: {
+      pageSize: 12,
+    },
+    sorters: {
+      initial: [
+        {
+          field: "projectDateIso",
+          order: "desc",
+        },
+      ],
+    },
+    filters: {
+      initial: [
+        { field: "year", operator: "eq", value: undefined },
+        { field: "subsidiary", operator: "eq", value: undefined },
+        { field: "search", operator: "contains", value: undefined },
+      ],
+    },
+    onSearch: (values) => [
+      {
+        field: "search",
+        operator: "contains",
+        value: values.search,
+      },
+    ],
+    syncWithLocation: false,
+  })
+
+  const {
+    tableProps,
+    tableQuery,
+    filters,
+    setFilters,
+    setCurrentPage,
+  } = tableHook as ProjectsTableHook
+
+  const availableYears = useMemo(() => {
+    const metaYears = (tableQuery?.data?.meta?.years as string[] | undefined) ?? projectsCache.years
+    return Array.isArray(metaYears) ? metaYears : []
+  }, [tableQuery?.data?.meta?.years])
+
+  const availableSubsidiaries = useMemo(() => {
+    const metaSubs = (tableQuery?.data?.meta?.subsidiaries as string[] | undefined) ?? projectsCache.subsidiaries
+    return Array.isArray(metaSubs) ? metaSubs : []
+  }, [tableQuery?.data?.meta?.subsidiaries])
+
+  const activeYear = collectFilterValue(filters, "year")
+  const activeSubsidiary = collectFilterValue(filters, "subsidiary")
+  const activeSearch = collectFilterValue(filters, "search") ?? ""
+  const selectionRequired = Boolean(
+    (tableQuery?.data?.meta as { requiresSelection?: boolean } | undefined)?.requiresSelection,
+  )
+  const hasActiveSelection = Boolean(activeYear && activeSubsidiary)
+
+  useEffect(() => {
+    filtersForm.setFieldsValue({
+      year: activeYear,
+      subsidiary: activeSubsidiary,
+      search: activeSearch,
+    })
+  }, [filtersForm, activeYear, activeSubsidiary, activeSearch])
+
+  const debouncedSearch = useMemo(
+    () =>
+      debounce((value: string | undefined) => {
+        setCurrentPage(1)
+        setFilters((previous: any[]) => {
+          const base = (previous ?? []).filter(
+            (entry: any) => !(entry && typeof entry === "object" && entry.field === "search"),
+          )
+          if (!value || value.trim().length === 0) {
+            return base
+          }
+          return [
+            ...base,
+            { field: "search", operator: "contains", value: value.trim() },
+          ]
+        })
+      }, 400),
+    [setFilters, setCurrentPage],
+  )
+
+  useEffect(() => () => debouncedSearch.cancel(), [debouncedSearch])
+
+  const updateFilter = (field: string, value: string | undefined) => {
+    setCurrentPage(1)
+    setFilters((previous: any[]) => {
+      const base = (previous ?? []).filter(
+        (entry: any) => !(entry && typeof entry === "object" && entry.field === field),
+      )
+      if (!value || value.trim().length === 0) {
+        return base
+      }
+      return [...base, { field, operator: field === "search" ? "contains" : "eq", value }]
+    })
+  }
+
+  const handleYearChange = (value: string | undefined) => {
+    updateFilter("year", value)
+  }
+
+  const handleSubsidiaryChange = (value: string | undefined) => {
+    updateFilter("subsidiary", value)
+  }
+
+  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    debouncedSearch(event.target.value)
+  }
+
+  const navigateToDetails = useCallback(
+    (record: ProjectRow) => {
+      if (!record?.id) {
+        return
+      }
+      const target = `/dashboard/new-ui/projects/show/${encodeURIComponent(record.id)}`
+      void router.push(target)
+    },
+    [router],
+  )
+
+  const columns = useMemo(() => {
+    return [
+      {
+        key: "projectNumber",
+        title: <span style={tableHeadingStyle}>Project No.</span>,
+        dataIndex: "projectNumber",
+        sorter: true,
+        render: (_: string, record: ProjectRow) => {
+          const pickupDate = simpleDescriptorText(record.projectDateDisplay)
+          const hasPickupDate = pickupDate !== "-"
+          const numberContent = (
+            <span style={primaryRowTextStyle}>{stringOrNA(record.projectNumber)}</span>
+          )
+          if (!hasPickupDate) {
+            return numberContent
+          }
+          return (
+            <Tooltip title={pickupDate} placement="top">
+              <span style={{ display: "inline-flex" }}>{numberContent}</span>
+            </Tooltip>
+          )
+        },
+      },
+      {
+        key: "project",
+        title: <span style={tableHeadingStyle}>Project</span>,
+        dataIndex: "projectTitle",
+        sorter: true,
+        render: (_: string | null, record: ProjectRow) => (
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={captionRowTextStyle}>{stringOrNA(record.presenterWorkType)}</span>
+            <span style={{ ...primaryRowTextStyle, lineHeight: 1.2 }}>{stringOrNA(record.projectTitle)}</span>
+            <span style={italicDescriptorStyle}>{stringOrNA(record.projectNature)}</span>
+          </div>
+        ),
+      },
+      {
+        key: "amount",
+        title: <span style={tableHeadingStyle}>Amount</span>,
+        dataIndex: "amount",
+        sorter: true,
+        align: "right" as const,
+        render: (value: number | null) => (
+          <span style={{ ...primaryRowTextStyle, fontVariantNumeric: "tabular-nums" }}>{amountText(value)}</span>
+        ),
+      },
+      {
+        key: "paymentStatus",
+        title: <span style={tableHeadingStyle}>Payment Status</span>,
+        dataIndex: "paid",
+        sorter: true,
+        render: (_: boolean | null, record: ProjectRow) => {
+          const chipKey = paymentChipColor(record.paid)
+          const palette = paymentTagStyles[chipKey] ?? paymentTagStyles.default
+          const paidOnValue = simpleDescriptorText(paidDateText(record.paid, record.onDateDisplay))
+          const tagContent = (
+            <Tag
+              color={palette.backgroundColor}
+              style={{
+                ...tableCellStyle,
+                color: palette.color,
+                borderRadius: 999,
+                border: "none",
+                padding: "2px 12px",
+                fontSize: 13,
+              }}
+            >
+              {paymentChipLabel(record.paid)}
+            </Tag>
+          )
+          return paidOnValue === "-" ? (
+            tagContent
+          ) : (
+            <Tooltip title={paidOnValue} placement="top">
+              <span style={{ display: "inline-flex" }}>{tagContent}</span>
+            </Tooltip>
+          )
+        },
+      },
+      {
+        key: "clientCompany",
+        title: <span style={tableHeadingStyle}>Client Company</span>,
+        dataIndex: "clientCompany",
+        sorter: true,
+        render: (_: string | null, record: ProjectRow) => (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {record.subsidiary ? (
+              <Tag style={subsidiaryTagStyle}>{stringOrNA(record.subsidiary)}</Tag>
+            ) : null}
+            <span style={primaryRowTextStyle}>{stringOrNA(record.clientCompany)}</span>
+          </div>
+        ),
+      },
+      {
+        key: "actions",
+        title: <span style={tableHeadingStyle}>Actions</span>,
+        dataIndex: "actions",
+        align: "center" as const,
+        render: (_: unknown, record: ProjectRow) => (
+          <Button
+            type="text"
+            icon={<EyeOutlined />}
+            aria-label="View project details"
+            onClick={(event) => {
+              event.stopPropagation()
+              navigateToDetails(record)
+            }}
+          />
+        ),
+      },
+    ]
+  }, [navigateToDetails])
+
+  const yearOptions = availableYears.map((year) => ({ label: year, value: year }))
+  const subsidiaryOptions = availableSubsidiaries.map((value) => ({ label: value, value }))
+
+  useEffect(() => {
+    if (tableQuery?.error) {
+      const messageText =
+        tableQuery.error instanceof Error ? tableQuery.error.message : "Failed to load projects"
+      message.error(messageText)
+    }
+  }, [message, tableQuery?.error])
+
+  return (
+    <div
+      style={{
+        padding: screens.md ? "32px 0 32px 24px" : "24px 16px",
+        minHeight: "100%",
+        background: "#fff",
+        fontFamily: KARLA_FONT,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <Title
+          level={2}
+          style={{ fontFamily: KARLA_FONT, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}
+        >
+          Projects
+        </Title>
+        <Form
+          form={filtersForm}
+          layout={screens.md ? "inline" : "vertical"}
+          style={{ width: "100%", rowGap: screens.md ? 16 : 12 }}
+        >
+          <Form.Item name="year" label="Year" style={{ marginBottom: screens.md ? 0 : 12 }}>
+            <Select
+              allowClear
+              placeholder="All years"
+              options={yearOptions}
+              onChange={(value) => handleYearChange(value ?? undefined)}
+              style={{ minWidth: 160 }}
+            />
+          </Form.Item>
+          <Form.Item
+            name="subsidiary"
+            label="Subsidiary"
+            style={{ marginBottom: screens.md ? 0 : 12 }}
+          >
+            <Select
+              allowClear
+              placeholder="All subsidiaries"
+              options={subsidiaryOptions}
+              onChange={(value) => handleSubsidiaryChange(value ?? undefined)}
+              style={{ minWidth: 200 }}
+            />
+          </Form.Item>
+          <Form.Item name="search" label="Search" style={{ marginBottom: 0, flex: 1 }}>
+            <Input
+              allowClear
+              prefix={<SearchOutlined />}
+              placeholder="Search by project, client, or invoice"
+              onChange={handleSearchChange}
+              disabled={!hasActiveSelection}
+            />
+          </Form.Item>
+        </Form>
+        {selectionRequired ? (
+          <div
+            style={{
+              minHeight: 280,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#f8fafc",
+              borderRadius: 16,
+            }}
+          >
+            <Empty
+              description="Select a year and subsidiary to load projects."
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
+          </div>
+        ) : (
+          <Table<ProjectRow>
+            {...tableProps}
+            rowKey="id"
+            columns={columns}
+            pagination={false}
+            onRow={(record) => ({
+              onClick: () => navigateToDetails(record),
+              style: { cursor: "pointer" },
+            })}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+const ProjectsApp = () => (
+  <AppShell
+    dataProvider={refineDataProvider}
+    resources={[
+      { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
+      {
+        name: "client-directory",
+        list: "/dashboard/new-ui/client-accounts",
+        meta: { label: "Client Accounts" },
+      },
+      {
+        name: "projects",
+        list: "/dashboard/new-ui/projects",
+        meta: { label: "Projects" },
+      },
+    ]}
+    allowedMenuKeys={ALLOWED_MENU_KEYS}
+  >
+    <ProjectsContent />
+  </AppShell>
+)
+
+export default ProjectsApp
