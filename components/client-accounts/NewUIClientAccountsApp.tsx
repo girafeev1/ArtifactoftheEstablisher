@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react"
 import {
-  Refine,
-  useMenu,
   type BaseRecord,
   type CrudFilters,
   type CrudSorting,
@@ -10,19 +8,14 @@ import {
   type HttpError,
 } from "@refinedev/core"
 import { List, FilterDropdown, useTable } from "@refinedev/antd"
-import routerProvider from "@refinedev/nextjs-router"
 import {
   App as AntdApp,
   Avatar,
-  Badge,
   Button,
-  ConfigProvider,
   Drawer,
   Form,
   Grid,
   Input,
-  Layout,
-  Menu,
   Modal,
   Select,
   Space,
@@ -33,36 +26,24 @@ import {
   Typography,
 } from "antd"
 import {
-  ApartmentOutlined,
-  AppstoreOutlined,
-  BarsOutlined,
-  BellOutlined,
-  CalendarOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   EyeOutlined,
   MailOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
   PhoneOutlined,
   PlusCircleOutlined,
   SearchOutlined,
-  SettingOutlined,
-  TeamOutlined,
-  ThunderboltFilled,
-  UnorderedListOutlined,
 } from "@ant-design/icons"
 import debounce from "lodash.debounce"
 import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
 
+import AppShell from "../new-ui/AppShell"
+
 type DirectoryApiRecord = ClientDirectoryRecord & { id: string }
 
-const { Header, Content, Sider } = Layout
 const { Text } = Typography
 
-const HEADER_HEIGHT = 64
-const HEADER_HORIZONTAL_PADDING = 24
-const ALLOWED_MENU_KEYS = new Set(["dashboard", "client-directory"])
+const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects"] as const
 
 if (typeof window === "undefined") {
   console.info("[client-accounts] Module loaded", {
@@ -1123,196 +1104,6 @@ const AddClientModal = ({
   )
 }
 
-const NavigationSider = ({ collapsed, onCollapse }: { collapsed: boolean; onCollapse: (value: boolean) => void }) => {
-  const { menuItems, selectedKey } = useMenu()
-  const breakpoint = Grid.useBreakpoint()
-  const isMobile = typeof breakpoint.lg === "undefined" ? false : !breakpoint.lg
-
-  const navigationItems = menuItems
-    .filter((item) => ALLOWED_MENU_KEYS.has((item.name as string | undefined) ?? ""))
-    .map((item) => {
-      const key = item.key ?? item.name
-      const route = item.route ?? item.list
-      if (!route) {
-        return null
-      }
-      return {
-        key,
-        icon: iconForMenu(item.name ?? ""),
-        label: item.label,
-        route,
-      }
-    })
-    .filter(Boolean) as Array<{ key: string; icon: ReactNode; label: ReactNode; route: string }>
-
-  const handleMenuClick = (event: { key: string }) => {
-    const target = navigationItems.find((item) => item.key === event.key)
-    if (target?.route && typeof window !== "undefined") {
-      window.location.href = target.route
-    }
-  }
-
-  const menuEntries = navigationItems.map((item) => ({
-    key: item.key,
-    icon: item.icon,
-    label: item.label,
-  }))
-
-  const content = (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div
-        style={{
-          height: HEADER_HEIGHT,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: `0 ${HEADER_HORIZONTAL_PADDING}px`,
-          borderBottom: "1px solid #e5e7eb",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
-          <Avatar shape="square" size={36} style={{ backgroundColor: "#2563eb" }}>
-            <ThunderboltFilled />
-          </Avatar>
-          {!collapsed ? (
-            <Text
-              strong
-              style={{
-                fontSize: 18,
-                whiteSpace: "nowrap",
-                textOverflow: "ellipsis",
-                overflow: "hidden",
-              }}
-            >
-              The Establishers
-            </Text>
-          ) : null}
-        </div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <Menu
-          mode="inline"
-          selectedKeys={selectedKey ? [selectedKey] : []}
-          style={{
-            flex: 1,
-            borderInlineEnd: "none",
-            paddingTop: 16,
-          }}
-          items={menuEntries}
-          onClick={handleMenuClick}
-        />
-        <div style={{ padding: collapsed ? 16 : 24, marginTop: "auto" }}>
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => onCollapse(!collapsed)}
-            style={{
-              width: "100%",
-              justifyContent: collapsed ? "center" : "flex-start",
-              borderRadius: 10,
-              background: "#f1f5f9",
-              padding: collapsed ? "12px" : "12px 16px",
-              color: "#1e3a8a",
-              fontWeight: 600,
-            }}
-          >
-            {collapsed ? null : "Collapse sidebar"}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-
-  if (isMobile) {
-    return (
-      <>
-        <Button
-          type="primary"
-          icon={<BarsOutlined />}
-          style={{
-            position: "fixed",
-            top: HEADER_HEIGHT,
-            left: 0,
-            zIndex: 1300,
-            borderTopLeftRadius: 0,
-            borderBottomLeftRadius: 0,
-          }}
-          onClick={() => onCollapse(!collapsed)}
-        />
-        <Drawer placement="left" open={!collapsed} onClose={() => onCollapse(true)} width={256} bodyStyle={{ padding: 0 }}>
-          {content}
-        </Drawer>
-      </>
-    )
-  }
-
-  return (
-    <Sider
-      width={256}
-      collapsible
-      collapsed={collapsed}
-      onCollapse={onCollapse}
-      trigger={null}
-      style={{
-        background: "#fff",
-        position: "sticky",
-        top: 0,
-        height: "100vh",
-      }}
-    >
-      {content}
-    </Sider>
-  )
-}
-
-const iconForMenu = (name: string) => {
-  switch (name) {
-    case "dashboard":
-      return <AppstoreOutlined />
-    case "calendar":
-      return <CalendarOutlined />
-    case "scrumboard":
-      return <AppstoreOutlined />
-    case "companies":
-      return <ApartmentOutlined />
-    case "client-directory":
-      return <TeamOutlined />
-    case "quotes":
-      return <SettingOutlined />
-    case "administration":
-      return <SettingOutlined />
-    default:
-      return <UnorderedListOutlined />
-  }
-}
-
-const TopHeader = () => (
-  <Header
-    style={{
-      background: "#fff",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "flex-end",
-      padding: `0 ${HEADER_HORIZONTAL_PADDING}px`,
-      position: "sticky",
-      top: 0,
-      zIndex: 1000,
-      height: HEADER_HEIGHT,
-      borderBottom: "1px solid #e5e7eb",
-    }}
-  >
-    <Space size="large" align="center">
-      <Tooltip title="Notifications">
-        <Badge dot>
-          <Button type="text" shape="circle" icon={<BellOutlined />} />
-        </Badge>
-      </Tooltip>
-      <Avatar style={{ backgroundColor: "#1e3a8a", color: "#fff" }}>TE</Avatar>
-    </Space>
-  </Header>
-)
-
 const ClientAccountsContent = () => {
   const [searchForm] = Form.useForm()
   const screens = Grid.useBreakpoint()
@@ -1618,53 +1409,27 @@ const ClientAccountsContent = () => {
   )
 }
 
-const ClientAccountsShell = () => {
-  const [collapsed, setCollapsed] = useState(true)
 
-  return (
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: "#2563eb",
-          borderRadius: 10,
-          fontFamily:
-            "'Inter', 'Inter var', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'",
-        },
-        components: {
-          Button: {
-            fontWeight: 600,
-            borderRadius: 999,
-          },
-        },
-      }}
-    >
-      <AntdApp>
-        <Refine
-          dataProvider={refineDataProvider}
-          routerProvider={routerProvider}
-          resources={[
-            { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
-            {
-              name: "client-directory",
-              list: "/dashboard/new-ui/client-accounts",
-              meta: { label: "Client Accounts" },
-            },
-          ]}
-          options={{ syncWithLocation: false }}
-        >
-          <Layout style={{ minHeight: "100vh", background: "#fff" }}>
-            <NavigationSider collapsed={collapsed} onCollapse={(value) => setCollapsed(value)} />
-            <Layout style={{ background: "#fff" }}>
-              <TopHeader />
-              <Content>
-                <ClientAccountsContent />
-              </Content>
-            </Layout>
-          </Layout>
-        </Refine>
-      </AntdApp>
-    </ConfigProvider>
-  )
-}
+const ClientAccountsShell = () => (
+  <AppShell
+    dataProvider={refineDataProvider}
+    resources={[
+      { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
+      {
+        name: "client-directory",
+        list: "/dashboard/new-ui/client-accounts",
+        meta: { label: "Client Accounts" },
+      },
+      {
+        name: "projects",
+        list: "/dashboard/new-ui/projects",
+        meta: { label: "Projects" },
+      },
+    ]}
+    allowedMenuKeys={ALLOWED_MENU_KEYS}
+  >
+    <ClientAccountsContent />
+  </AppShell>
+)
 
 export default ClientAccountsShell
