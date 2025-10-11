@@ -17,6 +17,7 @@ import {
   Input,
   InputNumber,
   Row,
+  Select,
   Space,
   Spin,
   Table,
@@ -42,7 +43,6 @@ import {
   mergeLineWithRegion,
   normalizeClient,
   normalizeProject,
-  paymentChipColor,
   paymentChipLabel,
   stringOrNA,
   type NormalizedClient,
@@ -59,6 +59,36 @@ const paymentPalette = {
   red: { backgroundColor: "#fee2e2", color: "#b91c1c" },
   default: { backgroundColor: "#e2e8f0", color: "#1f2937" },
 } as const
+
+const INVOICE_STATUS_OPTIONS = [
+  { label: "Draft", value: "Draft" },
+  { label: "Due", value: "Due" },
+  { label: "Cleared", value: "Cleared" },
+] as const
+
+const ANT_INVOICE_STATUS_OPTIONS = INVOICE_STATUS_OPTIONS.map((option) => ({
+  label: option.label,
+  value: option.value,
+}))
+
+const statusToColorKey = (status: string | null | undefined): keyof typeof paymentPalette => {
+  if (!status) {
+    return "default"
+  }
+  const normalized = status.trim().toLowerCase()
+  if (normalized === "cleared" || normalized === "paid" || normalized === "received") {
+    return "green"
+  }
+  if (
+    normalized === "due" ||
+    normalized === "draft" ||
+    normalized === "pending" ||
+    normalized === "outstanding"
+  ) {
+    return "red"
+  }
+  return "default"
+}
 
 const invoiceCollectionPattern = /^invoice-([a-z]+)$/
 const LEGACY_INVOICE_COLLECTION_IDS = new Set(["Invoice", "invoice"])
@@ -92,9 +122,11 @@ type InvoiceDraftState = {
   invoiceNumber: string
   baseInvoiceNumber: string
   collectionId?: string
+  originalInvoiceNumber?: string
   client: InvoiceClientState
   items: InvoiceDraftItem[]
   taxOrDiscountPercent: number
+  paymentStatus: string | null
 }
 
 type ProjectDraftState = {
@@ -254,6 +286,7 @@ const buildDraftFromInvoice = (
   invoiceNumber: invoice.invoiceNumber,
   baseInvoiceNumber: invoice.baseInvoiceNumber ?? extractBaseInvoiceNumber(invoice.invoiceNumber),
   collectionId: invoice.collectionId,
+  originalInvoiceNumber: invoice.invoiceNumber,
   client: buildClientState(invoice, normalizedClient, project),
   items: (invoice.items ?? []).map((item, index) => ({
     key: `item-${index + 1}`,
@@ -264,6 +297,9 @@ const buildDraftFromInvoice = (
     discount: toNumberValue(item.discount),
   })),
   taxOrDiscountPercent: toNumberValue(invoice.taxOrDiscountPercent),
+  paymentStatus:
+    invoice.paymentStatus ??
+    (invoice.paid === true ? "Cleared" : invoice.paid === false ? "Due" : "Draft"),
 })
 
 const buildDraftForNewInvoice = (
@@ -280,9 +316,11 @@ const buildDraftForNewInvoice = (
   return {
     invoiceNumber,
     baseInvoiceNumber: baseCandidate,
+    originalInvoiceNumber: undefined,
     client: buildClientState(null, normalizedClient, project),
     items: [],
     taxOrDiscountPercent: 0,
+    paymentStatus: "Draft",
   }
 }
 
@@ -448,13 +486,14 @@ const ProjectsShowContent = () => {
       return { totalValue, hasAmount }
     }, [invoices])
 
-  const invoiceNumberPending = invoiceMode === "create"
-
   useEffect(() => {
-    if (!invoiceNumberPending) {
+    if (invoiceMode === "create") {
+      setInvoiceNumberEditing(true)
+    }
+    if (invoiceMode === "idle") {
       setInvoiceNumberEditing(false)
     }
-  }, [invoiceNumberPending])
+  }, [invoiceMode])
 
   const handleBack = useCallback(() => {
     void router.push("/dashboard/new-ui/projects")
@@ -550,48 +589,81 @@ const ProjectsShowContent = () => {
   }, [draftInvoice?.baseInvoiceNumber, project])
 
   const invoiceEntries = useMemo(() => {
-    const entries = invoices.map((invoice) => {
-      const amountValue =
+    const entries = invoices.map((invoice, index) => {
+      const rawAmount =
         typeof invoice.total === "number" && !Number.isNaN(invoice.total)
           ? invoice.total
           : typeof invoice.amount === "number" && !Number.isNaN(invoice.amount)
           ? invoice.amount
           : null
-      const paid = typeof invoice.paid === "boolean" ? invoice.paid : null
-      let statusColor: keyof typeof paymentPalette = "default"
-      if (paid === true) {
-        statusColor = "green"
-      } else if (paid === false) {
-        statusColor = "red"
-      }
       const paidOnFormatted = formatProjectDate(
         invoice.paidOnIso ?? null,
         invoice.paidOnDisplay ?? null,
       )
-      const paidOnText = paidOnFormatted !== "-" ? paidOnFormatted : null
+
+      const isActiveRow = invoiceMode !== "idle" && index === activeInvoiceIndex
+      const draftStatus = draftInvoice?.paymentStatus ?? null
+      const derivedStatus =
+        isActiveRow && draftInvoice
+          ? draftStatus ?? (draftInvoice.invoiceNumber ? "Draft" : null)
+          : invoice.paymentStatus ?? paymentChipLabel(invoice.paid)
+      const statusColor = statusToColorKey(derivedStatus)
+
+      let amountValue = rawAmount
+      if (isActiveRow && draftInvoice) {
+        amountValue = total
+      }
+
+      const paidFromStatus =
+        derivedStatus && statusToColorKey(derivedStatus) === "green"
+          ? true
+          : derivedStatus && statusToColorKey(derivedStatus) === "red"
+          ? false
+          : typeof invoice.paid === "boolean"
+          ? invoice.paid
+          : null
+
+      const paidOnText =
+        isActiveRow && draftInvoice && draftInvoice.paymentStatus === "Cleared"
+          ? totalPaidOnText !== "-" ? totalPaidOnText : null
+          : paidOnFormatted !== "-" ? paidOnFormatted : null
+
       return {
-        invoiceNumber: invoice.invoiceNumber,
+        invoiceNumber: isActiveRow && draftInvoice ? draftInvoice.invoiceNumber : invoice.invoiceNumber,
         pending: false,
         amount: amountValue,
-        paid,
-        statusLabel: invoice.paymentStatus ?? paymentChipLabel(paid),
+        paid: paidFromStatus,
+        statusLabel: derivedStatus ?? paymentChipLabel(paidFromStatus),
         statusColor,
         paidOnText,
+        collectionId: invoice.collectionId,
+        index,
       }
     })
+
     if (invoiceMode === "create" && draftInvoice) {
       entries.push({
         invoiceNumber: draftInvoice.invoiceNumber,
         pending: true,
         amount: total,
         paid: null,
-        statusLabel: "Draft",
-        statusColor: "default" as const,
+        statusLabel: draftInvoice.paymentStatus ?? "Draft",
+        statusColor: statusToColorKey(draftInvoice.paymentStatus),
         paidOnText: null,
+        collectionId: draftInvoice.collectionId,
+        index: invoices.length,
       })
     }
+
     return entries
-  }, [draftInvoice, invoiceMode, invoices, total])
+  }, [
+    activeInvoiceIndex,
+    draftInvoice,
+    invoiceMode,
+    invoices,
+    total,
+    totalPaidOnText,
+  ])
 
   const activeEntryIndex = useMemo(() => {
     if (invoiceEntries.length === 0) {
@@ -603,23 +675,7 @@ const ProjectsShowContent = () => {
     return Math.min(activeInvoiceIndex, invoiceEntries.length - 1)
   }, [activeInvoiceIndex, draftInvoice, invoiceEntries.length, invoiceMode])
 
-  const showInvoiceSummaryNumber = invoiceMode !== "idle" || invoiceEntries.length === 0
-
-  const invoiceNumberDisplay =
-    resolvedDraft?.invoiceNumber ??
-    currentInvoiceRecord?.invoiceNumber ??
-    baseInvoiceNumber ??
-    "N/A"
-
-  const formattedInvoiceNumber =
-    invoiceNumberDisplay && invoiceNumberDisplay !== "N/A"
-      ? `#${invoiceNumberDisplay.replace(/^#/, "")}`
-      : invoiceNumberDisplay
-
   const projectTotalValue = hasAggregatedInvoiceAmount ? aggregatedInvoiceTotal : total
-
-  const paidChipKey = paymentChipColor(projectPaidState)
-  const paidChipPalette = paymentPalette[paidChipKey] ?? paymentPalette.default
 
   const totalStatusLabel = useMemo(() => {
     if (totalInvoiceCount === 0) {
@@ -645,13 +701,47 @@ const ProjectsShowContent = () => {
       if (pending && invoiceMode === "create") {
         return
       }
-      if (invoiceMode !== "idle") {
+      if (invoiceMode !== "idle" && index !== activeInvoiceIndex) {
         message.warning("Finish editing the current invoice before switching.")
+        return
+      }
+      if (invoiceMode !== "idle") {
         return
       }
       setActiveInvoiceIndex(index)
     },
-    [invoiceMode, message],
+    [activeInvoiceIndex, invoiceMode, message],
+  )
+
+  const handleBeginInvoiceRowEdit = useCallback(
+    (index: number, pending: boolean) => {
+      if (pending) {
+        if (invoiceMode === "create") {
+          setActiveInvoiceIndex(index)
+          setInvoiceNumberEditing(true)
+        }
+        return
+      }
+
+      if (invoiceMode === "create") {
+        message.warning("Finish creating the current invoice before editing another.")
+        return
+      }
+
+      if (invoiceMode !== "idle" && index !== activeInvoiceIndex) {
+        message.warning("Finish editing the current invoice before editing another.")
+        return
+      }
+
+      if (invoiceMode === "edit" && index === activeInvoiceIndex) {
+        setInvoiceNumberEditing(true)
+        return
+      }
+
+      prepareDraft("edit", index)
+      setInvoiceNumberEditing(true)
+    },
+    [activeInvoiceIndex, invoiceMode, message, prepareDraft, setActiveInvoiceIndex, setInvoiceNumberEditing],
   )
 
   const startProjectEditing = useCallback(() => {
@@ -872,7 +962,7 @@ const ProjectsShowContent = () => {
   ])
 
   const prepareDraft = useCallback(
-    (mode: "create" | "edit") => {
+    (mode: "create" | "edit", targetIndex?: number) => {
       if (!project) {
         return
       }
@@ -884,7 +974,8 @@ const ProjectsShowContent = () => {
         setActiveInvoiceIndex(invoices.length)
         return
       }
-      const current = invoices[activeInvoiceIndex]
+      const index = typeof targetIndex === "number" ? targetIndex : activeInvoiceIndex
+      const current = invoices[index]
       if (!current) {
         message.warning("Select an invoice to edit.")
         return
@@ -893,6 +984,7 @@ const ProjectsShowContent = () => {
       itemIdRef.current = draft.items.length
       setDraftInvoice(draft)
       setInvoiceMode("edit")
+      setActiveInvoiceIndex(index)
     },
     [activeInvoiceIndex, client, invoices, message, project],
   )
@@ -968,19 +1060,13 @@ const ProjectsShowContent = () => {
     })
   }, [])
 
-  const beginInvoiceNumberEdit = useCallback(() => {
-    if (!invoiceNumberPending || invoiceMode !== "create" || hasInvoices || !draftInvoice) {
-      return
-    }
-    setInvoiceNumberEditing(true)
-  }, [draftInvoice, hasInvoices, invoiceMode, invoiceNumberPending])
-
   const handleInvoiceNumberInput = useCallback((value: string) => {
     setDraftInvoice((previous) => {
       if (!previous) {
         return previous
       }
-      return { ...previous, invoiceNumber: value, baseInvoiceNumber: value }
+      const baseValue = extractBaseInvoiceNumber(value)
+      return { ...previous, invoiceNumber: value, baseInvoiceNumber: baseValue }
     })
   }, [])
 
@@ -994,11 +1080,14 @@ const ProjectsShowContent = () => {
       if (trimmed.length === 0) {
         const fallback =
           generateInvoiceFallback(project?.projectNumber ?? null, project?.projectDateIso ?? null) ??
+          previous.originalInvoiceNumber ??
           previous.baseInvoiceNumber ??
           "Invoice"
-        return { ...previous, invoiceNumber: fallback, baseInvoiceNumber: fallback }
+        const fallbackBase = extractBaseInvoiceNumber(fallback)
+        return { ...previous, invoiceNumber: fallback, baseInvoiceNumber: fallbackBase }
       }
-      return { ...previous, invoiceNumber: trimmed, baseInvoiceNumber: trimmed }
+      const normalizedBase = extractBaseInvoiceNumber(trimmed)
+      return { ...previous, invoiceNumber: trimmed, baseInvoiceNumber: normalizedBase }
     })
   }, [project?.projectDateIso, project?.projectNumber])
 
@@ -1008,7 +1097,9 @@ const ProjectsShowContent = () => {
       if (!previous) {
         return previous
       }
-      return { ...previous, invoiceNumber: previous.baseInvoiceNumber }
+      const fallback = previous.originalInvoiceNumber ?? previous.baseInvoiceNumber
+      const fallbackBase = extractBaseInvoiceNumber(fallback)
+      return { ...previous, invoiceNumber: fallback, baseInvoiceNumber: fallbackBase }
     })
   }, [])
 
@@ -1025,6 +1116,15 @@ const ProjectsShowContent = () => {
     },
     [cancelInvoiceNumberEdit, finalizeInvoiceNumberEdit],
   )
+
+  const handleInvoiceStatusChange = useCallback((value: string) => {
+    setDraftInvoice((previous) => {
+      if (!previous) {
+        return previous
+      }
+      return { ...previous, paymentStatus: value }
+    })
+  }, [])
 
   const handleCancelInvoice = useCallback(() => {
     if (!hasInvoices) {
@@ -1131,6 +1231,7 @@ const ProjectsShowContent = () => {
               client: draftInvoice.client,
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
+              paymentStatus: draftInvoice.paymentStatus,
             }
           : {
               collectionId: draftInvoice.collectionId,
@@ -1138,6 +1239,7 @@ const ProjectsShowContent = () => {
               client: draftInvoice.client,
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
+              paymentStatus: draftInvoice.paymentStatus,
             }
 
       const response = await fetch(endpoint, {
@@ -1370,7 +1472,6 @@ const ProjectsShowContent = () => {
   const isProjectEditing = projectEditMode === "edit" || projectEditMode === "saving"
   const projectEditSaving = projectEditMode === "saving"
   const showInvoiceCancel = invoiceMode !== "idle" && (invoiceMode === "edit" || hasInvoices)
-  const showInvoiceNumberInput = invoiceNumberEditing && invoiceNumberPending
   return (
     <div className="page-wrapper">
       <Space direction="vertical" size={24} style={{ width: "100%" }}>
@@ -1512,50 +1613,146 @@ const ProjectsShowContent = () => {
         </div>
         <Card className="details-card billing-card" bordered={false}>
           <div className="billing-card-content">
-            <div className="billing-header">
-              <div className="billing-summary-block">
+            <div className="billing-layout">
+              <div className="billing-main">
                 <Title level={5} className="section-heading">
                   Billing &amp; Payments
                 </Title>
-                {showInvoiceSummaryNumber ? (
-                  <div className="invoice-summary">
-                  <span className="summary-label">Invoice Number</span>
-                  <div
-                    className={`invoice-number-shell ${
-                      invoiceNumberPending ? "pending" : ""
-                    }`}
-                  >
-                    {invoiceNumberPending ? (
-                      showInvoiceNumberInput ? (
-                        <Input
-                          value={draftInvoice?.invoiceNumber ?? ""}
-                          onChange={(event) => handleInvoiceNumberInput(event.target.value)}
-                          onBlur={finalizeInvoiceNumberEdit}
-                          onKeyDown={handleInvoiceNumberKeyDown}
-                          autoFocus
-                          bordered={false}
-                          className="invoice-input"
-                          disabled={invoiceMode !== "create"}
-                        />
-                      ) : hasInvoices ? (
-                        <span className="invoice-number-pending">{formattedInvoiceNumber}</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="invoice-number-edit"
-                          onClick={beginInvoiceNumberEdit}
-                        >
-                          {formattedInvoiceNumber}
-                        </button>
-                      )
-                    ) : (
-                      <span className="summary-value invoice-number-text">
-                        {formattedInvoiceNumber}
-                      </span>
-                    )}
+                <div className="invoice-table">
+                  <div className="invoice-row head">
+                    <span className="invoice-cell heading">Invoice #</span>
+                    <span className="invoice-cell heading">Amount</span>
+                    <span className="invoice-cell heading">Status</span>
+                    <span className="invoice-cell heading">Paid On</span>
                   </div>
+                  {invoiceEntries.length > 0 ? (
+                    invoiceEntries.map((entry, index) => {
+                      const isActive = index === activeEntryIndex
+                      const isEditingRow = invoiceMode !== "idle" && isActive
+                      const isPending = entry.pending
+                      const displayNumber =
+                        isEditingRow && draftInvoice ? draftInvoice.invoiceNumber : entry.invoiceNumber
+
+                      return (
+                        <div
+                          key={`${entry.invoiceNumber}-${index}`}
+                          role="button"
+                          tabIndex={0}
+                          className={`invoice-row selectable-row ${
+                            isActive ? "active" : ""
+                          } ${isPending ? "pending" : ""}`}
+                          onClick={() => handleSelectInvoice(index, entry.pending)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault()
+                              handleSelectInvoice(index, entry.pending)
+                            }
+                          }}
+                        >
+                          <div className="invoice-cell number">
+                            {isEditingRow && invoiceNumberEditing ? (
+                              <Input
+                                value={draftInvoice?.invoiceNumber ?? ""}
+                                onChange={(event) => handleInvoiceNumberInput(event.target.value)}
+                                onBlur={finalizeInvoiceNumberEdit}
+                                onKeyDown={handleInvoiceNumberKeyDown}
+                                autoFocus
+                                bordered={false}
+                                className="invoice-input editing"
+                                onClick={(event) => event.stopPropagation()}
+                              />
+                            ) : (
+                              <span
+                                className={`invoice-number-text ${
+                                  isEditingRow ? "editing" : ""
+                                }`}
+                              >
+                                {displayNumber}
+                              </span>
+                            )}
+                            {!isPending && !isEditingRow ? (
+                              <button
+                                type="button"
+                                className="invoice-edit-trigger"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  handleBeginInvoiceRowEdit(index, entry.pending)
+                                }}
+                                disabled={invoiceMode !== "idle"}
+                                aria-label="Edit invoice"
+                              >
+                                <EditOutlined />
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="invoice-cell amount">
+                            {amountText(isEditingRow ? total : entry.amount)}
+                          </div>
+                          <div className="invoice-cell status">
+                            {isEditingRow && draftInvoice ? (
+                              <div
+                                className="invoice-status-control"
+                                onClick={(event) => event.stopPropagation()}
+                                onKeyDown={(event) => event.stopPropagation()}
+                              >
+                                <Select
+                                  value={draftInvoice.paymentStatus ?? undefined}
+                                  onChange={handleInvoiceStatusChange}
+                                  options={ANT_INVOICE_STATUS_OPTIONS}
+                                  className="invoice-status-select"
+                                  dropdownMatchSelectWidth={160}
+                                  style={{ width: "100%" }}
+                                />
+                              </div>
+                            ) : entry.pending ? (
+                              <span className="draft-pill">Draft</span>
+                            ) : (
+                              <Tag
+                                color={paymentPalette[entry.statusColor].backgroundColor}
+                                className="status-chip"
+                                style={{ color: paymentPalette[entry.statusColor].color }}
+                              >
+                                {entry.statusLabel}
+                              </Tag>
+                            )}
+                          </div>
+                          <div className="invoice-cell paid-on">{entry.paidOnText ?? "-"}</div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="invoice-empty-row">No invoices yet.</div>
+                  )}
+                  {invoiceEntries.length > 1 ? (
+                    <div className="invoice-row total" role="row">
+                      <span className="invoice-cell number total-label">Total:</span>
+                      <span className="invoice-cell amount">{amountText(projectTotalValue)}</span>
+                      <span className="invoice-cell status total-status">{totalStatusLabel}</span>
+                      <span className="invoice-cell paid-on">{totalPaidOnText}</span>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+                {invoiceMode === "idle" ? (
+                  <div className="billing-actions">
+                    <Space size={12} wrap>
+                      <Button type="primary" onClick={() => prepareDraft("create")}>
+                        Add Additional Invoice
+                      </Button>
+                    </Space>
+                  </div>
+                ) : null}
+                {invoiceMode === "create" && hasInvoices ? (
+                  <div className="billing-actions">
+                    <Space size={12} wrap>
+                      <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
+                        Cancel
+                      </Button>
+                      <Button type="primary" disabled>
+                        Add Additional Invoice
+                      </Button>
+                    </Space>
+                  </div>
+                ) : null}
               </div>
               <div className="client-panel">
                 <span className="summary-label client-label">Client</span>
@@ -1568,75 +1765,6 @@ const ProjectsShowContent = () => {
                 </div>
               </div>
             </div>
-            <div className="invoice-table">
-              <div className="invoice-row head">
-                <span className="invoice-cell heading">Invoice #</span>
-                <span className="invoice-cell heading">Amount</span>
-                <span className="invoice-cell heading">Status</span>
-                <span className="invoice-cell heading">Paid On</span>
-              </div>
-              {invoiceEntries.length > 0 ? (
-                invoiceEntries.map((entry, index) => (
-                  <button
-                    key={`${entry.invoiceNumber}-${index}`}
-                    type="button"
-                    className={`invoice-row selectable-row ${
-                      index === activeEntryIndex ? "active" : ""
-                    } ${entry.pending ? "pending" : ""}`}
-                    onClick={() => handleSelectInvoice(index, entry.pending)}
-                  >
-                    <span className="invoice-cell number">{entry.invoiceNumber}</span>
-                    <span className="invoice-cell amount">{amountText(entry.amount)}</span>
-                    <span className="invoice-cell status">
-                      {entry.pending ? (
-                        <span className="draft-pill">Draft</span>
-                      ) : (
-                        <Tag
-                          color={paymentPalette[entry.statusColor].backgroundColor}
-                          className="status-chip"
-                          style={{ color: paymentPalette[entry.statusColor].color }}
-                        >
-                          {entry.statusLabel}
-                        </Tag>
-                      )}
-                    </span>
-                    <span className="invoice-cell paid-on">{entry.paidOnText ?? "-"}</span>
-                  </button>
-                ))
-              ) : (
-                <div className="invoice-empty-row">No invoices yet.</div>
-              )}
-              <div className="invoice-row total" role="row">
-                <span className="invoice-cell number total-label">Total:</span>
-                <span className="invoice-cell amount">{amountText(projectTotalValue)}</span>
-                <span className="invoice-cell status total-status">{totalStatusLabel}</span>
-                <span className="invoice-cell paid-on">{totalPaidOnText}</span>
-              </div>
-            </div>
-            {invoiceMode === "idle" && hasInvoices ? (
-              <div className="billing-actions">
-                <Space size={12} wrap>
-                  <Button onClick={() => prepareDraft("edit")} icon={<EditOutlined />}>
-                    Edit Invoice
-                  </Button>
-                  <Button type="primary" onClick={() => prepareDraft("create")}>
-                    Add Additional Invoice
-                  </Button>
-                </Space>
-              </div>
-            ) : null}
-            {invoiceMode === "create" && hasInvoices ? (
-              <div className="billing-actions">
-                <Space size={12} wrap>
-                  <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
-                    Cancel
-                  </Button>
-                  <Button type="primary" disabled>
-                    Add Additional Invoice
-                  </Button>
-                </Space>
-              </div>
-            ) : null}
           </div>
         </Card>
         <Card className="details-card items-card" bordered={false}>
@@ -2088,11 +2216,11 @@ const ProjectsShowContent = () => {
         .billing-card-content {
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          gap: 16px;
           flex: 1;
         }
 
-        .billing-header {
+        .billing-layout {
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
           gap: 24px;
@@ -2100,17 +2228,16 @@ const ProjectsShowContent = () => {
         }
 
         @media (max-width: 991px) {
-          .billing-header {
+          .billing-layout {
             grid-template-columns: minmax(0, 1fr);
           }
         }
 
-        .billing-summary-block {
+        .billing-main {
           display: flex;
           flex-direction: column;
           gap: 16px;
-          justify-content: flex-start;
-          height: 100%;
+          min-height: 100%;
         }
 
         .client-panel {
@@ -2118,7 +2245,7 @@ const ProjectsShowContent = () => {
           flex-direction: column;
           gap: 12px;
           min-width: 0;
-          height: 100%;
+          padding: 8px 0 0;
         }
 
         .client-label {
@@ -2163,10 +2290,52 @@ const ProjectsShowContent = () => {
           text-align: left;
         }
 
+        .invoice-cell.number {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .invoice-cell.amount {
+          font-variant-numeric: tabular-nums;
+        }
+
         .invoice-cell.status {
           display: flex;
           align-items: center;
           gap: 8px;
+        }
+
+        .invoice-edit-trigger {
+          border: none;
+          background: none;
+          padding: 4px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: #475569;
+          cursor: pointer;
+          transition: background 0.2s ease;
+        }
+
+        .invoice-edit-trigger:hover:not(:disabled) {
+          background: #e2e8f0;
+        }
+
+        .invoice-edit-trigger:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        .invoice-number-text.editing {
+          color: #4b5563;
+          font-style: italic;
+        }
+
+        .invoice-input.editing {
+          font-style: italic;
+          color: #4b5563;
         }
 
         .invoice-row.selectable-row {
@@ -2227,6 +2396,21 @@ const ProjectsShowContent = () => {
           padding: 16px 0;
         }
 
+        .invoice-status-control {
+          width: 160px;
+        }
+
+        .invoice-status-select :global(.ant-select-selector) {
+          border-radius: 12px !important;
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+        }
+
+        .invoice-status-select :global(.ant-select-selection-item) {
+          display: flex;
+          align-items: center;
+        }
+
         .draft-pill {
           font-family: ${KARLA_FONT};
           font-weight: 600;
@@ -2267,10 +2451,10 @@ const ProjectsShowContent = () => {
         }
 
         .item-fee-type {
-          font-family: ${KARLA_FONT};
-          font-weight: 500;
-          color: #475569;
-          font-style: italic;
+          font-family: 'Darker Grotesque', ${KARLA_FONT};
+          font-weight: 600;
+          color: #4b5563;
+          letter-spacing: 0.02em;
         }
 
         .item-edit {

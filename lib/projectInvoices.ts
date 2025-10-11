@@ -303,6 +303,29 @@ export interface ProjectInvoiceRecord {
   updatedAt?: string | null
 }
 
+const computeRecordLineTotal = (item: ProjectInvoiceItemRecord) => {
+  const unitPrice = toNumberValue(item.unitPrice) ?? 0
+  const quantity = toNumberValue(item.quantity) ?? 0
+  const discount = toNumberValue(item.discount) ?? 0
+  const total = unitPrice * quantity - discount
+  return total > 0 ? total : 0
+}
+
+const computeRecordSubtotal = (items: ProjectInvoiceItemRecord[]) =>
+  items.reduce((sum, item) => sum + computeRecordLineTotal(item), 0)
+
+const computeRecordTotals = (
+  items: ProjectInvoiceItemRecord[],
+  taxOrDiscountPercent: number | null | undefined,
+) => {
+  const subtotal = computeRecordSubtotal(items)
+  if (taxOrDiscountPercent === null || taxOrDiscountPercent === undefined) {
+    return { subtotal, total: subtotal }
+  }
+  const adjustment = subtotal * (taxOrDiscountPercent / 100)
+  return { subtotal, total: subtotal + adjustment }
+}
+
 const buildItemsFromData = (data: Record<string, unknown>): ProjectInvoiceItemRecord[] => {
   const items: ProjectInvoiceItemRecord[] = []
   const count = toNumberValue(data.itemsCount) ?? undefined
@@ -356,9 +379,11 @@ const buildInvoiceRecord = (
     }
   }
 
-  const subtotal = toNumberValue(data.subtotal) ?? null
+  const items = buildItemsFromData(data)
   const taxOrDiscountPercent = toNumberValue(data.taxOrDiscountPercent) ?? null
-  const total = toNumberValue(data.total) ?? subtotal
+  const aggregates = computeRecordTotals(items, taxOrDiscountPercent)
+  const subtotal = toNumberValue(data.subtotal) ?? aggregates.subtotal
+  const total = toNumberValue(data.total) ?? aggregates.total
   const amount = toNumberValue(data.amount) ?? total
   const rawPaymentStatus = toStringValue(
     data.paymentStatus ??
@@ -406,7 +431,7 @@ const buildInvoiceRecord = (
     paidOnDisplay,
     paidTo,
     paymentStatus,
-    items: buildItemsFromData(data),
+    items,
     createdAt: toIsoString(data.createdAt),
     updatedAt: toIsoString(data.updatedAt),
   }
@@ -501,6 +526,7 @@ interface InvoiceWritePayload {
   client: InvoiceClientPayload
   items: InvoiceItemPayload[]
   taxOrDiscountPercent: number | null
+  paymentStatus: string | null
 }
 
 const sanitizeClientPayload = (client: InvoiceClientPayload) => ({
@@ -534,28 +560,10 @@ const sanitizeItemsPayload = (items: InvoiceItemPayload[]): InvoiceItemPayload[]
       item.title.length > 0 || item.feeType.length > 0 || item.unitPrice > 0 || item.quantity > 0,
     )
 
-const computeSubtotal = (items: InvoiceItemPayload[]) =>
-  items.reduce((total, item) => {
-    const line = item.unitPrice * item.quantity - item.discount
-    return total + (line > 0 ? line : 0)
-  }, 0)
-
-const computeTotals = (
-  items: InvoiceItemPayload[],
-  taxOrDiscountPercent: number | null,
-): { subtotal: number; total: number } => {
-  const subtotal = computeSubtotal(items)
-  if (taxOrDiscountPercent === null || Number.isNaN(taxOrDiscountPercent)) {
-    return { subtotal, total: subtotal }
-  }
-  const adjustment = subtotal * (taxOrDiscountPercent / 100)
-  const total = subtotal + adjustment
-  return { subtotal, total }
-}
-
 const buildInvoiceWritePayload = (
   payload: InvoiceWritePayload,
   existingItemCount = 0,
+  options?: { removeAggregates?: boolean },
 ) => {
   const client = sanitizeClientPayload(payload.client)
   const items = sanitizeItemsPayload(payload.items)
@@ -563,7 +571,7 @@ const buildInvoiceWritePayload = (
     payload.taxOrDiscountPercent !== null && !Number.isNaN(payload.taxOrDiscountPercent)
       ? payload.taxOrDiscountPercent
       : null
-  const { subtotal, total } = computeTotals(items, taxOrDiscountPercent)
+  const paymentStatus = toStringValue(payload.paymentStatus) ?? null
 
   const result: Record<string, unknown> = {
     baseInvoiceNumber: payload.baseInvoiceNumber,
@@ -574,10 +582,8 @@ const buildInvoiceWritePayload = (
     region: client.region,
     representative: client.representative,
     itemsCount: items.length,
-    subtotal,
     taxOrDiscountPercent,
-    total,
-    amount: total,
+    paymentStatus,
   }
 
   items.forEach((item, index) => {
@@ -595,6 +601,12 @@ const buildInvoiceWritePayload = (
     result[`item${index}UnitPrice`] = deleteField()
     result[`item${index}Quantity`] = deleteField()
     result[`item${index}Discount`] = deleteField()
+  }
+
+  if (options?.removeAggregates) {
+    result.subtotal = deleteField()
+    result.total = deleteField()
+    result.amount = deleteField()
   }
 
   return result
@@ -661,6 +673,7 @@ export const createInvoiceForProject = async (
     client: input.client,
     items: input.items,
     taxOrDiscountPercent: input.taxOrDiscountPercent,
+    paymentStatus: input.paymentStatus,
   })
 
   payload.invoiceNumber = invoiceNumber
@@ -706,8 +719,10 @@ export const updateInvoiceForProject = async (
       client: input.client,
       items: input.items,
       taxOrDiscountPercent: input.taxOrDiscountPercent,
+      paymentStatus: input.paymentStatus,
     },
     existingCount,
+    { removeAggregates: true },
   )
 
   payload.updatedAt = serverTimestamp()

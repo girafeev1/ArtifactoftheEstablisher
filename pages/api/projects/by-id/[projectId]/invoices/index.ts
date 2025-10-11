@@ -134,6 +134,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const client = normalizeClientPayload(body.client, project.clientCompany)
       const items = normalizeItemsPayload(body.items)
       const taxOrDiscountPercent = toNumberValue(body.taxOrDiscountPercent)
+      const paymentStatus = toStringValue(body.paymentStatus)
 
       const created = await createInvoiceForProject({
         year: project.year,
@@ -142,6 +143,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         client,
         items,
         taxOrDiscountPercent,
+        paymentStatus,
       })
 
       console.info("[api/projects/:id/invoices] Invoice created", {
@@ -165,6 +167,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const client = normalizeClientPayload(body.client, project.clientCompany)
       const items = normalizeItemsPayload(body.items)
       const taxOrDiscountPercent = toNumberValue(body.taxOrDiscountPercent)
+      const paymentStatus = toStringValue(body.paymentStatus)
 
       const updated = await updateInvoiceForProject({
         year: project.year,
@@ -175,6 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         client,
         items,
         taxOrDiscountPercent,
+        paymentStatus,
       })
 
       console.info("[api/projects/:id/invoices] Invoice updated", {
