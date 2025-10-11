@@ -1513,12 +1513,12 @@ const ProjectsShowContent = () => {
         <Card className="details-card billing-card" bordered={false}>
           <div className="billing-card-content">
             <div className="billing-header">
-            <div className="billing-summary-block">
-              <Title level={5} className="section-heading">
-                Billing &amp; Payments
-              </Title>
-              {showInvoiceSummaryNumber ? (
-                <div className="invoice-summary">
+              <div className="billing-summary-block">
+                <Title level={5} className="section-heading">
+                  Billing &amp; Payments
+                </Title>
+                {showInvoiceSummaryNumber ? (
+                  <div className="invoice-summary">
                   <span className="summary-label">Invoice Number</span>
                   <div
                     className={`invoice-number-shell ${
@@ -1556,7 +1556,7 @@ const ProjectsShowContent = () => {
                   </div>
                 </div>
               ) : null}
-            </div>
+              </div>
               <div className="client-panel">
                 <span className="summary-label client-label">Client</span>
                 <div className="company-block">
@@ -1571,7 +1571,7 @@ const ProjectsShowContent = () => {
             <div className="invoice-table">
               <div className="invoice-row head">
                 <span className="invoice-cell heading">Invoice #</span>
-                <span className="invoice-cell heading align-right">Amount</span>
+                <span className="invoice-cell heading">Amount</span>
                 <span className="invoice-cell heading">Status</span>
                 <span className="invoice-cell heading">Paid On</span>
               </div>
@@ -1586,9 +1586,7 @@ const ProjectsShowContent = () => {
                     onClick={() => handleSelectInvoice(index, entry.pending)}
                   >
                     <span className="invoice-cell number">{entry.invoiceNumber}</span>
-                    <span className="invoice-cell amount align-right">
-                      {amountText(entry.amount)}
-                    </span>
+                    <span className="invoice-cell amount">{amountText(entry.amount)}</span>
                     <span className="invoice-cell status">
                       {entry.pending ? (
                         <span className="draft-pill">Draft</span>
@@ -1610,9 +1608,7 @@ const ProjectsShowContent = () => {
               )}
               <div className="invoice-row total" role="row">
                 <span className="invoice-cell number total-label">Total:</span>
-                <span className="invoice-cell amount align-right">
-                  {amountText(projectTotalValue)}
-                </span>
+                <span className="invoice-cell amount">{amountText(projectTotalValue)}</span>
                 <span className="invoice-cell status total-status">{totalStatusLabel}</span>
                 <span className="invoice-cell paid-on">{totalPaidOnText}</span>
               </div>
@@ -1777,14 +1773,14 @@ const ProjectsShowContent = () => {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          gap: 16px;
+          gap: 12px;
           flex-wrap: wrap;
         }
 
         .title-content {
           display: flex;
           flex-direction: column;
-          gap: 2px;
+          gap: 0;
           flex: 1 1 320px;
           max-width: 100%;
         }
@@ -1795,8 +1791,8 @@ const ProjectsShowContent = () => {
           color: #475569;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          line-height: 1.05;
-          margin: 0;
+          line-height: 1;
+          margin: 0 0 2px;
         }
 
         .presenter-input,
@@ -1830,14 +1826,15 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 700;
           color: #0f172a;
-          line-height: 1.05;
+          line-height: 1.02;
+          padding: 0;
         }
 
         .project-title-input {
           font-weight: 700;
           font-size: 28px;
           color: #0f172a;
-          line-height: 1.05;
+          line-height: 1.02;
         }
 
         .project-nature {
@@ -1846,15 +1843,15 @@ const ProjectsShowContent = () => {
           font-weight: 500;
           font-style: italic;
           color: #475569;
-          line-height: 1.05;
-          margin: 0;
+          line-height: 1.02;
+          margin: 4px 0 0;
         }
 
         .project-nature-input {
           font-weight: 500;
           font-style: italic;
           color: #475569;
-          line-height: 1.05;
+          line-height: 1.02;
         }
 
         .subsidiary-chip {
@@ -1870,14 +1867,16 @@ const ProjectsShowContent = () => {
           line-height: 1;
           display: inline-flex;
           align-items: center;
+          width: max-content;
+          max-width: max-content;
         }
 
         .project-actions {
           display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-          align-self: flex-start;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 8px;
+          flex: 0 0 auto;
         }
 
         .project-edit {
@@ -2094,16 +2093,15 @@ const ProjectsShowContent = () => {
         }
 
         .billing-header {
-          display: flex;
-          flex-direction: column;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
           gap: 24px;
+          align-items: stretch;
         }
 
-        @media (min-width: 992px) {
+        @media (max-width: 991px) {
           .billing-header {
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: flex-start;
+            grid-template-columns: minmax(0, 1fr);
           }
         }
 
@@ -2111,21 +2109,16 @@ const ProjectsShowContent = () => {
           display: flex;
           flex-direction: column;
           gap: 16px;
-          flex: 1;
-        }
-
-        .billing-summary-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 24px;
-          align-items: center;
+          justify-content: flex-start;
+          height: 100%;
         }
 
         .client-panel {
           display: flex;
           flex-direction: column;
           gap: 12px;
-          min-width: 220px;
+          min-width: 0;
+          height: 100%;
         }
 
         .client-label {
@@ -2147,6 +2140,7 @@ const ProjectsShowContent = () => {
           align-items: center;
           gap: 12px;
           font-family: ${KARLA_FONT};
+          justify-items: start;
         }
 
         .invoice-row.head {
@@ -2166,11 +2160,7 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #0f172a;
-        }
-
-        .invoice-cell.align-right {
-          text-align: right;
-          justify-self: end;
+          text-align: left;
         }
 
         .invoice-cell.status {
@@ -2182,7 +2172,6 @@ const ProjectsShowContent = () => {
         .invoice-row.selectable-row {
           border: 1px solid transparent;
           border-radius: 16px;
-          background: #f8fafc;
           padding: 12px 16px;
           transition: border-color 0.2s ease, background 0.2s ease;
           cursor: pointer;
@@ -2190,6 +2179,7 @@ const ProjectsShowContent = () => {
 
         .invoice-row.selectable-row:hover {
           border-color: #cbd5f5;
+          background: #f8fafc;
         }
 
         .invoice-row.selectable-row.active {
@@ -2203,6 +2193,7 @@ const ProjectsShowContent = () => {
 
         .invoice-row.selectable-row.pending:hover {
           border-color: transparent;
+          background: transparent;
         }
 
         .invoice-row.selectable-row:focus-visible {
@@ -2212,12 +2203,11 @@ const ProjectsShowContent = () => {
 
         .invoice-row.total {
           border-radius: 16px;
-          background: #0f172a;
-          padding: 14px 16px;
+          padding: 12px 16px;
+          background: transparent;
         }
 
         .invoice-row.total .invoice-cell {
-          color: #ffffff;
           font-weight: 700;
         }
 
