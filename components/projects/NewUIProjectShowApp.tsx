@@ -1513,70 +1513,50 @@ const ProjectsShowContent = () => {
         <Card className="details-card billing-card" bordered={false}>
           <div className="billing-card-content">
             <div className="billing-header">
-              <div className="billing-summary-block">
-                <Title level={5} className="section-heading">
-                  Billing &amp; Payments
-                </Title>
-                <div className="billing-summary-grid">
-                  <div className="summary-item">
-                    <span className="summary-label">Project Total</span>
-                    <span className="summary-value">{amountText(projectTotalValue)}</span>
-                  </div>
-                  <div className="summary-item status">
-                    <span className="summary-label">Status</span>
-                    <Tag
-                      color={paidChipPalette.backgroundColor}
-                      className="status-chip"
-                      style={{ color: paidChipPalette.color }}
-                    >
-                      {paymentChipLabel(projectPaidState)}
-                    </Tag>
-                  </div>
-                  <div className="summary-item">
-                    <span className="summary-label">Paid On</span>
-                    <span className="summary-value">{totalPaidOnText}</span>
+            <div className="billing-summary-block">
+              <Title level={5} className="section-heading">
+                Billing &amp; Payments
+              </Title>
+              {showInvoiceSummaryNumber ? (
+                <div className="invoice-summary">
+                  <span className="summary-label">Invoice Number</span>
+                  <div
+                    className={`invoice-number-shell ${
+                      invoiceNumberPending ? "pending" : ""
+                    }`}
+                  >
+                    {invoiceNumberPending ? (
+                      showInvoiceNumberInput ? (
+                        <Input
+                          value={draftInvoice?.invoiceNumber ?? ""}
+                          onChange={(event) => handleInvoiceNumberInput(event.target.value)}
+                          onBlur={finalizeInvoiceNumberEdit}
+                          onKeyDown={handleInvoiceNumberKeyDown}
+                          autoFocus
+                          bordered={false}
+                          className="invoice-input"
+                          disabled={invoiceMode !== "create"}
+                        />
+                      ) : hasInvoices ? (
+                        <span className="invoice-number-pending">{formattedInvoiceNumber}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="invoice-number-edit"
+                          onClick={beginInvoiceNumberEdit}
+                        >
+                          {formattedInvoiceNumber}
+                        </button>
+                      )
+                    ) : (
+                      <span className="summary-value invoice-number-text">
+                        {formattedInvoiceNumber}
+                      </span>
+                    )}
                   </div>
                 </div>
-                {showInvoiceSummaryNumber ? (
-                  <div className="invoice-summary">
-                    <span className="summary-label">Invoice Number</span>
-                    <div
-                      className={`invoice-number-shell ${
-                        invoiceNumberPending ? "pending" : ""
-                      }`}
-                    >
-                      {invoiceNumberPending ? (
-                        showInvoiceNumberInput ? (
-                          <Input
-                            value={draftInvoice?.invoiceNumber ?? ""}
-                            onChange={(event) => handleInvoiceNumberInput(event.target.value)}
-                            onBlur={finalizeInvoiceNumberEdit}
-                            onKeyDown={handleInvoiceNumberKeyDown}
-                            autoFocus
-                            bordered={false}
-                            className="invoice-input"
-                            disabled={invoiceMode !== "create"}
-                          />
-                        ) : hasInvoices ? (
-                          <span className="invoice-number-pending">{formattedInvoiceNumber}</span>
-                        ) : (
-                          <button
-                            type="button"
-                            className="invoice-number-edit"
-                            onClick={beginInvoiceNumberEdit}
-                          >
-                            {formattedInvoiceNumber}
-                          </button>
-                        )
-                      ) : (
-                        <span className="summary-value invoice-number-text">
-                          {formattedInvoiceNumber}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+              ) : null}
+            </div>
               <div className="client-panel">
                 <span className="summary-label client-label">Client</span>
                 <div className="company-block">
@@ -1796,15 +1776,15 @@ const ProjectsShowContent = () => {
         .title-row {
           display: flex;
           justify-content: space-between;
-          align-items: stretch;
-          gap: 24px;
+          align-items: flex-start;
+          gap: 16px;
           flex-wrap: wrap;
         }
 
         .title-content {
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 2px;
           flex: 1 1 320px;
           max-width: 100%;
         }
