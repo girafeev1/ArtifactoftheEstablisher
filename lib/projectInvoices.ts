@@ -672,12 +672,20 @@ const determineInvoiceIds = (
   baseInvoiceNumber: string,
   existingIds: string[],
 ): { collectionId: string; invoiceNumber: string } => {
+  const legacyCollection = existingIds.find((id) => LEGACY_INVOICE_COLLECTION_IDS.has(id))
+  if (legacyCollection) {
+    return { collectionId: legacyCollection, invoiceNumber: baseInvoiceNumber }
+  }
+
+  if (existingIds.length === 0) {
+    // Preserve legacy structure so new invoices appear under the expected
+    // `invoice` collection unless a specific suffixed collection already
+    // exists for the project.
+    return { collectionId: "invoice", invoiceNumber: baseInvoiceNumber }
+  }
+
   const usedIndexes = new Set<number>()
   existingIds.forEach((id) => {
-    if (LEGACY_INVOICE_COLLECTION_IDS.has(id)) {
-      usedIndexes.add(0)
-      return
-    }
     const match = invoiceCollectionPattern.exec(id)
     if (!match) {
       return
