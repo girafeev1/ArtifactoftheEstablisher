@@ -1,5 +1,5 @@
 import { initializeFirestore, getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore'
-import { app } from './firebase'
+import { app, DIRECTORY_FIRESTORE_DATABASE_ID } from './firebase'
 
 export interface BankInfo {
   bankCode: string
@@ -19,9 +19,9 @@ export interface AccountInfo {
 
 export const dbDirectory = (() => {
   try {
-    return getFirestore(app, 'erl-directory')
+    return getFirestore(app, DIRECTORY_FIRESTORE_DATABASE_ID)
   } catch {
-    return initializeFirestore(app, {}, 'erl-directory')
+    return initializeFirestore(app, {}, DIRECTORY_FIRESTORE_DATABASE_ID)
   }
 })()
 

@@ -50,7 +50,8 @@
     "test:e2e:open": "cypress open",
     "migrate:projects": "node scripts/migrate-projects-db.js",
     "bank:build-lookup": "node scripts/build-bank-account-lookup.js",
-    "db:nest": "node scripts/restructure-projects-nest.js"
+    "db:nest": "node scripts/restructure-projects-nest.js",
+    "migrate:bank": "node scripts/migrate-bank-directory.js"
   },
   "author": "",
   "license": "ISC",
