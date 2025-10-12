@@ -47,7 +47,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test:e2e:ci": "cypress run --browser chrome --headless",
-    "test:e2e:open": "cypress open"
+    "test:e2e:open": "cypress open",
+    "migrate:projects": "node scripts/migrate-projects-db.js",
+    "bank:build-lookup": "node scripts/build-bank-account-lookup.js"
   },
   "author": "",
   "license": "ISC",

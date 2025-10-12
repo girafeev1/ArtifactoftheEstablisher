@@ -1,9 +1,4 @@
-import {
-  initializeFirestore,
-  getFirestore,
-  collection,
-  getDocs,
-} from 'firebase/firestore'
+import { initializeFirestore, getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore'
 import { app } from './firebase'
 
 export interface BankInfo {
@@ -37,22 +32,23 @@ export function normalizeCode(code: string | number): { code: string; raw: strin
   return { code: normalized, raw: `(${normalized})` }
 }
 
-export function buildAccountsPath(code: string | number): [string, string, string] {
-  const { raw } = normalizeCode(code)
-  return ['bankAccount', raw, 'accounts']
-}
-
 export async function listBanks(): Promise<BankInfo[]> {
   try {
     const snap = await getDocs(collection(dbDirectory, 'bankAccount'))
     const banks: BankInfo[] = []
     snap.docs.forEach((d) => {
       const data = d.data() as any
-      if (!Array.isArray(data.code)) return
-      data.code.forEach((c: any) => {
+      // In the actual directory, codes live as an array field and the bank name is the doc id.
+      const codes = Array.isArray(data.code) ? data.code : [data.code].filter(Boolean)
+      if (!codes.length) return
+      for (const c of codes) {
         const { code, raw } = normalizeCode(c)
-        banks.push({ bankCode: code, bankName: data.name || d.id, rawCodeSegment: raw })
-      })
+        banks.push({
+          bankCode: code,
+          bankName: data.name || d.id,
+          rawCodeSegment: raw,
+        })
+      }
     })
     return banks
   } catch (e) {
@@ -65,13 +61,12 @@ export async function listBanks(): Promise<BankInfo[]> {
 
 export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
   try {
-    const snap = await getDocs(
-      collection(dbDirectory, ...buildAccountsPath(bank.rawCodeSegment)),
-    )
+    // Actual structure:
+    // bankAccount/{bankName}/({code})/{identifier}
+    const snap = await getDocs(collection(dbDirectory, 'bankAccount', bank.bankName, bank.rawCodeSegment))
     return snap.docs.map((d) => {
       const data = d.data() as any
-      const number =
-        data.accountNumber || data.accountNo || data.acctNumber || data.number
+      const number = data.accountNumber || data.accountNo || data.acctNumber || data.number
       return { accountDocId: d.id, accountType: data.accountType, accountNumber: number }
     })
   } catch (e) {
@@ -93,21 +88,87 @@ export async function lookupAccount(
     }
   | null
 > {
+  // Fallback scan across banks/codes for the identifier
   const banks = await listBanks()
   for (const b of banks) {
-    const accounts = await listAccounts(b)
-    const match = accounts.find((a) => a.accountDocId === id)
-    if (match)
+    const ref = doc(dbDirectory, 'bankAccount', b.bankName, b.rawCodeSegment, id)
+    const snap = await getDoc(ref)
+    if (snap.exists()) {
+      const data = snap.data() as any
+      const number = data.accountNumber || data.accountNo || data.acctNumber || data.number
       return {
         bankName: b.bankName,
         bankCode: b.bankCode,
-        accountType: match.accountType,
-        accountNumber:
-          match.accountNumber ||
-          match.accountNo ||
-          match.acctNumber ||
-          match.number,
+        accountType: data.accountType,
+        accountNumber: number,
       }
+    }
+  }
+  return null
+}
+
+/**
+ * Resolve an invoice `paidTo` identifier into bank-account details efficiently.
+ * Strategy:
+ *   1) Try flat lookup: bankAccountLookup/{identifier}
+ *   2) Fallback: direct doc get across bankAccount/{bankName}/({code})/{identifier}
+ */
+export async function resolveBankAccountIdentifier(
+  identifier: string,
+): Promise<
+  | {
+      bankName: string
+      bankCode: string
+      path: string
+      accountType?: string
+      accountNumber?: string
+      fpsId?: string | null
+      fpsEmail?: string | null
+      status?: boolean | null
+    }
+  | null
+> {
+  // 1) Flat lookup (preferred)
+  try {
+    const flat = await getDoc(doc(dbDirectory, 'bankAccountLookup', identifier))
+    if (flat.exists()) {
+      const data = flat.data() as any
+      return {
+        bankName: data.bankName,
+        bankCode: data.bankCode,
+        path: typeof data.path === 'string' ? data.path : '',
+        accountType: data.accountType,
+        accountNumber: data.accountNumber,
+        fpsId: data['FPS ID'] || data.fpsId || null,
+        fpsEmail: data['FPS Email'] || data.fpsEmail || null,
+        status: typeof data.status === 'boolean' ? data.status : null,
+      }
+    }
+  } catch (e) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('bankAccountLookup read failed', e)
+    }
+  }
+
+  // 2) Fallback scan across banks/codes
+  const banks = await listBanks()
+  for (const b of banks) {
+    const ref = doc(dbDirectory, 'bankAccount', b.bankName, b.rawCodeSegment, identifier)
+    const snap = await getDoc(ref)
+    if (snap.exists()) {
+      const data = snap.data() as any
+      const number = data.accountNumber || data.accountNo || data.acctNumber || data.number
+      return {
+        bankName: b.bankName,
+        bankCode: b.bankCode,
+        path: `bankAccount/${b.bankName}/${b.rawCodeSegment}/${identifier}`,
+        accountType: data.accountType,
+        accountNumber: number,
+        fpsId: data['FPS ID'] || null,
+        fpsEmail: data['FPS Email'] || null,
+        status: typeof data.status === 'boolean' ? data.status : null,
+      }
+    }
   }
   return null
 }
