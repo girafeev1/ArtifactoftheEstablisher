@@ -2,7 +2,7 @@
 
 import { collection, getDocs } from 'firebase/firestore'
 
-import { getFirestoreForDatabase } from './firebase'
+import { DIRECTORY_FIRESTORE_DATABASE_ID, getFirestoreForDatabase } from './firebase'
 
 export interface BankAccountDirectoryRecord {
   bankName: string
@@ -68,7 +68,7 @@ const normalizeBankCodes = (raw: unknown): string[] => {
 }
 
 export const fetchBankAccountsDirectory = async (): Promise<BankAccountDirectoryRecord[]> => {
-  const directoryDb = getFirestoreForDatabase('erl-directory')
+  const directoryDb = getFirestoreForDatabase(DIRECTORY_FIRESTORE_DATABASE_ID)
   const bankSnapshot = await getDocs(collection(directoryDb, 'bankAccount'))
 
   const results: BankAccountDirectoryRecord[] = []
@@ -110,7 +110,7 @@ export const fetchBankAccountsDirectory = async (): Promise<BankAccountDirectory
         return
       }
 
-      const bankName = bankDoc.id
+      const bankName = bankNameField ?? bankDoc.id
 
       if (codes.length === 0) {
         results.push({
