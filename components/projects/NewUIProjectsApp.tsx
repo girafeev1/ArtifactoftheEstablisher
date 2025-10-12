@@ -114,7 +114,7 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
     return 1
   }
 
-  const mapValue = (row: ProjectRow, field: string): string | number | null => {
+  const mapValue = (row: ProjectRow, field: string): string | number | boolean | null => {
     switch (field) {
       case "projectDateIso": {
         const source = row.projectDateIso
@@ -131,10 +131,7 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
       case "amount":
         return row.amount ?? null
       case "paid":
-        if (typeof row.paid !== "boolean") {
-          return null
-        }
-        return row.paid ? 1 : 0
+        return typeof row.paid === "boolean" ? row.paid : null
       case "subsidiary":
         return row.subsidiary ?? null
       case "year":
@@ -144,7 +141,24 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
     }
   }
 
-  const compare = (aVal: ReturnType<typeof mapValue>, bVal: ReturnType<typeof mapValue>) => {
+  const compare = (
+    field: string,
+    aVal: ReturnType<typeof mapValue>,
+    bVal: ReturnType<typeof mapValue>,
+  ) => {
+    if (field === "paid") {
+      const rank = (value: ReturnType<typeof mapValue>) => {
+        if (value === null || value === undefined) {
+          return 1
+        }
+        return value === false ? 2 : 0
+      }
+      const diff = rank(aVal) - rank(bVal)
+      if (diff !== 0) {
+        return diff
+      }
+    }
+
     if (aVal === bVal) return 0
     if (aVal === null || aVal === undefined) return -1
     if (bVal === null || bVal === undefined) return 1
@@ -166,7 +180,7 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
     for (const sorter of activeSorters) {
       const field = sorter.field as string
       const order = resolveOrder(sorter.order as string | undefined)
-      const result = compare(mapValue(a, field), mapValue(b, field))
+      const result = compare(field, mapValue(a, field), mapValue(b, field))
       if (result !== 0) {
         return result * order
       }

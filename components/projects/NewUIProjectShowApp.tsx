@@ -134,6 +134,7 @@ type ProjectDraftState = {
   projectNature: string
   projectNumber: string
   projectDateIso: string | null
+  subsidiary: string
 }
 
 type InvoiceTableRow = {
@@ -366,6 +367,7 @@ const ProjectsShowContent = () => {
     projectNature: "",
     projectNumber: "",
     projectDateIso: null,
+    subsidiary: "",
   })
   const [invoiceNumberEditing, setInvoiceNumberEditing] = useState(false)
   const itemIdRef = useRef(0)
@@ -465,6 +467,7 @@ const ProjectsShowContent = () => {
       projectNature: project.projectNature ?? "",
       projectNumber: project.projectNumber ?? "",
       projectDateIso: project.projectDateIso ?? null,
+      subsidiary: project.subsidiary ?? "",
     })
   }, [project, projectEditMode])
 
@@ -646,6 +649,8 @@ const ProjectsShowContent = () => {
           ? totalPaidOnText !== "-" ? totalPaidOnText : null
           : paidOnFormatted !== "-" ? paidOnFormatted : null
 
+      const payToText = invoice.paidTo?.trim() ? invoice.paidTo : null
+
       return {
         invoiceNumber: isActiveRow && draftInvoice ? draftInvoice.invoiceNumber : invoice.invoiceNumber,
         pending: false,
@@ -654,6 +659,7 @@ const ProjectsShowContent = () => {
         statusLabel: derivedStatus ?? paymentChipLabel(paidFromStatus),
         statusColor,
         paidOnText,
+        payToText,
         collectionId: invoice.collectionId,
         index,
       }
@@ -668,6 +674,7 @@ const ProjectsShowContent = () => {
         statusLabel: draftInvoice.paymentStatus ?? "Draft",
         statusColor: statusToColorKey(draftInvoice.paymentStatus),
         paidOnText: null,
+        payToText: draftInvoice.client?.companyName ?? null,
         collectionId: draftInvoice.collectionId,
         index: invoices.length,
       })
@@ -781,6 +788,7 @@ const ProjectsShowContent = () => {
       projectNature: project.projectNature ?? "",
       projectNumber: project.projectNumber ?? "",
       projectDateIso: project.projectDateIso ?? null,
+      subsidiary: project.subsidiary ?? "",
     })
     setProjectEditMode("edit")
   }, [project])
@@ -794,6 +802,7 @@ const ProjectsShowContent = () => {
         projectNature: project.projectNature ?? "",
         projectNumber: project.projectNumber ?? "",
         projectDateIso: project.projectDateIso ?? null,
+        subsidiary: project.subsidiary ?? "",
       })
     }
   }, [project])
@@ -804,7 +813,8 @@ const ProjectsShowContent = () => {
         | "presenterWorkType"
         | "projectTitle"
         | "projectNature"
-        | "projectNumber",
+        | "projectNumber"
+        | "subsidiary",
       value: string,
     ) => {
       setProjectDraft((previous) => ({ ...previous, [field]: value }))
@@ -828,6 +838,7 @@ const ProjectsShowContent = () => {
     const trimmedTitle = projectDraft.projectTitle.trim()
     const trimmedNature = projectDraft.projectNature.trim()
     const trimmedNumber = projectDraft.projectNumber.trim()
+    const trimmedSubsidiary = projectDraft.subsidiary.trim()
 
     if (trimmedNumber.length === 0) {
       message.error("Project number is required")
@@ -855,11 +866,13 @@ const ProjectsShowContent = () => {
     const currentTitle = project.projectTitle?.trim() ?? ""
     const currentNature = project.projectNature?.trim() ?? ""
     const currentNumber = project.projectNumber?.trim() ?? ""
+    const currentSubsidiary = project.subsidiary?.trim() ?? ""
     const currentDateIso = normalizeIso(project.projectDateIso)
 
     const sanitizedPresenter = toNullableString(trimmedPresenter)
     const sanitizedTitle = toNullableString(trimmedTitle)
     const sanitizedNature = toNullableString(trimmedNature)
+    const sanitizedSubsidiary = toNullableString(trimmedSubsidiary)
 
     const updatesPayload: Record<string, unknown> = {}
 
@@ -875,6 +888,9 @@ const ProjectsShowContent = () => {
     if (currentNumber !== trimmedNumber) {
       updatesPayload.projectNumber = trimmedNumber
     }
+    if (currentSubsidiary !== trimmedSubsidiary) {
+      updatesPayload.subsidiary = sanitizedSubsidiary
+    }
     if (currentDateIso !== draftDateIso) {
       updatesPayload.projectDate = draftDateIso
     }
@@ -887,6 +903,7 @@ const ProjectsShowContent = () => {
         projectNature: project.projectNature ?? "",
         projectNumber: project.projectNumber ?? "",
         projectDateIso: project.projectDateIso ?? null,
+        subsidiary: project.subsidiary ?? "",
       })
       return
     }
@@ -935,6 +952,8 @@ const ProjectsShowContent = () => {
         const nextTitle = "projectTitle" in updatesPayload ? sanitizedTitle ?? null : previous.projectTitle
         const nextNature = "projectNature" in updatesPayload ? sanitizedNature ?? null : previous.projectNature
         const nextNumber = "projectNumber" in updatesPayload ? trimmedNumber : previous.projectNumber
+        const nextSubsidiary =
+          "subsidiary" in updatesPayload ? sanitizedSubsidiary ?? null : previous.subsidiary
         const nextDateIso =
           "projectDate" in updatesPayload ? draftDateIso : previous.projectDateIso ?? null
         const nextDateDisplay =
@@ -944,7 +963,7 @@ const ProjectsShowContent = () => {
           nextNumber,
           nextTitle ?? "",
           previous.clientCompany ?? "",
-          previous.subsidiary ?? "",
+          nextSubsidiary ?? "",
           previous.invoice ?? "",
           nextNature ?? "",
           nextPresenter ?? "",
@@ -960,6 +979,7 @@ const ProjectsShowContent = () => {
           projectNumber: nextNumber,
           projectDateIso: nextDateIso,
           projectDateDisplay: nextDateDisplay,
+          subsidiary: nextSubsidiary,
           searchIndex: nextSearchIndex,
         }
       })
@@ -971,6 +991,7 @@ const ProjectsShowContent = () => {
         projectNature: sanitizedNature ?? "",
         projectNumber: trimmedNumber,
         projectDateIso: draftDateIso,
+        subsidiary: sanitizedSubsidiary ?? "",
       })
       message.success("Project updated")
     } catch (error) {
@@ -1593,8 +1614,18 @@ const ProjectsShowContent = () => {
                 ) : (
                   <Text className="project-nature">{stringOrNA(project.projectNature)}</Text>
                 )}
-                {project.subsidiary ? (
-                  <Tag className="subsidiary-chip" style={{ width: "fit-content" }}>
+                {isProjectEditing ? (
+                  <Input
+                    value={projectDraft.subsidiary}
+                    onChange={(event) => handleProjectDraftChange("subsidiary", event.target.value)}
+                    placeholder="Subsidiary"
+                    bordered={false}
+                    className="subsidiary-input"
+                    disabled={projectEditSaving}
+                    style={{ width: "100%", maxWidth: 360 }}
+                  />
+                ) : project.subsidiary ? (
+                  <Tag className="subsidiary-chip">
                     {stringOrNA(project.subsidiary)}
                   </Tag>
                 ) : null}
@@ -1629,7 +1660,8 @@ const ProjectsShowContent = () => {
                     <span className="invoice-cell heading">Invoice #</span>
                     <span className="invoice-cell heading">Amount</span>
                     <span className="invoice-cell heading">Status</span>
-                    <span className="invoice-cell heading">Paid On</span>
+                    <span className="invoice-cell heading">To</span>
+                    <span className="invoice-cell heading">On</span>
                   </div>
                   {invoiceEntries.length > 0 ? (
                     invoiceEntries.map((entry, index) => {
@@ -1722,6 +1754,7 @@ const ProjectsShowContent = () => {
                               </Tag>
                             )}
                           </div>
+                          <div className="invoice-cell pay-to">{entry.payToText ?? "-"}</div>
                           <div className="invoice-cell paid-on">{entry.paidOnText ?? "-"}</div>
                         </div>
                       )
@@ -1734,6 +1767,7 @@ const ProjectsShowContent = () => {
                       <span className="invoice-cell number total-label">Total:</span>
                       <span className="invoice-cell amount">{amountText(projectTotalValue)}</span>
                       <span className="invoice-cell status total-status">{totalStatusLabel}</span>
+                      <span className="invoice-cell pay-to">-</span>
                       <span className="invoice-cell paid-on">{totalPaidOnText}</span>
                     </div>
                   ) : null}
@@ -2017,6 +2051,10 @@ const ProjectsShowContent = () => {
 
         .nature-row.editing {
           align-items: flex-start;
+        }
+
+        .subsidiary-input {
+          font-family: ${KARLA_FONT};
         }
 
         .subsidiary-chip {
@@ -2313,10 +2351,12 @@ const ProjectsShowContent = () => {
 
         .invoice-row {
           display: grid;
-          grid-template-columns: minmax(140px, 1.2fr) minmax(120px, 0.8fr) minmax(140px, 1fr) minmax(
-              140px,
-              1fr
-            );
+          grid-template-columns:
+            minmax(160px, 1.2fr)
+            minmax(120px, 0.8fr)
+            minmax(140px, 1fr)
+            minmax(160px, 1.1fr)
+            minmax(120px, 0.8fr);
           align-items: center;
           gap: 12px;
           font-family: ${KARLA_FONT};
@@ -2357,6 +2397,11 @@ const ProjectsShowContent = () => {
           display: flex;
           align-items: center;
           gap: 8px;
+        }
+
+        .invoice-cell.pay-to {
+          font-style: italic;
+          color: #475569;
         }
 
         .invoice-edit-trigger {
@@ -2495,12 +2540,14 @@ const ProjectsShowContent = () => {
           display: flex;
           flex-direction: column;
           gap: 4px;
+          align-items: flex-start;
         }
 
         .item-title-text {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #0f172a;
+          display: block;
         }
 
         .item-fee-type {
@@ -2508,6 +2555,8 @@ const ProjectsShowContent = () => {
           font-weight: 600;
           color: #4b5563;
           letter-spacing: 0.02em;
+          display: block;
+          white-space: normal;
         }
 
         .item-edit {
