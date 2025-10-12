@@ -6,6 +6,30 @@ const API_TIMEOUT_MS = 15000
 
 const alphabet = "abcdefghijklmnopqrstuvwxyz"
 
+// New nested layout (preferred):
+// projects/{year}/projects/{projectId}
+const PROJECTS_ROOT = "projects"
+const PROJECTS_SUBCOLLECTION = "projects"
+
+const POSITIVE_PAYMENT_STATUSES = new Set([
+  "paid",
+  "cleared",
+  "received",
+  "complete",
+  "completed",
+  "settled",
+])
+
+const NEGATIVE_PAYMENT_STATUSES = new Set([
+  "unpaid",
+  "due",
+  "pending",
+  "outstanding",
+  "draft",
+  "incomplete",
+  "awaiting",
+])
+
 const invoiceCollectionPattern = /^invoice-([a-z]+)$/
 const legacyInvoiceDocumentIdPattern = /^#?\d{4}-\d{3}-\d{4}(?:-?[a-z]+)?$/i
 const LEGACY_INVOICE_COLLECTION_IDS = new Set(["Invoice", "invoice"])
@@ -69,6 +93,98 @@ const toIsoString = (value: unknown): string | null => {
   return null
 }
 
+const toBooleanValue = (value: unknown): boolean | null => {
+  if (typeof value === "boolean") {
+    return value
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase()
+    if (!normalized) {
+      return null
+    }
+    if (["true", "yes", "paid", "cleared", "1"].includes(normalized)) {
+      return true
+    }
+    if (["false", "no", "unpaid", "due", "0", "pending"].includes(normalized)) {
+      return false
+    }
+  }
+  return null
+}
+
+const formatDisplayDate = (date: Date) =>
+  date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  })
+
+const toDisplayDate = (value: unknown): string | null => {
+  const iso = toIsoString(value)
+  if (iso) {
+    const parsed = new Date(iso)
+    if (!Number.isNaN(parsed.getTime())) {
+      return formatDisplayDate(parsed)
+    }
+  }
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return null
+    }
+    return formatDisplayDate(value)
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+      return null
+    }
+    const parsed = new Date(trimmed)
+    if (!Number.isNaN(parsed.getTime())) {
+      return formatDisplayDate(parsed)
+    }
+    return trimmed
+  }
+
+  return null
+}
+
+const resolvePaidFlag = (value: unknown, status: string | null): boolean | null => {
+  const direct = toBooleanValue(value)
+  if (direct !== null) {
+    return direct
+  }
+  if (!status) {
+    return null
+  }
+  const normalized = status.trim().toLowerCase()
+  if (POSITIVE_PAYMENT_STATUSES.has(normalized)) {
+    return true
+  }
+  if (NEGATIVE_PAYMENT_STATUSES.has(normalized)) {
+    return false
+  }
+  return null
+}
+
+const sanitizePaymentStatus = (status: string | null, paid: boolean | null): string | null => {
+  if (status) {
+    const trimmed = status.trim()
+    if (trimmed.length === 0) {
+      return null
+    }
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+  }
+  if (paid === true) {
+    return "Cleared"
+  }
+  if (paid === false) {
+    return "Due"
+  }
+  return null
+}
+
 const indexToLetters = (index: number) => {
   if (index < 0) {
     throw new Error("Index must be non-negative")
@@ -114,7 +230,13 @@ const listInvoiceCollectionIds = async (year: string, projectId: string): Promis
     return []
   }
 
-  const url = `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
+  // Try nested document path first: projects/{year}/projects/{projectId}
+  const nestedUrl = `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
+    PROJECTS_ROOT,
+  )}/${encodeURIComponent(year)}/${encodeURIComponent(PROJECTS_SUBCOLLECTION)}/${encodeURIComponent(
+    projectId,
+  )}:listCollectionIds?key=${apiKey}`
+  const legacyUrl = `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
     year,
   )}/${encodeURIComponent(projectId)}:listCollectionIds?key=${apiKey}`
 
@@ -122,12 +244,25 @@ const listInvoiceCollectionIds = async (year: string, projectId: string): Promis
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
 
-    const response = await fetch(url, {
+    let response = await fetch(nestedUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pageSize: 200 }),
       signal: controller.signal,
     })
+    // If nested path fails (404), try legacy
+    if (!response.ok) {
+      try {
+        response = await fetch(legacyUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pageSize: 200 }),
+          signal: controller.signal,
+        })
+      } catch {
+        // swallow; we'll handle below
+      }
+    }
 
     clearTimeout(timeout)
 
@@ -182,9 +317,37 @@ export interface ProjectInvoiceRecord {
   taxOrDiscountPercent: number | null
   total: number | null
   amount: number | null
+  paid: boolean | null
+  paidOnIso: string | null
+  paidOnDisplay: string | null
+  paidTo: string | null
+  paymentStatus: string | null
   items: ProjectInvoiceItemRecord[]
   createdAt?: string | null
   updatedAt?: string | null
+}
+
+const computeRecordLineTotal = (item: ProjectInvoiceItemRecord) => {
+  const unitPrice = toNumberValue(item.unitPrice) ?? 0
+  const quantity = toNumberValue(item.quantity) ?? 0
+  const discount = toNumberValue(item.discount) ?? 0
+  const total = unitPrice * quantity - discount
+  return total > 0 ? total : 0
+}
+
+const computeRecordSubtotal = (items: ProjectInvoiceItemRecord[]) =>
+  items.reduce((sum, item) => sum + computeRecordLineTotal(item), 0)
+
+const computeRecordTotals = (
+  items: ProjectInvoiceItemRecord[],
+  taxOrDiscountPercent: number | null | undefined,
+) => {
+  const subtotal = computeRecordSubtotal(items)
+  if (taxOrDiscountPercent === null || taxOrDiscountPercent === undefined) {
+    return { subtotal, total: subtotal }
+  }
+  const adjustment = subtotal * (taxOrDiscountPercent / 100)
+  return { subtotal, total: subtotal + adjustment }
 }
 
 const buildItemsFromData = (data: Record<string, unknown>): ProjectInvoiceItemRecord[] => {
@@ -240,9 +403,37 @@ const buildInvoiceRecord = (
     }
   }
 
-  const subtotal = toNumberValue(data.subtotal) ?? null
+  const items = buildItemsFromData(data)
   const taxOrDiscountPercent = toNumberValue(data.taxOrDiscountPercent) ?? null
-  const total = toNumberValue(data.total) ?? subtotal
+  const aggregates = computeRecordTotals(items, taxOrDiscountPercent)
+  const subtotal = toNumberValue(data.subtotal) ?? aggregates.subtotal
+  const total = toNumberValue(data.total) ?? aggregates.total
+  const amount = toNumberValue(data.amount) ?? total
+  const rawPaymentStatus = toStringValue(
+    data.paymentStatus ??
+      data.status ??
+      data.invoiceStatus ??
+      data.payment_status ??
+      data.paymentStatusLabel ??
+      null,
+  )
+  const paid = resolvePaidFlag(
+    data.paid ?? data.paymentReceived ?? data.invoicePaid ?? data.paymentComplete,
+    rawPaymentStatus,
+  )
+  const paidOnSource =
+    data.paidOn ??
+    data.paidOnDate ??
+    data.paymentReceivedOn ??
+    data.paymentDate ??
+    data.onDate ??
+    data.paidDate ??
+    data.receivedOn
+  const paidOnIso = toIsoString(paidOnSource)
+  const paidOnDisplay =
+    toDisplayDate(data.paidOnDisplay ?? paidOnSource) ?? (paidOnIso ? toDisplayDate(paidOnIso) : null)
+  const paidTo = toStringValue(data.paidTo ?? data.paymentRecipient ?? data.payTo)
+  const paymentStatus = sanitizePaymentStatus(rawPaymentStatus, paid)
 
   return {
     collectionId,
@@ -258,8 +449,13 @@ const buildInvoiceRecord = (
     subtotal,
     taxOrDiscountPercent,
     total,
-    amount: total,
-    items: buildItemsFromData(data),
+    amount,
+    paid,
+    paidOnIso,
+    paidOnDisplay,
+    paidTo,
+    paymentStatus,
+    items,
     createdAt: toIsoString(data.createdAt),
     updatedAt: toIsoString(data.updatedAt),
   }
@@ -281,7 +477,17 @@ export const fetchInvoicesForProject = async (
   year: string,
   projectId: string,
 ): Promise<ProjectInvoiceRecord[]> => {
-  const projectRef = doc(projectsDb, year, projectId)
+  // Prefer nested doc; fallback to legacy path
+  const nestedRef = doc(projectsDb, PROJECTS_ROOT, year, PROJECTS_SUBCOLLECTION, projectId)
+  let projectRef = nestedRef
+  try {
+    const exists = await getDoc(nestedRef)
+    if (!exists.exists()) {
+      projectRef = doc(projectsDb, year, projectId)
+    }
+  } catch {
+    projectRef = doc(projectsDb, year, projectId)
+  }
 
   const listedIds = await listInvoiceCollectionIds(year, projectId).catch((error) => {
     console.warn("[projectInvoices] listInvoiceCollectionIds failed", { error })
@@ -354,6 +560,9 @@ interface InvoiceWritePayload {
   client: InvoiceClientPayload
   items: InvoiceItemPayload[]
   taxOrDiscountPercent: number | null
+  paymentStatus: string | null
+  paidTo?: string | null
+  paidOn?: unknown
 }
 
 const sanitizeClientPayload = (client: InvoiceClientPayload) => ({
@@ -387,28 +596,10 @@ const sanitizeItemsPayload = (items: InvoiceItemPayload[]): InvoiceItemPayload[]
       item.title.length > 0 || item.feeType.length > 0 || item.unitPrice > 0 || item.quantity > 0,
     )
 
-const computeSubtotal = (items: InvoiceItemPayload[]) =>
-  items.reduce((total, item) => {
-    const line = item.unitPrice * item.quantity - item.discount
-    return total + (line > 0 ? line : 0)
-  }, 0)
-
-const computeTotals = (
-  items: InvoiceItemPayload[],
-  taxOrDiscountPercent: number | null,
-): { subtotal: number; total: number } => {
-  const subtotal = computeSubtotal(items)
-  if (taxOrDiscountPercent === null || Number.isNaN(taxOrDiscountPercent)) {
-    return { subtotal, total: subtotal }
-  }
-  const adjustment = subtotal * (taxOrDiscountPercent / 100)
-  const total = subtotal + adjustment
-  return { subtotal, total }
-}
-
 const buildInvoiceWritePayload = (
   payload: InvoiceWritePayload,
   existingItemCount = 0,
+  options?: { removeAggregates?: boolean },
 ) => {
   const client = sanitizeClientPayload(payload.client)
   const items = sanitizeItemsPayload(payload.items)
@@ -416,7 +607,7 @@ const buildInvoiceWritePayload = (
     payload.taxOrDiscountPercent !== null && !Number.isNaN(payload.taxOrDiscountPercent)
       ? payload.taxOrDiscountPercent
       : null
-  const { subtotal, total } = computeTotals(items, taxOrDiscountPercent)
+  const paymentStatus = toStringValue(payload.paymentStatus) ?? null
 
   const result: Record<string, unknown> = {
     baseInvoiceNumber: payload.baseInvoiceNumber,
@@ -427,10 +618,26 @@ const buildInvoiceWritePayload = (
     region: client.region,
     representative: client.representative,
     itemsCount: items.length,
-    subtotal,
     taxOrDiscountPercent,
-    total,
-    amount: total,
+    paymentStatus,
+  }
+
+  // Optional: paidTo (identifier) and paidOn (date)
+  if (typeof payload.paidTo === "string") {
+    const trimmed = payload.paidTo.trim()
+    result.paidTo = trimmed.length > 0 ? trimmed : null
+  } else if (payload.paidTo === null) {
+    result.paidTo = null
+  }
+
+  const paidOnIso = toIsoString(payload.paidOn as any)
+  if (paidOnIso) {
+    const dt = new Date(paidOnIso)
+    if (!Number.isNaN(dt.getTime())) {
+      result.paidOn = dt
+    }
+  } else if (payload.paidOn === null) {
+    result.paidOn = null
   }
 
   items.forEach((item, index) => {
@@ -448,6 +655,12 @@ const buildInvoiceWritePayload = (
     result[`item${index}UnitPrice`] = deleteField()
     result[`item${index}Quantity`] = deleteField()
     result[`item${index}Discount`] = deleteField()
+  }
+
+  if (options?.removeAggregates) {
+    result.subtotal = deleteField()
+    result.total = deleteField()
+    result.amount = deleteField()
   }
 
   return result
@@ -505,7 +718,16 @@ export const createInvoiceForProject = async (
     existingCollections,
   )
 
-  const projectRef = doc(projectsDb, input.year, input.projectId)
+  // Create under nested doc; if it doesn't exist yet, fallback to legacy doc
+  let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
+  try {
+    const exists = await getDoc(projectRef)
+    if (!exists.exists()) {
+      projectRef = doc(projectsDb, input.year, input.projectId)
+    }
+  } catch {
+    projectRef = doc(projectsDb, input.year, input.projectId)
+  }
   const collectionRef = collection(projectRef, collectionId)
   const documentRef = doc(collectionRef, invoiceNumber)
 
@@ -514,6 +736,7 @@ export const createInvoiceForProject = async (
     client: input.client,
     items: input.items,
     taxOrDiscountPercent: input.taxOrDiscountPercent,
+    paymentStatus: input.paymentStatus,
   })
 
   payload.invoiceNumber = invoiceNumber
@@ -541,7 +764,16 @@ export interface UpdateInvoiceInput extends InvoiceWritePayload {
 export const updateInvoiceForProject = async (
   input: UpdateInvoiceInput,
 ): Promise<ProjectInvoiceRecord> => {
-  const projectRef = doc(projectsDb, input.year, input.projectId)
+  // Prefer nested; fallback to legacy path
+  let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
+  try {
+    const exists = await getDoc(projectRef)
+    if (!exists.exists()) {
+      projectRef = doc(projectsDb, input.year, input.projectId)
+    }
+  } catch {
+    projectRef = doc(projectsDb, input.year, input.projectId)
+  }
   const collectionRef = collection(projectRef, input.collectionId)
   const documentRef = doc(collectionRef, input.invoiceNumber)
 
@@ -559,8 +791,10 @@ export const updateInvoiceForProject = async (
       client: input.client,
       items: input.items,
       taxOrDiscountPercent: input.taxOrDiscountPercent,
+      paymentStatus: input.paymentStatus,
     },
     existingCount,
+    { removeAggregates: true },
   )
 
   payload.updatedAt = serverTimestamp()

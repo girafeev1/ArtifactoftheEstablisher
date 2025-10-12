@@ -22,7 +22,6 @@ import {
   Tooltip,
   Typography,
 } from "antd"
-import type { FormInstance } from "antd/es/form"
 import { EyeOutlined, SearchOutlined } from "@ant-design/icons"
 import debounce from "lodash.debounce"
 
@@ -101,7 +100,21 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
     return rows
   }
 
-  const mapValue = (row: ProjectRow, field: string): string | number | null => {
+  const resolveOrder = (value: string | undefined) => {
+    if (!value) {
+      return 1
+    }
+    const normalized = value.toLowerCase()
+    if (normalized === "asc" || normalized === "ascend") {
+      return 1
+    }
+    if (normalized === "desc" || normalized === "descend") {
+      return -1
+    }
+    return 1
+  }
+
+  const mapValue = (row: ProjectRow, field: string): string | number | boolean | null => {
     switch (field) {
       case "projectDateIso": {
         const source = row.projectDateIso
@@ -118,10 +131,7 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
       case "amount":
         return row.amount ?? null
       case "paid":
-        if (typeof row.paid !== "boolean") {
-          return null
-        }
-        return row.paid ? 1 : 0
+        return typeof row.paid === "boolean" ? row.paid : null
       case "subsidiary":
         return row.subsidiary ?? null
       case "year":
@@ -131,7 +141,24 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
     }
   }
 
-  const compare = (aVal: ReturnType<typeof mapValue>, bVal: ReturnType<typeof mapValue>) => {
+  const compare = (
+    field: string,
+    aVal: ReturnType<typeof mapValue>,
+    bVal: ReturnType<typeof mapValue>,
+  ) => {
+    if (field === "paid") {
+      const rank = (value: ReturnType<typeof mapValue>) => {
+        if (value === null || value === undefined) {
+          return 1
+        }
+        return value === false ? 2 : 0
+      }
+      const diff = rank(aVal) - rank(bVal)
+      if (diff !== 0) {
+        return diff
+      }
+    }
+
     if (aVal === bVal) return 0
     if (aVal === null || aVal === undefined) return -1
     if (bVal === null || bVal === undefined) return 1
@@ -152,8 +179,8 @@ const applySorting = (rows: ProjectRow[], sorters?: CrudSorting) => {
   return [...rows].sort((a, b) => {
     for (const sorter of activeSorters) {
       const field = sorter.field as string
-      const order = sorter.order === "asc" ? 1 : -1
-      const result = compare(mapValue(a, field), mapValue(b, field))
+      const order = resolveOrder(sorter.order as string | undefined)
+      const result = compare(field, mapValue(a, field), mapValue(b, field))
       if (result !== 0) {
         return result * order
       }
@@ -193,7 +220,7 @@ const refineDataProvider: DataProvider = {
       }
     }
 
-    const needsSelection = !year || !subsidiaryFilter
+    const needsSelection = !year
 
     if (needsSelection) {
       const metadataParams = new URLSearchParams()
@@ -347,8 +374,7 @@ const paymentTagStyles: Record<string, { backgroundColor: string; color: string 
 }
 
 const ProjectsContent = () => {
-  const [rawFiltersForm] = Form.useForm()
-  const filtersForm = rawFiltersForm as FormInstance<ProjectFiltersForm>
+  const [filtersForm] = Form.useForm()
   const screens = Grid.useBreakpoint()
   const { message } = AntdApp.useApp()
   const router = useRouter()
@@ -407,7 +433,7 @@ const ProjectsContent = () => {
   const selectionRequired = Boolean(
     (tableQuery?.data?.meta as { requiresSelection?: boolean } | undefined)?.requiresSelection,
   )
-  const hasActiveSelection = Boolean(activeYear && activeSubsidiary)
+  const hasActiveSelection = Boolean(activeYear)
 
   useEffect(() => {
     filtersForm.setFieldsValue({
@@ -439,18 +465,27 @@ const ProjectsContent = () => {
 
   useEffect(() => () => debouncedSearch.cancel(), [debouncedSearch])
 
-  const updateFilter = (field: string, value: string | undefined) => {
-    setCurrentPage(1)
-    setFilters((previous: any[]) => {
-      const base = (previous ?? []).filter(
-        (entry: any) => !(entry && typeof entry === "object" && entry.field === field),
-      )
-      if (!value || value.trim().length === 0) {
-        return base
-      }
-      return [...base, { field, operator: field === "search" ? "contains" : "eq", value }]
-    })
-  }
+  const updateFilter = useCallback(
+    (field: string, value: string | undefined) => {
+      setCurrentPage(1)
+      setFilters((previous: any[]) => {
+        const base = (previous ?? []).filter(
+          (entry: any) => !(entry && typeof entry === "object" && entry.field === field),
+        )
+        if (!value || value.trim().length === 0) {
+          return base
+        }
+        return [...base, { field, operator: field === "search" ? "contains" : "eq", value }]
+      })
+    },
+    [setCurrentPage, setFilters],
+  )
+
+  useEffect(() => {
+    if (!activeYear && availableYears.length > 0 && selectionRequired) {
+      updateFilter("year", availableYears[0])
+    }
+  }, [activeYear, availableYears, selectionRequired, updateFilter])
 
   const handleYearChange = (value: string | undefined) => {
     updateFilter("year", value)
@@ -663,10 +698,7 @@ const ProjectsContent = () => {
               borderRadius: 16,
             }}
           >
-            <Empty
-              description="Select a year and subsidiary to load projects."
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
+            <Empty description="Select a year to load projects." image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </div>
         ) : (
           <Table<ProjectRow>

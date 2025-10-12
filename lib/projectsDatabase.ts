@@ -17,6 +17,11 @@ import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from './firebase'
 const YEAR_ID_PATTERN = /^\d{4}$/
 const FALLBACK_YEAR_IDS = ['2025', '2024', '2023', '2022', '2021']
 
+// New nested layout (preferred):
+// projects/{year}/projects/{projectId}
+const PROJECTS_ROOT = 'projects'
+const PROJECTS_SUBCOLLECTION = 'projects'
+
 interface ListCollectionIdsResponse {
   collectionIds?: string[]
   error?: { message?: string }
@@ -184,6 +189,22 @@ const uniqueSortedYears = (values: Iterable<string>) =>
   )
 
 const listYearCollections = async (): Promise<string[]> => {
+  // Try preferred nested layout first: projects/{year}/projects/{projectId}
+  try {
+    const yearsSnap = await getDocs(collection(projectsDb, PROJECTS_ROOT))
+    const nestedYears =
+      yearsSnap.docs
+        .map((d) => d.id)
+        .filter((id) => YEAR_ID_PATTERN.test(id))
+        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true })) ?? []
+    if (nestedYears.length > 0) {
+      return nestedYears
+    }
+  } catch (e) {
+    // continue to fallback
+    console.warn('[projectsDatabase] nested year discovery failed, falling back', e)
+  }
+
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
 
@@ -234,13 +255,28 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
 
   await Promise.all(
     yearIds.map(async (year) => {
-      const snapshot = await getDocs(collection(projectsDb, year))
-      snapshot.forEach((doc) => {
-        const data = doc.data() as Record<string, unknown>
-        projects.push(buildProjectRecord(year, doc.id, data))
-
-        yearsWithData.add(year)
-      })
+      // Prefer nested layout
+      let snapshot
+      try {
+        snapshot = await getDocs(collection(projectsDb, PROJECTS_ROOT, year, PROJECTS_SUBCOLLECTION))
+      } catch {
+        snapshot = null as any
+      }
+      if (snapshot && !snapshot.empty) {
+        snapshot.forEach((doc) => {
+          const data = doc.data() as Record<string, unknown>
+          projects.push(buildProjectRecord(year, doc.id, data))
+          yearsWithData.add(year)
+        })
+      } else {
+        // Fallback: legacy root-level year collections
+        const legacy = await getDocs(collection(projectsDb, year))
+        legacy.forEach((doc) => {
+          const data = doc.data() as Record<string, unknown>
+          projects.push(buildProjectRecord(year, doc.id, data))
+          yearsWithData.add(year)
+        })
+      }
     })
   )
 
@@ -331,10 +367,14 @@ export const createProjectInDatabase = async ({
     throw new Error('Project number is required')
   }
 
-  const projectsCollection = collection(projectsDb, trimmedYear)
-  const projectRef = doc(projectsCollection, projectNumber)
-  const existing = await getDoc(projectRef)
-  if (existing.exists()) {
+  // Write under nested path; ensure we don't collide with existing
+  const nestedCollection = collection(projectsDb, PROJECTS_ROOT, trimmedYear, PROJECTS_SUBCOLLECTION)
+  const projectRef = doc(nestedCollection, projectNumber)
+  const [nestedExisting, legacyExisting] = await Promise.all([
+    getDoc(projectRef),
+    getDoc(doc(projectsDb, trimmedYear, projectNumber)),
+  ])
+  if (nestedExisting.exists() || legacyExisting.exists()) {
     throw new Error('A project with this number already exists')
   }
 
@@ -432,8 +472,13 @@ export const updateProjectInDatabase = async ({
     throw new Error('Invalid year identifier provided')
   }
 
-  const projectRef = doc(projectsDb, trimmedYear, projectId)
-  const snapshot = await getDoc(projectRef)
+  // Prefer nested doc; fallback to legacy path
+  const nestedRef = doc(projectsDb, PROJECTS_ROOT, trimmedYear, PROJECTS_SUBCOLLECTION, projectId)
+  let snapshot = await getDoc(nestedRef)
+  const projectRef = snapshot.exists() ? nestedRef : doc(projectsDb, trimmedYear, projectId)
+  if (!snapshot.exists()) {
+    snapshot = await getDoc(projectRef)
+  }
   if (!snapshot.exists()) {
     throw new Error('Project record not found')
   }

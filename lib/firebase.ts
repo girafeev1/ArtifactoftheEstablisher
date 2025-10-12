@@ -13,7 +13,12 @@ const firebaseEnvConfig = {
 }
 
 const DEFAULT_DATABASE_ID = 'mel-sessions'
-const PROJECTS_DATABASE_ID = 'epl-projects'
+// Allow overriding the projects database via environment for easy migration/switching
+const PROJECTS_DATABASE_ID =
+  process.env.NEXT_PUBLIC_PROJECTS_FIRESTORE_DATABASE_ID?.trim() || 'epl-projects'
+// Allow overriding the directory (bank accounts) database; default to legacy 'erl-directory'
+const DIRECTORY_DATABASE_ID =
+  process.env.NEXT_PUBLIC_DIRECTORY_FIRESTORE_DATABASE_ID?.trim() || 'erl-directory'
 
 type FirebaseEnvSnapshot = {
   NEXT_PUBLIC_FIREBASE_API_KEY: string | null
@@ -49,6 +54,7 @@ export const getFirebaseDiagnosticsSnapshot = () => ({
   databaseIds: {
     default: DEFAULT_DATABASE_ID,
     projects: PROJECTS_DATABASE_ID,
+    directory: DIRECTORY_DATABASE_ID,
   },
 })
 
@@ -127,6 +133,7 @@ export const app = createFirebaseApp()
 export const db = getFirestore(app, DEFAULT_DATABASE_ID)
 export const projectsDb = getFirestore(app, PROJECTS_DATABASE_ID)
 export const PROJECTS_FIRESTORE_DATABASE_ID = PROJECTS_DATABASE_ID
+export const DIRECTORY_FIRESTORE_DATABASE_ID = DIRECTORY_DATABASE_ID
 export const getFirestoreForDatabase = (databaseId: string) => getFirestore(app, databaseId)
 // after you create/export `db`...
 if (typeof window !== 'undefined') {
