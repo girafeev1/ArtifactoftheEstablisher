@@ -694,7 +694,8 @@ const ProjectsShowContent = () => {
           ? totalPaidOnText !== "-" ? totalPaidOnText : null
           : paidOnFormatted !== "-" ? paidOnFormatted : null
 
-      const payToText = invoice.paidTo?.trim() ? invoice.paidTo : null
+      const paidToIdentifier = invoice.paidTo && invoice.paidTo.trim().length > 0 ? invoice.paidTo.trim() : null
+      const payToInfo = paidToIdentifier ? bankInfoMap[paidToIdentifier] ?? null : null
 
       return {
         invoiceNumber: isActiveRow && draftInvoice ? draftInvoice.invoiceNumber : invoice.invoiceNumber,
@@ -704,13 +705,18 @@ const ProjectsShowContent = () => {
         statusLabel: derivedStatus ?? paymentChipLabel(paidFromStatus),
         statusColor,
         paidOnText,
-        payToText,
+        payToText: paidToIdentifier,
+        payToInfo,
         collectionId: invoice.collectionId,
         index,
       }
     })
 
     if (invoiceMode === "create" && draftInvoice) {
+      const pendingIdentifier =
+        draftInvoice.paidTo && draftInvoice.paidTo.trim().length > 0
+          ? draftInvoice.paidTo.trim()
+          : null
       entries.push({
         invoiceNumber: draftInvoice.invoiceNumber,
         pending: true,
@@ -719,7 +725,8 @@ const ProjectsShowContent = () => {
         statusLabel: draftInvoice.paymentStatus ?? "Draft",
         statusColor: statusToColorKey(draftInvoice.paymentStatus),
         paidOnText: null,
-        payToText: draftInvoice.client?.companyName ?? null,
+        payToText: pendingIdentifier ?? draftInvoice.client?.companyName ?? null,
+        payToInfo: pendingIdentifier ? bankInfoMap[pendingIdentifier] ?? null : null,
         collectionId: draftInvoice.collectionId,
         index: invoices.length,
       })
@@ -1407,30 +1414,33 @@ const ProjectsShowContent = () => {
           }
 
           if (!isEditingInvoice) {
+            const title = record.title?.trim() ? record.title : "N/A"
+            const description = record.feeType?.trim() ? record.feeType.trim() : null
             return (
               <div className="item-display">
-                <span className="item-title-text">{record.title?.trim() ? record.title : "N/A"}</span>
-                {record.feeType?.trim() ? (
-                  <span className="item-fee-type">{record.feeType}</span>
-                ) : null}
+                <span className="item-title-text">{title}</span>
+                {description ? <span className="item-description">{description}</span> : null}
               </div>
             )
           }
 
           return (
             <div className="item-edit">
-              <Input
-                value={record.title}
-                placeholder="Description"
-                bordered={false}
-                onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
-              />
-              <Input
-                value={record.feeType}
-                placeholder="Fee type"
-                bordered={false}
-                onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
-              />
+              <div className="item-edit-fields">
+                <Input
+                  value={record.title}
+                  placeholder="Item title"
+                  bordered={false}
+                  onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
+                />
+                <Input.TextArea
+                  value={record.feeType}
+                  placeholder="Description"
+                  bordered={false}
+                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
+                />
+              </div>
               <Button
                 type="text"
                 danger
@@ -1568,37 +1578,8 @@ const ProjectsShowContent = () => {
             >
               Back to Projects
             </Button>
-            <div className="project-actions top-actions">
-              {projectEditMode === "view" ? (
-                <Button
-                  icon={<EditOutlined />}
-                  className="project-edit"
-                  onClick={startProjectEditing}
-                >
-                  Edit
-                </Button>
-              ) : (
-                <Space size={8}>
-                  <Button
-                    className="project-cancel"
-                    onClick={cancelProjectEditing}
-                    disabled={projectEditSaving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="primary"
-                    className="project-save"
-                    onClick={saveProjectEdits}
-                    loading={projectEditSaving}
-                  >
-                    Save
-                  </Button>
-                </Space>
-              )}
-            </div>
           </div>
-        <div className="header-block">
+          <div className="header-block">
           <div className="descriptor-line">
             {isProjectEditing ? (
               <Input
@@ -1629,6 +1610,34 @@ const ProjectsShowContent = () => {
               <span className="descriptor-date">
                 {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
               </span>
+            )}
+            {isProjectEditing ? (
+              <div className="descriptor-actions">
+                <Button
+                  className="project-cancel"
+                  onClick={cancelProjectEditing}
+                  disabled={projectEditSaving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="primary"
+                  className="project-save"
+                  onClick={saveProjectEdits}
+                  loading={projectEditSaving}
+                >
+                  Save
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="descriptor-edit-trigger"
+                onClick={startProjectEditing}
+                aria-label="Edit project details"
+              >
+                <EditOutlined />
+              </button>
             )}
           </div>
           <div className="title-row">
@@ -1717,192 +1726,249 @@ const ProjectsShowContent = () => {
           <div className="billing-card-content">
             <div className="billing-layout">
               <div className="billing-main">
-                <Title level={5} className="section-heading">
-                  Billing &amp; Payments
-                </Title>
-                <div className="invoice-table">
-                  <div className="invoice-row head">
-                    <span className="invoice-cell heading">Invoice #</span>
-                    <span className="invoice-cell heading">Amount</span>
-                    <span className="invoice-cell heading">Status</span>
-                    <span className="invoice-cell heading">To</span>
-                    <span className="invoice-cell heading">On</span>
-                  </div>
-                  {invoiceEntries.length > 0 ? (
-                    invoiceEntries.map((entry, index) => {
-                      const isActive = index === activeEntryIndex
-                      const isEditingRow = invoiceMode !== "idle" && isActive
-                      const isPending = entry.pending
-                      const displayNumber =
-                        isEditingRow && draftInvoice ? draftInvoice.invoiceNumber : entry.invoiceNumber
+                <section className="billing-section">
+                  <Title level={5} className="section-heading">
+                    Billing &amp; Payments
+                  </Title>
+                  <div className="invoice-table">
+                    <div className="invoice-row head">
+                      <span className="invoice-cell heading">Invoice #</span>
+                      <span className="invoice-cell heading">Amount</span>
+                      <span className="invoice-cell heading">Status</span>
+                      <span className="invoice-cell heading">To</span>
+                      <span className="invoice-cell heading">On</span>
+                    </div>
+                    {invoiceEntries.length > 0 ? (
+                      invoiceEntries.map((entry, index) => {
+                        const isActive = index === activeEntryIndex
+                        const isEditingRow = invoiceMode !== "idle" && isActive
+                        const isPending = entry.pending
+                        const displayNumber =
+                          isEditingRow && draftInvoice ? draftInvoice.invoiceNumber : entry.invoiceNumber
+                        const payToInfo = entry.payToInfo
 
-                      return (
-                        <div
-                          key={`${entry.invoiceNumber}-${index}`}
-                          role="button"
-                          tabIndex={0}
-                          className={`invoice-row selectable-row ${
-                            isActive ? "active" : ""
-                          } ${isPending ? "pending" : ""}`}
-                          onClick={() => handleSelectInvoice(index, entry.pending)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault()
-                              handleSelectInvoice(index, entry.pending)
-                            }
-                          }}
-                        >
-                          <div className="invoice-cell number">
-                            {isEditingRow && invoiceNumberEditing ? (
-                              <Input
-                                value={draftInvoice?.invoiceNumber ?? ""}
-                                onChange={(event) => handleInvoiceNumberInput(event.target.value)}
-                                onBlur={finalizeInvoiceNumberEdit}
-                                onKeyDown={handleInvoiceNumberKeyDown}
-                                autoFocus
-                                bordered={false}
-                                className="invoice-input editing"
-                                onClick={(event) => event.stopPropagation()}
-                              />
-                            ) : (
-                              <span
-                                className={`invoice-number-text ${
-                                  isEditingRow ? "editing" : ""
-                                }`}
-                              >
-                                {displayNumber}
-                              </span>
-                            )}
-                            {!isPending && !isEditingRow ? (
-                              <button
-                                type="button"
-                                className="invoice-edit-trigger"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  handleBeginInvoiceRowEdit(index, entry.pending)
-                                }}
-                                disabled={invoiceMode !== "idle"}
-                                aria-label="Edit invoice"
-                              >
-                                <EditOutlined />
-                              </button>
-                            ) : null}
-                          </div>
-                          <div className="invoice-cell amount">
-                            {amountText(isEditingRow ? total : entry.amount)}
-                          </div>
-                          <div className="invoice-cell status">
-                            {isEditingRow && draftInvoice ? (
-                              <div
-                                className="invoice-status-control"
-                                onClick={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => event.stopPropagation()}
-                              >
-                                <Select
-                                  value={draftInvoice.paymentStatus ?? undefined}
-                                  onChange={handleInvoiceStatusChange}
-                                  options={ANT_INVOICE_STATUS_OPTIONS}
-                                  className="invoice-status-select"
-                                  dropdownMatchSelectWidth={160}
-                                  style={{ width: "100%" }}
+                        return (
+                          <div
+                            key={`${entry.invoiceNumber}-${index}`}
+                            role="button"
+                            tabIndex={0}
+                            className={`invoice-row selectable-row ${
+                              isActive ? "active" : ""
+                            } ${isPending ? "pending" : ""}`}
+                            onClick={() => handleSelectInvoice(index, entry.pending)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault()
+                                handleSelectInvoice(index, entry.pending)
+                              }
+                            }}
+                          >
+                            <div className="invoice-cell number">
+                              {isEditingRow && invoiceNumberEditing ? (
+                                <Input
+                                  value={draftInvoice?.invoiceNumber ?? ""}
+                                  onChange={(event) => handleInvoiceNumberInput(event.target.value)}
+                                  onBlur={finalizeInvoiceNumberEdit}
+                                  onKeyDown={handleInvoiceNumberKeyDown}
+                                  autoFocus
+                                  bordered={false}
+                                  className="invoice-input editing"
+                                  onClick={(event) => event.stopPropagation()}
                                 />
-                              </div>
-                            ) : entry.pending ? (
-                              <span className="draft-pill">Draft</span>
-                            ) : (
-                              <Tag
-                                color={paymentPalette[entry.statusColor].backgroundColor}
-                                className="status-chip"
-                                style={{ color: paymentPalette[entry.statusColor].color }}
-                              >
-                                {entry.statusLabel}
-                              </Tag>
-                            )}
-                          </div>
-                          <div className="invoice-cell pay-to">
-                            {isEditingRow && draftInvoice ? (
-                              <Input
-                                value={draftInvoice.paidTo ?? ""}
-                                onChange={(e) => {
-                                  e.stopPropagation()
-                                  handlePaidToChange(e.target.value)
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                bordered={false}
-                                className="invoice-input editing"
-                                placeholder="Bank identifier (e.g., ERL-OCBC-S)"
-                              />
-                            ) : entry.payToText ? (
-                              <div className="bank-display">
-                                <span className="bank-name">
-                                  {bankInfoMap[entry.payToText]?.bankName ?? entry.payToText}
+                              ) : (
+                                <span
+                                  className={`invoice-number-text ${
+                                    isEditingRow ? "editing" : ""
+                                  }`}
+                                >
+                                  {displayNumber}
                                 </span>
-                                {bankInfoMap[entry.payToText]?.accountType ? (
-                                  <span className="account-chip">
-                                    {bankInfoMap[entry.payToText]?.accountType}
+                              )}
+                              {!isPending && !isEditingRow ? (
+                                <button
+                                  type="button"
+                                  className="invoice-edit-trigger"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    handleBeginInvoiceRowEdit(index, entry.pending)
+                                  }}
+                                  disabled={invoiceMode !== "idle"}
+                                  aria-label="Edit invoice"
+                                >
+                                  <EditOutlined />
+                                </button>
+                              ) : null}
+                            </div>
+                            <div className="invoice-cell amount">
+                              {amountText(isEditingRow ? total : entry.amount)}
+                            </div>
+                            <div className="invoice-cell status">
+                              {isEditingRow && draftInvoice ? (
+                                <div
+                                  className="invoice-status-control"
+                                  onClick={(event) => event.stopPropagation()}
+                                  onKeyDown={(event) => event.stopPropagation()}
+                                >
+                                  <Select
+                                    value={draftInvoice.paymentStatus ?? undefined}
+                                    onChange={handleInvoiceStatusChange}
+                                    options={ANT_INVOICE_STATUS_OPTIONS}
+                                    className="invoice-status-select"
+                                    dropdownMatchSelectWidth={160}
+                                    style={{ width: "100%" }}
+                                  />
+                                </div>
+                              ) : entry.pending ? (
+                                <span className="draft-pill">Draft</span>
+                              ) : (
+                                <Tag
+                                  color={paymentPalette[entry.statusColor].backgroundColor}
+                                  className="status-chip"
+                                  style={{ color: paymentPalette[entry.statusColor].color }}
+                                >
+                                  {entry.statusLabel}
+                                </Tag>
+                              )}
+                            </div>
+                            <div className="invoice-cell pay-to">
+                              {isEditingRow && draftInvoice ? (
+                                <Input
+                                  value={draftInvoice.paidTo ?? ""}
+                                  onChange={(e) => {
+                                    e.stopPropagation()
+                                    handlePaidToChange(e.target.value)
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  bordered={false}
+                                  className="invoice-input editing"
+                                  placeholder="Bank identifier (e.g., ERL-OCBC-S)"
+                                />
+                              ) : payToInfo ? (
+                                <div className="bank-display">
+                                  <span className="bank-name">
+                                    {payToInfo.bankName || entry.payToText}
                                   </span>
-                                ) : null}
-                              </div>
-                            ) : (
-                              "-"
-                            )}
+                                  {payToInfo.accountType ? (
+                                    <span className="account-chip">{payToInfo.accountType}</span>
+                                  ) : null}
+                                </div>
+                              ) : entry.payToText ? (
+                                <span className="bank-name">{entry.payToText}</span>
+                              ) : (
+                                "-"
+                              )}
+                            </div>
+                            <div className="invoice-cell paid-on">
+                              {isEditingRow && draftInvoice ? (
+                                <DatePicker
+                                  value={draftInvoice.paidOnIso ? dayjs(draftInvoice.paidOnIso) : null}
+                                  onChange={(v) => {
+                                    handlePaidOnChange(v)
+                                  }}
+                                  bordered={false}
+                                  format="MMM DD, YYYY"
+                                  placeholder="Select date"
+                                  allowClear
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              ) : (
+                                entry.paidOnText ?? "-"
+                              )}
+                            </div>
                           </div>
-                          <div className="invoice-cell paid-on">
-                            {isEditingRow && draftInvoice ? (
-                              <DatePicker
-                                value={draftInvoice.paidOnIso ? dayjs(draftInvoice.paidOnIso) : null}
-                                onChange={(v) => {
-                                  handlePaidOnChange(v)
-                                }}
-                                bordered={false}
-                                format="MMM DD, YYYY"
-                                placeholder="Select date"
-                                allowClear
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            ) : (
-                              entry.paidOnText ?? "-"
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })
-                  ) : (
-                    <div className="invoice-empty-row">No invoices yet.</div>
-                  )}
-                  {invoiceEntries.length > 1 ? (
-                    <div className="invoice-row total" role="row">
-                      <span className="invoice-cell number total-label">Total:</span>
-                      <span className="invoice-cell amount">{amountText(projectTotalValue)}</span>
-                      <span className="invoice-cell status total-status">{totalStatusLabel}</span>
-                      <span className="invoice-cell pay-to">-</span>
-                      <span className="invoice-cell paid-on">{totalPaidOnText}</span>
+                        )
+                      })
+                    ) : (
+                      <div className="invoice-empty-row">No invoices yet.</div>
+                    )}
+                    {invoiceEntries.length > 1 ? (
+                      <div className="invoice-row total" role="row">
+                        <span className="invoice-cell number total-label">Total:</span>
+                        <span className="invoice-cell amount">{amountText(projectTotalValue)}</span>
+                        <span className="invoice-cell status total-status">{totalStatusLabel}</span>
+                        <span className="invoice-cell pay-to">-</span>
+                        <span className="invoice-cell paid-on">{totalPaidOnText}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  {invoiceMode === "idle" ? (
+                    <div className="billing-actions">
+                      <Space size={12} wrap>
+                        <Button type="primary" onClick={() => prepareDraft("create")}>
+                          Add Additional Invoice
+                        </Button>
+                      </Space>
                     </div>
                   ) : null}
-                </div>
-                {invoiceMode === "idle" ? (
-                  <div className="billing-actions">
-                    <Space size={12} wrap>
-                      <Button type="primary" onClick={() => prepareDraft("create")}>
-                        Add Additional Invoice
-                      </Button>
-                    </Space>
+                  {invoiceMode === "create" && hasInvoices ? (
+                    <div className="billing-actions">
+                      <Space size={12} wrap>
+                        <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
+                          Cancel
+                        </Button>
+                        <Button type="primary" disabled>
+                          Add Additional Invoice
+                        </Button>
+                      </Space>
+                    </div>
+                  ) : null}
+                </section>
+                <section className="items-section">
+                  <div className="items-header">
+                    <Title level={4} className="section-heading">
+                      Items / Services
+                    </Title>
                   </div>
-                ) : null}
-                {invoiceMode === "create" && hasInvoices ? (
-                  <div className="billing-actions">
-                    <Space size={12} wrap>
-                      <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
-                        Cancel
-                      </Button>
-                      <Button type="primary" disabled>
-                        Add Additional Invoice
-                      </Button>
-                    </Space>
+                  <Table<InvoiceTableRow>
+                    dataSource={itemsRows}
+                    columns={itemsColumns}
+                    pagination={false}
+                    rowKey="key"
+                    className="invoice-items"
+                  />
+                  <div className="totals-panel">
+                    <div className="totals-row">
+                      <span className="meta-label">Sub-total</span>
+                      <span className="meta-value">{amountText(subtotal)}</span>
+                    </div>
+                    <div className="totals-row">
+                      <span className="meta-label">Tax / Discount</span>
+                      {isEditingInvoice ? (
+                        <InputNumber
+                          value={taxPercent}
+                          bordered={false}
+                          onChange={handleTaxChange}
+                          className="tax-input"
+                        />
+                      ) : (
+                        <span className="meta-value">{formatPercentText(taxPercent)}</span>
+                      )}
+                    </div>
+                    <div className="totals-row total">
+                      <span className="meta-label">Total</span>
+                      <span className="meta-value">{amountText(total)}</span>
+                    </div>
+                    {taxAmount !== 0 ? (
+                      <div className="tax-hint">({amountText(taxAmount)} adjustment)</div>
+                    ) : null}
                   </div>
-                ) : null}
+                  {isEditingInvoice ? (
+                    <div className="items-actions">
+                      <Space size={12}>
+                        {showInvoiceCancel ? (
+                          <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
+                            Cancel
+                          </Button>
+                        ) : null}
+                        <Button type="primary" onClick={handleSaveInvoice} loading={savingInvoice}>
+                          {invoiceMode === "create" ? "Confirm" : "Save"}
+                        </Button>
+                      </Space>
+                    </div>
+                  ) : null}
+                </section>
               </div>
-              <div className="client-panel">
+              <aside className="client-panel">
                 <span className="summary-label client-label">Client</span>
                 <div className="company-block">
                   <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
@@ -1915,63 +1981,9 @@ const ProjectsShowContent = () => {
                     </div>
                   ) : null}
                 </div>
-              </div>
+              </aside>
             </div>
           </div>
-        </Card>
-        <Card className="details-card items-card" bordered={false}>
-          <div className="items-header">
-            <Title level={4} className="section-heading">
-              Items / Services
-            </Title>
-          </div>
-          <Table<InvoiceTableRow>
-            dataSource={itemsRows}
-            columns={itemsColumns}
-            pagination={false}
-            rowKey="key"
-            className="invoice-items"
-          />
-          <div className="totals-panel">
-            <div className="totals-row">
-              <span className="meta-label">Sub-total</span>
-              <span className="meta-value">{amountText(subtotal)}</span>
-            </div>
-            <div className="totals-row">
-              <span className="meta-label">Tax / Discount</span>
-              {isEditingInvoice ? (
-                <InputNumber
-                  value={taxPercent}
-                  bordered={false}
-                  onChange={handleTaxChange}
-                  className="tax-input"
-                />
-              ) : (
-                <span className="meta-value">{formatPercentText(taxPercent)}</span>
-              )}
-            </div>
-            <div className="totals-row total">
-              <span className="meta-label">Total</span>
-              <span className="meta-value">{amountText(total)}</span>
-            </div>
-            {taxAmount !== 0 ? (
-              <div className="tax-hint">({amountText(taxAmount)} adjustment)</div>
-            ) : null}
-          </div>
-          {isEditingInvoice ? (
-            <div className="items-actions">
-              <Space size={12}>
-                {showInvoiceCancel ? (
-                  <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
-                    Cancel
-                  </Button>
-                ) : null}
-                <Button type="primary" onClick={handleSaveInvoice} loading={savingInvoice}>
-                  {invoiceMode === "create" ? "Confirm" : "Save"}
-                </Button>
-              </Space>
-            </div>
-          ) : null}
         </Card>
       </Space>
       </div>
@@ -2001,7 +2013,7 @@ const ProjectsShowContent = () => {
         .top-row {
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-start;
           gap: 16px;
           flex-wrap: wrap;
         }
@@ -2194,29 +2206,34 @@ const ProjectsShowContent = () => {
           white-space: nowrap;
         }
 
-        .project-actions {
-          display: flex;
-          flex-direction: row;
+        .descriptor-actions {
+          margin-left: auto;
+          display: inline-flex;
           align-items: center;
-          justify-content: flex-end;
-          gap: 10px;
-          flex-wrap: wrap;
-          min-width: 120px;
-          align-self: flex-start;
+          gap: 8px;
         }
 
-        .project-actions.editing {
+        .descriptor-edit-trigger {
+          margin-left: auto;
+          border: none;
+          background: none;
+          padding: 4px;
+          border-radius: 999px;
+          display: inline-flex;
           align-items: center;
+          justify-content: center;
+          color: #475569;
+          cursor: pointer;
+          transition: background 0.2s ease;
         }
 
-        .project-edit {
-          background: #ffffff;
-          border-radius: 24px;
-          border: 1px solid #cbd5f5;
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #1e293b;
-          padding: 8px 20px;
+        .descriptor-edit-trigger:hover {
+          background: #e2e8f0;
+        }
+
+        .descriptor-edit-trigger:focus-visible {
+          outline: 2px solid #2563eb;
+          outline-offset: 2px;
         }
 
         .project-cancel {
@@ -2416,10 +2433,6 @@ const ProjectsShowContent = () => {
           outline-offset: 2px;
         }
 
-        .items-card {
-          margin-top: 0;
-        }
-
         .billing-card :global(.ant-card-body) {
           display: flex;
           flex-direction: column;
@@ -2454,16 +2467,32 @@ const ProjectsShowContent = () => {
           min-height: 100%;
         }
 
+        .billing-section,
+        .items-section {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .items-section {
+          margin-top: 24px;
+          padding-top: 16px;
+          border-top: 1px solid #e2e8f0;
+        }
+
         .client-panel {
           display: flex;
           flex-direction: column;
           gap: 12px;
           min-width: 0;
           padding: 8px 0 0;
+          align-items: flex-end;
+          text-align: right;
         }
 
         .client-label {
           font-size: 11px;
+          align-self: flex-end;
         }
 
         .invoice-table {
@@ -2480,7 +2509,7 @@ const ProjectsShowContent = () => {
             minmax(140px, 1fr)
             minmax(160px, 1.1fr)
             minmax(120px, 0.8fr);
-          align-items: center;
+          align-items: flex-start;
           gap: 12px;
           font-family: ${KARLA_FONT};
           justify-items: start;
@@ -2488,6 +2517,7 @@ const ProjectsShowContent = () => {
 
         .invoice-row.head {
           padding: 0 8px;
+          align-items: flex-end;
         }
 
         .invoice-row.head .invoice-cell {
@@ -2529,7 +2559,7 @@ const ProjectsShowContent = () => {
           color: #0f172a;
         }
 
-        .bank-display .bank-name {
+        .bank-name {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #0f172a;
@@ -2696,20 +2726,25 @@ const ProjectsShowContent = () => {
           display: block;
         }
 
-        .item-fee-type {
-          font-family: 'Darker Grotesque', ${KARLA_FONT};
-          font-weight: 600;
+        .item-description {
+          font-family: ${KARLA_FONT};
+          font-weight: 500;
           color: #374151;
-          letter-spacing: 0.02em;
           display: block;
           white-space: normal;
         }
 
         .item-edit {
-          display: grid;
-          grid-template-columns: 1fr 1fr auto;
-          align-items: center;
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+        }
+
+        .item-edit-fields {
+          display: flex;
+          flex-direction: column;
           gap: 8px;
+          flex: 1;
         }
 
         .numeric-text {
@@ -2726,7 +2761,7 @@ const ProjectsShowContent = () => {
         }
 
         .totals-panel {
-          margin-top: 8px;
+          margin-top: 32px;
           display: flex;
           flex-direction: column;
           gap: 8px;

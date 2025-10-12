@@ -46,6 +46,14 @@ async function run() {
 
   let moved = 0
   for (const year of years) {
+    // Ensure parent year document exists
+    const yearDocRef = db.collection('projects').doc(year)
+    if (!DRY) {
+      await yearDocRef.set(
+        { id: year, createdAt: new Date().toISOString() },
+        { merge: true }
+      )
+    }
     const yearCol = db.collection(year)
     const projectsSnap = await yearCol.get()
     if (projectsSnap.size === 0) continue
@@ -77,4 +85,3 @@ run().catch((e) => {
   console.error('[restructure] Failed:', e && e.message ? e.message : e)
   process.exit(1)
 })
-
