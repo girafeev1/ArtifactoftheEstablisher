@@ -1456,7 +1456,7 @@ const ProjectsShowContent = () => {
         dataIndex: "unitPrice",
         title: <span className="items-heading">Unit Price</span>,
         width: 140,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1481,7 +1481,7 @@ const ProjectsShowContent = () => {
         dataIndex: "quantity",
         title: <span className="items-heading">Qty</span>,
         width: 100,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1506,7 +1506,7 @@ const ProjectsShowContent = () => {
         dataIndex: "discount",
         title: <span className="items-heading">Discount</span>,
         width: 140,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1529,7 +1529,7 @@ const ProjectsShowContent = () => {
         key: "total",
         dataIndex: "total",
         title: <span className="items-heading">Total</span>,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (_: unknown, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -2751,12 +2751,20 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #0f172a;
+          text-align: left;
+          display: block;
         }
 
         .invoice-items :global(.ant-table) {
           font-family: ${KARLA_FONT};
         }
         .invoice-items :global(.ant-table-cell) {
+          text-align: left;
+        }
+        .invoice-items :global(.ant-input-number) {
+          width: 100%;
+        }
+        .invoice-items :global(.ant-input-number-input) {
           text-align: left;
         }
 
