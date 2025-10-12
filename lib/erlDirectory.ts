@@ -1,4 +1,13 @@
-import { initializeFirestore, getFirestore, collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore'
+import {
+  initializeFirestore,
+  getFirestore,
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  query,
+  where,
+} from 'firebase/firestore'
 import { app, DIRECTORY_FIRESTORE_DATABASE_ID } from './firebase'
 
 export interface BankInfo {
@@ -58,6 +67,34 @@ const extractAccountNumber = (value: Record<string, unknown>): string | null =>
       value.acctNumber ??
       value.number,
   )
+
+const normalizeBankCodes = (raw: unknown): string[] => {
+  if (!raw) {
+    return []
+  }
+  if (Array.isArray(raw)) {
+    return raw
+      .map((value) => {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          return Math.trunc(value).toString().padStart(3, '0')
+        }
+        if (typeof value === 'string') {
+          const digits = value.replace(/[^0-9]/g, '')
+          return digits ? digits.padStart(3, '0') : null
+        }
+        return null
+      })
+      .filter((value): value is string => Boolean(value))
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return [Math.trunc(raw).toString().padStart(3, '0')]
+  }
+  if (typeof raw === 'string') {
+    const digits = raw.replace(/[^0-9]/g, '')
+    return digits ? [digits.padStart(3, '0')] : []
+  }
+  return []
+}
 
 export function normalizeCode(code: string | number): { code: string; raw: string } {
   const digits = typeof code === 'number' ? String(code) : String(code)
@@ -206,7 +243,78 @@ export async function resolveBankAccountIdentifier(
     }
   }
 
-  // 2) Not found
+  // 2) Nested structure: bankAccount/{bankName}/({code})/{identifier}
+  try {
+    const banksSnapshot = await getDocs(collection(dbDirectory, 'bankAccount'))
+    for (const bankDoc of banksSnapshot.docs) {
+      const bankData = bankDoc.data() as Record<string, unknown>
+      const bankName = toOptionalString(bankData.bankName) ?? bankDoc.id
+      const fallbackBankCode = normalizeBankCodeValue(bankData.bankCode)
+      const codes = new Set<string>()
+      if (fallbackBankCode) {
+        codes.add(fallbackBankCode)
+      }
+      normalizeBankCodes(bankData.code).forEach((code) => codes.add(code))
+
+      if (codes.size === 0) {
+        const accountsRef = doc(collection(bankDoc.ref, 'accounts'), identifier)
+        const accountsSnap = await getDoc(accountsRef)
+        if (accountsSnap.exists()) {
+          const payload = accountsSnap.data() as Record<string, unknown>
+          return {
+            bankName,
+            bankCode: fallbackBankCode ?? normalizeBankCodeValue(payload.bankCode) ?? '',
+            accountType: toOptionalString(payload.accountType) ?? undefined,
+            accountNumber: extractAccountNumber(payload) ?? undefined,
+            fpsId:
+              toOptionalString(payload['FPS ID']) ??
+              toOptionalString(payload.fpsId) ??
+              toOptionalString(payload['fpsID']) ??
+              null,
+            fpsEmail:
+              toOptionalString(payload['FPS Email']) ??
+              toOptionalString(payload.fpsEmail) ??
+              toOptionalString(payload['FPS EMAIL']) ??
+              null,
+            status: typeof payload.status === 'boolean' ? payload.status : null,
+          }
+        }
+      }
+
+      for (const code of codes) {
+        const groupId = `(${code})`
+        const nestedRef = doc(bankDoc.ref, groupId, identifier)
+        const nestedSnap = await getDoc(nestedRef)
+        if (nestedSnap.exists()) {
+          const payload = nestedSnap.data() as Record<string, unknown>
+          const normalizedCode = normalizeBankCodeValue(payload.bankCode) ?? code
+          return {
+            bankName,
+            bankCode: normalizedCode,
+            accountType: toOptionalString(payload.accountType) ?? undefined,
+            accountNumber: extractAccountNumber(payload) ?? undefined,
+            fpsId:
+              toOptionalString(payload['FPS ID']) ??
+              toOptionalString(payload.fpsId) ??
+              toOptionalString(payload['fpsID']) ??
+              null,
+            fpsEmail:
+              toOptionalString(payload['FPS Email']) ??
+              toOptionalString(payload.fpsEmail) ??
+              toOptionalString(payload['FPS EMAIL']) ??
+              null,
+            status: typeof payload.status === 'boolean' ? payload.status : null,
+          }
+        }
+      }
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('bankAccount nested lookup failed', error)
+    }
+  }
+
+  // 3) Not found
   return null
 }
 

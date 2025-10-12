@@ -509,7 +509,7 @@ const ProjectsShowContent = () => {
     }
     void run()
     return () => controller.abort()
-  }, [invoices, draftInvoice?.paidTo])
+  }, [bankInfoMap, invoices, draftInvoice?.paidTo])
 
   useEffect(() => {
     if (!project || projectEditMode !== "view") {
@@ -1446,8 +1446,8 @@ const ProjectsShowContent = () => {
             const description = record.feeType?.trim() ? record.feeType.trim() : "N/A"
             return (
               <div className="item-display">
-                <span className="item-title-text">{title}</span>
-                <span className="item-description">{description}</span>
+                <div className="item-title-text">{title}</div>
+                <div className="item-fee-type">{description}</div>
               </div>
             )
           }
@@ -1807,9 +1807,13 @@ const ProjectsShowContent = () => {
                                 />
                               ) : (
                                 <span
-                                  className={`invoice-number-text ${
-                                    isEditingRow ? "editing" : ""
-                                  }`}
+                                  className={[
+                                    "invoice-number-text",
+                                    isEditingRow ? "editing" : "",
+                                    entry.pending ? "pending" : "",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" ")}
                                 >
                                   {displayNumber}
                                 </span>
@@ -2467,50 +2471,20 @@ const ProjectsShowContent = () => {
           width: 100%;
         }
 
-        .invoice-number-shell {
-          display: inline-flex;
-          align-items: center;
-          padding: 8px 16px;
-          border-radius: 18px;
-          background: #e7f2ff;
-          min-width: 0;
-        }
-
-        .invoice-number-shell.pending {
-          background: #f1f5f9;
-          border: 1px dashed #94a3b8;
-        }
-
         .invoice-number-text {
           font-weight: 700;
           font-family: ${KARLA_FONT};
         }
 
-        .invoice-number-pending {
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #64748b;
+        .invoice-number-text.editing {
+          color: #4b5563;
           font-style: italic;
-          animation: blink 1.2s infinite;
-          cursor: default;
         }
 
-        .invoice-number-edit {
-          border: none;
-          background: none;
-          padding: 0;
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #64748b;
+        .invoice-number-text.pending {
+          color: #6b7280;
           font-style: italic;
           animation: blink 1.2s infinite;
-          text-align: left;
-          cursor: pointer;
-        }
-
-        .invoice-number-edit:focus-visible {
-          outline: 2px solid #2563eb;
-          outline-offset: 2px;
         }
 
         .billing-card :global(.ant-card-body) {
@@ -2812,8 +2786,9 @@ const ProjectsShowContent = () => {
         .item-display {
           display: flex;
           flex-direction: column;
-          gap: 2px;
-          align-items: flex-start;
+          gap: 4px;
+          align-items: stretch;
+          width: 100%;
         }
 
         .item-title-text {
@@ -2821,14 +2796,18 @@ const ProjectsShowContent = () => {
           font-weight: 600;
           color: #0f172a;
           display: block;
+          line-height: 1.3;
+          width: 100%;
         }
 
-        .item-description {
+        .item-fee-type {
           font-family: 'Darker Grotesque', sans-serif;
           font-weight: 600;
-          color: #4a4a4a;
+          color: #4b5563;
           display: block;
+          line-height: 1.25;
           white-space: normal;
+          width: 100%;
         }
 
         .item-edit {
