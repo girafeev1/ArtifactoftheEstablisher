@@ -2,7 +2,7 @@
 
 import { collection, getDocs } from 'firebase/firestore'
 
-import { getFirestoreForDatabase } from './firebase'
+import { getDirectoryFirestoreClients } from './firebase'
 
 export interface BankAccountDirectoryRecord {
   bankName: string
@@ -52,75 +52,96 @@ const normalizeBankCodes = (raw: unknown): string[] => {
     .map((value) => value.toString().padStart(3, '0'))
 }
 
+const directoryClients = getDirectoryFirestoreClients()
+
+const logDirectoryWarning = (dbId: string, message: string, error: unknown) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[bankAccountsDirectory:${dbId}] ${message}`, error)
+  }
+}
+
 export const fetchBankAccountsDirectory = async (): Promise<BankAccountDirectoryRecord[]> => {
-  const directoryDb = getFirestoreForDatabase('erl-directory')
-  const bankSnapshot = await getDocs(collection(directoryDb, 'bankAccount'))
-
-  const results: BankAccountDirectoryRecord[] = []
-
-  await Promise.all(
-    bankSnapshot.docs.map(async (bankDoc) => {
-      const bankData = bankDoc.data() as Record<string, unknown>
-      const bankName = bankDoc.id
-      const codes = normalizeBankCodes(bankData.code)
-
-      if (codes.length === 0) {
-        results.push({
-          bankName,
-          bankCode: null,
-          accountId: `${bankDoc.id}-unknown`,
-          accountType: null,
-          accountNumber: null,
-          status: null,
-          fpsId: null,
-          fpsEmail: null,
-        })
-        return
+  for (const { id, db } of directoryClients) {
+    try {
+      const bankSnapshot = await getDocs(collection(db, 'bankAccount'))
+      if (bankSnapshot.empty) {
+        continue
       }
 
-      await Promise.all(
-        codes.map(async (code) => {
-          const subcollectionName = `(${code})`
-          const accountsSnapshot = await getDocs(collection(bankDoc.ref, subcollectionName))
+      const results: BankAccountDirectoryRecord[] = []
 
-          accountsSnapshot.forEach((accountDoc) => {
-            const accountData = accountDoc.data() as Record<string, unknown>
-            const fpsId =
-              toOptionalString(accountData['FPS ID']) ??
-              toOptionalString(accountData['fpsId']) ??
-              toOptionalString(accountData['fpsID'])
-            const fpsEmail =
-              toOptionalString(accountData['FPS Email']) ??
-              toOptionalString(accountData['fpsEmail']) ??
-              toOptionalString(accountData['FPS EMAIL'])
+      for (const bankDoc of bankSnapshot.docs) {
+        const bankData = bankDoc.data() as Record<string, unknown>
+        const bankName = bankDoc.id
+        const codes = normalizeBankCodes(bankData.code)
 
-            results.push({
-              bankName,
-              bankCode: `(${code})`,
-              accountId: accountDoc.id,
-              accountType: toOptionalString(accountData.accountType),
-              accountNumber: toOptionalString(accountData.accountNumber),
-              status: toOptionalBoolean(accountData.status),
-              fpsId,
-              fpsEmail,
-            })
+        if (codes.length === 0) {
+          results.push({
+            bankName,
+            bankCode: null,
+            accountId: `${bankDoc.id}-unknown`,
+            accountType: null,
+            accountNumber: null,
+            status: null,
+            fpsId: null,
+            fpsEmail: null,
           })
-        })
-      )
-    })
-  )
+          continue
+        }
 
-  return results.sort((a, b) => {
-    const nameCompare = a.bankName.localeCompare(b.bankName)
-    if (nameCompare !== 0) {
-      return nameCompare
+        for (const code of codes) {
+          const subcollectionName = `(${code})`
+          try {
+            const accountsSnapshot = await getDocs(collection(bankDoc.ref, subcollectionName))
+            accountsSnapshot.forEach((accountDoc) => {
+              const accountData = accountDoc.data() as Record<string, unknown>
+              const fpsId =
+                toOptionalString(accountData['FPS ID']) ??
+                toOptionalString(accountData['fpsId']) ??
+                toOptionalString(accountData['fpsID'])
+              const fpsEmail =
+                toOptionalString(accountData['FPS Email']) ??
+                toOptionalString(accountData['fpsEmail']) ??
+                toOptionalString(accountData['FPS EMAIL'])
+
+              results.push({
+                bankName,
+                bankCode: `(${code})`,
+                accountId: accountDoc.id,
+                accountType: toOptionalString(accountData.accountType),
+                accountNumber:
+                  toOptionalString(accountData.accountNumber) ??
+                  toOptionalString(accountData.accountNumberMasked),
+                status: toOptionalBoolean(accountData.status),
+                fpsId,
+                fpsEmail,
+              })
+            })
+          } catch (error) {
+            logDirectoryWarning(id, `failed to load accounts for ${bankDoc.id}/${subcollectionName}`, error)
+          }
+        }
+      }
+
+      if (results.length > 0) {
+        return results.sort((a, b) => {
+          const nameCompare = a.bankName.localeCompare(b.bankName)
+          if (nameCompare !== 0) {
+            return nameCompare
+          }
+          const codeCompare = (a.bankCode ?? '').localeCompare(b.bankCode ?? '')
+          if (codeCompare !== 0) {
+            return codeCompare
+          }
+          return a.accountId.localeCompare(b.accountId)
+        })
+      }
+    } catch (error) {
+      logDirectoryWarning(id, 'failed to load bank account directory', error)
     }
-    const codeCompare = (a.bankCode ?? '').localeCompare(b.bankCode ?? '')
-    if (codeCompare !== 0) {
-      return codeCompare
-    }
-    return a.accountId.localeCompare(b.accountId)
-  })
+  }
+
+  return []
 }
 
 export const buildBankAccountLabel = (record: BankAccountDirectoryRecord) =>

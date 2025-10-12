@@ -1,5 +1,5 @@
-import { initializeFirestore, getFirestore, collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore'
-import { app, DIRECTORY_FIRESTORE_DATABASE_ID } from './firebase'
+import { collection, getDoc, getDocs, doc, query, where } from 'firebase/firestore'
+import { getDirectoryFirestoreClients } from './firebase'
 
 export interface BankInfo {
   bankCode: string
@@ -17,13 +17,20 @@ export interface AccountInfo {
   [key: string]: any
 }
 
-export const dbDirectory = (() => {
-  try {
-    return getFirestore(app, DIRECTORY_FIRESTORE_DATABASE_ID)
-  } catch {
-    return initializeFirestore(app, {}, DIRECTORY_FIRESTORE_DATABASE_ID)
+const directoryClients = getDirectoryFirestoreClients()
+const primaryDirectoryClient = directoryClients[0]
+
+if (!primaryDirectoryClient) {
+  throw new Error('No directory Firestore databases configured')
+}
+
+export const dbDirectory = primaryDirectoryClient.db
+
+const logDirectoryWarning = (dbId: string, message: string, error: unknown) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[erlDirectory:${dbId}] ${message}`, error)
   }
-})()
+}
 
 export function normalizeCode(code: string | number): { code: string; raw: string } {
   const digits = typeof code === 'number' ? String(code) : String(code)
@@ -33,60 +40,72 @@ export function normalizeCode(code: string | number): { code: string; raw: strin
 }
 
 export async function listBanks(): Promise<BankInfo[]> {
-  try {
-    // Flat structure: bankAccount/{identifier} with fields: bankName, bankCode, ...
-    const snap = await getDocs(collection(dbDirectory, 'bankAccount'))
-    const byCode = new Map<string, BankInfo>()
-    for (const d of snap.docs) {
-      const data = d.data() as any
-      const bankCode = String(data.bankCode || '').replace(/[^0-9]/g, '').padStart(3, '0')
-      if (!bankCode) continue
-      const bankName = typeof data.bankName === 'string' && data.bankName.trim().length > 0 ? data.bankName : ''
-      const raw = `(${bankCode})`
-      const key = `${bankCode}::${bankName}`
-      if (!byCode.has(key)) {
-        byCode.set(key, { bankCode, bankName, rawCodeSegment: raw })
+  for (const { id, db } of directoryClients) {
+    try {
+      const snap = await getDocs(collection(db, 'bankAccount'))
+      if (snap.empty) {
+        continue
       }
+
+      const byCode = new Map<string, BankInfo>()
+      for (const d of snap.docs) {
+        const data = d.data() as any
+        const bankCode = String(data.bankCode || '').replace(/[^0-9]/g, '').padStart(3, '0')
+        if (!bankCode) continue
+        const bankName = typeof data.bankName === 'string' && data.bankName.trim().length > 0 ? data.bankName : ''
+        const raw = `(${bankCode})`
+        const key = `${bankCode}::${bankName}`
+        if (!byCode.has(key)) {
+          byCode.set(key, { bankCode, bankName, rawCodeSegment: raw })
+        }
+      }
+
+      if (byCode.size > 0) {
+        return Array.from(byCode.values()).sort((a, b) =>
+          a.bankCode.localeCompare(b.bankCode, undefined, { numeric: true }),
+        )
+      }
+    } catch (error) {
+      logDirectoryWarning(id, 'bank directory failed', error)
     }
-    return Array.from(byCode.values()).sort((a, b) =>
-      a.bankCode.localeCompare(b.bankCode, undefined, { numeric: true })
-    )
-  } catch (e) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('bank directory failed', e)
-    }
-    return []
   }
+
+  return []
 }
 
 export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
-  try {
-    // Flat structure: bankAccount/{identifier} with fields including bankCode/bankName
-    const q = query(
-      collection(dbDirectory, 'bankAccount'),
-      where('bankCode', '==', bank.bankCode)
-    )
-    const snap = await getDocs(q)
-    return snap.docs
-      .filter((d) => {
-        const data = d.data() as any
-        if (bank.bankName) {
-          const name = typeof data.bankName === 'string' ? data.bankName : ''
-          return name === bank.bankName
-        }
-        return true
-      })
-      .map((d) => {
-      const data = d.data() as any
-      const number = data.accountNumber || data.accountNo || data.acctNumber || data.number
-      return { accountDocId: d.id, accountType: data.accountType, accountNumber: number }
-    })
-  } catch (e) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('accounts load failed', e)
+  for (const { id, db } of directoryClients) {
+    try {
+      const q = query(collection(db, 'bankAccount'), where('bankCode', '==', bank.bankCode))
+      const snap = await getDocs(q)
+      if (snap.empty) {
+        continue
+      }
+
+      const results = snap.docs
+        .filter((d) => {
+          const data = d.data() as any
+          if (bank.bankName) {
+            const name = typeof data.bankName === 'string' ? data.bankName : ''
+            return name === bank.bankName
+          }
+          return true
+        })
+        .map((d) => {
+          const data = d.data() as any
+          const number = data.accountNumber || data.accountNo || data.acctNumber || data.number
+          return { accountDocId: d.id, accountType: data.accountType, accountNumber: number }
+        })
+
+      if (results.length > 0) {
+        return results
+      }
+    } catch (error) {
+      logDirectoryWarning(id, 'accounts load failed', error)
     }
-    return []
   }
+
+  return []
 }
 
 export async function lookupAccount(
@@ -100,20 +119,28 @@ export async function lookupAccount(
     }
   | null
 > {
-  // Flat lookup by identifier
-  const ref = doc(dbDirectory, 'bankAccount', id)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) return null
-  const data = snap.data() as any
-  const number = data.accountNumber || data.accountNo || data.acctNumber || data.number
-  const bankCode = String(data.bankCode || '').replace(/[^0-9]/g, '').padStart(3, '0')
-  const bankName = typeof data.bankName === 'string' ? data.bankName : ''
-  return {
-    bankName,
-    bankCode,
-    accountType: data.accountType,
-    accountNumber: number,
+  for (const { id: dbId, db } of directoryClients) {
+    try {
+      const snap = await getDoc(doc(db, 'bankAccount', id))
+      if (!snap.exists()) {
+        continue
+      }
+      const data = snap.data() as any
+      const number = data.accountNumber || data.accountNo || data.acctNumber || data.number
+      const bankCode = String(data.bankCode || '').replace(/[^0-9]/g, '').padStart(3, '0')
+      const bankName = typeof data.bankName === 'string' ? data.bankName : ''
+      return {
+        bankName,
+        bankCode,
+        accountType: data.accountType,
+        accountNumber: number,
+      }
+    } catch (error) {
+      logDirectoryWarning(dbId, 'lookup account failed', error)
+    }
   }
+
+  return null
 }
 
 /**
@@ -136,10 +163,12 @@ export async function resolveBankAccountIdentifier(
     }
   | null
 > {
-  // 1) Flat lookup (preferred) — now under 'bankAccount'
-  try {
-    const flat = await getDoc(doc(dbDirectory, 'bankAccount', identifier))
-    if (flat.exists()) {
+  for (const { id: dbId, db } of directoryClients) {
+    try {
+      const flat = await getDoc(doc(db, 'bankAccount', identifier))
+      if (!flat.exists()) {
+        continue
+      }
       const data = flat.data() as any
       return {
         bankName: data.bankName,
@@ -150,14 +179,11 @@ export async function resolveBankAccountIdentifier(
         fpsEmail: data['FPS Email'] || data.fpsEmail || null,
         status: typeof data.status === 'boolean' ? data.status : null,
       }
-    }
-  } catch (e) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('bankAccountLookup read failed', e)
+    } catch (error) {
+      logDirectoryWarning(dbId, 'bankAccount lookup failed', error)
     }
   }
 
-  // 2) Not found
   return null
 }
 

@@ -1,7 +1,7 @@
 // lib/firebase.ts
 
 import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app'
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore'
 
 const firebaseEnvConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -19,6 +19,8 @@ const PROJECTS_DATABASE_ID =
 // Allow overriding the directory (bank accounts) database; default to legacy 'erl-directory'
 const DIRECTORY_DATABASE_ID =
   process.env.NEXT_PUBLIC_DIRECTORY_FIRESTORE_DATABASE_ID?.trim() || 'erl-directory'
+
+const DIRECTORY_FALLBACK_DATABASE_IDS = ['tebs-erl', 'erl-directory'] as const
 
 type FirebaseEnvSnapshot = {
   NEXT_PUBLIC_FIREBASE_API_KEY: string | null
@@ -130,11 +132,35 @@ const createFirebaseApp = () => {
 }
 
 export const app = createFirebaseApp()
-export const db = getFirestore(app, DEFAULT_DATABASE_ID)
-export const projectsDb = getFirestore(app, PROJECTS_DATABASE_ID)
+
+const resolveFirestoreInstance = (databaseId: string): Firestore => {
+  try {
+    return getFirestore(app, databaseId)
+  } catch {
+    return initializeFirestore(app, {}, databaseId)
+  }
+}
+
+const directoryDatabaseCandidates = Array.from(
+  new Set<string>([DIRECTORY_DATABASE_ID, ...DIRECTORY_FALLBACK_DATABASE_IDS]),
+)
+
+const directoryFirestoreCache = new Map<string, Firestore>()
+
+export const getDirectoryFirestoreClients = (): Array<{ id: string; db: Firestore }> => {
+  return directoryDatabaseCandidates.map((databaseId) => {
+    if (!directoryFirestoreCache.has(databaseId)) {
+      directoryFirestoreCache.set(databaseId, resolveFirestoreInstance(databaseId))
+    }
+    return { id: databaseId, db: directoryFirestoreCache.get(databaseId)! }
+  })
+}
+
+export const db = resolveFirestoreInstance(DEFAULT_DATABASE_ID)
+export const projectsDb = resolveFirestoreInstance(PROJECTS_DATABASE_ID)
 export const PROJECTS_FIRESTORE_DATABASE_ID = PROJECTS_DATABASE_ID
 export const DIRECTORY_FIRESTORE_DATABASE_ID = DIRECTORY_DATABASE_ID
-export const getFirestoreForDatabase = (databaseId: string) => getFirestore(app, databaseId)
+export const getFirestoreForDatabase = (databaseId: string) => resolveFirestoreInstance(databaseId)
 // after you create/export `db`...
 if (typeof window !== 'undefined') {
   // @ts-expect-error attach for debugging
