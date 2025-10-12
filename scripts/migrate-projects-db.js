@@ -36,13 +36,14 @@ const private_key = unescapePrivateKey(getRequiredEnv('FIREBASE_ADMIN_PRIVATE_KE
 const SRC_DB_ID = process.env.SRC_DB_ID || 'epl-projects'
 const DEST_DB_ID = process.env.DEST_DB_ID || process.env.NEXT_PUBLIC_PROJECTS_FIRESTORE_DATABASE_ID || 'tebs-erl'
 const DRY_RUN = process.argv.includes('--dry-run')
+const NESTED = process.argv.includes('--nested') // write to /projects/{year}/projects/{id}
 
 const base = { projectId, credentials: { client_email, private_key } }
 const src = new Firestore({ ...base, databaseId: SRC_DB_ID })
 const dest = new Firestore({ ...base, databaseId: DEST_DB_ID })
 
 async function migrate() {
-  console.log(`[migrate] Source DB: ${SRC_DB_ID} -> Dest DB: ${DEST_DB_ID} (dryRun=${DRY_RUN})`)
+  console.log(`[migrate] Source DB: ${SRC_DB_ID} -> Dest DB: ${DEST_DB_ID} (dryRun=${DRY_RUN}, nested=${NESTED})`)
   const rootCols = await src.listCollections()
   // Expect year collections as 4-digit ids
   const years = rootCols.map((c) => c.id).filter((id) => /^\d{4}$/.test(id)).sort()
@@ -58,7 +59,12 @@ async function migrate() {
       const data = docSnap.data()
       projectCount += 1
       if (!DRY_RUN) {
-        await dest.collection(year).doc(docSnap.id).set(data, { merge: false })
+        if (NESTED) {
+          await dest.collection('projects').doc(year).set({ id: year, createdAt: new Date().toISOString() }, { merge: true })
+          await dest.collection('projects').doc(year).collection('projects').doc(docSnap.id).set(data, { merge: false })
+        } else {
+          await dest.collection(year).doc(docSnap.id).set(data, { merge: false })
+        }
       }
 
       // Subcollections (e.g., invoice, invoice-a, invoice-b, Invoice)
@@ -72,7 +78,11 @@ async function migrate() {
         for (const inv of subSnap.docs) {
           invoiceCount += 1
           if (!DRY_RUN) {
-            await dest.collection(year).doc(docSnap.id).collection(subId).doc(inv.id).set(inv.data(), { merge: false })
+            if (NESTED) {
+              await dest.collection('projects').doc(year).collection('projects').doc(docSnap.id).collection(subId).doc(inv.id).set(inv.data(), { merge: false })
+            } else {
+              await dest.collection(year).doc(docSnap.id).collection(subId).doc(inv.id).set(inv.data(), { merge: false })
+            }
           }
         }
       }
@@ -86,4 +96,3 @@ migrate().catch((e) => {
   console.error('[migrate] Failed:', e && e.message ? e.message : e)
   process.exit(1)
 })
-
