@@ -1677,7 +1677,9 @@ const ProjectsShowContent = () => {
                 ) : (
                   <Text className="project-nature">{stringOrNA(project.projectNature)}</Text>
                 )}
-                {isProjectEditing ? (
+              </div>
+              {isProjectEditing ? (
+                <div className="subsidiary-row">
                   <Input
                     value={projectDraft.subsidiary}
                     onChange={(event) => handleProjectDraftChange("subsidiary", event.target.value)}
@@ -1687,12 +1689,12 @@ const ProjectsShowContent = () => {
                     disabled={projectEditSaving}
                     style={{ width: "100%", maxWidth: 360 }}
                   />
-                ) : project.subsidiary ? (
-                  <Tag className="subsidiary-chip">
-                    {stringOrNA(project.subsidiary)}
-                  </Tag>
-                ) : null}
-              </div>
+                </div>
+              ) : project.subsidiary ? (
+                <div className="subsidiary-row">
+                  <Tag className="subsidiary-chip">{stringOrNA(project.subsidiary)}</Tag>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -2161,6 +2163,12 @@ const ProjectsShowContent = () => {
           align-items: flex-start;
           gap: 8px;
           flex-wrap: wrap;
+        }
+
+        .subsidiary-row {
+          margin-top: 2px;
+          display: flex;
+          align-items: center;
         }
 
         .subsidiary-input {
