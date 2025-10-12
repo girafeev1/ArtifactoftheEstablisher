@@ -6,6 +6,11 @@ const API_TIMEOUT_MS = 15000
 
 const alphabet = "abcdefghijklmnopqrstuvwxyz"
 
+// New nested layout (preferred):
+// projects/{year}/projects/{projectId}
+const PROJECTS_ROOT = "projects"
+const PROJECTS_SUBCOLLECTION = "projects"
+
 const POSITIVE_PAYMENT_STATUSES = new Set([
   "paid",
   "cleared",
@@ -225,7 +230,13 @@ const listInvoiceCollectionIds = async (year: string, projectId: string): Promis
     return []
   }
 
-  const url = `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
+  // Try nested document path first: projects/{year}/projects/{projectId}
+  const nestedUrl = `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
+    PROJECTS_ROOT,
+  )}/${encodeURIComponent(year)}/${encodeURIComponent(PROJECTS_SUBCOLLECTION)}/${encodeURIComponent(
+    projectId,
+  )}:listCollectionIds?key=${apiKey}`
+  const legacyUrl = `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
     year,
   )}/${encodeURIComponent(projectId)}:listCollectionIds?key=${apiKey}`
 
@@ -233,12 +244,25 @@ const listInvoiceCollectionIds = async (year: string, projectId: string): Promis
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
 
-    const response = await fetch(url, {
+    let response = await fetch(nestedUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pageSize: 200 }),
       signal: controller.signal,
     })
+    // If nested path fails (404), try legacy
+    if (!response.ok) {
+      try {
+        response = await fetch(legacyUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pageSize: 200 }),
+          signal: controller.signal,
+        })
+      } catch {
+        // swallow; we'll handle below
+      }
+    }
 
     clearTimeout(timeout)
 
@@ -453,7 +477,17 @@ export const fetchInvoicesForProject = async (
   year: string,
   projectId: string,
 ): Promise<ProjectInvoiceRecord[]> => {
-  const projectRef = doc(projectsDb, year, projectId)
+  // Prefer nested doc; fallback to legacy path
+  const nestedRef = doc(projectsDb, PROJECTS_ROOT, year, PROJECTS_SUBCOLLECTION, projectId)
+  let projectRef = nestedRef
+  try {
+    const exists = await getDoc(nestedRef)
+    if (!exists.exists()) {
+      projectRef = doc(projectsDb, year, projectId)
+    }
+  } catch {
+    projectRef = doc(projectsDb, year, projectId)
+  }
 
   const listedIds = await listInvoiceCollectionIds(year, projectId).catch((error) => {
     console.warn("[projectInvoices] listInvoiceCollectionIds failed", { error })
@@ -527,6 +561,8 @@ interface InvoiceWritePayload {
   items: InvoiceItemPayload[]
   taxOrDiscountPercent: number | null
   paymentStatus: string | null
+  paidTo?: string | null
+  paidOn?: unknown
 }
 
 const sanitizeClientPayload = (client: InvoiceClientPayload) => ({
@@ -584,6 +620,24 @@ const buildInvoiceWritePayload = (
     itemsCount: items.length,
     taxOrDiscountPercent,
     paymentStatus,
+  }
+
+  // Optional: paidTo (identifier) and paidOn (date)
+  if (typeof payload.paidTo === "string") {
+    const trimmed = payload.paidTo.trim()
+    result.paidTo = trimmed.length > 0 ? trimmed : null
+  } else if (payload.paidTo === null) {
+    result.paidTo = null
+  }
+
+  const paidOnIso = toIsoString(payload.paidOn as any)
+  if (paidOnIso) {
+    const dt = new Date(paidOnIso)
+    if (!Number.isNaN(dt.getTime())) {
+      result.paidOn = dt
+    }
+  } else if (payload.paidOn === null) {
+    result.paidOn = null
   }
 
   items.forEach((item, index) => {
@@ -664,7 +718,16 @@ export const createInvoiceForProject = async (
     existingCollections,
   )
 
-  const projectRef = doc(projectsDb, input.year, input.projectId)
+  // Create under nested doc; if it doesn't exist yet, fallback to legacy doc
+  let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
+  try {
+    const exists = await getDoc(projectRef)
+    if (!exists.exists()) {
+      projectRef = doc(projectsDb, input.year, input.projectId)
+    }
+  } catch {
+    projectRef = doc(projectsDb, input.year, input.projectId)
+  }
   const collectionRef = collection(projectRef, collectionId)
   const documentRef = doc(collectionRef, invoiceNumber)
 
@@ -701,7 +764,16 @@ export interface UpdateInvoiceInput extends InvoiceWritePayload {
 export const updateInvoiceForProject = async (
   input: UpdateInvoiceInput,
 ): Promise<ProjectInvoiceRecord> => {
-  const projectRef = doc(projectsDb, input.year, input.projectId)
+  // Prefer nested; fallback to legacy path
+  let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
+  try {
+    const exists = await getDoc(projectRef)
+    if (!exists.exists()) {
+      projectRef = doc(projectsDb, input.year, input.projectId)
+    }
+  } catch {
+    projectRef = doc(projectsDb, input.year, input.projectId)
+  }
   const collectionRef = collection(projectRef, input.collectionId)
   const documentRef = doc(collectionRef, input.invoiceNumber)
 

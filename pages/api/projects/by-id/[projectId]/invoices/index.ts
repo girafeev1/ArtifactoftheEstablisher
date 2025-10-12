@@ -135,6 +135,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const items = normalizeItemsPayload(body.items)
       const taxOrDiscountPercent = toNumberValue(body.taxOrDiscountPercent)
       const paymentStatus = toStringValue(body.paymentStatus)
+      const paidTo = toStringValue(body.paidTo)
+      const paidOn = toStringValue(body.paidOn) ?? (body.paidOn ?? null)
 
       const created = await createInvoiceForProject({
         year: project.year,
@@ -144,6 +146,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         items,
         taxOrDiscountPercent,
         paymentStatus,
+        paidTo,
+        paidOn,
       })
 
       console.info("[api/projects/:id/invoices] Invoice created", {
@@ -168,6 +172,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const items = normalizeItemsPayload(body.items)
       const taxOrDiscountPercent = toNumberValue(body.taxOrDiscountPercent)
       const paymentStatus = toStringValue(body.paymentStatus)
+      const paidTo = toStringValue(body.paidTo)
+      const paidOn = toStringValue(body.paidOn) ?? (body.paidOn ?? null)
 
       const updated = await updateInvoiceForProject({
         year: project.year,
@@ -179,6 +185,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         items,
         taxOrDiscountPercent,
         paymentStatus,
+        paidTo,
+        paidOn,
       })
 
       console.info("[api/projects/:id/invoices] Invoice updated", {

@@ -35,6 +35,7 @@ import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
 import type { ProjectRecord } from "../../lib/projectsDatabase"
 import type { ProjectInvoiceRecord } from "../../lib/projectInvoices"
 import dayjs, { type Dayjs } from "dayjs"
+import { resolveBankAccountIdentifier } from "../../lib/erlDirectory"
 
 import AppShell from "../new-ui/AppShell"
 import {
@@ -126,6 +127,8 @@ type InvoiceDraftState = {
   items: InvoiceDraftItem[]
   taxOrDiscountPercent: number
   paymentStatus: string | null
+  paidTo?: string | null
+  paidOnIso?: string | null
 }
 
 type ProjectDraftState = {
@@ -300,6 +303,8 @@ const buildDraftFromInvoice = (
   paymentStatus:
     invoice.paymentStatus ??
     (invoice.paid === true ? "Cleared" : invoice.paid === false ? "Due" : "Draft"),
+  paidTo: invoice.paidTo ?? null,
+  paidOnIso: invoice.paidOnIso ?? null,
 })
 
 const buildDraftForNewInvoice = (
@@ -321,6 +326,8 @@ const buildDraftForNewInvoice = (
     items: [],
     taxOrDiscountPercent: 0,
     paymentStatus: "Draft",
+    paidTo: null,
+    paidOnIso: null,
   }
 }
 
@@ -370,6 +377,9 @@ const ProjectsShowContent = () => {
     subsidiary: "",
   })
   const [invoiceNumberEditing, setInvoiceNumberEditing] = useState(false)
+  const [bankInfoMap, setBankInfoMap] = useState<
+    Record<string, { bankName: string; bankCode?: string; accountType?: string | null }>
+  >({})
   const itemIdRef = useRef(0)
 
   const projectId = useMemo(() => {
@@ -456,6 +466,41 @@ const ProjectsShowContent = () => {
       controller.abort()
     }
   }, [loadProject, router.isReady])
+
+  // Resolve bank identifiers (paidTo) into bank name/account type for display
+  useEffect(() => {
+    const controller = new AbortController()
+    const run = async () => {
+      const ids = new Set<string>()
+      invoices.forEach((inv) => {
+        if (typeof inv.paidTo === "string" && inv.paidTo.trim().length > 0) {
+          ids.add(inv.paidTo.trim())
+        }
+      })
+      if (draftInvoice?.paidTo && draftInvoice.paidTo.trim().length > 0) {
+        ids.add(draftInvoice.paidTo.trim())
+      }
+      const missing = Array.from(ids).filter((id) => !bankInfoMap[id])
+      if (missing.length === 0) return
+      const updates: Record<string, { bankName: string; bankCode?: string; accountType?: string | null }> = {}
+      for (const id of missing) {
+        try {
+          const info = await resolveBankAccountIdentifier(id)
+          if (controller.signal.aborted) return
+          if (info) {
+            updates[id] = { bankName: info.bankName, bankCode: info.bankCode, accountType: info.accountType ?? null }
+          }
+        } catch {
+          // ignore
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        setBankInfoMap((prev) => ({ ...prev, ...updates }))
+      }
+    }
+    void run()
+    return () => controller.abort()
+  }, [invoices, draftInvoice?.paidTo])
 
   useEffect(() => {
     if (!project || projectEditMode !== "view") {
@@ -1236,6 +1281,20 @@ const ProjectsShowContent = () => {
     })
   }, [])
 
+  const handlePaidToChange = useCallback((value: string) => {
+    setDraftInvoice((previous) => {
+      if (!previous) return previous
+      return { ...previous, paidTo: value }
+    })
+  }, [])
+
+  const handlePaidOnChange = useCallback((value: Dayjs | null) => {
+    setDraftInvoice((previous) => {
+      if (!previous) return previous
+      return { ...previous, paidOnIso: value ? value.toISOString() : null }
+    })
+  }, [])
+
   const handleSaveInvoice = useCallback(async () => {
     if (!project || !draftInvoice) {
       return
@@ -1252,6 +1311,8 @@ const ProjectsShowContent = () => {
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
+              paidTo: draftInvoice.paidTo ?? null,
+              paidOn: draftInvoice.paidOnIso ?? null,
             }
           : {
               collectionId: draftInvoice.collectionId,
@@ -1260,6 +1321,8 @@ const ProjectsShowContent = () => {
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
+              paidTo: draftInvoice.paidTo ?? null,
+              paidOn: draftInvoice.paidOnIso ?? null,
             }
 
       const response = await fetch(endpoint, {
@@ -1754,8 +1817,51 @@ const ProjectsShowContent = () => {
                               </Tag>
                             )}
                           </div>
-                          <div className="invoice-cell pay-to">{entry.payToText ?? "-"}</div>
-                          <div className="invoice-cell paid-on">{entry.paidOnText ?? "-"}</div>
+                          <div className="invoice-cell pay-to">
+                            {isEditingRow && draftInvoice ? (
+                              <Input
+                                value={draftInvoice.paidTo ?? ""}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  handlePaidToChange(e.target.value)
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                bordered={false}
+                                className="invoice-input editing"
+                                placeholder="Bank identifier (e.g., ERL-OCBC-S)"
+                              />
+                            ) : entry.payToText ? (
+                              <div className="bank-display">
+                                <span className="bank-name">
+                                  {bankInfoMap[entry.payToText]?.bankName ?? entry.payToText}
+                                </span>
+                                {bankInfoMap[entry.payToText]?.accountType ? (
+                                  <span className="account-chip">
+                                    {bankInfoMap[entry.payToText]?.accountType}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : (
+                              "-"
+                            )}
+                          </div>
+                          <div className="invoice-cell paid-on">
+                            {isEditingRow && draftInvoice ? (
+                              <DatePicker
+                                value={draftInvoice.paidOnIso ? dayjs(draftInvoice.paidOnIso) : null}
+                                onChange={(v) => {
+                                  handlePaidOnChange(v)
+                                }}
+                                bordered={false}
+                                format="MMM DD, YYYY"
+                                placeholder="Select date"
+                                allowClear
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              entry.paidOnText ?? "-"
+                            )}
+                          </div>
                         </div>
                       )
                     })
@@ -2185,6 +2291,8 @@ const ProjectsShowContent = () => {
           display: flex;
           flex-direction: column;
           gap: 4px;
+          align-items: flex-end;
+          text-align: right;
         }
 
         .company-name {
@@ -2407,8 +2515,31 @@ const ProjectsShowContent = () => {
         }
 
         .invoice-cell.pay-to {
-          font-style: italic;
-          color: #475569;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          color: #0f172a;
+        }
+
+        .bank-display .bank-name {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #0f172a;
+          display: block;
+        }
+
+        .bank-display .account-chip {
+          margin-top: 2px;
+          display: inline-flex;
+          align-items: center;
+          padding: 2px 8px;
+          border-radius: 9999px;
+          background: #e5e7eb;
+          color: #374151;
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          font-size: 12px;
+          line-height: 1;
         }
 
         .invoice-edit-trigger {
@@ -2560,7 +2691,7 @@ const ProjectsShowContent = () => {
         .item-fee-type {
           font-family: 'Darker Grotesque', ${KARLA_FONT};
           font-weight: 600;
-          color: #4b5563;
+          color: #374151;
           letter-spacing: 0.02em;
           display: block;
           white-space: normal;
@@ -2581,6 +2712,9 @@ const ProjectsShowContent = () => {
 
         .invoice-items :global(.ant-table) {
           font-family: ${KARLA_FONT};
+        }
+        .invoice-items :global(.ant-table-cell) {
+          text-align: left;
         }
 
         .totals-panel {
