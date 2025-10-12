@@ -1901,16 +1901,15 @@ const ProjectsShowContent = () => {
         .header-block {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 6px;
         }
 
         .descriptor-line {
           display: flex;
-          align-items: baseline;
+          align-items: center;
           gap: 8px;
           font-family: ${KARLA_FONT};
           font-weight: 600;
-          margin-bottom: 8px;
         }
 
         .descriptor-number {
@@ -1968,7 +1967,7 @@ const ProjectsShowContent = () => {
         .title-content {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 4px;
           flex: 1 1 320px;
           max-width: 100%;
         }
@@ -2014,8 +2013,17 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 700;
           color: #0f172a;
-          line-height: 1.02;
+          line-height: 1.01;
           padding: 0;
+        }
+
+        :global(.project-title.ant-typography) {
+          margin: 0 !important;
+          line-height: 1.01;
+        }
+
+        :global(.project-title.ant-typography > div) {
+          margin: 0 !important;
         }
 
         .project-title-input {
@@ -2044,17 +2052,16 @@ const ProjectsShowContent = () => {
 
         .nature-row {
           display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .nature-row.editing {
           align-items: flex-start;
+          gap: 8px;
+          flex-wrap: wrap;
         }
 
         .subsidiary-input {
           font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #0f172a;
+          padding: 0;
         }
 
         .subsidiary-chip {
