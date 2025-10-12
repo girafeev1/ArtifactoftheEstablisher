@@ -737,6 +737,8 @@ export const createInvoiceForProject = async (
     items: input.items,
     taxOrDiscountPercent: input.taxOrDiscountPercent,
     paymentStatus: input.paymentStatus,
+    paidTo: input.paidTo ?? null,
+    paidOn: input.paidOn ?? null,
   })
 
   payload.invoiceNumber = invoiceNumber
@@ -792,6 +794,8 @@ export const updateInvoiceForProject = async (
       items: input.items,
       taxOrDiscountPercent: input.taxOrDiscountPercent,
       paymentStatus: input.paymentStatus,
+      paidTo: input.paidTo ?? null,
+      paidOn: input.paidOn ?? null,
     },
     existingCount,
     { removeAggregates: true },

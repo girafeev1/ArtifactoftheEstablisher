@@ -482,18 +482,27 @@ const ProjectsShowContent = () => {
       }
       const missing = Array.from(ids).filter((id) => !bankInfoMap[id])
       if (missing.length === 0) return
-      const updates: Record<string, { bankName: string; bankCode?: string; accountType?: string | null }> = {}
-      for (const id of missing) {
-        try {
-          const info = await resolveBankAccountIdentifier(id)
-          if (controller.signal.aborted) return
-          if (info) {
-            updates[id] = { bankName: info.bankName, bankCode: info.bankCode, accountType: info.accountType ?? null }
+      const results = await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const info = await resolveBankAccountIdentifier(id)
+            return { id, info }
+          } catch {
+            return { id, info: null }
           }
-        } catch {
-          // ignore
+        }),
+      )
+      if (controller.signal.aborted) return
+      const updates: Record<string, { bankName: string; bankCode?: string; accountType?: string | null }> = {}
+      results.forEach(({ id, info }) => {
+        if (info) {
+          updates[id] = {
+            bankName: info.bankName,
+            bankCode: info.bankCode,
+            accountType: info.accountType ?? null,
+          }
         }
-      }
+      })
       if (Object.keys(updates).length > 0) {
         setBankInfoMap((prev) => ({ ...prev, ...updates }))
       }
@@ -735,6 +744,7 @@ const ProjectsShowContent = () => {
     return entries
   }, [
     activeInvoiceIndex,
+    bankInfoMap,
     draftInvoice,
     invoiceMode,
     invoices,
@@ -1310,12 +1320,30 @@ const ProjectsShowContent = () => {
       setSavingInvoice(true)
       const endpoint = `/api/projects/by-id/${encodeURIComponent(project.id)}/invoices`
       const method = invoiceMode === "create" ? "POST" : "PATCH"
+
+      const serializedItems = draftInvoice.items.map((item) => ({
+        title: item.title?.trim() ?? "",
+        feeType: item.feeType?.trim() ?? "",
+        unitPrice:
+          typeof item.unitPrice === "number" && !Number.isNaN(item.unitPrice)
+            ? item.unitPrice
+            : Number(item.unitPrice) || 0,
+        quantity:
+          typeof item.quantity === "number" && !Number.isNaN(item.quantity)
+            ? item.quantity
+            : Number(item.quantity) || 0,
+        discount:
+          typeof item.discount === "number" && !Number.isNaN(item.discount)
+            ? item.discount
+            : Number(item.discount) || 0,
+      }))
+
       const payload =
         invoiceMode === "create"
           ? {
               baseInvoiceNumber: draftInvoice.baseInvoiceNumber,
               client: draftInvoice.client,
-              items: draftInvoice.items,
+              items: serializedItems,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
               paidTo: draftInvoice.paidTo ?? null,
@@ -1325,7 +1353,7 @@ const ProjectsShowContent = () => {
               collectionId: draftInvoice.collectionId,
               invoiceNumber: draftInvoice.invoiceNumber,
               client: draftInvoice.client,
-              items: draftInvoice.items,
+              items: serializedItems,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
               paidTo: draftInvoice.paidTo ?? null,
@@ -1414,12 +1442,12 @@ const ProjectsShowContent = () => {
           }
 
           if (!isEditingInvoice) {
-            const title = record.title?.trim() ? record.title : "N/A"
-            const description = record.feeType?.trim() ? record.feeType.trim() : null
+            const title = record.title?.trim() ? record.title.trim() : "N/A"
+            const description = record.feeType?.trim() ? record.feeType.trim() : "N/A"
             return (
               <div className="item-display">
                 <span className="item-title-text">{title}</span>
-                {description ? <span className="item-description">{description}</span> : null}
+                <span className="item-description">{description}</span>
               </div>
             )
           }
@@ -1456,7 +1484,7 @@ const ProjectsShowContent = () => {
         dataIndex: "unitPrice",
         title: <span className="items-heading">Unit Price</span>,
         width: 140,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1481,7 +1509,7 @@ const ProjectsShowContent = () => {
         dataIndex: "quantity",
         title: <span className="items-heading">Qty</span>,
         width: 100,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1506,7 +1534,7 @@ const ProjectsShowContent = () => {
         dataIndex: "discount",
         title: <span className="items-heading">Discount</span>,
         width: 140,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1529,7 +1557,7 @@ const ProjectsShowContent = () => {
         key: "total",
         dataIndex: "total",
         title: <span className="items-heading">Total</span>,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (_: unknown, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1579,7 +1607,7 @@ const ProjectsShowContent = () => {
               Back to Projects
             </Button>
           </div>
-          <div className="header-block">
+          <div className={`header-block${isProjectEditing ? " editing" : ""}`}>
           <div className="descriptor-line">
             {isProjectEditing ? (
               <Input
@@ -1595,50 +1623,52 @@ const ProjectsShowContent = () => {
               <span className="descriptor-number">{stringOrNA(project.projectNumber)}</span>
             )}
             <span className="descriptor-separator">/</span>
-            {isProjectEditing ? (
-              <DatePicker
-                value={projectDraft.projectDateIso ? dayjs(projectDraft.projectDateIso) : null}
-                onChange={handleProjectDateChange}
-                format="MMM DD, YYYY"
-                allowClear
-                bordered={false}
-                className="descriptor-picker"
-                disabled={projectEditSaving}
-                style={{ minWidth: 160 }}
-              />
-            ) : (
-              <span className="descriptor-date">
-                {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
-              </span>
-            )}
-            {isProjectEditing ? (
-              <div className="descriptor-actions">
-                <Button
-                  className="project-cancel"
-                  onClick={cancelProjectEditing}
+            <div className="descriptor-date-group">
+              {isProjectEditing ? (
+                <DatePicker
+                  value={projectDraft.projectDateIso ? dayjs(projectDraft.projectDateIso) : null}
+                  onChange={handleProjectDateChange}
+                  format="MMM DD, YYYY"
+                  allowClear
+                  bordered={false}
+                  className="descriptor-picker"
                   disabled={projectEditSaving}
+                  style={{ minWidth: 160 }}
+                />
+              ) : (
+                <span className="descriptor-date">
+                  {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
+                </span>
+              )}
+              {isProjectEditing ? (
+                <div className="descriptor-actions">
+                  <Button
+                    className="project-cancel"
+                    onClick={cancelProjectEditing}
+                    disabled={projectEditSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="primary"
+                    className="project-save"
+                    onClick={saveProjectEdits}
+                    loading={projectEditSaving}
+                  >
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="descriptor-edit-trigger"
+                  onClick={startProjectEditing}
+                  aria-label="Edit project details"
                 >
-                  Cancel
-                </Button>
-                <Button
-                  type="primary"
-                  className="project-save"
-                  onClick={saveProjectEdits}
-                  loading={projectEditSaving}
-                >
-                  Save
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="descriptor-edit-trigger"
-                onClick={startProjectEditing}
-                aria-label="Edit project details"
-              >
-                <EditOutlined />
-              </button>
-            )}
+                  <EditOutlined />
+                </button>
+              )}
+            </div>
           </div>
           <div className="title-row">
             <div className="title-content">
@@ -1830,7 +1860,11 @@ const ProjectsShowContent = () => {
                                 </Tag>
                               )}
                             </div>
-                            <div className="invoice-cell pay-to">
+                            <div
+                              className={`invoice-cell pay-to${
+                                isEditingRow && draftInvoice ? " editing" : ""
+                              }`}
+                            >
                               {isEditingRow && draftInvoice ? (
                                 <Input
                                   value={draftInvoice.paidTo ?? ""}
@@ -1916,7 +1950,7 @@ const ProjectsShowContent = () => {
                 <section className="items-section">
                   <div className="items-header">
                     <Title level={4} className="section-heading">
-                      Items / Services
+                      Invoice Details
                     </Title>
                   </div>
                   <Table<InvoiceTableRow>
@@ -1989,6 +2023,7 @@ const ProjectsShowContent = () => {
       </div>
       {/* eslint-disable-next-line react/no-unknown-property */}
       <style jsx>{`
+        @import url("https://fonts.googleapis.com/css2?family=Darker+Grotesque:wght@500;600&display=swap");
         .page-wrapper {
           padding: 32px 24px 48px;
           background: #f8fafc;
@@ -2030,6 +2065,7 @@ const ProjectsShowContent = () => {
           gap: 8px;
           font-family: ${KARLA_FONT};
           font-weight: 600;
+          flex-wrap: wrap;
         }
 
         .descriptor-number {
@@ -2053,6 +2089,13 @@ const ProjectsShowContent = () => {
           color: #94a3b8;
         }
 
+        .descriptor-date-group {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
         .descriptor-date {
           color: #64748b;
           font-style: italic;
@@ -2074,6 +2117,45 @@ const ProjectsShowContent = () => {
         .descriptor-picker .ant-picker-input > input::placeholder {
           color: #94a3b8;
           font-style: italic;
+        }
+
+        .header-block.editing {
+          background: #f1f5f9;
+          border-radius: 16px;
+          padding: 12px 16px;
+        }
+
+        .header-block.editing .descriptor-date-group {
+          background: #e2e8f0;
+          border-radius: 12px;
+          padding: 4px 8px;
+        }
+
+        .header-block.editing :global(.descriptor-input.ant-input),
+        .header-block.editing :global(.presenter-input.ant-input),
+        .header-block.editing :global(.project-title-input.ant-input),
+        .header-block.editing :global(.project-nature-input.ant-input),
+        .header-block.editing :global(.subsidiary-input.ant-input) {
+          padding: 6px 10px;
+          border-radius: 10px;
+          border: 1px solid #60a5fa;
+          background: #ffffff;
+          box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+        }
+
+        .header-block.editing .descriptor-picker,
+        .header-block.editing .descriptor-picker:hover,
+        .header-block.editing .descriptor-picker:focus {
+          background: #ffffff;
+          border-radius: 10px;
+          border: 1px solid #60a5fa;
+          box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+          padding: 2px 8px;
+        }
+
+        .header-block.editing .descriptor-picker .ant-picker-input > input {
+          color: #0f172a;
+          font-style: normal;
         }
 
         .title-row {
@@ -2207,14 +2289,12 @@ const ProjectsShowContent = () => {
         }
 
         .descriptor-actions {
-          margin-left: auto;
           display: inline-flex;
           align-items: center;
           gap: 8px;
         }
 
         .descriptor-edit-trigger {
-          margin-left: auto;
           border: none;
           background: none;
           padding: 4px;
@@ -2509,10 +2589,10 @@ const ProjectsShowContent = () => {
             minmax(140px, 1fr)
             minmax(160px, 1.1fr)
             minmax(120px, 0.8fr);
-          align-items: flex-start;
+          align-items: center;
           gap: 12px;
           font-family: ${KARLA_FONT};
-          justify-items: start;
+          justify-items: stretch;
         }
 
         .invoice-row.head {
@@ -2534,11 +2614,12 @@ const ProjectsShowContent = () => {
           font-weight: 600;
           color: #0f172a;
           text-align: left;
+          display: flex;
+          align-items: center;
+          width: 100%;
         }
 
         .invoice-cell.number {
-          display: flex;
-          align-items: center;
           gap: 12px;
         }
 
@@ -2547,16 +2628,32 @@ const ProjectsShowContent = () => {
         }
 
         .invoice-cell.status {
-          display: flex;
           align-items: center;
           gap: 8px;
         }
 
         .invoice-cell.pay-to {
-          display: flex;
           flex-direction: column;
           align-items: flex-start;
           color: #0f172a;
+        }
+
+        .invoice-cell.pay-to.editing {
+          flex-direction: row;
+          align-items: center;
+        }
+
+        .invoice-cell.paid-on {
+          justify-content: flex-start;
+        }
+
+        .invoice-cell.number :global(.ant-input) {
+          width: 100%;
+        }
+
+        .invoice-cell.status :global(.ant-select),
+        .invoice-cell.paid-on :global(.ant-picker) {
+          width: 100%;
         }
 
         .bank-name {
@@ -2715,7 +2812,7 @@ const ProjectsShowContent = () => {
         .item-display {
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 2px;
           align-items: flex-start;
         }
 
@@ -2727,9 +2824,9 @@ const ProjectsShowContent = () => {
         }
 
         .item-description {
-          font-family: ${KARLA_FONT};
-          font-weight: 500;
-          color: #374151;
+          font-family: 'Darker Grotesque', sans-serif;
+          font-weight: 600;
+          color: #4a4a4a;
           display: block;
           white-space: normal;
         }
@@ -2751,12 +2848,22 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #0f172a;
+          text-align: left;
+          display: block;
         }
 
         .invoice-items :global(.ant-table) {
           font-family: ${KARLA_FONT};
         }
         .invoice-items :global(.ant-table-cell) {
+          text-align: left;
+          white-space: normal;
+          vertical-align: top;
+        }
+        .invoice-items :global(.ant-input-number) {
+          width: 100%;
+        }
+        .invoice-items :global(.ant-input-number-input) {
           text-align: left;
         }
 

@@ -2,7 +2,7 @@
 
 import { collection, getDocs } from 'firebase/firestore'
 
-import { getFirestoreForDatabase } from './firebase'
+import { DIRECTORY_FIRESTORE_DATABASE_ID, getFirestoreForDatabase } from './firebase'
 
 export interface BankAccountDirectoryRecord {
   bankName: string
@@ -33,6 +33,21 @@ const toOptionalBoolean = (value: unknown): boolean | null => {
   return null
 }
 
+const normalizeBankCode = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const digits = value.replace(/[^0-9]/g, '')
+    if (!digits) {
+      return null
+    }
+    return `(${digits.padStart(3, '0')})`
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const digits = Math.trunc(value).toString().padStart(3, '0')
+    return `(${digits})`
+  }
+  return null
+}
+
 const normalizeBankCodes = (raw: unknown): string[] => {
   if (!Array.isArray(raw)) {
     return []
@@ -53,7 +68,7 @@ const normalizeBankCodes = (raw: unknown): string[] => {
 }
 
 export const fetchBankAccountsDirectory = async (): Promise<BankAccountDirectoryRecord[]> => {
-  const directoryDb = getFirestoreForDatabase('erl-directory')
+  const directoryDb = getFirestoreForDatabase(DIRECTORY_FIRESTORE_DATABASE_ID)
   const bankSnapshot = await getDocs(collection(directoryDb, 'bankAccount'))
 
   const results: BankAccountDirectoryRecord[] = []
@@ -61,8 +76,41 @@ export const fetchBankAccountsDirectory = async (): Promise<BankAccountDirectory
   await Promise.all(
     bankSnapshot.docs.map(async (bankDoc) => {
       const bankData = bankDoc.data() as Record<string, unknown>
-      const bankName = bankDoc.id
+      const bankNameField = toOptionalString(bankData.bankName)
+      const accountType = toOptionalString(bankData.accountType)
+      const accountNumber =
+        toOptionalString(bankData.accountNumber) ??
+        toOptionalString(bankData.accountNumberMasked) ??
+        toOptionalString(bankData.accountNo) ??
+        toOptionalString(bankData.acctNumber) ??
+        toOptionalString(bankData.number)
+      const flatAccountCode = normalizeBankCode(bankData.bankCode)
+      const fpsId =
+        toOptionalString(bankData['FPS ID']) ??
+        toOptionalString(bankData['fpsId']) ??
+        toOptionalString(bankData['fpsID'])
+      const fpsEmail =
+        toOptionalString(bankData['FPS Email']) ??
+        toOptionalString(bankData['fpsEmail']) ??
+        toOptionalString(bankData['FPS EMAIL'])
       const codes = normalizeBankCodes(bankData.code)
+
+      // Modern flat structure: bankAccount/{identifier}
+      if (codes.length === 0 && (flatAccountCode || accountType || accountNumber || fpsId || fpsEmail)) {
+        results.push({
+          bankName: bankNameField ?? bankDoc.id,
+          bankCode: flatAccountCode,
+          accountId: bankDoc.id,
+          accountType,
+          accountNumber,
+          status: toOptionalBoolean(bankData.status),
+          fpsId,
+          fpsEmail,
+        })
+        return
+      }
+
+      const bankName = bankNameField ?? bankDoc.id
 
       if (codes.length === 0) {
         results.push({

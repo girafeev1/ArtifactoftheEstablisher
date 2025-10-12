@@ -25,6 +25,40 @@ export const dbDirectory = (() => {
   }
 })()
 
+const toOptionalString = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value)
+  }
+  return null
+}
+
+const normalizeBankCodeValue = (value: unknown): string | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value).toString().padStart(3, '0')
+  }
+  if (typeof value === 'string') {
+    const digits = value.replace(/[^0-9]/g, '')
+    if (digits.length === 0) {
+      return null
+    }
+    return digits.padStart(3, '0')
+  }
+  return null
+}
+
+const extractAccountNumber = (value: Record<string, unknown>): string | null =>
+  toOptionalString(
+    value.accountNumber ??
+      value.accountNumberMasked ??
+      value.accountNo ??
+      value.acctNumber ??
+      value.number,
+  )
+
 export function normalizeCode(code: string | number): { code: string; raw: string } {
   const digits = typeof code === 'number' ? String(code) : String(code)
   const num = digits.replace(/[^0-9]/g, '')
@@ -38,10 +72,10 @@ export async function listBanks(): Promise<BankInfo[]> {
     const snap = await getDocs(collection(dbDirectory, 'bankAccount'))
     const byCode = new Map<string, BankInfo>()
     for (const d of snap.docs) {
-      const data = d.data() as any
-      const bankCode = String(data.bankCode || '').replace(/[^0-9]/g, '').padStart(3, '0')
+      const data = d.data() as Record<string, unknown>
+      const bankCode = normalizeBankCodeValue(data.bankCode)
       if (!bankCode) continue
-      const bankName = typeof data.bankName === 'string' && data.bankName.trim().length > 0 ? data.bankName : ''
+      const bankName = toOptionalString(data.bankName) ?? ''
       const raw = `(${bankCode})`
       const key = `${bankCode}::${bankName}`
       if (!byCode.has(key)) {
@@ -69,18 +103,21 @@ export async function listAccounts(bank: BankInfo): Promise<AccountInfo[]> {
     const snap = await getDocs(q)
     return snap.docs
       .filter((d) => {
-        const data = d.data() as any
+        const data = d.data() as Record<string, unknown>
         if (bank.bankName) {
-          const name = typeof data.bankName === 'string' ? data.bankName : ''
+          const name = toOptionalString(data.bankName) ?? ''
           return name === bank.bankName
         }
         return true
       })
       .map((d) => {
-      const data = d.data() as any
-      const number = data.accountNumber || data.accountNo || data.acctNumber || data.number
-      return { accountDocId: d.id, accountType: data.accountType, accountNumber: number }
-    })
+        const data = d.data() as Record<string, unknown>
+        return {
+          accountDocId: d.id,
+          accountType: toOptionalString(data.accountType) ?? undefined,
+          accountNumber: extractAccountNumber(data) ?? undefined,
+        }
+      })
   } catch (e) {
     if (process.env.NODE_ENV !== 'production') {
       console.warn('accounts load failed', e)
@@ -104,15 +141,16 @@ export async function lookupAccount(
   const ref = doc(dbDirectory, 'bankAccount', id)
   const snap = await getDoc(ref)
   if (!snap.exists()) return null
-  const data = snap.data() as any
-  const number = data.accountNumber || data.accountNo || data.acctNumber || data.number
-  const bankCode = String(data.bankCode || '').replace(/[^0-9]/g, '').padStart(3, '0')
-  const bankName = typeof data.bankName === 'string' ? data.bankName : ''
+  const data = snap.data() as Record<string, unknown>
+  const number = extractAccountNumber(data)
+  const normalizedBankCode = normalizeBankCodeValue(data.bankCode)
+  const bankCode = normalizedBankCode ?? (toOptionalString(data.bankCode) ?? '')
+  const bankName = toOptionalString(data.bankName) ?? ''
   return {
     bankName,
     bankCode,
-    accountType: data.accountType,
-    accountNumber: number,
+    accountType: toOptionalString(data.accountType) ?? undefined,
+    accountNumber: number ?? undefined,
   }
 }
 
@@ -140,14 +178,25 @@ export async function resolveBankAccountIdentifier(
   try {
     const flat = await getDoc(doc(dbDirectory, 'bankAccount', identifier))
     if (flat.exists()) {
-      const data = flat.data() as any
+      const data = flat.data() as Record<string, unknown>
+      const normalizedBankCode = normalizeBankCodeValue(data.bankCode)
+      const bankCode = normalizedBankCode ?? (toOptionalString(data.bankCode) ?? '')
+      const bankName = toOptionalString(data.bankName) ?? identifier
       return {
-        bankName: data.bankName,
-        bankCode: data.bankCode,
-        accountType: data.accountType,
-        accountNumber: data.accountNumber || data.accountNumberMasked,
-        fpsId: data['FPS ID'] || data.fpsId || null,
-        fpsEmail: data['FPS Email'] || data.fpsEmail || null,
+        bankName,
+        bankCode,
+        accountType: toOptionalString(data.accountType) ?? undefined,
+        accountNumber: extractAccountNumber(data) ?? undefined,
+        fpsId:
+          toOptionalString(data['FPS ID']) ??
+          toOptionalString(data.fpsId) ??
+          toOptionalString(data['fpsID']) ??
+          null,
+        fpsEmail:
+          toOptionalString(data['FPS Email']) ??
+          toOptionalString(data.fpsEmail) ??
+          toOptionalString(data['FPS EMAIL']) ??
+          null,
         status: typeof data.status === 'boolean' ? data.status : null,
       }
     }
