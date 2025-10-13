@@ -53,11 +53,6 @@ const normalizeClientPayload = (value: unknown, fallbackCompany: string | null):
   const input = (value && typeof value === "object") ? (value as Record<string, unknown>) : {}
   return {
     companyName: toStringValue(input.companyName) ?? fallbackCompany ?? null,
-    addressLine1: toStringValue(input.addressLine1),
-    addressLine2: toStringValue(input.addressLine2),
-    addressLine3: toStringValue(input.addressLine3),
-    region: toStringValue(input.region),
-    representative: toStringValue(input.representative),
   }
 }
 
@@ -88,7 +83,7 @@ const respondWithInvoices = async (
   project: ProjectRecord,
   status: number,
 ) => {
-  const invoices = await fetchInvoicesForProject(project.year, project.id)
+  const invoices = await fetchInvoicesForProject(project.year, project.id, project.storagePath)
   return res.status(status).json({ invoices })
 }
 
@@ -141,6 +136,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const created = await createInvoiceForProject({
         year: project.year,
         projectId: project.id,
+        storagePath: project.storagePath,
         baseInvoiceNumber,
         client,
         items,
@@ -148,6 +144,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentStatus,
         paidTo,
         paidOn,
+        editedBy: identity,
       })
 
       console.info("[api/projects/:id/invoices] Invoice created", {
@@ -178,6 +175,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const updated = await updateInvoiceForProject({
         year: project.year,
         projectId: project.id,
+        storagePath: project.storagePath,
         collectionId,
         invoiceNumber,
         baseInvoiceNumber: invoiceNumber,
@@ -187,6 +185,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentStatus,
         paidTo,
         paidOn,
+        editedBy: identity,
       })
 
       console.info("[api/projects/:id/invoices] Invoice updated", {

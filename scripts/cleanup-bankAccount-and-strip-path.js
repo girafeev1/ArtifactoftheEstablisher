@@ -24,7 +24,7 @@ function getEnv(name, required = false) {
 }
 
 function unescapePrivateKey(k) {
-  return (k || '').replace(/\\n/g, '\n').replace(/^\"|\"$/g, '')
+  return (k || '').replace(/\\n/g, '\n').replace(/^"|"$/g, '')
 }
 
 const projectId = getEnv('FIREBASE_ADMIN_PROJECT_ID', true)

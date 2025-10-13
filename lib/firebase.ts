@@ -15,10 +15,10 @@ const firebaseEnvConfig = {
 const DEFAULT_DATABASE_ID = 'mel-sessions'
 // Allow overriding the projects database via environment for easy migration/switching
 const PROJECTS_DATABASE_ID =
-  process.env.NEXT_PUBLIC_PROJECTS_FIRESTORE_DATABASE_ID?.trim() || 'epl-projects'
-// Allow overriding the directory (bank accounts) database; default to legacy 'erl-directory'
+  process.env.NEXT_PUBLIC_PROJECTS_FIRESTORE_DATABASE_ID?.trim() || 'tebs-erl'
+// Allow overriding the directory (bank accounts) database; default to production 'tebs-erl'
 const DIRECTORY_DATABASE_ID =
-  process.env.NEXT_PUBLIC_DIRECTORY_FIRESTORE_DATABASE_ID?.trim() || 'erl-directory'
+  process.env.NEXT_PUBLIC_DIRECTORY_FIRESTORE_DATABASE_ID?.trim() || 'tebs-erl'
 
 type FirebaseEnvSnapshot = {
   NEXT_PUBLIC_FIREBASE_API_KEY: string | null
