@@ -26,6 +26,14 @@ const trimOrNull = (value: string | null | undefined) => {
   return trimmed.length > 0 ? trimmed : null
 }
 
+export const normalizeCompanyKey = (value: string | null | undefined) => {
+  if (typeof value !== "string") {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed.toLowerCase() : null
+}
+
 export const stringOrNA = (value: string | null | undefined) => {
   if (typeof value !== "string") {
     return "N/A"

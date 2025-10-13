@@ -78,18 +78,70 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     }
 
-    let matchedClient: ClientDirectoryRecord | null = null
     const projectCompanyKey = normalizeCompanyKey(project.clientCompany)
+    const invoiceCompanyKeys = new Set<string>()
+    invoices.forEach((invoice) => {
+      const key = normalizeCompanyKey(invoice.companyName)
+      if (key) {
+        invoiceCompanyKeys.add(key)
+      }
+    })
 
+    const keysToResolve = new Set<string>()
     if (projectCompanyKey) {
+      keysToResolve.add(projectCompanyKey)
+    }
+    invoiceCompanyKeys.forEach((key) => keysToResolve.add(key))
+
+    let matchedClient: ClientDirectoryRecord | null = null
+    let matchedDirectoryRecords: ClientDirectoryRecord[] = []
+
+    if (keysToResolve.size > 0) {
       try {
         const clients = await fetchClientsDirectory()
-        matchedClient =
-          clients.find((client) => {
-            const companyKey = normalizeCompanyKey(client.companyName)
-            const documentKey = normalizeCompanyKey(client.documentId)
-            return companyKey === projectCompanyKey || documentKey === projectCompanyKey
-          }) ?? null
+        const recordByKey = new Map<string, ClientDirectoryRecord>()
+
+        clients.forEach((clientRecord) => {
+          const companyKey = normalizeCompanyKey(clientRecord.companyName)
+          const documentKey = normalizeCompanyKey(clientRecord.documentId)
+
+          if (companyKey && !recordByKey.has(companyKey)) {
+            recordByKey.set(companyKey, clientRecord)
+          }
+          if (documentKey && !recordByKey.has(documentKey)) {
+            recordByKey.set(documentKey, clientRecord)
+          }
+        })
+
+        const collected: ClientDirectoryRecord[] = []
+
+        keysToResolve.forEach((key) => {
+          const record = recordByKey.get(key)
+          if (record) {
+            collected.push(record)
+            if (!matchedClient && projectCompanyKey && key === projectCompanyKey) {
+              matchedClient = record
+            }
+          }
+        })
+
+        if (!matchedClient && projectCompanyKey) {
+          matchedClient = recordByKey.get(projectCompanyKey) ?? null
+        }
+
+        const uniqueRecords = new Map<string, ClientDirectoryRecord>()
+        collected.forEach((record) => {
+          const idKey = record.documentId ?? record.companyName
+          if (idKey && !uniqueRecords.has(idKey)) {
+            uniqueRecords.set(idKey, record)
+          }
+        })
+
+        matchedDirectoryRecords = Array.from(uniqueRecords.values())
+
+        if (matchedClient && !uniqueRecords.has(matchedClient.documentId ?? matchedClient.companyName)) {
+          matchedDirectoryRecords.push(matchedClient)
+        }
       } catch (clientError) {
         console.error("[api/projects/:id] Failed to resolve client details", {
           projectId,
@@ -173,7 +225,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res
       .status(200)
-      .json({ data: projectPayload, client: matchedClient, invoices })
+      .json({ data: projectPayload, client: matchedClient, clients: matchedDirectoryRecords, invoices })
   } catch (error) {
     console.error("[api/projects/:id] Failed to fetch project", {
       projectId,

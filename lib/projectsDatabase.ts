@@ -345,6 +345,27 @@ const sanitizeUpdates = (updates: Partial<ProjectRecord>) => {
   return payload
 }
 
+const serializeLogValue = (value: unknown): unknown => {
+  if (value === undefined) {
+    return null
+  }
+  if (value instanceof Timestamp) {
+    const date = value.toDate()
+    return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString()
+  }
+  if (typeof value === 'object' && value !== null) {
+    try {
+      return JSON.parse(JSON.stringify(value))
+    } catch {
+      return String(value)
+    }
+  }
+  return value ?? null
+}
+
 export const createProjectInDatabase = async ({
   year,
   data,
@@ -417,6 +438,9 @@ export const createProjectInDatabase = async ({
     field: 'created',
     editedBy: createdBy,
     timestamp: serverTimestamp(),
+    newValue: {
+      projectNumber,
+    },
   })
 
   const snapshot = await getDoc(projectRef)
@@ -499,11 +523,13 @@ export const updateProjectInDatabase = async ({
   await updateDoc(projectRef, updatePayload)
 
   const logsCollection = collection(projectRef, UPDATE_LOG_COLLECTION)
-  const logWrites = changedEntries.map(([field]) =>
+  const logWrites = changedEntries.map(([field, value]) =>
     addDoc(logsCollection, {
       field,
       editedBy,
       timestamp: serverTimestamp(),
+      previousValue: serializeLogValue(currentData[field]),
+      newValue: serializeLogValue(value),
     })
   )
 

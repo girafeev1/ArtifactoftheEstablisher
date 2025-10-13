@@ -53,11 +53,6 @@ const normalizeClientPayload = (value: unknown, fallbackCompany: string | null):
   const input = (value && typeof value === "object") ? (value as Record<string, unknown>) : {}
   return {
     companyName: toStringValue(input.companyName) ?? fallbackCompany ?? null,
-    addressLine1: toStringValue(input.addressLine1),
-    addressLine2: toStringValue(input.addressLine2),
-    addressLine3: toStringValue(input.addressLine3),
-    region: toStringValue(input.region),
-    representative: toStringValue(input.representative),
   }
 }
 
@@ -148,6 +143,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentStatus,
         paidTo,
         paidOn,
+        editedBy: identity,
       })
 
       console.info("[api/projects/:id/invoices] Invoice created", {
@@ -187,6 +183,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentStatus,
         paidTo,
         paidOn,
+        editedBy: identity,
       })
 
       console.info("[api/projects/:id/invoices] Invoice updated", {

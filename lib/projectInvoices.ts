@@ -1,4 +1,15 @@
-import { collection, deleteField, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp, updateDoc } from "firebase/firestore"
+import {
+  addDoc,
+  collection,
+  deleteField,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore"
 
 import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from "./firebase"
 
@@ -33,6 +44,7 @@ const NEGATIVE_PAYMENT_STATUSES = new Set([
 const invoiceCollectionPattern = /^invoice-([a-z]+)$/
 const legacyInvoiceDocumentIdPattern = /^#?\d{4}-\d{3}-\d{4}(?:-?[a-z]+)?$/i
 const LEGACY_INVOICE_COLLECTION_IDS = new Set(["Invoice", "invoice"])
+const INVOICE_UPDATE_LOG_COLLECTION = "updateLogs"
 
 const isSupportedInvoiceCollection = (id: string): boolean =>
   invoiceCollectionPattern.test(id) || LEGACY_INVOICE_COLLECTION_IDS.has(id)
@@ -540,11 +552,6 @@ export const fetchInvoicesForProject = async (
 
 export interface InvoiceClientPayload {
   companyName: string | null
-  addressLine1: string | null
-  addressLine2: string | null
-  addressLine3: string | null
-  region: string | null
-  representative: string | null
 }
 
 export interface InvoiceItemPayload {
@@ -567,11 +574,6 @@ interface InvoiceWritePayload {
 
 const sanitizeClientPayload = (client: InvoiceClientPayload) => ({
   companyName: toStringValue(client.companyName) ?? null,
-  addressLine1: toStringValue(client.addressLine1) ?? null,
-  addressLine2: toStringValue(client.addressLine2) ?? null,
-  addressLine3: toStringValue(client.addressLine3) ?? null,
-  region: toStringValue(client.region) ?? null,
-  representative: toStringValue(client.representative) ?? null,
 })
 
 const sanitizeItemsPayload = (items: InvoiceItemPayload[]): InvoiceItemPayload[] =>
@@ -599,7 +601,7 @@ const sanitizeItemsPayload = (items: InvoiceItemPayload[]): InvoiceItemPayload[]
 const buildInvoiceWritePayload = (
   payload: InvoiceWritePayload,
   existingItemCount = 0,
-  options?: { removeAggregates?: boolean },
+  options?: { removeAggregates?: boolean; clearClientDetails?: boolean },
 ) => {
   const client = sanitizeClientPayload(payload.client)
   const items = sanitizeItemsPayload(payload.items)
@@ -609,20 +611,16 @@ const buildInvoiceWritePayload = (
       : null
   const paymentStatus = toStringValue(payload.paymentStatus) ?? null
 
+  const removedFields: string[] = []
+
   const result: Record<string, unknown> = {
     baseInvoiceNumber: payload.baseInvoiceNumber,
     companyName: client.companyName,
-    addressLine1: client.addressLine1,
-    addressLine2: client.addressLine2,
-    addressLine3: client.addressLine3,
-    region: client.region,
-    representative: client.representative,
     itemsCount: items.length,
     taxOrDiscountPercent,
     paymentStatus,
   }
 
-  // Optional: paidTo (identifier) and paidOn (date)
   if (typeof payload.paidTo === "string") {
     const trimmed = payload.paidTo.trim()
     result.paidTo = trimmed.length > 0 ? trimmed : null
@@ -650,20 +648,41 @@ const buildInvoiceWritePayload = (
   })
 
   for (let index = items.length + 1; index <= existingItemCount; index += 1) {
-    result[`item${index}Title`] = deleteField()
-    result[`item${index}FeeType`] = deleteField()
-    result[`item${index}UnitPrice`] = deleteField()
-    result[`item${index}Quantity`] = deleteField()
-    result[`item${index}Discount`] = deleteField()
+    const titleKey = `item${index}Title`
+    const feeTypeKey = `item${index}FeeType`
+    const unitPriceKey = `item${index}UnitPrice`
+    const quantityKey = `item${index}Quantity`
+    const discountKey = `item${index}Discount`
+    result[titleKey] = deleteField()
+    result[feeTypeKey] = deleteField()
+    result[unitPriceKey] = deleteField()
+    result[quantityKey] = deleteField()
+    result[discountKey] = deleteField()
+    removedFields.push(titleKey, feeTypeKey, unitPriceKey, quantityKey, discountKey)
   }
 
   if (options?.removeAggregates) {
     result.subtotal = deleteField()
     result.total = deleteField()
     result.amount = deleteField()
+    removedFields.push("subtotal", "total", "amount")
   }
 
-  return result
+  if (options?.clearClientDetails) {
+    const clientFields = [
+      "addressLine1",
+      "addressLine2",
+      "addressLine3",
+      "region",
+      "representative",
+    ] as const
+    clientFields.forEach((field) => {
+      result[field] = deleteField()
+      removedFields.push(field)
+    })
+  }
+
+  return { data: result, removedFields }
 }
 
 const determineBaseInvoiceNumber = (base: string) => base.trim()
@@ -707,9 +726,132 @@ const determineInvoiceIds = (
   return { collectionId, invoiceNumber }
 }
 
+type InvoiceChangeLogEntry = {
+  field: string
+  previousValue: unknown
+  newValue: unknown
+}
+
+const toLogValue = (value: unknown): unknown => {
+  if (value === undefined) {
+    return null
+  }
+  if (value instanceof Timestamp) {
+    const date = value.toDate()
+    return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString()
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => toLogValue(entry))
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => [
+        key,
+        toLogValue(entryValue),
+      ]),
+    )
+  }
+  return value
+}
+
+const areValuesEqual = (left: unknown, right: unknown): boolean => {
+  if (left === right) {
+    return true
+  }
+  if (left == null || right == null) {
+    return left === right
+  }
+  if (typeof left === "number" && typeof right === "number") {
+    if (Number.isNaN(left) && Number.isNaN(right)) {
+      return true
+    }
+    return left === right
+  }
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) {
+      return false
+    }
+    return left.every((entry, index) => areValuesEqual(entry, right[index]))
+  }
+  if (typeof left === "object" && typeof right === "object") {
+    const leftEntries = Object.entries(left as Record<string, unknown>)
+    const rightEntries = Object.entries(right as Record<string, unknown>)
+    if (leftEntries.length !== rightEntries.length) {
+      return false
+    }
+    return leftEntries.every(([key, value]) =>
+      areValuesEqual(value, (right as Record<string, unknown>)[key])
+    )
+  }
+  return false
+}
+
+const collectInvoiceChangeEntries = (
+  before: ProjectInvoiceRecord,
+  after: ProjectInvoiceRecord,
+): InvoiceChangeLogEntry[] => {
+  const entries: InvoiceChangeLogEntry[] = []
+  const compare = (field: string, previous: unknown, next: unknown) => {
+    if (!areValuesEqual(previous, next)) {
+      entries.push({
+        field,
+        previousValue: toLogValue(previous),
+        newValue: toLogValue(next),
+      })
+    }
+  }
+
+  compare("companyName", before.companyName, after.companyName)
+  compare("taxOrDiscountPercent", before.taxOrDiscountPercent, after.taxOrDiscountPercent)
+  compare("paymentStatus", before.paymentStatus, after.paymentStatus)
+  compare("paidTo", before.paidTo, after.paidTo)
+  compare("paidOnIso", before.paidOnIso, after.paidOnIso)
+  compare("paidOnDisplay", before.paidOnDisplay, after.paidOnDisplay)
+  compare("paid", before.paid, after.paid)
+  compare("subtotal", before.subtotal, after.subtotal)
+  compare("total", before.total, after.total)
+  compare("amount", before.amount, after.amount)
+
+  const maxItems = Math.max(before.items.length, after.items.length)
+  for (let index = 0; index < maxItems; index += 1) {
+    const previousItem = before.items[index]
+    const nextItem = after.items[index]
+    const baseField = `items[${index + 1}]`
+    if (!previousItem && nextItem) {
+      entries.push({
+        field: baseField,
+        previousValue: null,
+        newValue: toLogValue(nextItem),
+      })
+      continue
+    }
+    if (previousItem && !nextItem) {
+      entries.push({
+        field: baseField,
+        previousValue: toLogValue(previousItem),
+        newValue: null,
+      })
+      continue
+    }
+    if (previousItem && nextItem) {
+      compare(`${baseField}.title`, previousItem.title, nextItem.title)
+      compare(`${baseField}.feeType`, previousItem.feeType, nextItem.feeType)
+      compare(`${baseField}.unitPrice`, previousItem.unitPrice, nextItem.unitPrice)
+      compare(`${baseField}.quantity`, previousItem.quantity, nextItem.quantity)
+      compare(`${baseField}.discount`, previousItem.discount, nextItem.discount)
+    }
+  }
+
+  return entries
+}
+
 export interface CreateInvoiceInput extends InvoiceWritePayload {
   year: string
   projectId: string
+  editedBy: string
 }
 
 export const createInvoiceForProject = async (
@@ -739,7 +881,7 @@ export const createInvoiceForProject = async (
   const collectionRef = collection(projectRef, collectionId)
   const documentRef = doc(collectionRef, invoiceNumber)
 
-  const payload = buildInvoiceWritePayload({
+  const { data: payload } = buildInvoiceWritePayload({
     baseInvoiceNumber,
     client: input.client,
     items: input.items,
@@ -756,6 +898,13 @@ export const createInvoiceForProject = async (
 
   await setDoc(documentRef, payload)
 
+  await addDoc(collection(documentRef, INVOICE_UPDATE_LOG_COLLECTION), {
+    field: "created",
+    editedBy: input.editedBy,
+    timestamp: serverTimestamp(),
+    newValue: invoiceNumber,
+  })
+
   const snapshot = await getDoc(documentRef)
   if (!snapshot.exists()) {
     throw new Error("Failed to read created invoice")
@@ -769,6 +918,7 @@ export interface UpdateInvoiceInput extends InvoiceWritePayload {
   projectId: string
   collectionId: string
   invoiceNumber: string
+  editedBy: string
 }
 
 export const updateInvoiceForProject = async (
@@ -794,8 +944,9 @@ export const updateInvoiceForProject = async (
 
   const existingData = existing.data()
   const existingCount = Number(existingData.itemsCount) || 0
+  const beforeRecord = buildInvoiceRecord(input.collectionId, existing.id, existingData)
 
-  const payload = buildInvoiceWritePayload(
+  const { data: payload } = buildInvoiceWritePayload(
     {
       baseInvoiceNumber: extractBaseInvoiceNumber(input.invoiceNumber),
       client: input.client,
@@ -806,7 +957,7 @@ export const updateInvoiceForProject = async (
       paidOn: input.paidOn ?? null,
     },
     existingCount,
-    { removeAggregates: true },
+    { removeAggregates: true, clearClientDetails: true },
   )
 
   payload.updatedAt = serverTimestamp()
@@ -818,7 +969,25 @@ export const updateInvoiceForProject = async (
     throw new Error("Failed to retrieve updated invoice")
   }
 
-  return buildInvoiceRecord(input.collectionId, refreshed.id, refreshed.data())
+  const updatedRecord = buildInvoiceRecord(input.collectionId, refreshed.id, refreshed.data())
+  const changes = collectInvoiceChangeEntries(beforeRecord, updatedRecord)
+
+  if (changes.length > 0) {
+    const logsCollection = collection(documentRef, INVOICE_UPDATE_LOG_COLLECTION)
+    await Promise.all(
+      changes.map((entry) =>
+        addDoc(logsCollection, {
+          field: entry.field,
+          editedBy: input.editedBy,
+          timestamp: serverTimestamp(),
+          previousValue: entry.previousValue,
+          newValue: entry.newValue,
+        }),
+      ),
+    )
+  }
+
+  return updatedRecord
 }
 
 export interface InvoiceSummaryResult {

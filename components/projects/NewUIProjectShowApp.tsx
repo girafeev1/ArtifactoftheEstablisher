@@ -42,6 +42,7 @@ import {
   amountText,
   mergeLineWithRegion,
   normalizeClient,
+  normalizeCompanyKey,
   normalizeProject,
   paymentChipLabel,
   stringOrNA,
@@ -97,6 +98,7 @@ const alphabet = "abcdefghijklmnopqrstuvwxyz"
 type ProjectShowResponse = {
   data?: ProjectRecord
   client?: ClientDirectoryRecord | null
+  clients?: ClientDirectoryRecord[]
   invoices?: ProjectInvoiceRecord[]
 }
 
@@ -149,6 +151,8 @@ type InvoiceTableRow = {
   quantity?: number
   discount?: number
 }
+
+type ClientDirectoryMap = Record<string, NormalizedClient>
 
 const toNumberValue = (value: number | null | undefined) =>
   typeof value === "number" && !Number.isNaN(value) ? value : 0
@@ -207,6 +211,48 @@ const lettersToIndex = (letters: string) => {
     result = result * 26 + (offset + 1)
   }
   return Math.max(result - 1, 0)
+}
+
+const addClientToDirectoryMap = (
+  map: ClientDirectoryMap,
+  client: NormalizedClient | null,
+  ...identifiers: (string | null | undefined)[]
+) => {
+  if (!client) {
+    return
+  }
+  const keys = identifiers
+    .concat(client.companyName)
+    .map((identifier) => normalizeCompanyKey(identifier))
+    .filter((key): key is string => Boolean(key))
+
+  keys.forEach((key) => {
+    if (!map[key]) {
+      map[key] = client
+    }
+  })
+}
+
+const buildClientDirectoryMap = (records: ClientDirectoryRecord[]): ClientDirectoryMap => {
+  const map: ClientDirectoryMap = {}
+  records.forEach((record) => {
+    const normalized = normalizeClient(record)
+    addClientToDirectoryMap(map, normalized, record.companyName, record.documentId)
+  })
+  return map
+}
+
+const lookupClientFromDirectory = (
+  map: ClientDirectoryMap,
+  ...identifiers: (string | null | undefined)[]
+): NormalizedClient | null => {
+  for (const identifier of identifiers) {
+    const key = normalizeCompanyKey(identifier)
+    if (key && map[key]) {
+      return map[key]
+    }
+  }
+  return null
 }
 
 const indexToLetters = (index: number) => {
@@ -270,27 +316,64 @@ const buildClientState = (
   invoice: ProjectInvoiceRecord | null,
   normalizedClient: NormalizedClient | null,
   project: NormalizedProject | null,
-): InvoiceClientState => ({
-  companyName:
-    invoice?.companyName ?? normalizedClient?.companyName ?? project?.clientCompany ?? null,
-  addressLine1: invoice?.addressLine1 ?? normalizedClient?.addressLine1 ?? null,
-  addressLine2: invoice?.addressLine2 ?? normalizedClient?.addressLine2 ?? null,
-  addressLine3: invoice?.addressLine3 ?? normalizedClient?.addressLine3 ?? null,
-  region: invoice?.region ?? normalizedClient?.region ?? null,
-  representative:
-    invoice?.representative ?? normalizedClient?.representative ?? null,
-})
+  directoryMap: ClientDirectoryMap,
+): InvoiceClientState => {
+  const directoryClient =
+    lookupClientFromDirectory(
+      directoryMap,
+      invoice?.companyName,
+      normalizedClient?.companyName,
+      project?.clientCompany,
+    ) ?? null
+
+  const companyName =
+    invoice?.companyName ??
+    directoryClient?.companyName ??
+    normalizedClient?.companyName ??
+    project?.clientCompany ??
+    null
+
+  return {
+    companyName,
+    addressLine1:
+      directoryClient?.addressLine1 ??
+      invoice?.addressLine1 ??
+      normalizedClient?.addressLine1 ??
+      null,
+    addressLine2:
+      directoryClient?.addressLine2 ??
+      invoice?.addressLine2 ??
+      normalizedClient?.addressLine2 ??
+      null,
+    addressLine3:
+      directoryClient?.addressLine3 ??
+      invoice?.addressLine3 ??
+      normalizedClient?.addressLine3 ??
+      null,
+    region:
+      directoryClient?.region ??
+      invoice?.region ??
+      normalizedClient?.region ??
+      null,
+    representative:
+      directoryClient?.representative ??
+      invoice?.representative ??
+      normalizedClient?.representative ??
+      null,
+  }
+}
 
 const buildDraftFromInvoice = (
   invoice: ProjectInvoiceRecord,
   normalizedClient: NormalizedClient | null,
   project: NormalizedProject | null,
+  directoryMap: ClientDirectoryMap,
 ): InvoiceDraftState => ({
   invoiceNumber: invoice.invoiceNumber,
   baseInvoiceNumber: invoice.baseInvoiceNumber ?? extractBaseInvoiceNumber(invoice.invoiceNumber),
   collectionId: invoice.collectionId,
   originalInvoiceNumber: invoice.invoiceNumber,
-  client: buildClientState(invoice, normalizedClient, project),
+  client: buildClientState(invoice, normalizedClient, project, directoryMap),
   items: (invoice.items ?? []).map((item, index) => ({
     key: `item-${index + 1}`,
     title: item.title ?? "",
@@ -311,6 +394,7 @@ const buildDraftForNewInvoice = (
   invoices: ProjectInvoiceRecord[],
   project: NormalizedProject | null,
   normalizedClient: NormalizedClient | null,
+  directoryMap: ClientDirectoryMap,
 ): InvoiceDraftState => {
   const baseCandidate =
     generateInvoiceFallback(project?.projectNumber ?? null, project?.projectDateIso ?? null) ??
@@ -322,7 +406,7 @@ const buildDraftForNewInvoice = (
     invoiceNumber,
     baseInvoiceNumber: baseCandidate,
     originalInvoiceNumber: undefined,
-    client: buildClientState(null, normalizedClient, project),
+    client: buildClientState(null, normalizedClient, project, directoryMap),
     items: [],
     taxOrDiscountPercent: 0,
     paymentStatus: "Draft",
@@ -362,6 +446,7 @@ const ProjectsShowContent = () => {
   const [loading, setLoading] = useState(true)
   const [project, setProject] = useState<NormalizedProject | null>(null)
   const [client, setClient] = useState<NormalizedClient | null>(null)
+  const [clientDirectoryMap, setClientDirectoryMap] = useState<ClientDirectoryMap>({})
   const [invoices, setInvoices] = useState<ProjectInvoiceRecord[]>([])
   const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
   const [invoiceMode, setInvoiceMode] = useState<"idle" | "create" | "edit">("idle")
@@ -417,11 +502,43 @@ const ProjectsShowContent = () => {
 
         const normalizedProject = normalizeProject(payload.data)
         const normalizedClient = payload.client ? normalizeClient(payload.client) : null
+        const directoryRecords = Array.isArray(payload.clients) ? payload.clients : []
+        const directoryMap = buildClientDirectoryMap(directoryRecords)
+
+        if (payload.client) {
+          addClientToDirectoryMap(
+            directoryMap,
+            normalizedClient,
+            payload.client.companyName,
+            payload.client.documentId,
+          )
+        }
+
+        addClientToDirectoryMap(directoryMap, normalizedClient, normalizedProject.clientCompany)
+
         const invoiceRecords = Array.isArray(payload.invoices) ? payload.invoices : []
+
+        invoiceRecords.forEach((record) => {
+          if (record.companyName) {
+            const existing = lookupClientFromDirectory(directoryMap, record.companyName)
+            if (!existing && normalizedClient) {
+              addClientToDirectoryMap(directoryMap, normalizedClient, record.companyName)
+            }
+          }
+        })
+
+        setClientDirectoryMap(directoryMap)
+
+        const resolvedClientRecord =
+          lookupClientFromDirectory(
+            directoryMap,
+            normalizedProject.clientCompany,
+            normalizedClient?.companyName,
+          ) ?? normalizedClient
 
         setProject(normalizedProject)
         setProjectEditMode("view")
-        setClient(normalizedClient)
+        setClient(resolvedClientRecord)
         setInvoices(invoiceRecords)
         setInvoiceNumberEditing(false)
 
@@ -430,7 +547,12 @@ const ProjectsShowContent = () => {
           setInvoiceMode("idle")
           setDraftInvoice(null)
         } else {
-          const draft = buildDraftForNewInvoice(invoiceRecords, normalizedProject, normalizedClient)
+          const draft = buildDraftForNewInvoice(
+            invoiceRecords,
+            normalizedProject,
+            resolvedClientRecord,
+            directoryMap,
+          )
           itemIdRef.current = draft.items.length
           setDraftInvoice(draft)
           setInvoiceMode("create")
@@ -445,6 +567,7 @@ const ProjectsShowContent = () => {
         message.error(description)
         setProject(null)
         setClient(null)
+        setClientDirectoryMap({})
         setInvoices([])
         setDraftInvoice(null)
       } finally {
@@ -565,12 +688,12 @@ const ProjectsShowContent = () => {
   const resolvedDraft = isEditingInvoice
     ? draftInvoice
     : currentInvoiceRecord
-    ? buildDraftFromInvoice(currentInvoiceRecord, client, project)
+    ? buildDraftFromInvoice(currentInvoiceRecord, client, project, clientDirectoryMap)
     : draftInvoice
 
   const resolvedClient = resolvedDraft
     ? resolvedDraft.client
-    : buildClientState(currentInvoiceRecord, client, project)
+    : buildClientState(currentInvoiceRecord, client, project, clientDirectoryMap)
 
   const activeItems = resolvedDraft?.items ?? []
   const subtotal = computeSubtotal(activeItems)
@@ -770,7 +893,12 @@ const ProjectsShowContent = () => {
         return
       }
       if (mode === "create") {
-        const draft = buildDraftForNewInvoice(invoices, project, client)
+        const draft = buildDraftForNewInvoice(
+          invoices,
+          project,
+          client,
+          clientDirectoryMap,
+        )
         itemIdRef.current = draft.items.length
         setDraftInvoice(draft)
         setInvoiceMode("create")
@@ -783,13 +911,13 @@ const ProjectsShowContent = () => {
         message.warning("Select an invoice to edit.")
         return
       }
-      const draft = buildDraftFromInvoice(current, client, project)
+      const draft = buildDraftFromInvoice(current, client, project, clientDirectoryMap)
       itemIdRef.current = draft.items.length
       setDraftInvoice(draft)
       setInvoiceMode("edit")
       setActiveInvoiceIndex(index)
     },
-    [activeInvoiceIndex, client, invoices, message, project],
+    [activeInvoiceIndex, client, clientDirectoryMap, invoices, message, project],
   )
 
   const handleSelectInvoice = useCallback(
@@ -1211,7 +1339,7 @@ const ProjectsShowContent = () => {
   const handleCancelInvoice = useCallback(() => {
     if (!hasInvoices) {
       if (project) {
-        const draft = buildDraftForNewInvoice([], project, client)
+        const draft = buildDraftForNewInvoice([], project, client, clientDirectoryMap)
         itemIdRef.current = draft.items.length
         setDraftInvoice(draft)
         setInvoiceMode("create")
@@ -1227,7 +1355,7 @@ const ProjectsShowContent = () => {
     setActiveInvoiceIndex((previousIndex) =>
       Math.min(previousIndex, Math.max(invoices.length - 1, 0)),
     )
-  }, [client, hasInvoices, invoices.length, project])
+  }, [client, clientDirectoryMap, hasInvoices, invoices.length, project])
 
   const updateProjectFromInvoices = useCallback((nextInvoices: ProjectInvoiceRecord[]) => {
     setProject((previous) => {
@@ -1338,11 +1466,15 @@ const ProjectsShowContent = () => {
             : Number(item.discount) || 0,
       }))
 
+      const clientPayload = {
+        companyName: draftInvoice.client?.companyName ?? null,
+      }
+
       const payload =
         invoiceMode === "create"
           ? {
               baseInvoiceNumber: draftInvoice.baseInvoiceNumber,
-              client: draftInvoice.client,
+              client: clientPayload,
               items: serializedItems,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
@@ -1352,7 +1484,7 @@ const ProjectsShowContent = () => {
           : {
               collectionId: draftInvoice.collectionId,
               invoiceNumber: draftInvoice.invoiceNumber,
-              client: draftInvoice.client,
+              client: clientPayload,
               items: serializedItems,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
