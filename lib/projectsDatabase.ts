@@ -22,6 +22,8 @@ const FALLBACK_YEAR_IDS = ['2025', '2024', '2023', '2022', '2021']
 const PROJECTS_ROOT = 'projects'
 const PROJECTS_SUBCOLLECTION = 'projects'
 
+export type ProjectStoragePath = 'nested' | 'legacy'
+
 interface ListCollectionIdsResponse {
   collectionIds?: string[]
   error?: { message?: string }
@@ -30,6 +32,7 @@ interface ListCollectionIdsResponse {
 export interface ProjectRecord {
   id: string
   year: string
+  storagePath: ProjectStoragePath
   amount: number | null
   clientCompany: string | null
   invoice: string | null
@@ -153,7 +156,8 @@ const toBooleanValue = (value: unknown): boolean | null => {
 const buildProjectRecord = (
   year: string,
   id: string,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  storagePath: ProjectStoragePath,
 ): ProjectRecord => {
   const projectNumber = toStringValue(data.projectNumber) ?? id
 
@@ -166,6 +170,7 @@ const buildProjectRecord = (
   return {
     id,
     year,
+    storagePath,
     amount,
     clientCompany: toStringValue(data.clientCompany),
     invoice: toStringValue(data.invoice),
@@ -265,7 +270,7 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
       if (snapshot && !snapshot.empty) {
         snapshot.forEach((doc) => {
           const data = doc.data() as Record<string, unknown>
-          projects.push(buildProjectRecord(year, doc.id, data))
+          projects.push(buildProjectRecord(year, doc.id, data, 'nested'))
           yearsWithData.add(year)
         })
       } else {
@@ -273,7 +278,7 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
         const legacy = await getDocs(collection(projectsDb, year))
         legacy.forEach((doc) => {
           const data = doc.data() as Record<string, unknown>
-          projects.push(buildProjectRecord(year, doc.id, data))
+          projects.push(buildProjectRecord(year, doc.id, data, 'legacy'))
           yearsWithData.add(year)
         })
       }
@@ -295,7 +300,7 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
 
 const UPDATE_LOG_COLLECTION = 'updateLogs'
 
-const READ_ONLY_FIELDS = new Set(['id', 'year'])
+const READ_ONLY_FIELDS = new Set(['id', 'year', 'storagePath'])
 
 const normalizeTimestampInput = (value: unknown) => {
   if (value == null) {
@@ -343,6 +348,27 @@ const sanitizeUpdates = (updates: Partial<ProjectRecord>) => {
     payload[key] = value
   })
   return payload
+}
+
+const serializeLogValue = (value: unknown): unknown => {
+  if (value === undefined) {
+    return null
+  }
+  if (value instanceof Timestamp) {
+    const date = value.toDate()
+    return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString()
+  }
+  if (typeof value === 'object' && value !== null) {
+    try {
+      return JSON.parse(JSON.stringify(value))
+    } catch {
+      return String(value)
+    }
+  }
+  return value ?? null
 }
 
 export const createProjectInDatabase = async ({
@@ -417,6 +443,9 @@ export const createProjectInDatabase = async ({
     field: 'created',
     editedBy: createdBy,
     timestamp: serverTimestamp(),
+    newValue: {
+      projectNumber,
+    },
   })
 
   const snapshot = await getDoc(projectRef)
@@ -427,7 +456,8 @@ export const createProjectInDatabase = async ({
   const createdProject = buildProjectRecord(
     trimmedYear,
     snapshot.id,
-    snapshot.data() as Record<string, unknown>
+    snapshot.data() as Record<string, unknown>,
+    'nested'
   )
 
   return {
@@ -499,11 +529,13 @@ export const updateProjectInDatabase = async ({
   await updateDoc(projectRef, updatePayload)
 
   const logsCollection = collection(projectRef, UPDATE_LOG_COLLECTION)
-  const logWrites = changedEntries.map(([field]) =>
+  const logWrites = changedEntries.map(([field, value]) =>
     addDoc(logsCollection, {
       field,
       editedBy,
       timestamp: serverTimestamp(),
+      previousValue: serializeLogValue(currentData[field]),
+      newValue: serializeLogValue(value),
     })
   )
 

@@ -77,7 +77,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       : await Promise.all(
           filtered.map(async (project) => {
             try {
-              const summary = await fetchPrimaryInvoiceSummary(project.year, project.id)
+              const summary = await fetchPrimaryInvoiceSummary(
+                project.year,
+                project.id,
+                project.storagePath,
+              )
               if (summary) {
                 return {
                   ...project,

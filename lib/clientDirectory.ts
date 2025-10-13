@@ -201,6 +201,27 @@ const buildClientDocument = (input: ClientDirectoryWriteInput, options?: { fallb
   }
 }
 
+const serializeLogValue = (value: unknown): unknown => {
+  if (value === undefined) {
+    return null
+  }
+  if (value instanceof Timestamp) {
+    const date = value.toDate()
+    return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString()
+  }
+  if (typeof value === 'object' && value !== null) {
+    try {
+      return JSON.parse(JSON.stringify(value))
+    } catch {
+      return String(value)
+    }
+  }
+  return value ?? null
+}
+
 const hasValueChanged = (current: unknown, next: unknown) => {
   const currentNormal = current ?? null
   const nextNormal = next ?? null
@@ -242,6 +263,9 @@ export const addClientToDirectory = async ({
     field: 'created',
     editedBy: createdBy,
     timestamp: serverTimestamp(),
+    newValue: {
+      companyName: sanitized.companyName,
+    },
   })
 
   return { id: trimmedName }
@@ -267,21 +291,24 @@ export const updateClientInDirectory = async ({
   const sanitized = buildClientDocument({ ...updates, companyName: updates.companyName ?? id })
 
   const updatePayload: Record<string, unknown> = {}
-  const changedFields: string[] = []
+  const logEntries: { field: string; previous: unknown; value: unknown }[] = []
 
   Object.entries(sanitized).forEach(([key, value]) => {
     if (!Object.prototype.hasOwnProperty.call(updates, key)) {
       return
     }
-    if (hasValueChanged(snapshot.get(key), value)) {
+    const currentValue = snapshot.get(key)
+    if (hasValueChanged(currentValue, value)) {
       updatePayload[key] = value
-      changedFields.push(key)
+      logEntries.push({ field: key, previous: currentValue, value })
     }
   })
 
-  if (changedFields.length === 0) {
+  if (logEntries.length === 0) {
     return { updatedFields: [] as string[] }
   }
+
+  const changedFields = logEntries.map((entry) => entry.field)
 
   updatePayload.updatedAt = serverTimestamp()
   updatePayload.updatedBy = editedBy
@@ -290,11 +317,13 @@ export const updateClientInDirectory = async ({
 
   const logsCollection = collection(docRef, CLIENT_LOG_COLLECTION)
   await Promise.all(
-    changedFields.map((field) =>
+    logEntries.map(({ field, previous, value }) =>
       addDoc(logsCollection, {
         field,
         editedBy,
         timestamp: serverTimestamp(),
+        previousValue: serializeLogValue(previous),
+        newValue: serializeLogValue(value),
       })
     )
   )
