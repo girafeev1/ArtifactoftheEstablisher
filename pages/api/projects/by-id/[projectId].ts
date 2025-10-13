@@ -67,7 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let invoices: ProjectInvoiceRecord[] = []
 
     try {
-      invoices = await fetchInvoicesForProject(project.year, project.id)
+      invoices = await fetchInvoicesForProject(project.year, project.id, project.storagePath)
     } catch (invoiceError) {
       console.error("[api/projects/:id] Failed to fetch invoices", {
         projectId,

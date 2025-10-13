@@ -9,9 +9,11 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
+  type DocumentReference,
 } from "firebase/firestore"
 
 import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from "./firebase"
+import type { ProjectStoragePath } from "./projectsDatabase"
 
 const API_TIMEOUT_MS = 15000
 
@@ -48,6 +50,23 @@ const INVOICE_UPDATE_LOG_COLLECTION = "updateLogs"
 
 const isSupportedInvoiceCollection = (id: string): boolean =>
   invoiceCollectionPattern.test(id) || LEGACY_INVOICE_COLLECTION_IDS.has(id)
+
+const resolveProjectDocumentRefs = (year: string, projectId: string) => ({
+  nested: doc(projectsDb, PROJECTS_ROOT, year, PROJECTS_SUBCOLLECTION, projectId),
+  legacy: doc(projectsDb, year, projectId),
+})
+
+const orderedProjectRefs = (
+  year: string,
+  projectId: string,
+  preference?: ProjectStoragePath,
+): DocumentReference[] => {
+  const refs = resolveProjectDocumentRefs(year, projectId)
+  if (preference === "legacy") {
+    return [refs.legacy, refs.nested]
+  }
+  return [refs.nested, refs.legacy]
+}
 
 const toStringValue = (value: unknown): string | null => {
   if (typeof value === "string") {
@@ -233,7 +252,11 @@ const indexToSuffix = (index: number) => {
   return indexToLetters(index)
 }
 
-const listInvoiceCollectionIds = async (year: string, projectId: string): Promise<string[]> => {
+const listInvoiceCollectionIds = async (
+  year: string,
+  projectId: string,
+  preferredPath?: ProjectStoragePath,
+): Promise<string[]> => {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
   const projectKey = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
 
@@ -242,68 +265,71 @@ const listInvoiceCollectionIds = async (year: string, projectId: string): Promis
     return []
   }
 
-  // Try nested document path first: projects/{year}/projects/{projectId}
-  const nestedUrl = `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
-    PROJECTS_ROOT,
-  )}/${encodeURIComponent(year)}/${encodeURIComponent(PROJECTS_SUBCOLLECTION)}/${encodeURIComponent(
-    projectId,
-  )}:listCollectionIds?key=${apiKey}`
-  const legacyUrl = `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
-    year,
-  )}/${encodeURIComponent(projectId)}:listCollectionIds?key=${apiKey}`
+  const buildUrl = (path: ProjectStoragePath) =>
+    path === "legacy"
+      ? `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
+          year,
+        )}/${encodeURIComponent(projectId)}:listCollectionIds?key=${apiKey}`
+      : `https://firestore.googleapis.com/v1/projects/${projectKey}/databases/${PROJECTS_FIRESTORE_DATABASE_ID}/documents/${encodeURIComponent(
+          PROJECTS_ROOT,
+        )}/${encodeURIComponent(year)}/${encodeURIComponent(PROJECTS_SUBCOLLECTION)}/${encodeURIComponent(
+          projectId,
+        )}:listCollectionIds?key=${apiKey}`
 
-  try {
+  const order: ProjectStoragePath[] =
+    preferredPath === "legacy" ? ["legacy", "nested"] : ["nested", "legacy"]
+
+  const discovered = new Set<string>()
+
+  for (const pathType of order) {
+    const url = buildUrl(pathType)
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pageSize: 200 }),
+        signal: controller.signal,
+      })
 
-    let response = await fetch(nestedUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pageSize: 200 }),
-      signal: controller.signal,
-    })
-    // If nested path fails (404), try legacy
-    if (!response.ok) {
-      try {
-        response = await fetch(legacyUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pageSize: 200 }),
-          signal: controller.signal,
-        })
-      } catch {
-        // swallow; we'll handle below
+      if (!response.ok) {
+        console.warn(
+          "[projectInvoices] Failed to list invoice collection IDs",
+          { projectId, pathType, status: response.status, statusText: response.statusText },
+        )
+        continue
       }
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        collectionIds?: string[]
+        error?: { message?: string }
+      }
+
+      if (payload.error) {
+        console.warn("[projectInvoices] listCollectionIds returned error", {
+          projectId,
+          pathType,
+          error: payload.error,
+        })
+        continue
+      }
+
+      payload.collectionIds
+        ?.filter((id) => isSupportedInvoiceCollection(id))
+        .forEach((id) => discovered.add(id))
+    } catch (error) {
+      console.warn("[projectInvoices] listInvoiceCollectionIds failed", {
+        projectId,
+        pathType,
+        error,
+      })
+    } finally {
+      clearTimeout(timeout)
     }
-
-    clearTimeout(timeout)
-
-    if (!response.ok) {
-      console.warn(
-        "[projectInvoices] Failed to list invoice collection IDs",
-        response.status,
-        response.statusText,
-      )
-      return []
-    }
-
-    const payload = (await response.json().catch(() => ({}))) as {
-      collectionIds?: string[]
-      error?: { message?: string }
-    }
-
-    if (payload.error) {
-      console.warn("[projectInvoices] listCollectionIds returned error", payload.error)
-      return []
-    }
-
-    return (
-      payload.collectionIds?.filter((id) => isSupportedInvoiceCollection(id)) ?? []
-    ).sort((a, b) => a.localeCompare(b))
-  } catch (error) {
-    console.warn("[projectInvoices] listInvoiceCollectionIds failed", error)
-    return []
   }
+
+  return Array.from(discovered).sort((a, b) => a.localeCompare(b))
 }
 
 export interface ProjectInvoiceItemRecord {
@@ -488,20 +514,11 @@ const extractBaseInvoiceNumber = (invoiceNumber: string) => {
 export const fetchInvoicesForProject = async (
   year: string,
   projectId: string,
+  storagePreference?: ProjectStoragePath,
 ): Promise<ProjectInvoiceRecord[]> => {
-  // Prefer nested doc; fallback to legacy path
-  const nestedRef = doc(projectsDb, PROJECTS_ROOT, year, PROJECTS_SUBCOLLECTION, projectId)
-  let projectRef = nestedRef
-  try {
-    const exists = await getDoc(nestedRef)
-    if (!exists.exists()) {
-      projectRef = doc(projectsDb, year, projectId)
-    }
-  } catch {
-    projectRef = doc(projectsDb, year, projectId)
-  }
+  const projectRefs = orderedProjectRefs(year, projectId, storagePreference)
 
-  const listedIds = await listInvoiceCollectionIds(year, projectId).catch((error) => {
+  const listedIds = await listInvoiceCollectionIds(year, projectId, storagePreference).catch((error) => {
     console.warn("[projectInvoices] listInvoiceCollectionIds failed", { error })
     return [] as string[]
   })
@@ -524,23 +541,38 @@ export const fetchInvoicesForProject = async (
   const invoices: ProjectInvoiceRecord[] = []
 
   for (const collectionId of Array.from(discovered).sort((a, b) => a.localeCompare(b))) {
-    try {
-      const collectionRef = collection(projectRef, collectionId)
-      const snapshot = await getDocs(collectionRef)
-      snapshot.forEach((document) => {
-        if (
-          LEGACY_INVOICE_COLLECTION_IDS.has(collectionId) &&
-          !legacyInvoiceDocumentIdPattern.test(document.id)
-        ) {
-          return
+    let fetched = false
+    for (const projectRef of projectRefs) {
+      try {
+        const collectionRef = collection(projectRef, collectionId)
+        const snapshot = await getDocs(collectionRef)
+        if (snapshot.empty) {
+          continue
         }
-        invoices.push(buildInvoiceRecord(collectionId, document.id, document.data()))
-      })
-    } catch (error) {
-      console.warn("[projectInvoices] Failed to fetch invoices", {
+        snapshot.forEach((document) => {
+          if (
+            LEGACY_INVOICE_COLLECTION_IDS.has(collectionId) &&
+            !legacyInvoiceDocumentIdPattern.test(document.id)
+          ) {
+            return
+          }
+          invoices.push(buildInvoiceRecord(collectionId, document.id, document.data()))
+        })
+        fetched = true
+        break
+      } catch (error) {
+        console.warn("[projectInvoices] Failed to fetch invoices", {
+          projectId,
+          collectionId,
+          path: projectRef.path,
+          error,
+        })
+      }
+    }
+    if (!fetched) {
+      console.warn("[projectInvoices] Unable to load invoice collection", {
         projectId,
         collectionId,
-        error,
       })
     }
   }
@@ -851,6 +883,7 @@ const collectInvoiceChangeEntries = (
 export interface CreateInvoiceInput extends InvoiceWritePayload {
   year: string
   projectId: string
+  storagePath: ProjectStoragePath
   editedBy: string
 }
 
@@ -862,26 +895,19 @@ export const createInvoiceForProject = async (
     throw new Error("Base invoice number is required")
   }
 
-  const existingCollections = await listInvoiceCollectionIds(input.year, input.projectId)
+  const existingCollections = await listInvoiceCollectionIds(
+    input.year,
+    input.projectId,
+    input.storagePath,
+  )
   const { collectionId, invoiceNumber } = determineInvoiceIds(
     baseInvoiceNumber,
     existingCollections,
   )
 
-  // Create under nested doc; if it doesn't exist yet, fallback to legacy doc
-  let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
-  try {
-    const exists = await getDoc(projectRef)
-    if (!exists.exists()) {
-      projectRef = doc(projectsDb, input.year, input.projectId)
-    }
-  } catch {
-    projectRef = doc(projectsDb, input.year, input.projectId)
-  }
-  const collectionRef = collection(projectRef, collectionId)
-  const documentRef = doc(collectionRef, invoiceNumber)
+  const projectRefs = orderedProjectRefs(input.year, input.projectId, input.storagePath)
 
-  const { data: payload } = buildInvoiceWritePayload({
+  const { data: basePayload } = buildInvoiceWritePayload({
     baseInvoiceNumber,
     client: input.client,
     items: input.items,
@@ -891,31 +917,55 @@ export const createInvoiceForProject = async (
     paidOn: input.paidOn ?? null,
   })
 
-  payload.invoiceNumber = invoiceNumber
-  payload.baseInvoiceNumber = baseInvoiceNumber
-  payload.createdAt = serverTimestamp()
-  payload.updatedAt = serverTimestamp()
+  let lastError: unknown = null
 
-  await setDoc(documentRef, payload)
+  for (const projectRef of projectRefs) {
+    const collectionRef = collection(projectRef, collectionId)
+    const documentRef = doc(collectionRef, invoiceNumber)
+    const payload: Record<string, unknown> = {
+      ...basePayload,
+      invoiceNumber,
+      baseInvoiceNumber,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }
 
-  await addDoc(collection(documentRef, INVOICE_UPDATE_LOG_COLLECTION), {
-    field: "created",
-    editedBy: input.editedBy,
-    timestamp: serverTimestamp(),
-    newValue: invoiceNumber,
-  })
+    try {
+      await setDoc(documentRef, payload)
+      await addDoc(collection(documentRef, INVOICE_UPDATE_LOG_COLLECTION), {
+        field: "created",
+        editedBy: input.editedBy,
+        timestamp: serverTimestamp(),
+        newValue: invoiceNumber,
+      })
 
-  const snapshot = await getDoc(documentRef)
-  if (!snapshot.exists()) {
-    throw new Error("Failed to read created invoice")
+      const snapshot = await getDoc(documentRef)
+      if (!snapshot.exists()) {
+        throw new Error("Failed to read created invoice")
+      }
+
+      return buildInvoiceRecord(collectionId, snapshot.id, snapshot.data())
+    } catch (error) {
+      lastError = error
+      console.warn("[projectInvoices] Failed to create invoice", {
+        projectId: input.projectId,
+        collectionId,
+        invoiceNumber,
+        path: projectRef.path,
+        error,
+      })
+    }
   }
 
-  return buildInvoiceRecord(collectionId, snapshot.id, snapshot.data())
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Failed to create invoice for project")
 }
 
 export interface UpdateInvoiceInput extends InvoiceWritePayload {
   year: string
   projectId: string
+  storagePath: ProjectStoragePath
   collectionId: string
   invoiceNumber: string
   editedBy: string
@@ -924,70 +974,83 @@ export interface UpdateInvoiceInput extends InvoiceWritePayload {
 export const updateInvoiceForProject = async (
   input: UpdateInvoiceInput,
 ): Promise<ProjectInvoiceRecord> => {
-  // Prefer nested; fallback to legacy path
-  let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
-  try {
-    const exists = await getDoc(projectRef)
-    if (!exists.exists()) {
-      projectRef = doc(projectsDb, input.year, input.projectId)
+  const projectRefs = orderedProjectRefs(input.year, input.projectId, input.storagePath)
+  const baseInvoiceNumber = extractBaseInvoiceNumber(input.invoiceNumber)
+
+  let lastError: unknown = null
+
+  for (const projectRef of projectRefs) {
+    try {
+      const collectionRef = collection(projectRef, input.collectionId)
+      const documentRef = doc(collectionRef, input.invoiceNumber)
+      const existing = await getDoc(documentRef)
+
+      if (!existing.exists()) {
+        lastError = new Error("Invoice not found")
+        continue
+      }
+
+      const existingData = existing.data()
+      const existingCount = Number(existingData.itemsCount) || 0
+      const beforeRecord = buildInvoiceRecord(input.collectionId, existing.id, existingData)
+
+      const { data: payload } = buildInvoiceWritePayload(
+        {
+          baseInvoiceNumber,
+          client: input.client,
+          items: input.items,
+          taxOrDiscountPercent: input.taxOrDiscountPercent,
+          paymentStatus: input.paymentStatus,
+          paidTo: input.paidTo ?? null,
+          paidOn: input.paidOn ?? null,
+        },
+        existingCount,
+        { removeAggregates: true, clearClientDetails: true },
+      )
+
+      payload.updatedAt = serverTimestamp()
+
+      await updateDoc(documentRef, payload)
+
+      const refreshed = await getDoc(documentRef)
+      if (!refreshed.exists()) {
+        throw new Error("Failed to retrieve updated invoice")
+      }
+
+      const updatedRecord = buildInvoiceRecord(input.collectionId, refreshed.id, refreshed.data())
+      const changes = collectInvoiceChangeEntries(beforeRecord, updatedRecord)
+
+      if (changes.length > 0) {
+        const logsCollection = collection(documentRef, INVOICE_UPDATE_LOG_COLLECTION)
+        await Promise.all(
+          changes.map((entry) =>
+            addDoc(logsCollection, {
+              field: entry.field,
+              editedBy: input.editedBy,
+              timestamp: serverTimestamp(),
+              previousValue: entry.previousValue,
+              newValue: entry.newValue,
+            }),
+          ),
+        )
+      }
+
+      return updatedRecord
+    } catch (error) {
+      lastError = error
+      console.warn("[projectInvoices] Failed to update invoice", {
+        projectId: input.projectId,
+        collectionId: input.collectionId,
+        invoiceNumber: input.invoiceNumber,
+        path: projectRef.path,
+        error,
+      })
     }
-  } catch {
-    projectRef = doc(projectsDb, input.year, input.projectId)
-  }
-  const collectionRef = collection(projectRef, input.collectionId)
-  const documentRef = doc(collectionRef, input.invoiceNumber)
-
-  const existing = await getDoc(documentRef)
-  if (!existing.exists()) {
-    throw new Error("Invoice not found")
   }
 
-  const existingData = existing.data()
-  const existingCount = Number(existingData.itemsCount) || 0
-  const beforeRecord = buildInvoiceRecord(input.collectionId, existing.id, existingData)
-
-  const { data: payload } = buildInvoiceWritePayload(
-    {
-      baseInvoiceNumber: extractBaseInvoiceNumber(input.invoiceNumber),
-      client: input.client,
-      items: input.items,
-      taxOrDiscountPercent: input.taxOrDiscountPercent,
-      paymentStatus: input.paymentStatus,
-      paidTo: input.paidTo ?? null,
-      paidOn: input.paidOn ?? null,
-    },
-    existingCount,
-    { removeAggregates: true, clearClientDetails: true },
-  )
-
-  payload.updatedAt = serverTimestamp()
-
-  await updateDoc(documentRef, payload)
-
-  const refreshed = await getDoc(documentRef)
-  if (!refreshed.exists()) {
-    throw new Error("Failed to retrieve updated invoice")
-  }
-
-  const updatedRecord = buildInvoiceRecord(input.collectionId, refreshed.id, refreshed.data())
-  const changes = collectInvoiceChangeEntries(beforeRecord, updatedRecord)
-
-  if (changes.length > 0) {
-    const logsCollection = collection(documentRef, INVOICE_UPDATE_LOG_COLLECTION)
-    await Promise.all(
-      changes.map((entry) =>
-        addDoc(logsCollection, {
-          field: entry.field,
-          editedBy: input.editedBy,
-          timestamp: serverTimestamp(),
-          previousValue: entry.previousValue,
-          newValue: entry.newValue,
-        }),
-      ),
-    )
-  }
-
-  return updatedRecord
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Failed to update invoice for project")
 }
 
 export interface InvoiceSummaryResult {
@@ -999,8 +1062,9 @@ export interface InvoiceSummaryResult {
 export const fetchPrimaryInvoiceSummary = async (
   year: string,
   projectId: string,
+  storagePreference?: ProjectStoragePath,
 ): Promise<InvoiceSummaryResult | null> => {
-  const invoices = await fetchInvoicesForProject(year, projectId)
+  const invoices = await fetchInvoicesForProject(year, projectId, storagePreference)
   if (!invoices.length) {
     return null
   }

@@ -83,7 +83,7 @@ const respondWithInvoices = async (
   project: ProjectRecord,
   status: number,
 ) => {
-  const invoices = await fetchInvoicesForProject(project.year, project.id)
+  const invoices = await fetchInvoicesForProject(project.year, project.id, project.storagePath)
   return res.status(status).json({ invoices })
 }
 
@@ -136,6 +136,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const created = await createInvoiceForProject({
         year: project.year,
         projectId: project.id,
+        storagePath: project.storagePath,
         baseInvoiceNumber,
         client,
         items,
@@ -174,6 +175,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const updated = await updateInvoiceForProject({
         year: project.year,
         projectId: project.id,
+        storagePath: project.storagePath,
         collectionId,
         invoiceNumber,
         baseInvoiceNumber: invoiceNumber,
