@@ -9,6 +9,7 @@ import {
 import { useRouter } from "next/router"
 import {
   App as AntdApp,
+  AutoComplete,
   Button,
   Card,
   Col,
@@ -140,6 +141,7 @@ type ProjectDraftState = {
   projectNumber: string
   projectDateIso: string | null
   subsidiary: string
+  clientCompany: string
 }
 
 type InvoiceTableRow = {
@@ -335,31 +337,11 @@ const buildClientState = (
 
   return {
     companyName,
-    addressLine1:
-      directoryClient?.addressLine1 ??
-      invoice?.addressLine1 ??
-      normalizedClient?.addressLine1 ??
-      null,
-    addressLine2:
-      directoryClient?.addressLine2 ??
-      invoice?.addressLine2 ??
-      normalizedClient?.addressLine2 ??
-      null,
-    addressLine3:
-      directoryClient?.addressLine3 ??
-      invoice?.addressLine3 ??
-      normalizedClient?.addressLine3 ??
-      null,
-    region:
-      directoryClient?.region ??
-      invoice?.region ??
-      normalizedClient?.region ??
-      null,
-    representative:
-      directoryClient?.representative ??
-      invoice?.representative ??
-      normalizedClient?.representative ??
-      null,
+    addressLine1: directoryClient?.addressLine1 ?? normalizedClient?.addressLine1 ?? null,
+    addressLine2: directoryClient?.addressLine2 ?? normalizedClient?.addressLine2 ?? null,
+    addressLine3: directoryClient?.addressLine3 ?? normalizedClient?.addressLine3 ?? null,
+    region: directoryClient?.region ?? normalizedClient?.region ?? null,
+    representative: directoryClient?.representative ?? normalizedClient?.representative ?? null,
   }
 }
 
@@ -460,6 +442,7 @@ const ProjectsShowContent = () => {
     projectNumber: "",
     projectDateIso: null,
     subsidiary: "",
+    clientCompany: "",
   })
   const [invoiceNumberEditing, setInvoiceNumberEditing] = useState(false)
   const [bankInfoMap, setBankInfoMap] = useState<
@@ -645,6 +628,7 @@ const ProjectsShowContent = () => {
       projectNumber: project.projectNumber ?? "",
       projectDateIso: project.projectDateIso ?? null,
       subsidiary: project.subsidiary ?? "",
+      clientCompany: project.clientCompany ?? "",
     })
   }, [project, projectEditMode])
 
@@ -885,7 +869,67 @@ const ProjectsShowContent = () => {
     return Math.min(activeInvoiceIndex, invoiceEntries.length - 1)
   }, [activeInvoiceIndex, draftInvoice, invoiceEntries.length, invoiceMode])
 
-  const companyLine3 = mergeLineWithRegion(resolvedClient?.addressLine3, resolvedClient?.region)
+  const clientCompanyOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const options: { value: string; label: string }[] = []
+
+    const addOption = (value: string | null | undefined) => {
+      if (typeof value !== "string") {
+        return
+      }
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return
+      }
+      const key = trimmed.toLowerCase()
+      if (seen.has(key)) {
+        return
+      }
+      seen.add(key)
+      options.push({ value: trimmed, label: trimmed })
+    }
+
+    Object.values(clientDirectoryMap).forEach((record) => {
+      addOption(record?.companyName ?? null)
+    })
+
+    addOption(project?.clientCompany ?? null)
+    addOption(projectDraft.clientCompany)
+    addOption(client?.companyName ?? null)
+    addOption(draftInvoice?.client?.companyName ?? null)
+
+    return options.sort((a, b) => a.label.localeCompare(b.label))
+  }, [client, clientDirectoryMap, draftInvoice, project, projectDraft.clientCompany])
+
+  const editingClient = useMemo<InvoiceClientState | null>(() => {
+    if (projectEditMode === "view") {
+      return null
+    }
+    const trimmed = projectDraft.clientCompany.trim()
+    if (!trimmed) {
+      return {
+        companyName: null,
+        addressLine1: null,
+        addressLine2: null,
+        addressLine3: null,
+        region: null,
+        representative: null,
+      }
+    }
+    const directoryClient = lookupClientFromDirectory(clientDirectoryMap, trimmed)
+    return {
+      companyName: trimmed,
+      addressLine1: directoryClient?.addressLine1 ?? null,
+      addressLine2: directoryClient?.addressLine2 ?? null,
+      addressLine3: directoryClient?.addressLine3 ?? null,
+      region: directoryClient?.region ?? null,
+      representative: directoryClient?.representative ?? null,
+    }
+  }, [clientDirectoryMap, projectDraft.clientCompany, projectEditMode])
+
+  const displayClient = editingClient ?? resolvedClient
+
+  const companyLine3 = mergeLineWithRegion(displayClient?.addressLine3, displayClient?.region)
 
   const prepareDraft = useCallback(
     (mode: "create" | "edit", targetIndex?: number) => {
@@ -979,6 +1023,7 @@ const ProjectsShowContent = () => {
       projectNumber: project.projectNumber ?? "",
       projectDateIso: project.projectDateIso ?? null,
       subsidiary: project.subsidiary ?? "",
+      clientCompany: project.clientCompany ?? "",
     })
     setProjectEditMode("edit")
   }, [project])
@@ -993,6 +1038,7 @@ const ProjectsShowContent = () => {
         projectNumber: project.projectNumber ?? "",
         projectDateIso: project.projectDateIso ?? null,
         subsidiary: project.subsidiary ?? "",
+        clientCompany: project.clientCompany ?? "",
       })
     }
   }, [project])
@@ -1004,7 +1050,8 @@ const ProjectsShowContent = () => {
         | "projectTitle"
         | "projectNature"
         | "projectNumber"
-        | "subsidiary",
+        | "subsidiary"
+        | "clientCompany",
       value: string,
     ) => {
       setProjectDraft((previous) => ({ ...previous, [field]: value }))
@@ -1029,6 +1076,7 @@ const ProjectsShowContent = () => {
     const trimmedNature = projectDraft.projectNature.trim()
     const trimmedNumber = projectDraft.projectNumber.trim()
     const trimmedSubsidiary = projectDraft.subsidiary.trim()
+    const trimmedClientCompany = projectDraft.clientCompany.trim()
 
     if (trimmedNumber.length === 0) {
       message.error("Project number is required")
@@ -1057,12 +1105,14 @@ const ProjectsShowContent = () => {
     const currentNature = project.projectNature?.trim() ?? ""
     const currentNumber = project.projectNumber?.trim() ?? ""
     const currentSubsidiary = project.subsidiary?.trim() ?? ""
+    const currentClientCompany = project.clientCompany?.trim() ?? ""
     const currentDateIso = normalizeIso(project.projectDateIso)
 
     const sanitizedPresenter = toNullableString(trimmedPresenter)
     const sanitizedTitle = toNullableString(trimmedTitle)
     const sanitizedNature = toNullableString(trimmedNature)
     const sanitizedSubsidiary = toNullableString(trimmedSubsidiary)
+    const sanitizedClientCompany = toNullableString(trimmedClientCompany)
 
     const updatesPayload: Record<string, unknown> = {}
 
@@ -1081,6 +1131,9 @@ const ProjectsShowContent = () => {
     if (currentSubsidiary !== trimmedSubsidiary) {
       updatesPayload.subsidiary = sanitizedSubsidiary
     }
+    if (currentClientCompany !== trimmedClientCompany) {
+      updatesPayload.clientCompany = sanitizedClientCompany
+    }
     if (currentDateIso !== draftDateIso) {
       updatesPayload.projectDate = draftDateIso
     }
@@ -1094,6 +1147,7 @@ const ProjectsShowContent = () => {
         projectNumber: project.projectNumber ?? "",
         projectDateIso: project.projectDateIso ?? null,
         subsidiary: project.subsidiary ?? "",
+        clientCompany: project.clientCompany ?? "",
       })
       return
     }
@@ -1144,6 +1198,8 @@ const ProjectsShowContent = () => {
         const nextNumber = "projectNumber" in updatesPayload ? trimmedNumber : previous.projectNumber
         const nextSubsidiary =
           "subsidiary" in updatesPayload ? sanitizedSubsidiary ?? null : previous.subsidiary
+        const nextClientCompany =
+          "clientCompany" in updatesPayload ? sanitizedClientCompany ?? null : previous.clientCompany
         const nextDateIso =
           "projectDate" in updatesPayload ? draftDateIso : previous.projectDateIso ?? null
         const nextDateDisplay =
@@ -1152,7 +1208,7 @@ const ProjectsShowContent = () => {
         const nextSearchIndex = [
           nextNumber,
           nextTitle ?? "",
-          previous.clientCompany ?? "",
+          nextClientCompany ?? "",
           nextSubsidiary ?? "",
           previous.invoice ?? "",
           nextNature ?? "",
@@ -1170,9 +1226,53 @@ const ProjectsShowContent = () => {
           projectDateIso: nextDateIso,
           projectDateDisplay: nextDateDisplay,
           subsidiary: nextSubsidiary,
+          clientCompany: nextClientCompany,
           searchIndex: nextSearchIndex,
         }
       })
+
+      if ("clientCompany" in updatesPayload) {
+        const updatedCompanyName = sanitizedClientCompany ?? null
+        const directoryClient = lookupClientFromDirectory(
+          clientDirectoryMap,
+          updatedCompanyName,
+          trimmedClientCompany,
+        )
+
+        const fallbackClient: NormalizedClient | null = directoryClient
+          ? directoryClient
+          : updatedCompanyName
+          ? {
+              companyName: updatedCompanyName,
+              addressLine1: null,
+              addressLine2: null,
+              addressLine3: null,
+              region: null,
+              representative: null,
+            }
+          : null
+
+        setClient(fallbackClient)
+
+        if (fallbackClient || updatedCompanyName === null) {
+          setDraftInvoice((previous) => {
+            if (!previous) {
+              return previous
+            }
+            return {
+              ...previous,
+              client: {
+                companyName: updatedCompanyName,
+                addressLine1: directoryClient?.addressLine1 ?? null,
+                addressLine2: directoryClient?.addressLine2 ?? null,
+                addressLine3: directoryClient?.addressLine3 ?? null,
+                region: directoryClient?.region ?? null,
+                representative: directoryClient?.representative ?? null,
+              },
+            }
+          })
+        }
+      }
 
       setProjectEditMode("view")
       setProjectDraft({
@@ -1182,6 +1282,7 @@ const ProjectsShowContent = () => {
         projectNumber: trimmedNumber,
         projectDateIso: draftDateIso,
         subsidiary: sanitizedSubsidiary ?? "",
+        clientCompany: sanitizedClientCompany ?? "",
       })
       message.success("Project updated")
     } catch (error) {
@@ -1197,6 +1298,9 @@ const ProjectsShowContent = () => {
     projectDraft.projectTitle,
     projectDraft.projectNumber,
     projectDraft.projectDateIso,
+    projectDraft.subsidiary,
+    projectDraft.clientCompany,
+    clientDirectoryMap,
   ])
 
   const handleAddItem = useCallback(() => {
@@ -2138,16 +2242,40 @@ const ProjectsShowContent = () => {
                   ) : null}
                 </section>
               </div>
-              <aside className="client-panel">
+              <aside className={`client-panel${isProjectEditing ? " editing" : ""}`}>
                 <span className="summary-label client-label">Client</span>
                 <div className="company-block">
-                  <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
-                  <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
-                  <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
+                  {isProjectEditing ? (
+                    <div className="company-name editor">
+                      <AutoComplete
+                        value={projectDraft.clientCompany}
+                        options={clientCompanyOptions}
+                        onChange={(value) =>
+                          handleProjectDraftChange(
+                            "clientCompany",
+                            typeof value === "string" ? value : "",
+                          )
+                        }
+                        onSelect={(value) => handleProjectDraftChange("clientCompany", value)}
+                        placeholder="Select client company"
+                        className="client-company-combobox"
+                        allowClear
+                        filterOption={(inputValue, option) =>
+                          option?.value.toLowerCase().includes(inputValue.toLowerCase()) ?? false
+                        }
+                        disabled={projectEditSaving}
+                        popupMatchSelectWidth={280}
+                      />
+                    </div>
+                  ) : (
+                    <div className="company-name">{stringOrNA(displayClient?.companyName)}</div>
+                  )}
+                  <div className="company-line">{stringOrNA(displayClient?.addressLine1)}</div>
+                  <div className="company-line">{stringOrNA(displayClient?.addressLine2)}</div>
                   <div className="company-line">{stringOrNA(companyLine3)}</div>
-                  {resolvedClient?.representative ? (
+                  {displayClient?.representative ? (
                     <div className="company-line client-attn">
-                      <strong>Attn: {resolvedClient.representative}</strong>
+                      <strong>Attn: {displayClient.representative}</strong>
                     </div>
                   ) : null}
                 </div>
@@ -2674,6 +2802,55 @@ const ProjectsShowContent = () => {
           padding: 8px 0 0;
           align-items: flex-end;
           text-align: right;
+        }
+
+        .client-panel.editing {
+          align-items: stretch;
+          text-align: left;
+        }
+
+        .client-panel.editing .company-block {
+          align-items: stretch;
+          text-align: left;
+          background: #f1f5f9;
+          border-radius: 12px;
+          padding: 12px 16px;
+          gap: 6px;
+        }
+
+        .client-panel.editing .company-line {
+          align-self: stretch;
+        }
+
+        .company-name.editor {
+          width: 100%;
+        }
+
+        .client-company-combobox {
+          width: 100%;
+        }
+
+        .client-company-combobox :global(.ant-select-selector) {
+          padding: 0;
+          border: none !important;
+          box-shadow: none !important;
+          background: transparent;
+          font-family: ${KARLA_FONT};
+          font-weight: 700;
+          font-size: 18px;
+        }
+
+        .client-company-combobox :global(.ant-select-selection-item) {
+          font-family: ${KARLA_FONT};
+          font-weight: 700;
+          font-size: 18px;
+          color: #0f172a;
+        }
+
+        .client-company-combobox :global(.ant-select-selection-placeholder) {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #94a3b8;
         }
 
         .client-label {
