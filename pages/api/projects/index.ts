@@ -77,13 +77,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       : await Promise.all(
           filtered.map(async (project) => {
             try {
-              const summary = await fetchPrimaryInvoiceSummary(project.year, project.id)
+              const summary = await fetchPrimaryInvoiceSummary(
+                project.year,
+                project.id,
+                project.storagePath,
+              )
               if (summary) {
+                const companyCount = summary.clientCompanies.length
+                const clientCompanyLabel =
+                  companyCount > 1
+                    ? "Multiple Companies"
+                    : companyCount === 1
+                    ? summary.clientCompanies[0]
+                    : null
+
                 return {
                   ...project,
                   invoice: summary.invoiceNumber ?? project.invoice,
                   amount: summary.amount ?? project.amount,
-                  clientCompany: summary.clientCompany ?? project.clientCompany,
+                  clientCompany: clientCompanyLabel,
+                  invoiceCompanyCount: companyCount,
+                  invoiceCount: summary.invoiceCount,
                 }
               }
             } catch (summaryError) {
@@ -95,7 +109,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     : { message: "Unknown error", raw: summaryError },
               })
             }
-            return project
+            return {
+              ...project,
+              invoiceCompanyCount: project.invoiceCompanyCount ?? 0,
+              invoiceCount: project.invoiceCount ?? 0,
+              clientCompany: null,
+            }
           }),
         )
 

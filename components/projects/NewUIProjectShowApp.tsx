@@ -9,6 +9,7 @@ import {
 import { useRouter } from "next/router"
 import {
   App as AntdApp,
+  AutoComplete,
   Button,
   Card,
   Col,
@@ -42,6 +43,7 @@ import {
   amountText,
   mergeLineWithRegion,
   normalizeClient,
+  normalizeCompanyKey,
   normalizeProject,
   paymentChipLabel,
   stringOrNA,
@@ -97,6 +99,7 @@ const alphabet = "abcdefghijklmnopqrstuvwxyz"
 type ProjectShowResponse = {
   data?: ProjectRecord
   client?: ClientDirectoryRecord | null
+  clients?: ClientDirectoryRecord[]
   invoices?: ProjectInvoiceRecord[]
 }
 
@@ -149,6 +152,8 @@ type InvoiceTableRow = {
   quantity?: number
   discount?: number
 }
+
+type ClientDirectoryMap = Record<string, NormalizedClient>
 
 const toNumberValue = (value: number | null | undefined) =>
   typeof value === "number" && !Number.isNaN(value) ? value : 0
@@ -207,6 +212,48 @@ const lettersToIndex = (letters: string) => {
     result = result * 26 + (offset + 1)
   }
   return Math.max(result - 1, 0)
+}
+
+const addClientToDirectoryMap = (
+  map: ClientDirectoryMap,
+  client: NormalizedClient | null,
+  ...identifiers: (string | null | undefined)[]
+) => {
+  if (!client) {
+    return
+  }
+  const keys = identifiers
+    .concat(client.companyName)
+    .map((identifier) => normalizeCompanyKey(identifier))
+    .filter((key): key is string => Boolean(key))
+
+  keys.forEach((key) => {
+    if (!map[key]) {
+      map[key] = client
+    }
+  })
+}
+
+const buildClientDirectoryMap = (records: ClientDirectoryRecord[]): ClientDirectoryMap => {
+  const map: ClientDirectoryMap = {}
+  records.forEach((record) => {
+    const normalized = normalizeClient(record)
+    addClientToDirectoryMap(map, normalized, record.companyName, record.documentId)
+  })
+  return map
+}
+
+const lookupClientFromDirectory = (
+  map: ClientDirectoryMap,
+  ...identifiers: (string | null | undefined)[]
+): NormalizedClient | null => {
+  for (const identifier of identifiers) {
+    const key = normalizeCompanyKey(identifier)
+    if (key && map[key]) {
+      return map[key]
+    }
+  }
+  return null
 }
 
 const indexToLetters = (index: number) => {
@@ -269,28 +316,35 @@ const extractBaseInvoiceNumber = (invoiceNumber: string) => {
 const buildClientState = (
   invoice: ProjectInvoiceRecord | null,
   normalizedClient: NormalizedClient | null,
-  project: NormalizedProject | null,
-): InvoiceClientState => ({
-  companyName:
-    invoice?.companyName ?? normalizedClient?.companyName ?? project?.clientCompany ?? null,
-  addressLine1: invoice?.addressLine1 ?? normalizedClient?.addressLine1 ?? null,
-  addressLine2: invoice?.addressLine2 ?? normalizedClient?.addressLine2 ?? null,
-  addressLine3: invoice?.addressLine3 ?? normalizedClient?.addressLine3 ?? null,
-  region: invoice?.region ?? normalizedClient?.region ?? null,
-  representative:
-    invoice?.representative ?? normalizedClient?.representative ?? null,
-})
+  directoryMap: ClientDirectoryMap,
+): InvoiceClientState => {
+  const directoryClient =
+    lookupClientFromDirectory(directoryMap, invoice?.companyName, normalizedClient?.companyName) ??
+    null
+
+  const companyName =
+    invoice?.companyName ?? directoryClient?.companyName ?? normalizedClient?.companyName ?? null
+
+  return {
+    companyName,
+    addressLine1: directoryClient?.addressLine1 ?? normalizedClient?.addressLine1 ?? null,
+    addressLine2: directoryClient?.addressLine2 ?? normalizedClient?.addressLine2 ?? null,
+    addressLine3: directoryClient?.addressLine3 ?? normalizedClient?.addressLine3 ?? null,
+    region: directoryClient?.region ?? normalizedClient?.region ?? null,
+    representative: directoryClient?.representative ?? normalizedClient?.representative ?? null,
+  }
+}
 
 const buildDraftFromInvoice = (
   invoice: ProjectInvoiceRecord,
   normalizedClient: NormalizedClient | null,
-  project: NormalizedProject | null,
+  directoryMap: ClientDirectoryMap,
 ): InvoiceDraftState => ({
   invoiceNumber: invoice.invoiceNumber,
   baseInvoiceNumber: invoice.baseInvoiceNumber ?? extractBaseInvoiceNumber(invoice.invoiceNumber),
   collectionId: invoice.collectionId,
   originalInvoiceNumber: invoice.invoiceNumber,
-  client: buildClientState(invoice, normalizedClient, project),
+  client: buildClientState(invoice, normalizedClient, directoryMap),
   items: (invoice.items ?? []).map((item, index) => ({
     key: `item-${index + 1}`,
     title: item.title ?? "",
@@ -311,6 +365,7 @@ const buildDraftForNewInvoice = (
   invoices: ProjectInvoiceRecord[],
   project: NormalizedProject | null,
   normalizedClient: NormalizedClient | null,
+  directoryMap: ClientDirectoryMap,
 ): InvoiceDraftState => {
   const baseCandidate =
     generateInvoiceFallback(project?.projectNumber ?? null, project?.projectDateIso ?? null) ??
@@ -322,7 +377,7 @@ const buildDraftForNewInvoice = (
     invoiceNumber,
     baseInvoiceNumber: baseCandidate,
     originalInvoiceNumber: undefined,
-    client: buildClientState(null, normalizedClient, project),
+    client: buildClientState(null, normalizedClient, directoryMap),
     items: [],
     taxOrDiscountPercent: 0,
     paymentStatus: "Draft",
@@ -362,20 +417,21 @@ const ProjectsShowContent = () => {
   const [loading, setLoading] = useState(true)
   const [project, setProject] = useState<NormalizedProject | null>(null)
   const [client, setClient] = useState<NormalizedClient | null>(null)
+  const [clientDirectoryMap, setClientDirectoryMap] = useState<ClientDirectoryMap>({})
   const [invoices, setInvoices] = useState<ProjectInvoiceRecord[]>([])
   const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
-  const [invoiceMode, setInvoiceMode] = useState<"idle" | "create" | "edit">("idle")
+  const [invoiceMode, setInvoiceMode] = useState<"idle" | "create" | "edit" | "select">("idle")
   const [draftInvoice, setDraftInvoice] = useState<InvoiceDraftState | null>(null)
   const [savingInvoice, setSavingInvoice] = useState(false)
   const [projectEditMode, setProjectEditMode] = useState<"view" | "edit" | "saving">("view")
-  const [projectDraft, setProjectDraft] = useState<ProjectDraftState>({
-    presenterWorkType: "",
-    projectTitle: "",
-    projectNature: "",
-    projectNumber: "",
-    projectDateIso: null,
-    subsidiary: "",
-  })
+const [projectDraft, setProjectDraft] = useState<ProjectDraftState>({
+  presenterWorkType: "",
+  projectTitle: "",
+  projectNature: "",
+  projectNumber: "",
+  projectDateIso: null,
+  subsidiary: "",
+})
   const [invoiceNumberEditing, setInvoiceNumberEditing] = useState(false)
   const [bankInfoMap, setBankInfoMap] = useState<
     Record<string, { bankName: string; bankCode?: string; accountType?: string | null }>
@@ -417,11 +473,43 @@ const ProjectsShowContent = () => {
 
         const normalizedProject = normalizeProject(payload.data)
         const normalizedClient = payload.client ? normalizeClient(payload.client) : null
+        const directoryRecords = Array.isArray(payload.clients) ? payload.clients : []
+        const directoryMap = buildClientDirectoryMap(directoryRecords)
+
+        if (payload.client) {
+          addClientToDirectoryMap(
+            directoryMap,
+            normalizedClient,
+            payload.client.companyName,
+            payload.client.documentId,
+          )
+        }
+
+        addClientToDirectoryMap(directoryMap, normalizedClient, normalizedProject.clientCompany)
+
         const invoiceRecords = Array.isArray(payload.invoices) ? payload.invoices : []
+
+        invoiceRecords.forEach((record) => {
+          if (record.companyName) {
+            const existing = lookupClientFromDirectory(directoryMap, record.companyName)
+            if (!existing && normalizedClient) {
+              addClientToDirectoryMap(directoryMap, normalizedClient, record.companyName)
+            }
+          }
+        })
+
+        setClientDirectoryMap(directoryMap)
+
+        const resolvedClientRecord =
+          lookupClientFromDirectory(
+            directoryMap,
+            normalizedProject.clientCompany,
+            normalizedClient?.companyName,
+          ) ?? normalizedClient
 
         setProject(normalizedProject)
         setProjectEditMode("view")
-        setClient(normalizedClient)
+        setClient(resolvedClientRecord)
         setInvoices(invoiceRecords)
         setInvoiceNumberEditing(false)
 
@@ -430,7 +518,12 @@ const ProjectsShowContent = () => {
           setInvoiceMode("idle")
           setDraftInvoice(null)
         } else {
-          const draft = buildDraftForNewInvoice(invoiceRecords, normalizedProject, normalizedClient)
+          const draft = buildDraftForNewInvoice(
+            invoiceRecords,
+            normalizedProject,
+            resolvedClientRecord,
+            directoryMap,
+          )
           itemIdRef.current = draft.items.length
           setDraftInvoice(draft)
           setInvoiceMode("create")
@@ -445,6 +538,7 @@ const ProjectsShowContent = () => {
         message.error(description)
         setProject(null)
         setClient(null)
+        setClientDirectoryMap({})
         setInvoices([])
         setDraftInvoice(null)
       } finally {
@@ -482,25 +576,34 @@ const ProjectsShowContent = () => {
       }
       const missing = Array.from(ids).filter((id) => !bankInfoMap[id])
       if (missing.length === 0) return
-      const updates: Record<string, { bankName: string; bankCode?: string; accountType?: string | null }> = {}
-      for (const id of missing) {
-        try {
-          const info = await resolveBankAccountIdentifier(id)
-          if (controller.signal.aborted) return
-          if (info) {
-            updates[id] = { bankName: info.bankName, bankCode: info.bankCode, accountType: info.accountType ?? null }
+      const results = await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const info = await resolveBankAccountIdentifier(id)
+            return { id, info }
+          } catch {
+            return { id, info: null }
           }
-        } catch {
-          // ignore
+        }),
+      )
+      if (controller.signal.aborted) return
+      const updates: Record<string, { bankName: string; bankCode?: string; accountType?: string | null }> = {}
+      results.forEach(({ id, info }) => {
+        if (info) {
+          updates[id] = {
+            bankName: info.bankName,
+            bankCode: info.bankCode,
+            accountType: info.accountType ?? null,
+          }
         }
-      }
+      })
       if (Object.keys(updates).length > 0) {
         setBankInfoMap((prev) => ({ ...prev, ...updates }))
       }
     }
     void run()
     return () => controller.abort()
-  }, [invoices, draftInvoice?.paidTo])
+  }, [bankInfoMap, invoices, draftInvoice?.paidTo])
 
   useEffect(() => {
     if (!project || projectEditMode !== "view") {
@@ -546,7 +649,7 @@ const ProjectsShowContent = () => {
     void router.push("/dashboard/new-ui/projects")
   }, [router])
 
-  const isEditingInvoice = invoiceMode !== "idle"
+  const isEditingInvoice = invoiceMode === "create" || invoiceMode === "edit"
 
   const currentInvoiceRecord =
     invoiceMode === "idle" && invoices.length > 0
@@ -556,12 +659,12 @@ const ProjectsShowContent = () => {
   const resolvedDraft = isEditingInvoice
     ? draftInvoice
     : currentInvoiceRecord
-    ? buildDraftFromInvoice(currentInvoiceRecord, client, project)
+    ? buildDraftFromInvoice(currentInvoiceRecord, client, clientDirectoryMap)
     : draftInvoice
 
   const resolvedClient = resolvedDraft
     ? resolvedDraft.client
-    : buildClientState(currentInvoiceRecord, client, project)
+    : buildClientState(currentInvoiceRecord, client, clientDirectoryMap)
 
   const activeItems = resolvedDraft?.items ?? []
   const subtotal = computeSubtotal(activeItems)
@@ -735,6 +838,7 @@ const ProjectsShowContent = () => {
     return entries
   }, [
     activeInvoiceIndex,
+    bankInfoMap,
     draftInvoice,
     invoiceMode,
     invoices,
@@ -752,7 +856,57 @@ const ProjectsShowContent = () => {
     return Math.min(activeInvoiceIndex, invoiceEntries.length - 1)
   }, [activeInvoiceIndex, draftInvoice, invoiceEntries.length, invoiceMode])
 
-  const companyLine3 = mergeLineWithRegion(resolvedClient?.addressLine3, resolvedClient?.region)
+  const clientCompanyOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const options: { value: string; label: string }[] = []
+
+    const addOption = (value: string | null | undefined) => {
+      if (typeof value !== "string") {
+        return
+      }
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return
+      }
+      const key = trimmed.toLowerCase()
+      if (seen.has(key)) {
+        return
+      }
+      seen.add(key)
+      options.push({ value: trimmed, label: trimmed })
+    }
+
+    Object.values(clientDirectoryMap).forEach((record) => {
+      addOption(record?.companyName ?? null)
+    })
+
+    invoices.forEach((invoice) => addOption(invoice.companyName))
+    addOption(client?.companyName ?? null)
+    addOption(draftInvoice?.client?.companyName ?? null)
+
+    return options.sort((a, b) => a.label.localeCompare(b.label))
+  }, [client, clientDirectoryMap, draftInvoice?.client?.companyName, invoices])
+
+  const editingClient = useMemo<InvoiceClientState | null>(() => {
+    if (!isEditingInvoice || !draftInvoice) {
+      return null
+    }
+    const companyName = draftInvoice.client?.companyName ?? null
+    const directoryClient = lookupClientFromDirectory(clientDirectoryMap, companyName)
+    return {
+      companyName,
+      addressLine1: directoryClient?.addressLine1 ?? draftInvoice.client?.addressLine1 ?? null,
+      addressLine2: directoryClient?.addressLine2 ?? draftInvoice.client?.addressLine2 ?? null,
+      addressLine3: directoryClient?.addressLine3 ?? draftInvoice.client?.addressLine3 ?? null,
+      region: directoryClient?.region ?? draftInvoice.client?.region ?? null,
+      representative:
+        directoryClient?.representative ?? draftInvoice.client?.representative ?? null,
+    }
+  }, [clientDirectoryMap, draftInvoice, isEditingInvoice])
+
+  const displayClient = editingClient ?? resolvedClient
+
+  const companyLine3 = mergeLineWithRegion(displayClient?.addressLine3, displayClient?.region)
 
   const prepareDraft = useCallback(
     (mode: "create" | "edit", targetIndex?: number) => {
@@ -760,7 +914,12 @@ const ProjectsShowContent = () => {
         return
       }
       if (mode === "create") {
-        const draft = buildDraftForNewInvoice(invoices, project, client)
+        const draft = buildDraftForNewInvoice(
+          invoices,
+          project,
+          client,
+          clientDirectoryMap,
+        )
         itemIdRef.current = draft.items.length
         setDraftInvoice(draft)
         setInvoiceMode("create")
@@ -773,18 +932,22 @@ const ProjectsShowContent = () => {
         message.warning("Select an invoice to edit.")
         return
       }
-      const draft = buildDraftFromInvoice(current, client, project)
+      const draft = buildDraftFromInvoice(current, client, clientDirectoryMap)
       itemIdRef.current = draft.items.length
       setDraftInvoice(draft)
       setInvoiceMode("edit")
       setActiveInvoiceIndex(index)
     },
-    [activeInvoiceIndex, client, invoices, message, project],
+    [activeInvoiceIndex, client, clientDirectoryMap, invoices, message, project],
   )
 
   const handleSelectInvoice = useCallback(
     (index: number, pending: boolean) => {
       if (pending && invoiceMode === "create") {
+        return
+      }
+      if (invoiceMode === "select") {
+        prepareDraft("edit", index)
         return
       }
       if (invoiceMode !== "idle" && index !== activeInvoiceIndex) {
@@ -796,39 +959,24 @@ const ProjectsShowContent = () => {
       }
       setActiveInvoiceIndex(index)
     },
-    [activeInvoiceIndex, invoiceMode, message],
+    [activeInvoiceIndex, invoiceMode, message, prepareDraft],
   )
 
-  const handleBeginInvoiceRowEdit = useCallback(
-    (index: number, pending: boolean) => {
-      if (pending) {
-        if (invoiceMode === "create") {
-          setActiveInvoiceIndex(index)
-          setInvoiceNumberEditing(true)
-        }
-        return
-      }
+  const beginInvoiceSelection = useCallback(() => {
+    if (!hasInvoices || invoiceMode !== "idle") {
+      return
+    }
+    setInvoiceMode("select")
+    setInvoiceNumberEditing(false)
+    setDraftInvoice(null)
+  }, [hasInvoices, invoiceMode])
 
-      if (invoiceMode === "create") {
-        message.warning("Finish creating the current invoice before editing another.")
-        return
-      }
-
-      if (invoiceMode !== "idle" && index !== activeInvoiceIndex) {
-        message.warning("Finish editing the current invoice before editing another.")
-        return
-      }
-
-      if (invoiceMode === "edit" && index === activeInvoiceIndex) {
-        setInvoiceNumberEditing(true)
-        return
-      }
-
-      prepareDraft("edit", index)
-      setInvoiceNumberEditing(true)
-    },
-    [activeInvoiceIndex, invoiceMode, message, prepareDraft, setActiveInvoiceIndex, setInvoiceNumberEditing],
-  )
+  const cancelInvoiceSelection = useCallback(() => {
+    if (invoiceMode === "select") {
+      setInvoiceMode("idle")
+      setInvoiceNumberEditing(false)
+    }
+  }, [invoiceMode])
 
   const startProjectEditing = useCallback(() => {
     if (!project) {
@@ -1059,6 +1207,8 @@ const ProjectsShowContent = () => {
     projectDraft.projectTitle,
     projectDraft.projectNumber,
     projectDraft.projectDateIso,
+    projectDraft.subsidiary,
+    clientDirectoryMap,
   ])
 
   const handleAddItem = useCallback(() => {
@@ -1201,7 +1351,7 @@ const ProjectsShowContent = () => {
   const handleCancelInvoice = useCallback(() => {
     if (!hasInvoices) {
       if (project) {
-        const draft = buildDraftForNewInvoice([], project, client)
+        const draft = buildDraftForNewInvoice([], project, client, clientDirectoryMap)
         itemIdRef.current = draft.items.length
         setDraftInvoice(draft)
         setInvoiceMode("create")
@@ -1217,7 +1367,7 @@ const ProjectsShowContent = () => {
     setActiveInvoiceIndex((previousIndex) =>
       Math.min(previousIndex, Math.max(invoices.length - 1, 0)),
     )
-  }, [client, hasInvoices, invoices.length, project])
+  }, [client, clientDirectoryMap, hasInvoices, invoices.length, project])
 
   const updateProjectFromInvoices = useCallback((nextInvoices: ProjectInvoiceRecord[]) => {
     setProject((previous) => {
@@ -1231,6 +1381,7 @@ const ProjectsShowContent = () => {
       let aggregatedPaidOnDisplay: string | null = null
       let aggregatedPaidOnIso: string | null = null
       let aggregatedPaidTo: string | null = null
+      const companyMap = new Map<string, string>()
       nextInvoices.forEach((entry) => {
         if (typeof entry.total === "number" && !Number.isNaN(entry.total)) {
           aggregated += entry.total
@@ -1238,6 +1389,15 @@ const ProjectsShowContent = () => {
         } else if (typeof entry.amount === "number" && !Number.isNaN(entry.amount)) {
           aggregated += entry.amount
           hasAmount = true
+        }
+        if (typeof entry.companyName === "string") {
+          const trimmed = entry.companyName.trim()
+          if (trimmed) {
+            const key = trimmed.toLowerCase()
+            if (!companyMap.has(key)) {
+              companyMap.set(key, trimmed)
+            }
+          }
         }
         if (entry.paid === true) {
           aggregatedPaid = true
@@ -1275,11 +1435,17 @@ const ProjectsShowContent = () => {
       })
       const resolvedOnIso = aggregatedPaidOnIso ?? previous.onDateIso ?? null
       const resolvedOnDisplay = aggregatedPaidOnDisplay ?? previous.onDateDisplay ?? null
+      const companyList = Array.from(companyMap.values())
+      const companyCount = companyList.length
+      const clientCompanyLabel =
+        companyCount > 1 ? "Multiple Companies" : companyCount === 1 ? companyList[0] : null
       return {
         ...previous,
         invoice: primary?.invoiceNumber ?? previous.invoice,
         amount: hasAmount ? aggregated : previous.amount,
-        clientCompany: primary?.companyName ?? previous.clientCompany,
+        clientCompany: clientCompanyLabel,
+        invoiceCompanyCount: companyCount,
+        invoiceCount: nextInvoices.length,
         paid: aggregatedPaid ?? previous.paid,
         paidTo: aggregatedPaidTo ?? previous.paidTo,
         onDateIso: resolvedOnIso,
@@ -1294,6 +1460,43 @@ const ProjectsShowContent = () => {
       return { ...previous, paidTo: value }
     })
   }, [])
+
+  const handleDraftClientCompanyChange = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      setDraftInvoice((previous) => {
+        if (!previous) {
+          return previous
+        }
+        if (!trimmed) {
+          return {
+            ...previous,
+            client: {
+              companyName: null,
+              addressLine1: null,
+              addressLine2: null,
+              addressLine3: null,
+              region: null,
+              representative: null,
+            },
+          }
+        }
+        const directoryClient = lookupClientFromDirectory(clientDirectoryMap, trimmed)
+        return {
+          ...previous,
+          client: {
+            companyName: trimmed,
+            addressLine1: directoryClient?.addressLine1 ?? null,
+            addressLine2: directoryClient?.addressLine2 ?? null,
+            addressLine3: directoryClient?.addressLine3 ?? null,
+            region: directoryClient?.region ?? null,
+            representative: directoryClient?.representative ?? null,
+          },
+        }
+      })
+    },
+    [clientDirectoryMap],
+  )
 
   const handlePaidOnChange = useCallback((value: Dayjs | null) => {
     setDraftInvoice((previous) => {
@@ -1310,12 +1513,34 @@ const ProjectsShowContent = () => {
       setSavingInvoice(true)
       const endpoint = `/api/projects/by-id/${encodeURIComponent(project.id)}/invoices`
       const method = invoiceMode === "create" ? "POST" : "PATCH"
+
+      const serializedItems = draftInvoice.items.map((item) => ({
+        title: item.title?.trim() ?? "",
+        feeType: item.feeType?.trim() ?? "",
+        unitPrice:
+          typeof item.unitPrice === "number" && !Number.isNaN(item.unitPrice)
+            ? item.unitPrice
+            : Number(item.unitPrice) || 0,
+        quantity:
+          typeof item.quantity === "number" && !Number.isNaN(item.quantity)
+            ? item.quantity
+            : Number(item.quantity) || 0,
+        discount:
+          typeof item.discount === "number" && !Number.isNaN(item.discount)
+            ? item.discount
+            : Number(item.discount) || 0,
+      }))
+
+      const clientPayload = {
+        companyName: draftInvoice.client?.companyName ?? null,
+      }
+
       const payload =
         invoiceMode === "create"
           ? {
               baseInvoiceNumber: draftInvoice.baseInvoiceNumber,
-              client: draftInvoice.client,
-              items: draftInvoice.items,
+              client: clientPayload,
+              items: serializedItems,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
               paidTo: draftInvoice.paidTo ?? null,
@@ -1324,8 +1549,8 @@ const ProjectsShowContent = () => {
           : {
               collectionId: draftInvoice.collectionId,
               invoiceNumber: draftInvoice.invoiceNumber,
-              client: draftInvoice.client,
-              items: draftInvoice.items,
+              client: clientPayload,
+              items: serializedItems,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
               paidTo: draftInvoice.paidTo ?? null,
@@ -1414,12 +1639,12 @@ const ProjectsShowContent = () => {
           }
 
           if (!isEditingInvoice) {
-            const title = record.title?.trim() ? record.title : "N/A"
-            const description = record.feeType?.trim() ? record.feeType.trim() : null
+            const title = record.title?.trim() ? record.title.trim() : "N/A"
+            const description = record.feeType?.trim() ? record.feeType.trim() : "N/A"
             return (
               <div className="item-display">
-                <span className="item-title-text">{title}</span>
-                {description ? <span className="item-description">{description}</span> : null}
+                <div className="item-title-text">{title}</div>
+                <div className="item-fee-type">{description}</div>
               </div>
             )
           }
@@ -1456,7 +1681,7 @@ const ProjectsShowContent = () => {
         dataIndex: "unitPrice",
         title: <span className="items-heading">Unit Price</span>,
         width: 140,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1481,7 +1706,7 @@ const ProjectsShowContent = () => {
         dataIndex: "quantity",
         title: <span className="items-heading">Qty</span>,
         width: 100,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1506,7 +1731,7 @@ const ProjectsShowContent = () => {
         dataIndex: "discount",
         title: <span className="items-heading">Discount</span>,
         width: 140,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1529,7 +1754,7 @@ const ProjectsShowContent = () => {
         key: "total",
         dataIndex: "total",
         title: <span className="items-heading">Total</span>,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (_: unknown, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1564,7 +1789,7 @@ const ProjectsShowContent = () => {
   }
   const isProjectEditing = projectEditMode === "edit" || projectEditMode === "saving"
   const projectEditSaving = projectEditMode === "saving"
-  const showInvoiceCancel = invoiceMode !== "idle" && (invoiceMode === "edit" || hasInvoices)
+  const showInvoiceCancel = invoiceMode === "create" || invoiceMode === "edit"
   return (
     <div className="page-wrapper">
       <div className="page-inner">
@@ -1579,7 +1804,7 @@ const ProjectsShowContent = () => {
               Back to Projects
             </Button>
           </div>
-          <div className="header-block">
+          <div className={`header-block${isProjectEditing ? " editing" : ""}`}>
           <div className="descriptor-line">
             {isProjectEditing ? (
               <Input
@@ -1595,50 +1820,52 @@ const ProjectsShowContent = () => {
               <span className="descriptor-number">{stringOrNA(project.projectNumber)}</span>
             )}
             <span className="descriptor-separator">/</span>
-            {isProjectEditing ? (
-              <DatePicker
-                value={projectDraft.projectDateIso ? dayjs(projectDraft.projectDateIso) : null}
-                onChange={handleProjectDateChange}
-                format="MMM DD, YYYY"
-                allowClear
-                bordered={false}
-                className="descriptor-picker"
-                disabled={projectEditSaving}
-                style={{ minWidth: 160 }}
-              />
-            ) : (
-              <span className="descriptor-date">
-                {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
-              </span>
-            )}
-            {isProjectEditing ? (
-              <div className="descriptor-actions">
-                <Button
-                  className="project-cancel"
-                  onClick={cancelProjectEditing}
+            <div className="descriptor-date-group">
+              {isProjectEditing ? (
+                <DatePicker
+                  value={projectDraft.projectDateIso ? dayjs(projectDraft.projectDateIso) : null}
+                  onChange={handleProjectDateChange}
+                  format="MMM DD, YYYY"
+                  allowClear
+                  bordered={false}
+                  className="descriptor-picker"
                   disabled={projectEditSaving}
+                  style={{ minWidth: 160 }}
+                />
+              ) : (
+                <span className="descriptor-date">
+                  {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
+                </span>
+              )}
+              {isProjectEditing ? (
+                <div className="descriptor-actions">
+                  <Button
+                    className="project-cancel"
+                    onClick={cancelProjectEditing}
+                    disabled={projectEditSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="primary"
+                    className="project-save"
+                    onClick={saveProjectEdits}
+                    loading={projectEditSaving}
+                  >
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="descriptor-edit-trigger"
+                  onClick={startProjectEditing}
+                  aria-label="Edit project details"
                 >
-                  Cancel
-                </Button>
-                <Button
-                  type="primary"
-                  className="project-save"
-                  onClick={saveProjectEdits}
-                  loading={projectEditSaving}
-                >
-                  Save
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="descriptor-edit-trigger"
-                onClick={startProjectEditing}
-                aria-label="Edit project details"
-              >
-                <EditOutlined />
-              </button>
-            )}
+                  <EditOutlined />
+                </button>
+              )}
+            </div>
           </div>
           <div className="title-row">
             <div className="title-content">
@@ -1727,9 +1954,22 @@ const ProjectsShowContent = () => {
             <div className="billing-layout">
               <div className="billing-main">
                 <section className="billing-section">
-                  <Title level={5} className="section-heading">
-                    Billing &amp; Payments
-                  </Title>
+                  <div className="billing-section-header">
+                    <Title level={5} className="section-heading">
+                      Billing &amp; Payments
+                    </Title>
+                    <Space size={8}>
+                      <Button
+                        icon={<EditOutlined />}
+                        onClick={
+                          invoiceMode === "select" ? cancelInvoiceSelection : beginInvoiceSelection
+                        }
+                        disabled={!hasInvoices || invoiceMode === "create" || invoiceMode === "edit"}
+                      >
+                        {invoiceMode === "select" ? "Cancel Selection" : "Edit Invoice"}
+                      </Button>
+                    </Space>
+                  </div>
                   <div className="invoice-table">
                     <div className="invoice-row head">
                       <span className="invoice-cell heading">Invoice #</span>
@@ -1741,20 +1981,29 @@ const ProjectsShowContent = () => {
                     {invoiceEntries.length > 0 ? (
                       invoiceEntries.map((entry, index) => {
                         const isActive = index === activeEntryIndex
-                        const isEditingRow = invoiceMode !== "idle" && isActive
+                        const isEditingRow = isEditingInvoice && isActive
                         const isPending = entry.pending
                         const displayNumber =
                           isEditingRow && draftInvoice ? draftInvoice.invoiceNumber : entry.invoiceNumber
                         const payToInfo = entry.payToInfo
+
+                        const rowClassName = [
+                          "invoice-row",
+                          "selectable-row",
+                          invoiceMode === "select" ? "awaiting-selection" : "",
+                          isPending ? "pending" : "",
+                          isEditingRow ? "editing-target" : "",
+                          invoiceMode !== "select" && isActive ? "active" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")
 
                         return (
                           <div
                             key={`${entry.invoiceNumber}-${index}`}
                             role="button"
                             tabIndex={0}
-                            className={`invoice-row selectable-row ${
-                              isActive ? "active" : ""
-                            } ${isPending ? "pending" : ""}`}
+                            className={rowClassName}
                             onClick={() => handleSelectInvoice(index, entry.pending)}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
@@ -1777,27 +2026,18 @@ const ProjectsShowContent = () => {
                                 />
                               ) : (
                                 <span
-                                  className={`invoice-number-text ${
-                                    isEditingRow ? "editing" : ""
-                                  }`}
+                                  className={[
+                                    "invoice-number-text",
+                                    isEditingRow ? "editing" : "",
+                                    entry.pending ? "pending" : "",
+                                    invoiceMode === "select" ? "selection-blink" : "",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" ")}
                                 >
                                   {displayNumber}
                                 </span>
                               )}
-                              {!isPending && !isEditingRow ? (
-                                <button
-                                  type="button"
-                                  className="invoice-edit-trigger"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    handleBeginInvoiceRowEdit(index, entry.pending)
-                                  }}
-                                  disabled={invoiceMode !== "idle"}
-                                  aria-label="Edit invoice"
-                                >
-                                  <EditOutlined />
-                                </button>
-                              ) : null}
                             </div>
                             <div className="invoice-cell amount">
                               {amountText(isEditingRow ? total : entry.amount)}
@@ -1830,7 +2070,11 @@ const ProjectsShowContent = () => {
                                 </Tag>
                               )}
                             </div>
-                            <div className="invoice-cell pay-to">
+                            <div
+                              className={`invoice-cell pay-to${
+                                isEditingRow && draftInvoice ? " editing" : ""
+                              }`}
+                            >
                               {isEditingRow && draftInvoice ? (
                                 <Input
                                   value={draftInvoice.paidTo ?? ""}
@@ -1916,7 +2160,7 @@ const ProjectsShowContent = () => {
                 <section className="items-section">
                   <div className="items-header">
                     <Title level={4} className="section-heading">
-                      Items / Services
+                      Invoice Details
                     </Title>
                   </div>
                   <Table<InvoiceTableRow>
@@ -1968,16 +2212,41 @@ const ProjectsShowContent = () => {
                   ) : null}
                 </section>
               </div>
-              <aside className="client-panel">
+              <aside
+                className={["client-panel", isEditingInvoice ? "editing" : "", invoiceMode === "select" ? "selecting" : ""]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
                 <span className="summary-label client-label">Client</span>
                 <div className="company-block">
-                  <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
-                  <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
-                  <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
+                  {isEditingInvoice ? (
+                    <div className="company-name editor">
+                      <AutoComplete
+                        value={draftInvoice?.client?.companyName ?? ""}
+                        options={clientCompanyOptions}
+                        onChange={(value) =>
+                          handleDraftClientCompanyChange(typeof value === "string" ? value : "")
+                        }
+                        onSelect={(value) => handleDraftClientCompanyChange(value)}
+                        placeholder="Select client company"
+                        className="client-company-combobox"
+                        allowClear
+                        filterOption={(inputValue, option) =>
+                          option?.value.toLowerCase().includes(inputValue.toLowerCase()) ?? false
+                        }
+                        disabled={savingInvoice}
+                        popupMatchSelectWidth={280}
+                      />
+                    </div>
+                  ) : (
+                    <div className="company-name">{stringOrNA(displayClient?.companyName)}</div>
+                  )}
+                  <div className="company-line">{stringOrNA(displayClient?.addressLine1)}</div>
+                  <div className="company-line">{stringOrNA(displayClient?.addressLine2)}</div>
                   <div className="company-line">{stringOrNA(companyLine3)}</div>
-                  {resolvedClient?.representative ? (
+                  {displayClient?.representative ? (
                     <div className="company-line client-attn">
-                      <strong>Attn: {resolvedClient.representative}</strong>
+                      <strong>Attn: {displayClient.representative}</strong>
                     </div>
                   ) : null}
                 </div>
@@ -1989,11 +2258,32 @@ const ProjectsShowContent = () => {
       </div>
       {/* eslint-disable-next-line react/no-unknown-property */}
       <style jsx>{`
+        @import url("https://fonts.googleapis.com/css2?family=Darker+Grotesque:wght@500;600&display=swap");
         .page-wrapper {
           padding: 32px 24px 48px;
           background: #f8fafc;
           min-height: 100%;
           font-family: ${KARLA_FONT};
+        }
+
+        @keyframes invoiceSelectBlink {
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.4;
+          }
+        }
+
+        @keyframes editingRowPulse {
+          0%,
+          100% {
+            box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.45);
+          }
+          50% {
+            box-shadow: 0 0 0 6px rgba(250, 204, 21, 0);
+          }
         }
 
         .page-inner {
@@ -2030,6 +2320,7 @@ const ProjectsShowContent = () => {
           gap: 8px;
           font-family: ${KARLA_FONT};
           font-weight: 600;
+          flex-wrap: wrap;
         }
 
         .descriptor-number {
@@ -2053,6 +2344,13 @@ const ProjectsShowContent = () => {
           color: #94a3b8;
         }
 
+        .descriptor-date-group {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
         .descriptor-date {
           color: #64748b;
           font-style: italic;
@@ -2074,6 +2372,45 @@ const ProjectsShowContent = () => {
         .descriptor-picker .ant-picker-input > input::placeholder {
           color: #94a3b8;
           font-style: italic;
+        }
+
+        .header-block.editing {
+          background: #f1f5f9;
+          border-radius: 16px;
+          padding: 12px 16px;
+        }
+
+        .header-block.editing .descriptor-date-group {
+          background: #e2e8f0;
+          border-radius: 12px;
+          padding: 4px 8px;
+        }
+
+        .header-block.editing :global(.descriptor-input.ant-input),
+        .header-block.editing :global(.presenter-input.ant-input),
+        .header-block.editing :global(.project-title-input.ant-input),
+        .header-block.editing :global(.project-nature-input.ant-input),
+        .header-block.editing :global(.subsidiary-input.ant-input) {
+          padding: 6px 10px;
+          border-radius: 10px;
+          border: 1px solid #60a5fa;
+          background: #ffffff;
+          box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+        }
+
+        .header-block.editing .descriptor-picker,
+        .header-block.editing .descriptor-picker:hover,
+        .header-block.editing .descriptor-picker:focus {
+          background: #ffffff;
+          border-radius: 10px;
+          border: 1px solid #60a5fa;
+          box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+          padding: 2px 8px;
+        }
+
+        .header-block.editing .descriptor-picker .ant-picker-input > input {
+          color: #0f172a;
+          font-style: normal;
         }
 
         .title-row {
@@ -2207,14 +2544,12 @@ const ProjectsShowContent = () => {
         }
 
         .descriptor-actions {
-          margin-left: auto;
           display: inline-flex;
           align-items: center;
           gap: 8px;
         }
 
         .descriptor-edit-trigger {
-          margin-left: auto;
           border: none;
           background: none;
           padding: 4px;
@@ -2387,50 +2722,20 @@ const ProjectsShowContent = () => {
           width: 100%;
         }
 
-        .invoice-number-shell {
-          display: inline-flex;
-          align-items: center;
-          padding: 8px 16px;
-          border-radius: 18px;
-          background: #e7f2ff;
-          min-width: 0;
-        }
-
-        .invoice-number-shell.pending {
-          background: #f1f5f9;
-          border: 1px dashed #94a3b8;
-        }
-
         .invoice-number-text {
           font-weight: 700;
           font-family: ${KARLA_FONT};
         }
 
-        .invoice-number-pending {
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #64748b;
+        .invoice-number-text.editing {
+          color: #4b5563;
           font-style: italic;
-          animation: blink 1.2s infinite;
-          cursor: default;
         }
 
-        .invoice-number-edit {
-          border: none;
-          background: none;
-          padding: 0;
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #64748b;
+        .invoice-number-text.pending {
+          color: #6b7280;
           font-style: italic;
           animation: blink 1.2s infinite;
-          text-align: left;
-          cursor: pointer;
-        }
-
-        .invoice-number-edit:focus-visible {
-          outline: 2px solid #2563eb;
-          outline-offset: 2px;
         }
 
         .billing-card :global(.ant-card-body) {
@@ -2474,6 +2779,18 @@ const ProjectsShowContent = () => {
           gap: 16px;
         }
 
+        .billing-section-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .billing-section-header :global(.ant-btn) {
+          border-radius: 12px;
+        }
+
         .items-section {
           margin-top: 24px;
           padding-top: 16px;
@@ -2488,6 +2805,67 @@ const ProjectsShowContent = () => {
           padding: 8px 0 0;
           align-items: flex-end;
           text-align: right;
+        }
+
+        .client-panel.selecting {
+          align-items: stretch;
+          text-align: left;
+        }
+
+        .client-panel.selecting .company-block {
+          border: 1px dashed rgba(148, 163, 184, 0.6);
+          border-radius: 12px;
+          padding: 12px 16px;
+          background: rgba(248, 250, 252, 0.6);
+        }
+
+        .client-panel.editing {
+          align-items: stretch;
+          text-align: left;
+        }
+
+        .client-panel.editing .company-block {
+          align-items: stretch;
+          text-align: left;
+          background: #f1f5f9;
+          border-radius: 12px;
+          padding: 12px 16px;
+          gap: 6px;
+        }
+
+        .client-panel.editing .company-line {
+          align-self: stretch;
+        }
+
+        .company-name.editor {
+          width: 100%;
+        }
+
+        .client-company-combobox {
+          width: 100%;
+        }
+
+        .client-company-combobox :global(.ant-select-selector) {
+          padding: 0;
+          border: none !important;
+          box-shadow: none !important;
+          background: transparent;
+          font-family: ${KARLA_FONT};
+          font-weight: 700;
+          font-size: 18px;
+        }
+
+        .client-company-combobox :global(.ant-select-selection-item) {
+          font-family: ${KARLA_FONT};
+          font-weight: 700;
+          font-size: 18px;
+          color: #0f172a;
+        }
+
+        .client-company-combobox :global(.ant-select-selection-placeholder) {
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+          color: #94a3b8;
         }
 
         .client-label {
@@ -2509,10 +2887,10 @@ const ProjectsShowContent = () => {
             minmax(140px, 1fr)
             minmax(160px, 1.1fr)
             minmax(120px, 0.8fr);
-          align-items: flex-start;
+          align-items: center;
           gap: 12px;
           font-family: ${KARLA_FONT};
-          justify-items: start;
+          justify-items: stretch;
         }
 
         .invoice-row.head {
@@ -2534,11 +2912,12 @@ const ProjectsShowContent = () => {
           font-weight: 600;
           color: #0f172a;
           text-align: left;
+          display: flex;
+          align-items: center;
+          width: 100%;
         }
 
         .invoice-cell.number {
-          display: flex;
-          align-items: center;
           gap: 12px;
         }
 
@@ -2547,16 +2926,32 @@ const ProjectsShowContent = () => {
         }
 
         .invoice-cell.status {
-          display: flex;
           align-items: center;
           gap: 8px;
         }
 
         .invoice-cell.pay-to {
-          display: flex;
           flex-direction: column;
           align-items: flex-start;
           color: #0f172a;
+        }
+
+        .invoice-cell.pay-to.editing {
+          flex-direction: row;
+          align-items: center;
+        }
+
+        .invoice-cell.paid-on {
+          justify-content: flex-start;
+        }
+
+        .invoice-cell.number :global(.ant-input) {
+          width: 100%;
+        }
+
+        .invoice-cell.status :global(.ant-select),
+        .invoice-cell.paid-on :global(.ant-picker) {
+          width: 100%;
         }
 
         .bank-name {
@@ -2578,28 +2973,6 @@ const ProjectsShowContent = () => {
           font-weight: 600;
           font-size: 12px;
           line-height: 1;
-        }
-
-        .invoice-edit-trigger {
-          border: none;
-          background: none;
-          padding: 4px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          color: #475569;
-          cursor: pointer;
-          transition: background 0.2s ease;
-        }
-
-        .invoice-edit-trigger:hover:not(:disabled) {
-          background: #e2e8f0;
-        }
-
-        .invoice-edit-trigger:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
         }
 
         .invoice-number-text.editing {
@@ -2637,6 +3010,27 @@ const ProjectsShowContent = () => {
         .invoice-row.selectable-row.pending:hover {
           border-color: transparent;
           background: transparent;
+        }
+
+        .invoice-row.awaiting-selection {
+          border-color: rgba(250, 204, 21, 0.45);
+          background: rgba(250, 204, 21, 0.08);
+        }
+
+        .invoice-row.awaiting-selection:hover {
+          border-color: rgba(250, 204, 21, 0.6);
+          background: rgba(250, 204, 21, 0.14);
+        }
+
+        .invoice-row.editing-target {
+          border-color: rgba(250, 204, 21, 0.85);
+          background: rgba(250, 204, 21, 0.18);
+          animation: editingRowPulse 1.6s ease-in-out infinite;
+        }
+
+        .invoice-number-text.selection-blink {
+          animation: invoiceSelectBlink 1.05s steps(2, start) infinite;
+          color: #334155;
         }
 
         .invoice-row.selectable-row:focus-visible {
@@ -2716,7 +3110,8 @@ const ProjectsShowContent = () => {
           display: flex;
           flex-direction: column;
           gap: 4px;
-          align-items: flex-start;
+          align-items: stretch;
+          width: 100%;
         }
 
         .item-title-text {
@@ -2724,14 +3119,18 @@ const ProjectsShowContent = () => {
           font-weight: 600;
           color: #0f172a;
           display: block;
+          line-height: 1.3;
+          width: 100%;
         }
 
-        .item-description {
-          font-family: ${KARLA_FONT};
-          font-weight: 500;
-          color: #374151;
+        .item-fee-type {
+          font-family: 'Darker Grotesque', sans-serif;
+          font-weight: 600;
+          color: #4b5563;
           display: block;
+          line-height: 1.25;
           white-space: normal;
+          width: 100%;
         }
 
         .item-edit {
@@ -2751,12 +3150,22 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #0f172a;
+          text-align: left;
+          display: block;
         }
 
         .invoice-items :global(.ant-table) {
           font-family: ${KARLA_FONT};
         }
         .invoice-items :global(.ant-table-cell) {
+          text-align: left;
+          white-space: normal;
+          vertical-align: top;
+        }
+        .invoice-items :global(.ant-input-number) {
+          width: 100%;
+        }
+        .invoice-items :global(.ant-input-number-input) {
           text-align: left;
         }
 
