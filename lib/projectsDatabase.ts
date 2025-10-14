@@ -36,6 +36,8 @@ export interface ProjectRecord {
   amount: number | null
   clientCompany: string | null
   invoice: string | null
+  invoiceCompanyCount: number | null
+  invoiceCount: number | null
   onDateDisplay: string | null
   onDateIso: string | null
   paid: boolean | null
@@ -174,6 +176,8 @@ const buildProjectRecord = (
     amount,
     clientCompany: toStringValue(data.clientCompany),
     invoice: toStringValue(data.invoice),
+    invoiceCompanyCount: null,
+    invoiceCount: null,
     onDateDisplay,
     onDateIso,
     paid: toBooleanValue(data.paid),

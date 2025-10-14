@@ -1056,7 +1056,8 @@ export const updateInvoiceForProject = async (
 export interface InvoiceSummaryResult {
   invoiceNumber: string | null
   amount: number | null
-  clientCompany: string | null
+  clientCompanies: string[]
+  invoiceCount: number
 }
 
 export const fetchPrimaryInvoiceSummary = async (
@@ -1070,6 +1071,7 @@ export const fetchPrimaryInvoiceSummary = async (
   }
   let aggregatedTotal = 0
   let hasAmount = false
+  const companyMap = new Map<string, string>()
   invoices.forEach((invoice) => {
     let value: number | null = null
     if (typeof invoice.total === "number" && !Number.isNaN(invoice.total)) {
@@ -1081,11 +1083,22 @@ export const fetchPrimaryInvoiceSummary = async (
       aggregatedTotal += value
       hasAmount = true
     }
+
+    if (typeof invoice.companyName === "string") {
+      const trimmed = invoice.companyName.trim()
+      if (trimmed) {
+        const key = trimmed.toLowerCase()
+        if (!companyMap.has(key)) {
+          companyMap.set(key, trimmed)
+        }
+      }
+    }
   })
   const first = invoices[0]
   return {
     invoiceNumber: first.invoiceNumber,
     amount: hasAmount ? aggregatedTotal : first.total ?? first.amount ?? null,
-    clientCompany: first.companyName ?? null,
+    clientCompanies: Array.from(companyMap.values()),
+    invoiceCount: invoices.length,
   }
 }

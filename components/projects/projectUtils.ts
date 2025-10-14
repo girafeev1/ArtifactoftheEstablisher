@@ -6,6 +6,8 @@ export type NormalizedProject = ProjectRecord & {
   projectTitle: string | null
   clientCompany: string | null
   subsidiary: string | null
+  invoiceCompanyCount: number | null
+  invoiceCount: number | null
   searchIndex: string
 }
 
@@ -99,6 +101,9 @@ export const normalizeProject = (record: ProjectRecord): NormalizedProject => {
   const projectTitle = record.projectTitle ? record.projectTitle.trim() || null : null
   const clientCompany = record.clientCompany ? record.clientCompany.trim() || null : null
   const subsidiary = record.subsidiary ? record.subsidiary.trim() || null : null
+  const invoiceCompanyCount =
+    typeof record.invoiceCompanyCount === "number" ? record.invoiceCompanyCount : null
+  const invoiceCount = typeof record.invoiceCount === "number" ? record.invoiceCount : null
   const searchIndex = [
     projectNumber,
     projectTitle ?? "",
@@ -117,6 +122,8 @@ export const normalizeProject = (record: ProjectRecord): NormalizedProject => {
     projectTitle,
     clientCompany,
     subsidiary,
+    invoiceCompanyCount,
+    invoiceCount,
     searchIndex,
   }
 }

@@ -594,14 +594,35 @@ const ProjectsContent = () => {
         title: <span style={tableHeadingStyle}>Client Company</span>,
         dataIndex: "clientCompany",
         sorter: true,
-        render: (_: string | null, record: ProjectRow) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {record.subsidiary ? (
-              <Tag style={subsidiaryTagStyle}>{stringOrNA(record.subsidiary)}</Tag>
-            ) : null}
-            <span style={primaryRowTextStyle}>{stringOrNA(record.clientCompany)}</span>
-          </div>
-        ),
+        render: (_: string | null, record: ProjectRow) => {
+          const invoiceCount = typeof record.invoiceCount === "number" ? record.invoiceCount : 0
+          const companyCount =
+            typeof record.invoiceCompanyCount === "number" ? record.invoiceCompanyCount : 0
+          const awaitingConfirmation = invoiceCount === 0
+          const multipleCompanies = !awaitingConfirmation && companyCount > 1
+          const companyValue = awaitingConfirmation
+            ? null
+            : multipleCompanies
+            ? "Multiple Companies"
+            : record.clientCompany
+          const displayValue = awaitingConfirmation
+            ? "To Be Confirmed"
+            : stringOrNA(companyValue)
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {record.subsidiary ? (
+                <Tag style={subsidiaryTagStyle}>{stringOrNA(record.subsidiary)}</Tag>
+              ) : null}
+              <span
+                style={primaryRowTextStyle}
+                className={awaitingConfirmation ? "pending-company-text" : undefined}
+              >
+                {displayValue}
+              </span>
+            </div>
+          )
+        },
       },
       {
         key: "actions",
@@ -635,15 +656,16 @@ const ProjectsContent = () => {
   }, [message, tableQuery?.error])
 
   return (
-    <div
-      style={{
-        padding: screens.md ? "32px 0 32px 24px" : "24px 16px",
-        minHeight: "100%",
-        background: "#fff",
-        fontFamily: KARLA_FONT,
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <>
+      <div
+        style={{
+          padding: screens.md ? "32px 0 32px 24px" : "24px 16px",
+          minHeight: "100%",
+          background: "#fff",
+          fontFamily: KARLA_FONT,
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <Title
           level={2}
           style={{ fontFamily: KARLA_FONT, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}
@@ -712,8 +734,26 @@ const ProjectsContent = () => {
             })}
           />
         )}
+        </div>
       </div>
-    </div>
+      {/* eslint-disable-next-line react/no-unknown-property */}
+      <style jsx>{`
+        @keyframes pendingBlink {
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.35;
+          }
+        }
+
+        .pending-company-text {
+          color: #475569;
+          animation: pendingBlink 1.2s steps(2, start) infinite;
+        }
+      `}</style>
+    </>
   )
 }
 

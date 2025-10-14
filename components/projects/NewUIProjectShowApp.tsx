@@ -141,7 +141,6 @@ type ProjectDraftState = {
   projectNumber: string
   projectDateIso: string | null
   subsidiary: string
-  clientCompany: string
 }
 
 type InvoiceTableRow = {
@@ -317,23 +316,14 @@ const extractBaseInvoiceNumber = (invoiceNumber: string) => {
 const buildClientState = (
   invoice: ProjectInvoiceRecord | null,
   normalizedClient: NormalizedClient | null,
-  project: NormalizedProject | null,
   directoryMap: ClientDirectoryMap,
 ): InvoiceClientState => {
   const directoryClient =
-    lookupClientFromDirectory(
-      directoryMap,
-      invoice?.companyName,
-      normalizedClient?.companyName,
-      project?.clientCompany,
-    ) ?? null
+    lookupClientFromDirectory(directoryMap, invoice?.companyName, normalizedClient?.companyName) ??
+    null
 
   const companyName =
-    invoice?.companyName ??
-    directoryClient?.companyName ??
-    normalizedClient?.companyName ??
-    project?.clientCompany ??
-    null
+    invoice?.companyName ?? directoryClient?.companyName ?? normalizedClient?.companyName ?? null
 
   return {
     companyName,
@@ -348,14 +338,13 @@ const buildClientState = (
 const buildDraftFromInvoice = (
   invoice: ProjectInvoiceRecord,
   normalizedClient: NormalizedClient | null,
-  project: NormalizedProject | null,
   directoryMap: ClientDirectoryMap,
 ): InvoiceDraftState => ({
   invoiceNumber: invoice.invoiceNumber,
   baseInvoiceNumber: invoice.baseInvoiceNumber ?? extractBaseInvoiceNumber(invoice.invoiceNumber),
   collectionId: invoice.collectionId,
   originalInvoiceNumber: invoice.invoiceNumber,
-  client: buildClientState(invoice, normalizedClient, project, directoryMap),
+  client: buildClientState(invoice, normalizedClient, directoryMap),
   items: (invoice.items ?? []).map((item, index) => ({
     key: `item-${index + 1}`,
     title: item.title ?? "",
@@ -388,7 +377,7 @@ const buildDraftForNewInvoice = (
     invoiceNumber,
     baseInvoiceNumber: baseCandidate,
     originalInvoiceNumber: undefined,
-    client: buildClientState(null, normalizedClient, project, directoryMap),
+    client: buildClientState(null, normalizedClient, directoryMap),
     items: [],
     taxOrDiscountPercent: 0,
     paymentStatus: "Draft",
@@ -431,19 +420,18 @@ const ProjectsShowContent = () => {
   const [clientDirectoryMap, setClientDirectoryMap] = useState<ClientDirectoryMap>({})
   const [invoices, setInvoices] = useState<ProjectInvoiceRecord[]>([])
   const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
-  const [invoiceMode, setInvoiceMode] = useState<"idle" | "create" | "edit">("idle")
+  const [invoiceMode, setInvoiceMode] = useState<"idle" | "create" | "edit" | "select">("idle")
   const [draftInvoice, setDraftInvoice] = useState<InvoiceDraftState | null>(null)
   const [savingInvoice, setSavingInvoice] = useState(false)
   const [projectEditMode, setProjectEditMode] = useState<"view" | "edit" | "saving">("view")
-  const [projectDraft, setProjectDraft] = useState<ProjectDraftState>({
-    presenterWorkType: "",
-    projectTitle: "",
-    projectNature: "",
-    projectNumber: "",
-    projectDateIso: null,
-    subsidiary: "",
-    clientCompany: "",
-  })
+const [projectDraft, setProjectDraft] = useState<ProjectDraftState>({
+  presenterWorkType: "",
+  projectTitle: "",
+  projectNature: "",
+  projectNumber: "",
+  projectDateIso: null,
+  subsidiary: "",
+})
   const [invoiceNumberEditing, setInvoiceNumberEditing] = useState(false)
   const [bankInfoMap, setBankInfoMap] = useState<
     Record<string, { bankName: string; bankCode?: string; accountType?: string | null }>
@@ -628,7 +616,6 @@ const ProjectsShowContent = () => {
       projectNumber: project.projectNumber ?? "",
       projectDateIso: project.projectDateIso ?? null,
       subsidiary: project.subsidiary ?? "",
-      clientCompany: project.clientCompany ?? "",
     })
   }, [project, projectEditMode])
 
@@ -662,7 +649,7 @@ const ProjectsShowContent = () => {
     void router.push("/dashboard/new-ui/projects")
   }, [router])
 
-  const isEditingInvoice = invoiceMode !== "idle"
+  const isEditingInvoice = invoiceMode === "create" || invoiceMode === "edit"
 
   const currentInvoiceRecord =
     invoiceMode === "idle" && invoices.length > 0
@@ -672,12 +659,12 @@ const ProjectsShowContent = () => {
   const resolvedDraft = isEditingInvoice
     ? draftInvoice
     : currentInvoiceRecord
-    ? buildDraftFromInvoice(currentInvoiceRecord, client, project, clientDirectoryMap)
+    ? buildDraftFromInvoice(currentInvoiceRecord, client, clientDirectoryMap)
     : draftInvoice
 
   const resolvedClient = resolvedDraft
     ? resolvedDraft.client
-    : buildClientState(currentInvoiceRecord, client, project, clientDirectoryMap)
+    : buildClientState(currentInvoiceRecord, client, clientDirectoryMap)
 
   const activeItems = resolvedDraft?.items ?? []
   const subtotal = computeSubtotal(activeItems)
@@ -893,39 +880,29 @@ const ProjectsShowContent = () => {
       addOption(record?.companyName ?? null)
     })
 
-    addOption(project?.clientCompany ?? null)
-    addOption(projectDraft.clientCompany)
+    invoices.forEach((invoice) => addOption(invoice.companyName))
     addOption(client?.companyName ?? null)
     addOption(draftInvoice?.client?.companyName ?? null)
 
     return options.sort((a, b) => a.label.localeCompare(b.label))
-  }, [client, clientDirectoryMap, draftInvoice, project, projectDraft.clientCompany])
+  }, [client, clientDirectoryMap, draftInvoice?.client?.companyName, invoices])
 
   const editingClient = useMemo<InvoiceClientState | null>(() => {
-    if (projectEditMode === "view") {
+    if (!isEditingInvoice || !draftInvoice) {
       return null
     }
-    const trimmed = projectDraft.clientCompany.trim()
-    if (!trimmed) {
-      return {
-        companyName: null,
-        addressLine1: null,
-        addressLine2: null,
-        addressLine3: null,
-        region: null,
-        representative: null,
-      }
-    }
-    const directoryClient = lookupClientFromDirectory(clientDirectoryMap, trimmed)
+    const companyName = draftInvoice.client?.companyName ?? null
+    const directoryClient = lookupClientFromDirectory(clientDirectoryMap, companyName)
     return {
-      companyName: trimmed,
-      addressLine1: directoryClient?.addressLine1 ?? null,
-      addressLine2: directoryClient?.addressLine2 ?? null,
-      addressLine3: directoryClient?.addressLine3 ?? null,
-      region: directoryClient?.region ?? null,
-      representative: directoryClient?.representative ?? null,
+      companyName,
+      addressLine1: directoryClient?.addressLine1 ?? draftInvoice.client?.addressLine1 ?? null,
+      addressLine2: directoryClient?.addressLine2 ?? draftInvoice.client?.addressLine2 ?? null,
+      addressLine3: directoryClient?.addressLine3 ?? draftInvoice.client?.addressLine3 ?? null,
+      region: directoryClient?.region ?? draftInvoice.client?.region ?? null,
+      representative:
+        directoryClient?.representative ?? draftInvoice.client?.representative ?? null,
     }
-  }, [clientDirectoryMap, projectDraft.clientCompany, projectEditMode])
+  }, [clientDirectoryMap, draftInvoice, isEditingInvoice])
 
   const displayClient = editingClient ?? resolvedClient
 
@@ -955,7 +932,7 @@ const ProjectsShowContent = () => {
         message.warning("Select an invoice to edit.")
         return
       }
-      const draft = buildDraftFromInvoice(current, client, project, clientDirectoryMap)
+      const draft = buildDraftFromInvoice(current, client, clientDirectoryMap)
       itemIdRef.current = draft.items.length
       setDraftInvoice(draft)
       setInvoiceMode("edit")
@@ -969,6 +946,10 @@ const ProjectsShowContent = () => {
       if (pending && invoiceMode === "create") {
         return
       }
+      if (invoiceMode === "select") {
+        prepareDraft("edit", index)
+        return
+      }
       if (invoiceMode !== "idle" && index !== activeInvoiceIndex) {
         message.warning("Finish editing the current invoice before switching.")
         return
@@ -978,39 +959,24 @@ const ProjectsShowContent = () => {
       }
       setActiveInvoiceIndex(index)
     },
-    [activeInvoiceIndex, invoiceMode, message],
+    [activeInvoiceIndex, invoiceMode, message, prepareDraft],
   )
 
-  const handleBeginInvoiceRowEdit = useCallback(
-    (index: number, pending: boolean) => {
-      if (pending) {
-        if (invoiceMode === "create") {
-          setActiveInvoiceIndex(index)
-          setInvoiceNumberEditing(true)
-        }
-        return
-      }
+  const beginInvoiceSelection = useCallback(() => {
+    if (!hasInvoices || invoiceMode !== "idle") {
+      return
+    }
+    setInvoiceMode("select")
+    setInvoiceNumberEditing(false)
+    setDraftInvoice(null)
+  }, [hasInvoices, invoiceMode])
 
-      if (invoiceMode === "create") {
-        message.warning("Finish creating the current invoice before editing another.")
-        return
-      }
-
-      if (invoiceMode !== "idle" && index !== activeInvoiceIndex) {
-        message.warning("Finish editing the current invoice before editing another.")
-        return
-      }
-
-      if (invoiceMode === "edit" && index === activeInvoiceIndex) {
-        setInvoiceNumberEditing(true)
-        return
-      }
-
-      prepareDraft("edit", index)
-      setInvoiceNumberEditing(true)
-    },
-    [activeInvoiceIndex, invoiceMode, message, prepareDraft, setActiveInvoiceIndex, setInvoiceNumberEditing],
-  )
+  const cancelInvoiceSelection = useCallback(() => {
+    if (invoiceMode === "select") {
+      setInvoiceMode("idle")
+      setInvoiceNumberEditing(false)
+    }
+  }, [invoiceMode])
 
   const startProjectEditing = useCallback(() => {
     if (!project) {
@@ -1023,7 +989,6 @@ const ProjectsShowContent = () => {
       projectNumber: project.projectNumber ?? "",
       projectDateIso: project.projectDateIso ?? null,
       subsidiary: project.subsidiary ?? "",
-      clientCompany: project.clientCompany ?? "",
     })
     setProjectEditMode("edit")
   }, [project])
@@ -1038,7 +1003,6 @@ const ProjectsShowContent = () => {
         projectNumber: project.projectNumber ?? "",
         projectDateIso: project.projectDateIso ?? null,
         subsidiary: project.subsidiary ?? "",
-        clientCompany: project.clientCompany ?? "",
       })
     }
   }, [project])
@@ -1050,8 +1014,7 @@ const ProjectsShowContent = () => {
         | "projectTitle"
         | "projectNature"
         | "projectNumber"
-        | "subsidiary"
-        | "clientCompany",
+        | "subsidiary",
       value: string,
     ) => {
       setProjectDraft((previous) => ({ ...previous, [field]: value }))
@@ -1076,7 +1039,6 @@ const ProjectsShowContent = () => {
     const trimmedNature = projectDraft.projectNature.trim()
     const trimmedNumber = projectDraft.projectNumber.trim()
     const trimmedSubsidiary = projectDraft.subsidiary.trim()
-    const trimmedClientCompany = projectDraft.clientCompany.trim()
 
     if (trimmedNumber.length === 0) {
       message.error("Project number is required")
@@ -1105,14 +1067,12 @@ const ProjectsShowContent = () => {
     const currentNature = project.projectNature?.trim() ?? ""
     const currentNumber = project.projectNumber?.trim() ?? ""
     const currentSubsidiary = project.subsidiary?.trim() ?? ""
-    const currentClientCompany = project.clientCompany?.trim() ?? ""
     const currentDateIso = normalizeIso(project.projectDateIso)
 
     const sanitizedPresenter = toNullableString(trimmedPresenter)
     const sanitizedTitle = toNullableString(trimmedTitle)
     const sanitizedNature = toNullableString(trimmedNature)
     const sanitizedSubsidiary = toNullableString(trimmedSubsidiary)
-    const sanitizedClientCompany = toNullableString(trimmedClientCompany)
 
     const updatesPayload: Record<string, unknown> = {}
 
@@ -1131,9 +1091,6 @@ const ProjectsShowContent = () => {
     if (currentSubsidiary !== trimmedSubsidiary) {
       updatesPayload.subsidiary = sanitizedSubsidiary
     }
-    if (currentClientCompany !== trimmedClientCompany) {
-      updatesPayload.clientCompany = sanitizedClientCompany
-    }
     if (currentDateIso !== draftDateIso) {
       updatesPayload.projectDate = draftDateIso
     }
@@ -1147,7 +1104,6 @@ const ProjectsShowContent = () => {
         projectNumber: project.projectNumber ?? "",
         projectDateIso: project.projectDateIso ?? null,
         subsidiary: project.subsidiary ?? "",
-        clientCompany: project.clientCompany ?? "",
       })
       return
     }
@@ -1198,8 +1154,6 @@ const ProjectsShowContent = () => {
         const nextNumber = "projectNumber" in updatesPayload ? trimmedNumber : previous.projectNumber
         const nextSubsidiary =
           "subsidiary" in updatesPayload ? sanitizedSubsidiary ?? null : previous.subsidiary
-        const nextClientCompany =
-          "clientCompany" in updatesPayload ? sanitizedClientCompany ?? null : previous.clientCompany
         const nextDateIso =
           "projectDate" in updatesPayload ? draftDateIso : previous.projectDateIso ?? null
         const nextDateDisplay =
@@ -1208,7 +1162,7 @@ const ProjectsShowContent = () => {
         const nextSearchIndex = [
           nextNumber,
           nextTitle ?? "",
-          nextClientCompany ?? "",
+          previous.clientCompany ?? "",
           nextSubsidiary ?? "",
           previous.invoice ?? "",
           nextNature ?? "",
@@ -1226,53 +1180,9 @@ const ProjectsShowContent = () => {
           projectDateIso: nextDateIso,
           projectDateDisplay: nextDateDisplay,
           subsidiary: nextSubsidiary,
-          clientCompany: nextClientCompany,
           searchIndex: nextSearchIndex,
         }
       })
-
-      if ("clientCompany" in updatesPayload) {
-        const updatedCompanyName = sanitizedClientCompany ?? null
-        const directoryClient = lookupClientFromDirectory(
-          clientDirectoryMap,
-          updatedCompanyName,
-          trimmedClientCompany,
-        )
-
-        const fallbackClient: NormalizedClient | null = directoryClient
-          ? directoryClient
-          : updatedCompanyName
-          ? {
-              companyName: updatedCompanyName,
-              addressLine1: null,
-              addressLine2: null,
-              addressLine3: null,
-              region: null,
-              representative: null,
-            }
-          : null
-
-        setClient(fallbackClient)
-
-        if (fallbackClient || updatedCompanyName === null) {
-          setDraftInvoice((previous) => {
-            if (!previous) {
-              return previous
-            }
-            return {
-              ...previous,
-              client: {
-                companyName: updatedCompanyName,
-                addressLine1: directoryClient?.addressLine1 ?? null,
-                addressLine2: directoryClient?.addressLine2 ?? null,
-                addressLine3: directoryClient?.addressLine3 ?? null,
-                region: directoryClient?.region ?? null,
-                representative: directoryClient?.representative ?? null,
-              },
-            }
-          })
-        }
-      }
 
       setProjectEditMode("view")
       setProjectDraft({
@@ -1282,7 +1192,6 @@ const ProjectsShowContent = () => {
         projectNumber: trimmedNumber,
         projectDateIso: draftDateIso,
         subsidiary: sanitizedSubsidiary ?? "",
-        clientCompany: sanitizedClientCompany ?? "",
       })
       message.success("Project updated")
     } catch (error) {
@@ -1299,7 +1208,6 @@ const ProjectsShowContent = () => {
     projectDraft.projectNumber,
     projectDraft.projectDateIso,
     projectDraft.subsidiary,
-    projectDraft.clientCompany,
     clientDirectoryMap,
   ])
 
@@ -1473,6 +1381,7 @@ const ProjectsShowContent = () => {
       let aggregatedPaidOnDisplay: string | null = null
       let aggregatedPaidOnIso: string | null = null
       let aggregatedPaidTo: string | null = null
+      const companyMap = new Map<string, string>()
       nextInvoices.forEach((entry) => {
         if (typeof entry.total === "number" && !Number.isNaN(entry.total)) {
           aggregated += entry.total
@@ -1480,6 +1389,15 @@ const ProjectsShowContent = () => {
         } else if (typeof entry.amount === "number" && !Number.isNaN(entry.amount)) {
           aggregated += entry.amount
           hasAmount = true
+        }
+        if (typeof entry.companyName === "string") {
+          const trimmed = entry.companyName.trim()
+          if (trimmed) {
+            const key = trimmed.toLowerCase()
+            if (!companyMap.has(key)) {
+              companyMap.set(key, trimmed)
+            }
+          }
         }
         if (entry.paid === true) {
           aggregatedPaid = true
@@ -1517,11 +1435,17 @@ const ProjectsShowContent = () => {
       })
       const resolvedOnIso = aggregatedPaidOnIso ?? previous.onDateIso ?? null
       const resolvedOnDisplay = aggregatedPaidOnDisplay ?? previous.onDateDisplay ?? null
+      const companyList = Array.from(companyMap.values())
+      const companyCount = companyList.length
+      const clientCompanyLabel =
+        companyCount > 1 ? "Multiple Companies" : companyCount === 1 ? companyList[0] : null
       return {
         ...previous,
         invoice: primary?.invoiceNumber ?? previous.invoice,
         amount: hasAmount ? aggregated : previous.amount,
-        clientCompany: primary?.companyName ?? previous.clientCompany,
+        clientCompany: clientCompanyLabel,
+        invoiceCompanyCount: companyCount,
+        invoiceCount: nextInvoices.length,
         paid: aggregatedPaid ?? previous.paid,
         paidTo: aggregatedPaidTo ?? previous.paidTo,
         onDateIso: resolvedOnIso,
@@ -1536,6 +1460,43 @@ const ProjectsShowContent = () => {
       return { ...previous, paidTo: value }
     })
   }, [])
+
+  const handleDraftClientCompanyChange = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      setDraftInvoice((previous) => {
+        if (!previous) {
+          return previous
+        }
+        if (!trimmed) {
+          return {
+            ...previous,
+            client: {
+              companyName: null,
+              addressLine1: null,
+              addressLine2: null,
+              addressLine3: null,
+              region: null,
+              representative: null,
+            },
+          }
+        }
+        const directoryClient = lookupClientFromDirectory(clientDirectoryMap, trimmed)
+        return {
+          ...previous,
+          client: {
+            companyName: trimmed,
+            addressLine1: directoryClient?.addressLine1 ?? null,
+            addressLine2: directoryClient?.addressLine2 ?? null,
+            addressLine3: directoryClient?.addressLine3 ?? null,
+            region: directoryClient?.region ?? null,
+            representative: directoryClient?.representative ?? null,
+          },
+        }
+      })
+    },
+    [clientDirectoryMap],
+  )
 
   const handlePaidOnChange = useCallback((value: Dayjs | null) => {
     setDraftInvoice((previous) => {
@@ -1828,7 +1789,7 @@ const ProjectsShowContent = () => {
   }
   const isProjectEditing = projectEditMode === "edit" || projectEditMode === "saving"
   const projectEditSaving = projectEditMode === "saving"
-  const showInvoiceCancel = invoiceMode !== "idle" && (invoiceMode === "edit" || hasInvoices)
+  const showInvoiceCancel = invoiceMode === "create" || invoiceMode === "edit"
   return (
     <div className="page-wrapper">
       <div className="page-inner">
@@ -1993,9 +1954,22 @@ const ProjectsShowContent = () => {
             <div className="billing-layout">
               <div className="billing-main">
                 <section className="billing-section">
-                  <Title level={5} className="section-heading">
-                    Billing &amp; Payments
-                  </Title>
+                  <div className="billing-section-header">
+                    <Title level={5} className="section-heading">
+                      Billing &amp; Payments
+                    </Title>
+                    <Space size={8}>
+                      <Button
+                        icon={<EditOutlined />}
+                        onClick={
+                          invoiceMode === "select" ? cancelInvoiceSelection : beginInvoiceSelection
+                        }
+                        disabled={!hasInvoices || invoiceMode === "create" || invoiceMode === "edit"}
+                      >
+                        {invoiceMode === "select" ? "Cancel Selection" : "Edit Invoice"}
+                      </Button>
+                    </Space>
+                  </div>
                   <div className="invoice-table">
                     <div className="invoice-row head">
                       <span className="invoice-cell heading">Invoice #</span>
@@ -2007,20 +1981,29 @@ const ProjectsShowContent = () => {
                     {invoiceEntries.length > 0 ? (
                       invoiceEntries.map((entry, index) => {
                         const isActive = index === activeEntryIndex
-                        const isEditingRow = invoiceMode !== "idle" && isActive
+                        const isEditingRow = isEditingInvoice && isActive
                         const isPending = entry.pending
                         const displayNumber =
                           isEditingRow && draftInvoice ? draftInvoice.invoiceNumber : entry.invoiceNumber
                         const payToInfo = entry.payToInfo
+
+                        const rowClassName = [
+                          "invoice-row",
+                          "selectable-row",
+                          invoiceMode === "select" ? "awaiting-selection" : "",
+                          isPending ? "pending" : "",
+                          isEditingRow ? "editing-target" : "",
+                          invoiceMode !== "select" && isActive ? "active" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")
 
                         return (
                           <div
                             key={`${entry.invoiceNumber}-${index}`}
                             role="button"
                             tabIndex={0}
-                            className={`invoice-row selectable-row ${
-                              isActive ? "active" : ""
-                            } ${isPending ? "pending" : ""}`}
+                            className={rowClassName}
                             onClick={() => handleSelectInvoice(index, entry.pending)}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
@@ -2047,6 +2030,7 @@ const ProjectsShowContent = () => {
                                     "invoice-number-text",
                                     isEditingRow ? "editing" : "",
                                     entry.pending ? "pending" : "",
+                                    invoiceMode === "select" ? "selection-blink" : "",
                                   ]
                                     .filter(Boolean)
                                     .join(" ")}
@@ -2054,20 +2038,6 @@ const ProjectsShowContent = () => {
                                   {displayNumber}
                                 </span>
                               )}
-                              {!isPending && !isEditingRow ? (
-                                <button
-                                  type="button"
-                                  className="invoice-edit-trigger"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    handleBeginInvoiceRowEdit(index, entry.pending)
-                                  }}
-                                  disabled={invoiceMode !== "idle"}
-                                  aria-label="Edit invoice"
-                                >
-                                  <EditOutlined />
-                                </button>
-                              ) : null}
                             </div>
                             <div className="invoice-cell amount">
                               {amountText(isEditingRow ? total : entry.amount)}
@@ -2242,28 +2212,29 @@ const ProjectsShowContent = () => {
                   ) : null}
                 </section>
               </div>
-              <aside className={`client-panel${isProjectEditing ? " editing" : ""}`}>
+              <aside
+                className={["client-panel", isEditingInvoice ? "editing" : "", invoiceMode === "select" ? "selecting" : ""]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
                 <span className="summary-label client-label">Client</span>
                 <div className="company-block">
-                  {isProjectEditing ? (
+                  {isEditingInvoice ? (
                     <div className="company-name editor">
                       <AutoComplete
-                        value={projectDraft.clientCompany}
+                        value={draftInvoice?.client?.companyName ?? ""}
                         options={clientCompanyOptions}
                         onChange={(value) =>
-                          handleProjectDraftChange(
-                            "clientCompany",
-                            typeof value === "string" ? value : "",
-                          )
+                          handleDraftClientCompanyChange(typeof value === "string" ? value : "")
                         }
-                        onSelect={(value) => handleProjectDraftChange("clientCompany", value)}
+                        onSelect={(value) => handleDraftClientCompanyChange(value)}
                         placeholder="Select client company"
                         className="client-company-combobox"
                         allowClear
                         filterOption={(inputValue, option) =>
                           option?.value.toLowerCase().includes(inputValue.toLowerCase()) ?? false
                         }
-                        disabled={projectEditSaving}
+                        disabled={savingInvoice}
                         popupMatchSelectWidth={280}
                       />
                     </div>
@@ -2293,6 +2264,26 @@ const ProjectsShowContent = () => {
           background: #f8fafc;
           min-height: 100%;
           font-family: ${KARLA_FONT};
+        }
+
+        @keyframes invoiceSelectBlink {
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.4;
+          }
+        }
+
+        @keyframes editingRowPulse {
+          0%,
+          100% {
+            box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.45);
+          }
+          50% {
+            box-shadow: 0 0 0 6px rgba(250, 204, 21, 0);
+          }
         }
 
         .page-inner {
@@ -2788,6 +2779,18 @@ const ProjectsShowContent = () => {
           gap: 16px;
         }
 
+        .billing-section-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .billing-section-header :global(.ant-btn) {
+          border-radius: 12px;
+        }
+
         .items-section {
           margin-top: 24px;
           padding-top: 16px;
@@ -2802,6 +2805,18 @@ const ProjectsShowContent = () => {
           padding: 8px 0 0;
           align-items: flex-end;
           text-align: right;
+        }
+
+        .client-panel.selecting {
+          align-items: stretch;
+          text-align: left;
+        }
+
+        .client-panel.selecting .company-block {
+          border: 1px dashed rgba(148, 163, 184, 0.6);
+          border-radius: 12px;
+          padding: 12px 16px;
+          background: rgba(248, 250, 252, 0.6);
         }
 
         .client-panel.editing {
@@ -2960,28 +2975,6 @@ const ProjectsShowContent = () => {
           line-height: 1;
         }
 
-        .invoice-edit-trigger {
-          border: none;
-          background: none;
-          padding: 4px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          color: #475569;
-          cursor: pointer;
-          transition: background 0.2s ease;
-        }
-
-        .invoice-edit-trigger:hover:not(:disabled) {
-          background: #e2e8f0;
-        }
-
-        .invoice-edit-trigger:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
         .invoice-number-text.editing {
           color: #4b5563;
           font-style: italic;
@@ -3017,6 +3010,27 @@ const ProjectsShowContent = () => {
         .invoice-row.selectable-row.pending:hover {
           border-color: transparent;
           background: transparent;
+        }
+
+        .invoice-row.awaiting-selection {
+          border-color: rgba(250, 204, 21, 0.45);
+          background: rgba(250, 204, 21, 0.08);
+        }
+
+        .invoice-row.awaiting-selection:hover {
+          border-color: rgba(250, 204, 21, 0.6);
+          background: rgba(250, 204, 21, 0.14);
+        }
+
+        .invoice-row.editing-target {
+          border-color: rgba(250, 204, 21, 0.85);
+          background: rgba(250, 204, 21, 0.18);
+          animation: editingRowPulse 1.6s ease-in-out infinite;
+        }
+
+        .invoice-number-text.selection-blink {
+          animation: invoiceSelectBlink 1.05s steps(2, start) infinite;
+          color: #334155;
         }
 
         .invoice-row.selectable-row:focus-visible {
