@@ -507,7 +507,8 @@ const ProjectsContent = () => {
         const response = await fetch(`/api/projects?${params.toString()}`, {
           credentials: "include",
         })
-        const body = (await response.json().catch(() => ({}))) as ProjectsListResponse
+        const raw = await response.json().catch(() => ({}))
+        const body = raw as ProjectsListResponse & { error?: string | undefined }
         if (!response.ok) {
           const errorMessage =
             typeof body?.error === "string" ? body.error : "Failed to load existing projects"
@@ -626,9 +627,10 @@ const ProjectsContent = () => {
         body: JSON.stringify({ project: payload }),
       })
 
-      const body = (await response.json().catch(() => ({}))) as { error?: string; project?: ProjectRecord }
+      const raw = await response.json().catch(() => ({}))
+      const body = raw as { error?: string; project?: ProjectRecord }
       if (!response.ok) {
-        const description = body?.error ?? "Failed to create project"
+        const description = typeof body?.error === "string" ? body.error : "Failed to create project"
         throw new Error(description)
       }
 
@@ -639,7 +641,8 @@ const ProjectsContent = () => {
       if (yearValue !== activeYear) {
         handleYearChange(yearValue)
       }
-      await tableQuery?.refetch?.()
+      // Refetch project list after successful creation
+      await (tableQuery as unknown as { refetch?: () => Promise<unknown> })?.refetch?.()
     } catch (error) {
       const description = error instanceof Error ? error.message : "Failed to create project"
       message.error(description)
