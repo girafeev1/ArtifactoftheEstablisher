@@ -180,12 +180,9 @@ export function ProjectDatabaseCreateForm({
       projectNumber: sanitizeText(form.projectNumber),
       projectTitle: sanitizeText(form.projectTitle),
       projectNature: sanitizeText(form.projectNature),
-      clientCompany: sanitizeText(form.clientCompany),
+      // client and payment fields moved to invoice subcollections
       presenterWorkType: sanitizeText(form.presenterWorkType),
       subsidiary: sanitizeText(form.subsidiary),
-      invoice: sanitizeText(form.invoice),
-      paidTo: sanitizeText(form.paidTo),
-      paid: form.paid,
     }
 
     if (form.amount.trim().length === 0) {
@@ -195,7 +192,6 @@ export function ProjectDatabaseCreateForm({
     }
 
     payload.projectDate = toIsoUtcStringOrNull(form.projectDate)
-    payload.onDate = toIsoUtcStringOrNull(form.onDate)
 
     try {
       const response = await fetch(

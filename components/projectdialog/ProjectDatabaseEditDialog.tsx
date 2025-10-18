@@ -83,10 +83,8 @@ export default function ProjectDatabaseEditDialog({
       setForm({ ...form, [field]: event.target.value })
     }
 
-  const handleTogglePaid = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
-    if (!form) return
-    setForm({ ...form, paid: checked })
-  }
+  // Payment-related fields moved to invoice sub-collections; keep UI free of toggles
+  const handleTogglePaid = (_: React.ChangeEvent<HTMLInputElement>, _checked: boolean) => {}
 
   const handleSubmit = async () => {
     if (!project || !form) return
@@ -106,12 +104,8 @@ export default function ProjectDatabaseEditDialog({
       projectNumber: sanitizeText(form.projectNumber),
       projectTitle: sanitizeText(form.projectTitle),
       projectNature: sanitizeText(form.projectNature),
-      clientCompany: sanitizeText(form.clientCompany),
       presenterWorkType: sanitizeText(form.presenterWorkType),
       subsidiary: sanitizeText(form.subsidiary),
-      invoice: sanitizeText(form.invoice),
-      paidTo: sanitizeText(form.paidTo),
-      paid: form.paid,
     }
 
     if (form.amount.trim().length === 0) {
@@ -121,7 +115,6 @@ export default function ProjectDatabaseEditDialog({
     }
 
     updates.projectDate = toIsoUtcStringOrNull(form.projectDate)
-    updates.onDate = toIsoUtcStringOrNull(form.onDate)
 
     try {
       const response = await fetch(
@@ -172,14 +165,7 @@ export default function ProjectDatabaseEditDialog({
               fullWidth
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Client Company"
-              value={form.clientCompany}
-              onChange={handleChange('clientCompany')}
-              fullWidth
-            />
-          </Grid>
+          {/* Client company is now invoice-scoped; editing removed here */}
           <Grid item xs={12}>
             <TextField
               label="Project Title"
@@ -206,16 +192,7 @@ export default function ProjectDatabaseEditDialog({
               InputLabelProps={{ shrink: true }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Paid On"
-              type="date"
-              value={form.onDate}
-              onChange={handleChange('onDate')}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
+          {/* Paid On moved to invoices */}
           <Grid item xs={12} sm={6}>
             <TextField
               label="Amount (HKD)"
@@ -225,22 +202,8 @@ export default function ProjectDatabaseEditDialog({
               inputMode="decimal"
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Paid To"
-              value={form.paidTo}
-              onChange={handleChange('paidTo')}
-              fullWidth
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Invoice"
-              value={form.invoice}
-              onChange={handleChange('invoice')}
-              fullWidth
-            />
-          </Grid>
+          {/* Paid To moved to invoices */}
+          {/* Invoice number moved to invoices */}
           <Grid item xs={12} sm={6}>
             <TextField
               label="Presenter Work Type"
@@ -257,14 +220,7 @@ export default function ProjectDatabaseEditDialog({
               fullWidth
             />
           </Grid>
-          <Grid item xs={12}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <FormControlLabel
-                control={<Switch checked={form.paid} onChange={handleTogglePaid} />}
-                label="Paid"
-              />
-            </Box>
-          </Grid>
+          {/* Paid status moved to invoices */}
         </Grid>
       </DialogContent>
       <DialogActions>

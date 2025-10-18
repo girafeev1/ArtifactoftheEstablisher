@@ -330,8 +330,15 @@ const normalizeTimestampInput = (value: unknown) => {
 
 const sanitizeUpdates = (updates: Partial<ProjectRecord>) => {
   const payload: Record<string, unknown> = {}
+  const disallowed = new Set([
+    'invoice',
+    'onDate',
+    'paid',
+    'paidTo',
+    'clientCompany',
+  ])
   Object.entries(updates).forEach(([key, value]) => {
-    if (value === undefined || READ_ONLY_FIELDS.has(key)) {
+    if (value === undefined || READ_ONLY_FIELDS.has(key) || disallowed.has(key)) {
       return
     }
 
@@ -392,15 +399,11 @@ export const createProjectInDatabase = async ({
   const baseDefaults: Record<string, unknown> = {
     projectTitle: null,
     projectNature: null,
-    clientCompany: null,
     amount: null,
-    paid: false,
-    paidTo: null,
-    invoice: null,
+    // moved to invoice subcollections
     presenterWorkType: null,
     subsidiary: null,
     projectDate: null,
-    onDate: null,
   }
 
   const docPayload: Record<string, unknown> = {
