@@ -639,6 +639,7 @@ interface InvoiceWritePayload {
   paymentStatus: string | null
   paidTo?: string | null
   paidOn?: unknown
+  onDate?: unknown
 }
 
 const sanitizeClientPayload = (client: InvoiceClientPayload) => ({
@@ -714,6 +715,16 @@ const buildInvoiceWritePayload = (
     }
   } else if (payload.paidOn === null) {
     result.paidOn = null
+  }
+
+  const onDateIso = toIsoString(payload.onDate as any)
+  if (onDateIso) {
+    const dt = new Date(onDateIso)
+    if (!Number.isNaN(dt.getTime())) {
+      result.onDate = dt
+    }
+  } else if (payload.onDate === null) {
+    result.onDate = null
   }
 
   items.forEach((item, index) => {

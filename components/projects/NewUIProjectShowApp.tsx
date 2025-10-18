@@ -1336,6 +1336,7 @@ const ProjectsShowContent = () => {
     if (!project || !draftInvoice) {
       return
     }
+    const normalizedPaidTo = draftInvoice.paidTo ? draftInvoice.paidTo.trim() : ""
     try {
       setSavingInvoice(true)
       const endpoint = `/api/projects/by-id/${encodeURIComponent(project.id)}/invoices`
@@ -1348,8 +1349,9 @@ const ProjectsShowContent = () => {
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
-              paidTo: draftInvoice.paidTo ?? null,
+              paidTo: normalizedPaidTo.length > 0 ? normalizedPaidTo : null,
               paidOn: draftInvoice.paidOnIso ?? null,
+              onDate: draftInvoice.paidOnIso ?? null,
             }
           : {
               collectionId: draftInvoice.collectionId,
@@ -1358,8 +1360,9 @@ const ProjectsShowContent = () => {
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: draftInvoice.paymentStatus,
-              paidTo: draftInvoice.paidTo ?? null,
+              paidTo: normalizedPaidTo.length > 0 ? normalizedPaidTo : null,
               paidOn: draftInvoice.paidOnIso ?? null,
+              onDate: draftInvoice.paidOnIso ?? null,
             }
 
       const response = await fetch(endpoint, {
@@ -1849,14 +1852,14 @@ const ProjectsShowContent = () => {
                                 onClick={(event) => event.stopPropagation()}
                                 onKeyDown={(event) => event.stopPropagation()}
                               >
-                                <Select
-                                  value={draftInvoice.paymentStatus ?? undefined}
-                                  onChange={handleInvoiceStatusChange}
-                                  options={ANT_INVOICE_STATUS_OPTIONS}
-                                  className="invoice-status-select"
-                                  dropdownMatchSelectWidth={160}
-                                  style={{ width: "100%" }}
-                                />
+                                  <Select
+                                    value={draftInvoice.paymentStatus ?? undefined}
+                                    onChange={handleInvoiceStatusChange}
+                                    options={ANT_INVOICE_STATUS_OPTIONS}
+                                    className="invoice-status-select"
+                                    dropdownMatchSelectWidth={160}
+                                    style={{ minWidth: 140 }}
+                                  />
                               </div>
                             ) : entry.pending ? (
                               <span className="draft-pill">Draft</span>
@@ -2779,14 +2782,14 @@ const ProjectsShowContent = () => {
         }
 
         .invoice-row.selectable-row.editing {
-          background: #fef08a;
-          border-color: #facc15;
-          animation: invoice-highlight 1.4s ease-in-out infinite;
+          background: #fefce8;
+          border-color: #fde68a;
+          animation: invoice-highlight 1.6s ease-in-out infinite;
         }
 
         .invoice-row.selectable-row.editing:hover {
-          background: #fef08a;
-          border-color: #facc15;
+          background: #fefce8;
+          border-color: #fde68a;
         }
 
         .invoice-row.selectable-row.pending {
@@ -2975,10 +2978,10 @@ const ProjectsShowContent = () => {
         @keyframes invoice-highlight {
           0%,
           100% {
-            background-color: #fef08a;
+            background-color: #fefce8;
           }
           50% {
-            background-color: #fde047;
+            background-color: #fdf2c9;
           }
         }
 
