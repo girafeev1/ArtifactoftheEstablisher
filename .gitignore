@@ -9,3 +9,4 @@
 Invoice.JSON
 tsconfig.tsbuildinfo
 .vercel
+.env*.local

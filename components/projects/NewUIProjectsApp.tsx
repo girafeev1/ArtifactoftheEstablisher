@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, type ChangeEvent } from "react"
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react"
 import { useRouter } from "next/router"
 import {
   type BaseRecord,
@@ -21,8 +21,10 @@ import {
   Tag,
   Tooltip,
   Typography,
+  Modal,
+  DatePicker,
 } from "antd"
-import { EyeOutlined, SearchOutlined } from "@ant-design/icons"
+import { EyeOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons"
 import debounce from "lodash.debounce"
 
 import type { ProjectRecord } from "../../lib/projectsDatabase"
@@ -36,6 +38,7 @@ import {
   stringOrNA,
   type NormalizedProject,
 } from "./projectUtils"
+import { generateSequentialProjectNumber, sanitizeText, toIsoUtcStringOrNull } from "../projectdialog/projectFormUtils"
 
 if (typeof window === "undefined") {
   console.info("[projects] Module loaded", {
@@ -416,6 +419,12 @@ const ProjectsContent = () => {
     setFilters,
     setCurrentPage,
   } = tableHook as ProjectsTableHook
+  const [createForm] = Form.useForm()
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [createYear, setCreateYear] = useState<string | undefined>(undefined)
+  const [createNumbersLoading, setCreateNumbersLoading] = useState(false)
+  const [createSubmitting, setCreateSubmitting] = useState(false)
+  const [editingProjectNumber, setEditingProjectNumber] = useState(false)
 
   const availableYears = useMemo(() => {
     const metaYears = (tableQuery?.data?.meta?.years as string[] | undefined) ?? projectsCache.years
@@ -487,6 +496,44 @@ const ProjectsContent = () => {
     }
   }, [activeYear, availableYears, selectionRequired, updateFilter])
 
+  const loadProjectNumbers = useCallback(
+    async (targetYear: string | undefined) => {
+      if (!targetYear) {
+        createForm.setFieldsValue({ projectNumber: "" })
+        return
+      }
+      setCreateNumbersLoading(true)
+      try {
+        const params = new URLSearchParams()
+        params.set("year", targetYear)
+        const response = await fetch(`/api/projects?${params.toString()}`, {
+          credentials: "include",
+        })
+        const raw = await response.json().catch(() => ({}))
+        const body = raw as ProjectsListResponse & { error?: string | undefined }
+        if (!response.ok) {
+          const errorMessage =
+            typeof body?.error === "string" ? body.error : "Failed to load existing projects"
+          throw new Error(errorMessage)
+        }
+        const records = Array.isArray(body.data) ? body.data : []
+        const numbers = records
+          .map((project) => (project?.projectNumber ?? "").trim())
+          .filter((value) => value.length > 0)
+        const generated = generateSequentialProjectNumber(targetYear, numbers)
+        createForm.setFieldsValue({
+          projectNumber: generated,
+        })
+      } catch (error) {
+        const description = error instanceof Error ? error.message : "Failed to load project numbers"
+        message.error(description)
+      } finally {
+        setCreateNumbersLoading(false)
+      }
+    },
+    [createForm, message],
+  )
+
   const handleYearChange = (value: string | undefined) => {
     updateFilter("year", value)
   }
@@ -510,6 +557,125 @@ const ProjectsContent = () => {
     [router],
   )
 
+  const handleCreateCancel = useCallback(() => {
+    setCreateModalOpen(false)
+    setCreateYear(undefined)
+    createForm.resetFields()
+  }, [createForm])
+
+  const handleOpenCreate = useCallback(() => {
+    if (availableYears.length === 0) {
+      message.warning("No project collections are available.")
+      return
+    }
+    const initialYear = activeYear ?? availableYears[0]
+    createForm.resetFields()
+    setCreateYear(initialYear)
+    setCreateModalOpen(true)
+    if (initialYear) {
+      void loadProjectNumbers(initialYear)
+    } else {
+      createForm.setFieldsValue({ projectNumber: "" })
+    }
+  }, [activeYear, availableYears, createForm, loadProjectNumbers, message])
+
+  const handleCreateYearSelect = useCallback(
+    (value: string | undefined) => {
+      setCreateYear(value)
+      if (value) {
+        void loadProjectNumbers(value)
+      } else {
+        createForm.setFieldsValue({ projectNumber: "" })
+      }
+    },
+    [createForm, loadProjectNumbers],
+  )
+
+  const handleRegenerateNumber = useCallback(() => {
+    if (!createYear) {
+      return
+    }
+    void loadProjectNumbers(createYear)
+  }, [createYear, loadProjectNumbers])
+
+  const handleCreateSubmit = useCallback(async () => {
+    const yearValue = createYear ?? activeYear ?? availableYears[0]
+    if (!yearValue) {
+      message.error("Select a year before creating a project.")
+      return
+    }
+
+    const values = createForm.getFieldsValue()
+    const trimmedProjectNumber = (values.projectNumber ?? "").replace(/^#/, '').trim()
+    if (!trimmedProjectNumber) {
+      message.error("Project number is required.")
+      return
+    }
+
+    const payload: Record<string, unknown> = {
+      projectNumber: trimmedProjectNumber,
+      projectTitle: sanitizeText(values.projectTitle ?? ""),
+      presenterWorkType: sanitizeText(values.presenterWorkType ?? ""),
+      projectNature: sanitizeText(values.projectNature ?? ""),
+      clientCompany: sanitizeText(values.clientCompany ?? ""),
+    }
+
+    // Optional: Project Pickup Date → ISO UTC midnight
+    try {
+      const dayVal = values.projectDate
+      if (dayVal && typeof dayVal?.format === "function") {
+        const ymd = dayVal.format("YYYY-MM-DD") as string
+        const iso = toIsoUtcStringOrNull(ymd)
+        payload.projectDate = iso
+      } else if (typeof dayVal === "string") {
+        const iso = toIsoUtcStringOrNull(dayVal)
+        payload.projectDate = iso
+      }
+    } catch {
+      // ignore invalid date; let backend treat as null
+    }
+
+    setCreateSubmitting(true)
+    try {
+      const response = await fetch(`/api/projects/${encodeURIComponent(yearValue)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ project: payload }),
+      })
+
+      const raw = await response.json().catch(() => ({}))
+      const body = raw as { error?: string; project?: ProjectRecord }
+      if (!response.ok) {
+        const description = typeof body?.error === "string" ? body.error : "Failed to create project"
+        throw new Error(description)
+      }
+
+      message.success("Project created")
+      setCreateModalOpen(false)
+      setCreateYear(undefined)
+      createForm.resetFields()
+      if (yearValue !== activeYear) {
+        handleYearChange(yearValue)
+      }
+      // Refetch project list after successful creation
+      await (tableQuery as unknown as { refetch?: () => Promise<unknown> })?.refetch?.()
+    } catch (error) {
+      const description = error instanceof Error ? error.message : "Failed to create project"
+      message.error(description)
+    } finally {
+      setCreateSubmitting(false)
+    }
+  }, [
+    activeYear,
+    availableYears,
+    createForm,
+    createYear,
+    handleYearChange,
+    message,
+    tableQuery,
+  ])
+
   const columns = useMemo(() => {
     return [
       {
@@ -520,8 +686,9 @@ const ProjectsContent = () => {
         render: (_: string, record: ProjectRow) => {
           const pickupDate = simpleDescriptorText(record.projectDateDisplay)
           const hasPickupDate = pickupDate !== "-"
+          const numberText = record.projectNumber ? `#${record.projectNumber}` : "-"
           const numberContent = (
-            <span style={primaryRowTextStyle}>{stringOrNA(record.projectNumber)}</span>
+            <span style={primaryRowTextStyle}>{numberText}</span>
           )
           if (!hasPickupDate) {
             return numberContent
@@ -625,6 +792,7 @@ const ProjectsContent = () => {
 
   const yearOptions = availableYears.map((year) => ({ label: year, value: year }))
   const subsidiaryOptions = availableSubsidiaries.map((value) => ({ label: value, value }))
+  const canCreateProject = availableYears.length > 0
 
   useEffect(() => {
     if (tableQuery?.error) {
@@ -644,12 +812,31 @@ const ProjectsContent = () => {
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <Title
-          level={2}
-          style={{ fontFamily: KARLA_FONT, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "space-between",
+            alignItems: screens.md ? "center" : "flex-start",
+            gap: 16,
+          }}
         >
-          Projects
-        </Title>
+          <Title
+            level={2}
+            style={{ fontFamily: KARLA_FONT, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}
+          >
+            Projects
+          </Title>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleOpenCreate}
+            disabled={!canCreateProject}
+            style={{ fontFamily: KARLA_FONT, fontWeight: 600 }}
+          >
+            New Project
+          </Button>
+        </div>
         <Form
           form={filtersForm}
           layout={screens.md ? "inline" : "vertical"}
@@ -712,6 +899,90 @@ const ProjectsContent = () => {
             })}
           />
         )}
+        <Modal
+          title="Create Project"
+          open={createModalOpen}
+          destroyOnClose
+          onCancel={handleCreateCancel}
+          onOk={handleCreateSubmit}
+          okText="Create Project"
+          okButtonProps={{ disabled: !createYear || createNumbersLoading }}
+          confirmLoading={createSubmitting}
+        >
+          {/* Hidden field to back the inline editing of project number */}
+          <Form
+            form={createForm}
+            layout="vertical"
+            initialValues={{
+              projectNumber: "",
+              projectTitle: "",
+              presenterWorkType: "",
+              projectNature: "",
+              clientCompany: "",
+              projectDate: undefined,
+            }}
+          >
+            {/* Visible inline editable Project Number (no label) */}
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+              {editingProjectNumber ? (
+                <Input
+                  autoFocus
+                  bordered={false}
+                  size="large"
+                  style={{ fontWeight: 700, fontSize: 20, padding: 0 }}
+                  defaultValue={createForm.getFieldValue("projectNumber")}
+                  onBlur={(e) => {
+                    const v = (e.target.value ?? "").trim()
+                    createForm.setFieldsValue({ projectNumber: v })
+                    setEditingProjectNumber(false)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === "Escape") {
+                      const target = e.target as HTMLInputElement
+                      const v = (target.value ?? "").trim()
+                      createForm.setFieldsValue({ projectNumber: v })
+                      setEditingProjectNumber(false)
+                    }
+                  }}
+                />
+              ) : (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setEditingProjectNumber(true)}
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 20,
+                    fontFamily: KARLA_FONT,
+                    cursor: "pointer",
+                  }}
+                  title="Click to edit project number"
+                >
+                  {createForm.getFieldValue("projectNumber") || "(click to enter number)"}
+                </span>
+              )}
+            </div>
+            {/* keep the value in form without visible label */}
+            <Form.Item name="projectNumber" style={{ display: "none" }}>
+              <Input />
+            </Form.Item>
+            <Form.Item label="Project Title" name="projectTitle">
+              <Input allowClear placeholder="Project title" />
+            </Form.Item>
+            <Form.Item label="Presenter Work Type" name="presenterWorkType">
+              <Input allowClear placeholder="Presenter work type" />
+            </Form.Item>
+            <Form.Item label="Project Nature" name="projectNature">
+              <Input allowClear placeholder="Project nature" />
+            </Form.Item>
+            <Form.Item label="Project Pickup Date" name="projectDate">
+              <DatePicker style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item label="Client Company" name="clientCompany">
+              <Input allowClear placeholder="Client company" />
+            </Form.Item>
+          </Form>
+        </Modal>
       </div>
     </div>
   )

@@ -148,6 +148,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentStatus,
         paidTo,
         paidOn,
+        editedBy: identity,
       })
 
       console.info("[api/projects/:id/invoices] Invoice created", {
@@ -162,7 +163,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === "PATCH") {
       const body = req.body ?? {}
       const collectionId = toStringValue(body.collectionId)
-      const invoiceNumber = toStringValue(body.invoiceNumber)
+      const invoiceNumber = toStringValue(body.invoiceNumber)?.replace(/^#/, '')
 
       if (!collectionId || !invoiceNumber) {
         return res.status(400).json({ error: "collectionId and invoiceNumber are required" })
@@ -179,14 +180,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         year: project.year,
         projectId: project.id,
         collectionId,
-        invoiceNumber,
-        baseInvoiceNumber: invoiceNumber,
+        invoiceNumber: invoiceNumber!,
+        baseInvoiceNumber: invoiceNumber!,
         client,
         items,
         taxOrDiscountPercent,
         paymentStatus,
         paidTo,
         paidOn,
+        editedBy: identity,
       })
 
       console.info("[api/projects/:id/invoices] Invoice updated", {

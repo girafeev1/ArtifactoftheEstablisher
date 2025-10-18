@@ -73,7 +73,7 @@ export default function ViewProjectDialog({
   return (
     <Dialog open={open} onClose={onClose} fullWidth>
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Typography variant="subtitle1">{project.projectNumber}</Typography>
+        <Typography variant="subtitle1">#{(project.projectNumber ?? '').replace(/^#/, '')}</Typography>
         <Typography variant="subtitle1">{project.invoiceCompany}</Typography>
         <Typography variant="h4">{project.projectTitle}</Typography>
         <Typography variant="body2"> - {project.projectNature}</Typography>

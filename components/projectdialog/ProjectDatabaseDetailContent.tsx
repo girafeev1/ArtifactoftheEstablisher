@@ -160,7 +160,7 @@ export default function ProjectDatabaseDetailContent({
               {project.invoice}
             </Link>
           )
-        : textOrNA(project.invoice)
+        : `#${(project.invoice ?? '').replace(/^#/, '')}`
       : 'N/A'
 
     return [
@@ -205,7 +205,7 @@ export default function ProjectDatabaseDetailContent({
             sx={{ flexWrap: 'wrap', rowGap: 0.5 }}
           >
             <Typography variant='subtitle1' color='text.secondary'>
-              {project.projectNumber}
+              #{(project.projectNumber ?? '').replace(/^#/, '')}
             </Typography>
             {onEdit && (
               <IconButton onClick={onEdit} aria-label='Edit project' size='small'>

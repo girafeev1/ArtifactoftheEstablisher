@@ -108,7 +108,7 @@ export default function ProjectWindowPage({ project }: ProjectWindowPageProps) {
     <>
       <Head>
         <title>
-          {currentProject.projectNumber} · Project Overview · Establish Productions Limited
+          #{(currentProject.projectNumber ?? '').replace(/^#/, '')} · Project Overview · Establish Productions Limited
         </title>
       </Head>
       <Box

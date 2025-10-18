@@ -340,6 +340,11 @@ const sanitizeUpdates = (updates: Partial<ProjectRecord>) => {
       return
     }
 
+    if (key === 'projectNumber' && typeof value === 'string') {
+      payload[key] = value.replace(/^#/, '').trim()
+      return
+    }
+
     payload[key] = value
   })
   return payload
@@ -358,9 +363,9 @@ export const createProjectInDatabase = async ({
   const rawProjectNumber = (data as Record<string, unknown>).projectNumber
   const projectNumber =
     typeof rawProjectNumber === 'string'
-      ? rawProjectNumber.trim()
+      ? rawProjectNumber.replace(/^#/, '').trim()
       : rawProjectNumber instanceof String
-      ? rawProjectNumber.toString().trim()
+      ? rawProjectNumber.toString().replace(/^#/, '').trim()
       : null
 
   if (!projectNumber) {

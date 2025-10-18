@@ -156,7 +156,7 @@ export default function ProjectDatabaseEditDialog({
       <DialogTitle>Edit Project</DialogTitle>
       <DialogContent dividers>
         <Typography variant="subtitle1" sx={{ mb: 2 }}>
-          {project.projectNumber} — {project.projectTitle ?? 'Untitled'}
+          #{(project.projectNumber ?? '').replace(/^#/, '')} — {project.projectTitle ?? 'Untitled'}
         </Typography>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
