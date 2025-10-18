@@ -1,4 +1,4 @@
-import { collection, deleteField, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp, updateDoc } from "firebase/firestore"
+import { addDoc, collection, deleteField, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp, updateDoc } from "firebase/firestore"
 
 import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from "./firebase"
 
@@ -10,6 +10,7 @@ const alphabet = "abcdefghijklmnopqrstuvwxyz"
 // projects/{year}/projects/{projectId}
 const PROJECTS_ROOT = "projects"
 const PROJECTS_SUBCOLLECTION = "projects"
+const UPDATE_LOG_COLLECTION = "updateLogs"
 
 const POSITIVE_PAYMENT_STATUSES = new Set([
   "paid",
@@ -197,6 +198,81 @@ const indexToLetters = (index: number) => {
     value = Math.floor((value - 1) / 26)
   }
   return result
+}
+
+const normalizeLogValue = (value: unknown): unknown => {
+  if (value === undefined) {
+    return null
+  }
+  if (value === null) {
+    return null
+  }
+  if (value instanceof Timestamp) {
+    const date = value.toDate()
+    return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString()
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeLogValue(entry))
+  }
+  if (typeof value === "object") {
+    if ("_methodName" in (value as Record<string, unknown>)) {
+      const methodName = (value as Record<string, unknown>)._methodName
+      if (typeof methodName === "string" && methodName.toLowerCase().includes("delete")) {
+        return null
+      }
+      if (typeof methodName === "string" && methodName.toLowerCase().includes("servertimestamp")) {
+        return "__server_timestamp__"
+      }
+    }
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, normalizeLogValue(entry)]),
+    )
+  }
+  return value
+}
+
+const computeDocumentDiff = (
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+): Array<{ field: string; before: unknown; after: unknown }> => {
+  const fields = new Set([...Object.keys(previous), ...Object.keys(next)])
+  const diffs: Array<{ field: string; before: unknown; after: unknown }> = []
+
+  fields.forEach((field) => {
+    const before = normalizeLogValue(field in previous ? previous[field] : null)
+    const after = normalizeLogValue(field in next ? next[field] : null)
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      diffs.push({ field, before, after })
+    }
+  })
+
+  return diffs
+}
+
+const logInvoiceChanges = async (
+  invoiceRef: ReturnType<typeof doc>,
+  changes: Array<{ field: string; before: unknown; after: unknown }>,
+  editedBy: string,
+) => {
+  if (changes.length === 0) {
+    return
+  }
+
+  const logsCollection = collection(invoiceRef, UPDATE_LOG_COLLECTION)
+  await Promise.all(
+    changes.map((change) =>
+      addDoc(logsCollection, {
+        field: change.field,
+        previousValue: change.before,
+        newValue: change.after,
+        editedBy,
+        timestamp: serverTimestamp(),
+      }),
+    ),
+  )
 }
 
 const lettersToIndex = (letters: string) => {
@@ -702,6 +778,7 @@ const determineInvoiceIds = (
 export interface CreateInvoiceInput extends InvoiceWritePayload {
   year: string
   projectId: string
+  editedBy: string
 }
 
 export const createInvoiceForProject = async (
@@ -751,6 +828,9 @@ export const createInvoiceForProject = async (
     throw new Error("Failed to read created invoice")
   }
 
+  const creationDiff = computeDocumentDiff({}, snapshot.data() ?? {})
+  await logInvoiceChanges(documentRef, creationDiff, input.editedBy)
+
   return buildInvoiceRecord(collectionId, snapshot.id, snapshot.data())
 }
 
@@ -759,6 +839,7 @@ export interface UpdateInvoiceInput extends InvoiceWritePayload {
   projectId: string
   collectionId: string
   invoiceNumber: string
+  editedBy: string
 }
 
 export const updateInvoiceForProject = async (
@@ -801,12 +882,16 @@ export const updateInvoiceForProject = async (
 
   await updateDoc(documentRef, payload)
 
-  const refreshed = await getDoc(documentRef)
-  if (!refreshed.exists()) {
+  const refreshedSnapshot = await getDoc(documentRef)
+  if (!refreshedSnapshot.exists()) {
     throw new Error("Failed to retrieve updated invoice")
   }
 
-  return buildInvoiceRecord(input.collectionId, refreshed.id, refreshed.data())
+  const refreshedData = refreshedSnapshot.data()
+  const diffs = computeDocumentDiff(existingData, refreshedData ?? {})
+  await logInvoiceChanges(documentRef, diffs, input.editedBy)
+
+  return buildInvoiceRecord(input.collectionId, refreshedSnapshot.id, refreshedData ?? {})
 }
 
 export interface InvoiceSummaryResult {

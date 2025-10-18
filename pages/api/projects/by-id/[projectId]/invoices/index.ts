@@ -148,6 +148,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentStatus,
         paidTo,
         paidOn,
+        editedBy: identity,
       })
 
       console.info("[api/projects/:id/invoices] Invoice created", {
@@ -187,6 +188,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentStatus,
         paidTo,
         paidOn,
+        editedBy: identity,
       })
 
       console.info("[api/projects/:id/invoices] Invoice updated", {
