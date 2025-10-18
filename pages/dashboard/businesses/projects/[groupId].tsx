@@ -338,7 +338,7 @@ export default function ProjectsDatabasePage({
           ) : (
             <List>
               {projects.map((project) => {
-                const primary = `${stringOrNA(project.projectNumber)} — ${stringOrNA(
+                const primary = `#${(project.projectNumber ?? '').replace(/^#/, '')} — ${stringOrNA(
                   project.projectTitle
                 )}`
                 const segments = [
@@ -352,7 +352,7 @@ export default function ProjectsDatabasePage({
 
                 return (
                   <ListItem
-                    key={`${project.year}-${project.projectNumber}`}
+                    key={`${project.year}-${(project.projectNumber ?? '').replace(/^#/, '')}`}
                     alignItems="flex-start"
                     sx={{ cursor: 'pointer' }}
                     onClick={() => handleProjectClick(project)}

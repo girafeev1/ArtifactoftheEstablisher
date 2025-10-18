@@ -1337,6 +1337,8 @@ const ProjectsShowContent = () => {
       return
     }
     const normalizedPaidTo = draftInvoice.paidTo ? draftInvoice.paidTo.trim() : ""
+    // Ensure invoiceNumber to save has no leading '#'
+    const normalizedInvoiceNumber = (draftInvoice.invoiceNumber ?? '').replace(/^#/, '').trim()
     try {
       setSavingInvoice(true)
       const endpoint = `/api/projects/by-id/${encodeURIComponent(project.id)}/invoices`
@@ -1355,7 +1357,7 @@ const ProjectsShowContent = () => {
             }
           : {
               collectionId: draftInvoice.collectionId,
-              invoiceNumber: draftInvoice.invoiceNumber,
+              invoiceNumber: normalizedInvoiceNumber,
               client: draftInvoice.client,
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
@@ -1625,7 +1627,7 @@ const ProjectsShowContent = () => {
                 style={{ maxWidth: 240 }}
               />
             ) : (
-              <span className="descriptor-number">{stringOrNA(project.projectNumber)}</span>
+              <span className="descriptor-number">{project.projectNumber ? `#${project.projectNumber}` : '-'}</span>
             )}
             <span className="descriptor-separator">/</span>
             {isProjectEditing ? (
@@ -1787,7 +1789,9 @@ const ProjectsShowContent = () => {
                       const isEditingRow = invoiceMode !== "idle" && isActive
                       const isPending = entry.pending
                       const displayNumber =
-                        isEditingRow && draftInvoice ? draftInvoice.invoiceNumber : entry.invoiceNumber
+                        isEditingRow && draftInvoice
+                          ? `#${draftInvoice.invoiceNumber ?? ''}`
+                          : `#${entry.invoiceNumber}`
                       const payToInfo = entry.payToInfo
 
                       return (
@@ -1809,24 +1813,24 @@ const ProjectsShowContent = () => {
                           <div className="invoice-cell number">
                             {isEditingRow && invoiceNumberEditing ? (
                               <Input
-                                value={draftInvoice?.invoiceNumber ?? ""}
-                                onChange={(event) => handleInvoiceNumberInput(event.target.value)}
-                                onBlur={finalizeInvoiceNumberEdit}
-                                onKeyDown={handleInvoiceNumberKeyDown}
-                                autoFocus
-                                bordered={false}
-                                className="invoice-input editing"
-                                onClick={(event) => event.stopPropagation()}
-                              />
-                            ) : (
-                              <span
-                                className={`invoice-number-text ${
-                                  isEditingRow ? "editing" : ""
-                                }`}
-                              >
-                                {displayNumber}
-                              </span>
-                            )}
+                                  value={draftInvoice?.invoiceNumber ?? ""}
+                                  onChange={(event) => handleInvoiceNumberInput(event.target.value)}
+                                  onBlur={finalizeInvoiceNumberEdit}
+                                  onKeyDown={handleInvoiceNumberKeyDown}
+                                  autoFocus
+                                  bordered={false}
+                                  className="invoice-input editing"
+                                  onClick={(event) => event.stopPropagation()}
+                                />
+                              ) : (
+                                <span
+                                  className={`invoice-number-text ${
+                                    isEditingRow ? "editing" : ""
+                                  }`}
+                                >
+                                  {displayNumber}
+                                </span>
+                              )}
                             {!isPending && !isEditingRow ? (
                               <button
                                 type="button"

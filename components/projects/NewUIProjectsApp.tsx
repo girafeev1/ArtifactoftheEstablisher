@@ -22,6 +22,7 @@ import {
   Tooltip,
   Typography,
   Modal,
+  DatePicker,
 } from "antd"
 import { EyeOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons"
 import debounce from "lodash.debounce"
@@ -37,7 +38,7 @@ import {
   stringOrNA,
   type NormalizedProject,
 } from "./projectUtils"
-import { generateSequentialProjectNumber, sanitizeText } from "../projectdialog/projectFormUtils"
+import { generateSequentialProjectNumber, sanitizeText, toIsoUtcStringOrNull } from "../projectdialog/projectFormUtils"
 
 if (typeof window === "undefined") {
   console.info("[projects] Module loaded", {
@@ -423,6 +424,7 @@ const ProjectsContent = () => {
   const [createYear, setCreateYear] = useState<string | undefined>(undefined)
   const [createNumbersLoading, setCreateNumbersLoading] = useState(false)
   const [createSubmitting, setCreateSubmitting] = useState(false)
+  const [editingProjectNumber, setEditingProjectNumber] = useState(false)
 
   const availableYears = useMemo(() => {
     const metaYears = (tableQuery?.data?.meta?.years as string[] | undefined) ?? projectsCache.years
@@ -604,7 +606,7 @@ const ProjectsContent = () => {
     }
 
     const values = createForm.getFieldsValue()
-    const trimmedProjectNumber = (values.projectNumber ?? "").trim()
+    const trimmedProjectNumber = (values.projectNumber ?? "").replace(/^#/, '').trim()
     if (!trimmedProjectNumber) {
       message.error("Project number is required.")
       return
@@ -616,6 +618,21 @@ const ProjectsContent = () => {
       presenterWorkType: sanitizeText(values.presenterWorkType ?? ""),
       projectNature: sanitizeText(values.projectNature ?? ""),
       clientCompany: sanitizeText(values.clientCompany ?? ""),
+    }
+
+    // Optional: Project Pickup Date → ISO UTC midnight
+    try {
+      const dayVal = values.projectDate
+      if (dayVal && typeof dayVal?.format === "function") {
+        const ymd = dayVal.format("YYYY-MM-DD") as string
+        const iso = toIsoUtcStringOrNull(ymd)
+        payload.projectDate = iso
+      } else if (typeof dayVal === "string") {
+        const iso = toIsoUtcStringOrNull(dayVal)
+        payload.projectDate = iso
+      }
+    } catch {
+      // ignore invalid date; let backend treat as null
     }
 
     setCreateSubmitting(true)
@@ -669,8 +686,9 @@ const ProjectsContent = () => {
         render: (_: string, record: ProjectRow) => {
           const pickupDate = simpleDescriptorText(record.projectDateDisplay)
           const hasPickupDate = pickupDate !== "-"
+          const numberText = record.projectNumber ? `#${record.projectNumber}` : "-"
           const numberContent = (
-            <span style={primaryRowTextStyle}>{stringOrNA(record.projectNumber)}</span>
+            <span style={primaryRowTextStyle}>{numberText}</span>
           )
           if (!hasPickupDate) {
             return numberContent
@@ -891,6 +909,7 @@ const ProjectsContent = () => {
           okButtonProps={{ disabled: !createYear || createNumbersLoading }}
           confirmLoading={createSubmitting}
         >
+          {/* Hidden field to back the inline editing of project number */}
           <Form
             form={createForm}
             layout="vertical"
@@ -900,39 +919,52 @@ const ProjectsContent = () => {
               presenterWorkType: "",
               projectNature: "",
               clientCompany: "",
+              projectDate: undefined,
             }}
           >
-            <Form.Item label="Year" required>
-              <Select
-                value={createYear}
-                onChange={(value) => handleCreateYearSelect(value)}
-                options={yearOptions}
-                placeholder="Select a year"
-                loading={createNumbersLoading}
-              />
-            </Form.Item>
-            <Form.Item
-              label="Project Number"
-              name="projectNumber"
-              required
-              extra="Automatically generated from existing projects. Edit if needed."
-            >
-              <Input
-                placeholder="Auto-generated project number"
-                disabled={createNumbersLoading}
-              />
-            </Form.Item>
-            <Form.Item noStyle>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-                <Button
-                  type="link"
-                  onClick={handleRegenerateNumber}
-                  disabled={!createYear || createNumbersLoading}
-                  style={{ padding: 0 }}
+            {/* Visible inline editable Project Number (no label) */}
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+              {editingProjectNumber ? (
+                <Input
+                  autoFocus
+                  bordered={false}
+                  size="large"
+                  style={{ fontWeight: 700, fontSize: 20, padding: 0 }}
+                  defaultValue={createForm.getFieldValue("projectNumber")}
+                  onBlur={(e) => {
+                    const v = (e.target.value ?? "").trim()
+                    createForm.setFieldsValue({ projectNumber: v })
+                    setEditingProjectNumber(false)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === "Escape") {
+                      const target = e.target as HTMLInputElement
+                      const v = (target.value ?? "").trim()
+                      createForm.setFieldsValue({ projectNumber: v })
+                      setEditingProjectNumber(false)
+                    }
+                  }}
+                />
+              ) : (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setEditingProjectNumber(true)}
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 20,
+                    fontFamily: KARLA_FONT,
+                    cursor: "pointer",
+                  }}
+                  title="Click to edit project number"
                 >
-                  Regenerate project number
-                </Button>
-              </div>
+                  {createForm.getFieldValue("projectNumber") || "(click to enter number)"}
+                </span>
+              )}
+            </div>
+            {/* keep the value in form without visible label */}
+            <Form.Item name="projectNumber" style={{ display: "none" }}>
+              <Input />
             </Form.Item>
             <Form.Item label="Project Title" name="projectTitle">
               <Input allowClear placeholder="Project title" />
@@ -942,6 +974,9 @@ const ProjectsContent = () => {
             </Form.Item>
             <Form.Item label="Project Nature" name="projectNature">
               <Input allowClear placeholder="Project nature" />
+            </Form.Item>
+            <Form.Item label="Project Pickup Date" name="projectDate">
+              <DatePicker style={{ width: "100%" }} />
             </Form.Item>
             <Form.Item label="Client Company" name="clientCompany">
               <Input allowClear placeholder="Client company" />

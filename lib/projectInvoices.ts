@@ -753,7 +753,7 @@ const buildInvoiceWritePayload = (
   return result
 }
 
-const determineBaseInvoiceNumber = (base: string) => base.trim()
+const determineBaseInvoiceNumber = (base: string) => base.replace(/^#/, '').trim()
 
 const determineInvoiceIds = (
   baseInvoiceNumber: string,
