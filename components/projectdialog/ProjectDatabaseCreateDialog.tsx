@@ -304,7 +304,7 @@ export function ProjectDatabaseCreateForm({
         </Grid>
         <Grid item xs={12} sm={6}>
           <TextField
-            label="Presenter Work Type"
+            label="Presenter/ Work Type"
             value={form.presenterWorkType}
             onChange={handleChange('presenterWorkType')}
             fullWidth

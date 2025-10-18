@@ -1649,19 +1649,10 @@ const ProjectsShowContent = () => {
             )}
             {isProjectEditing ? (
               <div className="descriptor-actions">
-                <Button
-                  className="project-cancel"
-                  onClick={cancelProjectEditing}
-                  disabled={projectEditSaving}
-                >
+                <Button className="project-cancel" onClick={cancelProjectEditing} disabled={projectEditSaving}>
                   Cancel
                 </Button>
-                <Button
-                  type="primary"
-                  className="project-save"
-                  onClick={saveProjectEdits}
-                  loading={projectEditSaving}
-                >
+                <Button type="primary" className="project-save" onClick={saveProjectEdits} loading={projectEditSaving}>
                   Save
                 </Button>
               </div>
@@ -1671,6 +1662,7 @@ const ProjectsShowContent = () => {
                 className="descriptor-edit-trigger"
                 onClick={startProjectEditing}
                 aria-label="Edit project details"
+                style={{ marginLeft: 8 }}
               >
                 <EditOutlined />
               </button>
@@ -1897,7 +1889,7 @@ const ProjectsShowContent = () => {
                                   {payToInfo.bankName || entry.payToText}
                                 </span>
                                 {payToInfo.accountType ? (
-                                  <span className="account-chip">{payToInfo.accountType}</span>
+                                  <span className="account-chip">{payToInfo.accountType} Account</span>
                                 ) : null}
                               </div>
                             ) : entry.payToText ? (
@@ -2027,7 +2019,7 @@ const ProjectsShowContent = () => {
               <section className="items-section">
                 <div className="items-header">
                   <Title level={4} className="section-heading">
-                    Items / Services
+                    Invoice Detail
                   </Title>
                 </div>
                 <Table<InvoiceTableRow>
@@ -2728,10 +2720,10 @@ const ProjectsShowContent = () => {
           align-items: center;
           padding: 2px 8px;
           border-radius: 9999px;
-          background: #e5e7eb;
-          color: #374151;
+          background: #0f766e; /* dark blue green */
+          color: #ecfeff;
           font-family: ${KARLA_FONT};
-          font-weight: 600;
+          font-weight: 700;
           font-size: 12px;
           line-height: 1;
         }
@@ -2774,6 +2766,7 @@ const ProjectsShowContent = () => {
           padding: 12px 16px;
           transition: border-color 0.2s ease, background 0.2s ease;
           cursor: pointer;
+          overflow: hidden;
         }
 
         .invoice-row.selectable-row:hover {

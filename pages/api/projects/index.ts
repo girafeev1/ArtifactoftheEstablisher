@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 import { getServerSession } from "next-auth/next"
 
 import { fetchProjectsFromDatabase } from "../../../lib/projectsDatabase"
-import { fetchPrimaryInvoiceSummary } from "../../../lib/projectInvoices"
+import { fetchInvoicesForProject } from "../../../lib/projectInvoices"
 import { getAuthOptions } from "../auth/[...nextauth]"
 
 const isNonEmptyString = (value: unknown): value is string =>
@@ -77,17 +77,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       : await Promise.all(
           filtered.map(async (project) => {
             try {
-              const summary = await fetchPrimaryInvoiceSummary(project.year, project.id)
-              if (summary) {
+              const invoices = await fetchInvoicesForProject(project.year, project.id)
+              if (invoices && invoices.length > 0) {
+                const cleared = invoices.filter((i) => i.paid === true).length
+                const total = invoices.length
+                const outstanding = Math.max(total - cleared, 0)
+                // Aggregate totals
+                let aggregatedTotal = 0
+                let hasAmount = false
+                invoices.forEach((inv) => {
+                  const value =
+                    typeof inv.total === "number" && !Number.isNaN(inv.total)
+                      ? inv.total
+                      : typeof inv.amount === "number" && !Number.isNaN(inv.amount)
+                      ? inv.amount
+                      : null
+                  if (value !== null) {
+                    aggregatedTotal += value
+                    hasAmount = true
+                  }
+                })
+                // Latest paid-on
+                let lastPaidIso: string | null = null
+                let lastPaidDisplay: string | null = null
+                let lastTs = Number.NEGATIVE_INFINITY
+                invoices.forEach((inv) => {
+                  if (inv.paid === true && inv.paidOnIso) {
+                    const ts = new Date(inv.paidOnIso).getTime()
+                    if (!Number.isNaN(ts) && ts >= lastTs) {
+                      lastTs = ts
+                      lastPaidIso = inv.paidOnIso
+                      lastPaidDisplay = inv.paidOnDisplay ?? inv.paidOnIso
+                    }
+                  }
+                })
+                const label =
+                  cleared === 0
+                    ? "Due"
+                    : cleared < total
+                    ? "Partially Cleared"
+                    : "All Clear"
+                const primary = invoices[0]
                 return {
                   ...project,
-                  invoice: summary.invoiceNumber ?? project.invoice,
-                  amount: summary.amount ?? project.amount,
-                  clientCompany: summary.clientCompany ?? project.clientCompany,
+                  amount: hasAmount ? aggregatedTotal : project.amount,
+                  clientCompany: primary?.companyName ?? project.clientCompany,
+                  _invoiceSummary: {
+                    total,
+                    cleared,
+                    outstanding,
+                    lastPaidOnDisplay: lastPaidDisplay,
+                    label,
+                  },
                 }
               }
             } catch (summaryError) {
-              console.error("[api/projects] Failed to resolve invoice summary", {
+              console.error("[api/projects] Failed to aggregate invoices", {
                 projectId: project.id,
                 error:
                   summaryError instanceof Error

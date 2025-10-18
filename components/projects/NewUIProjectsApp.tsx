@@ -726,33 +726,34 @@ const ProjectsContent = () => {
       {
         key: "paymentStatus",
         title: <span style={tableHeadingStyle}>Payment Status</span>,
-        dataIndex: "paid",
-        sorter: true,
-        render: (_: boolean | null, record: ProjectRow) => {
-          const chipKey = paymentChipColor(record.paid)
+        dataIndex: "_invoiceSummary",
+        sorter: false,
+        render: (_: unknown, record: ProjectRow & { _invoiceSummary?: { label: string; lastPaidOnDisplay?: string | null } }) => {
+          const label = record._invoiceSummary?.label ?? (record.paid ? "All Clear" : "Due")
+          const lastPaid = record._invoiceSummary?.lastPaidOnDisplay ?? null
+          const chipKey = label === 'All Clear' ? 'green' : label === 'Due' ? 'red' : 'default'
           const palette = paymentTagStyles[chipKey] ?? paymentTagStyles.default
-          const paidOnValue = simpleDescriptorText(paidDateText(record.paid, record.onDateDisplay))
-          const tagContent = (
+          const tag = (
             <Tag
               color={palette.backgroundColor}
               style={{
                 ...tableCellStyle,
                 color: palette.color,
                 borderRadius: 999,
-                border: "none",
-                padding: "2px 12px",
+                border: 'none',
+                padding: '2px 12px',
                 fontSize: 13,
               }}
             >
-              {paymentChipLabel(record.paid)}
+              {label}
             </Tag>
           )
-          return paidOnValue === "-" ? (
-            tagContent
-          ) : (
-            <Tooltip title={paidOnValue} placement="top">
-              <span style={{ display: "inline-flex" }}>{tagContent}</span>
+          return lastPaid ? (
+            <Tooltip title={lastPaid} placement="top">
+              <span style={{ display: 'inline-flex' }}>{tag}</span>
             </Tooltip>
+          ) : (
+            tag
           )
         },
       },
@@ -969,15 +970,17 @@ const ProjectsContent = () => {
             <Form.Item label="Project Title" name="projectTitle">
               <Input allowClear placeholder="Project title" />
             </Form.Item>
-            <Form.Item label="Presenter Work Type" name="presenterWorkType">
+            <Form.Item label="Presenter/ Work Type" name="presenterWorkType">
               <Input allowClear placeholder="Presenter work type" />
             </Form.Item>
             <Form.Item label="Project Nature" name="projectNature">
               <Input allowClear placeholder="Project nature" />
             </Form.Item>
-            <Form.Item label="Project Pickup Date" name="projectDate">
-              <DatePicker style={{ width: "100%" }} />
-            </Form.Item>
+            {/* Header-style line: project number + pickup date */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 4px' }}>
+              <span style={{ fontFamily: KARLA_FONT, fontWeight: 700, color: '#0f172a' }}>Pickup:</span>
+              <DatePicker style={{ flex: 1 }} value={createForm.getFieldValue('projectDate')} onChange={(v) => createForm.setFieldsValue({ projectDate: v })} />
+            </div>
             <Form.Item label="Client Company" name="clientCompany">
               <Input allowClear placeholder="Client company" />
             </Form.Item>
