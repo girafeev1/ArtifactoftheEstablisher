@@ -742,6 +742,7 @@ const ProjectsShowContent = () => {
     invoices,
     total,
     totalPaidOnText,
+    bankInfoMap,
   ])
 
   const activeEntryIndex = useMemo(() => {
