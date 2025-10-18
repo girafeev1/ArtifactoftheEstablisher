@@ -2018,7 +2018,7 @@ const ProjectsShowContent = () => {
               </aside>
               <section className="items-section">
                 <div className="items-header">
-                  <Title level={4} className="section-heading">
+                  <Title level={5} className="section-heading">
                     Invoice Detail
                   </Title>
                 </div>
@@ -2637,10 +2637,12 @@ const ProjectsShowContent = () => {
         .client-label {
           font-size: 11px;
           align-self: flex-end;
+          margin-top: 36px; /* align with invoice header row */
         }
 
         .client-panel.editing .client-label {
           align-self: flex-start;
+          margin-top: 0;
         }
 
         .invoice-table {
@@ -2682,6 +2684,9 @@ const ProjectsShowContent = () => {
           font-weight: 600;
           color: #0f172a;
           text-align: left;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .invoice-cell.number {
@@ -2766,7 +2771,6 @@ const ProjectsShowContent = () => {
           padding: 12px 16px;
           transition: border-color 0.2s ease, background 0.2s ease;
           cursor: pointer;
-          overflow: hidden;
         }
 
         .invoice-row.selectable-row:hover {
