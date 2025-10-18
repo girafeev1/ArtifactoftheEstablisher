@@ -554,16 +554,11 @@ const ProjectsContent = () => {
     [router],
   )
 
-  const handleCreateYearSelect = useCallback(
-    (value: string | undefined) => {
-      setCreateYear(value)
-    },
-    [],
-  )
-
   const handleCreateCancel = useCallback(() => {
     setCreateModalOpen(false)
-  }, [])
+    setCreateYear(undefined)
+    createForm.resetFields()
+  }, [createForm])
 
   const handleOpenCreate = useCallback(() => {
     if (availableYears.length === 0) {
@@ -571,14 +566,33 @@ const ProjectsContent = () => {
       return
     }
     const initialYear = activeYear ?? availableYears[0]
-    setCreateModalOpen(true)
+    createForm.resetFields()
     setCreateYear(initialYear)
-  }, [activeYear, availableYears, message])
+    setCreateModalOpen(true)
+    if (initialYear) {
+      void loadProjectNumbers(initialYear)
+    } else {
+      createForm.setFieldsValue({ projectNumber: "" })
+    }
+  }, [activeYear, availableYears, createForm, loadProjectNumbers, message])
+
+  const handleCreateYearSelect = useCallback(
+    (value: string | undefined) => {
+      setCreateYear(value)
+      if (value) {
+        void loadProjectNumbers(value)
+      } else {
+        createForm.setFieldsValue({ projectNumber: "" })
+      }
+    },
+    [createForm, loadProjectNumbers],
+  )
 
   const handleRegenerateNumber = useCallback(() => {
-    if (createYear) {
-      void loadProjectNumbers(createYear)
+    if (!createYear) {
+      return
     }
+    void loadProjectNumbers(createYear)
   }, [createYear, loadProjectNumbers])
 
   const handleCreateSubmit = useCallback(async () => {
@@ -620,6 +634,8 @@ const ProjectsContent = () => {
 
       message.success("Project created")
       setCreateModalOpen(false)
+      setCreateYear(undefined)
+      createForm.resetFields()
       if (yearValue !== activeYear) {
         handleYearChange(yearValue)
       }
@@ -639,24 +655,6 @@ const ProjectsContent = () => {
     message,
     tableQuery,
   ])
-
-  useEffect(() => {
-    if (createModalOpen) {
-      createForm.resetFields()
-      if (createYear) {
-        void loadProjectNumbers(createYear)
-      } else {
-        createForm.setFieldsValue({ projectNumber: "" })
-      }
-    }
-  }, [createForm, createModalOpen, createYear, loadProjectNumbers])
-
-  useEffect(() => {
-    if (!createModalOpen) {
-      setCreateYear(undefined)
-      createForm.resetFields()
-    }
-  }, [createForm, createModalOpen])
 
   const columns = useMemo(() => {
     return [
