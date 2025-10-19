@@ -32,11 +32,12 @@ const NEGATIVE_PAYMENT_STATUSES = new Set([
 ])
 
 const invoiceCollectionPattern = /^invoice-([a-z]+)$/
+const SINGLE_INVOICE_COLLECTION_ID = "invoice"
 const legacyInvoiceDocumentIdPattern = /^#?\d{4}-\d{3}-\d{4}(?:-?[a-z]+)?$/i
 const LEGACY_INVOICE_COLLECTION_IDS = new Set(["Invoice", "invoice"])
 
 const isSupportedInvoiceCollection = (id: string): boolean =>
-  invoiceCollectionPattern.test(id) || LEGACY_INVOICE_COLLECTION_IDS.has(id)
+  id === SINGLE_INVOICE_COLLECTION_ID || invoiceCollectionPattern.test(id) || LEGACY_INVOICE_COLLECTION_IDS.has(id)
 
 const toStringValue = (value: unknown): string | null => {
   if (typeof value === "string") {
@@ -361,9 +362,9 @@ const listInvoiceCollectionIds = async (year: string, projectId: string): Promis
       return []
     }
 
-    return (
-      payload.collectionIds?.filter((id) => isSupportedInvoiceCollection(id)) ?? []
-    ).sort((a, b) => a.localeCompare(b))
+    const ids = payload.collectionIds?.filter((id) => isSupportedInvoiceCollection(id)) ?? []
+    const set = new Set<string>([SINGLE_INVOICE_COLLECTION_ID, ...ids])
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
   } catch (error) {
     console.warn("[projectInvoices] listInvoiceCollectionIds failed", error)
     return []
@@ -755,35 +756,26 @@ const buildInvoiceWritePayload = (
 
 const determineBaseInvoiceNumber = (base: string) => base.replace(/^#/, '').trim()
 
-const determineInvoiceIds = (
+// Choose a unique invoice number within the unified 'invoice' collection.
+const determineInvoiceNumberInUnifiedCollection = (
   baseInvoiceNumber: string,
-  existingIds: string[],
-): { collectionId: string; invoiceNumber: string } => {
-  const usedIndexes = new Set<number>()
-  existingIds.forEach((id) => {
-    if (LEGACY_INVOICE_COLLECTION_IDS.has(id)) {
-      usedIndexes.add(0)
+  existingDocIds: string[],
+): string => {
+  const used = new Set<number>()
+  existingDocIds.forEach((id) => {
+    if (id === baseInvoiceNumber) {
+      used.add(0)
       return
     }
-    const match = invoiceCollectionPattern.exec(id)
-    if (!match) {
-      return
+    const m = id.match(new RegExp(`^${baseInvoiceNumber.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-([a-z]+)$`, "i"))
+    if (m) {
+      used.add(lettersToIndex(m[1]))
     }
-    const index = lettersToIndex(match[1])
-    usedIndexes.add(index)
   })
-
-  let candidateIndex = 0
-  while (usedIndexes.has(candidateIndex)) {
-    candidateIndex += 1
-  }
-
-  const letters = indexToLetters(candidateIndex)
-  const suffix = indexToSuffix(candidateIndex)
-  const collectionId = `invoice-${letters}`
-  const invoiceNumber = suffix ? `${baseInvoiceNumber}-${suffix}` : baseInvoiceNumber
-
-  return { collectionId, invoiceNumber }
+  let idx = 0
+  while (used.has(idx)) idx += 1
+  const suffix = indexToSuffix(idx)
+  return suffix ? `${baseInvoiceNumber}-${suffix}` : baseInvoiceNumber
 }
 
 export interface CreateInvoiceInput extends InvoiceWritePayload {
@@ -800,12 +792,6 @@ export const createInvoiceForProject = async (
     throw new Error("Base invoice number is required")
   }
 
-  const existingCollections = await listInvoiceCollectionIds(input.year, input.projectId)
-  const { collectionId, invoiceNumber } = determineInvoiceIds(
-    baseInvoiceNumber,
-    existingCollections,
-  )
-
   // Create under nested doc; if it doesn't exist yet, fallback to legacy doc
   let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
   try {
@@ -816,7 +802,10 @@ export const createInvoiceForProject = async (
   } catch {
     projectRef = doc(projectsDb, input.year, input.projectId)
   }
-  const collectionRef = collection(projectRef, collectionId)
+  const collectionRef = collection(projectRef, SINGLE_INVOICE_COLLECTION_ID)
+  const existingSnap = await getDocs(collectionRef)
+  const existingIds = existingSnap.docs.map((d) => d.id)
+  const invoiceNumber = determineInvoiceNumberInUnifiedCollection(baseInvoiceNumber, existingIds)
   const documentRef = doc(collectionRef, invoiceNumber)
 
   const payload = buildInvoiceWritePayload({
@@ -845,7 +834,7 @@ export const createInvoiceForProject = async (
   const creationDiff = computeDocumentDiff({}, snapshot.data() ?? {})
   await logInvoiceChanges(documentRef, creationDiff, input.editedBy)
 
-  return buildInvoiceRecord(collectionId, snapshot.id, snapshot.data())
+  return buildInvoiceRecord(SINGLE_INVOICE_COLLECTION_ID, snapshot.id, snapshot.data())
 }
 
 export interface UpdateInvoiceInput extends InvoiceWritePayload {
@@ -869,12 +858,20 @@ export const updateInvoiceForProject = async (
   } catch {
     projectRef = doc(projectsDb, input.year, input.projectId)
   }
-  const collectionRef = collection(projectRef, input.collectionId)
-  const documentRef = doc(collectionRef, input.invoiceNumber)
+  // Prefer requested collection; fallback to unified 'invoice' if not found
+  let collectionRef = collection(projectRef, input.collectionId)
+  let documentRef = doc(collectionRef, input.invoiceNumber)
 
-  const existing = await getDoc(documentRef)
+  let existing = await getDoc(documentRef)
   if (!existing.exists()) {
-    throw new Error("Invoice not found")
+    if (input.collectionId !== SINGLE_INVOICE_COLLECTION_ID) {
+      collectionRef = collection(projectRef, SINGLE_INVOICE_COLLECTION_ID)
+      documentRef = doc(collectionRef, input.invoiceNumber)
+      existing = await getDoc(documentRef)
+    }
+    if (!existing.exists()) {
+      throw new Error("Invoice not found")
+    }
   }
 
   const existingData = existing.data()

@@ -320,14 +320,7 @@ export function ProjectDatabaseCreateForm({
             InputLabelProps={{ shrink: true }}
           />
         </Grid>
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="Client Company"
-            value={form.clientCompany}
-            onChange={handleChange('clientCompany')}
-            fullWidth
-          />
-        </Grid>
+        {/* Client Company moved to invoice scope; removed from project create */}
         <Grid item xs={12} sm={6}>
           <TextField
             label="Amount"

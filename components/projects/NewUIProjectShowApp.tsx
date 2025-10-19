@@ -24,12 +24,8 @@ import {
   Tag,
   Typography,
 } from "antd"
-import {
-  ArrowLeftOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-} from "@ant-design/icons"
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons"
+import { fetchClientsDirectory } from "../../lib/clientDirectory"
 
 import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
 import type { ProjectRecord } from "../../lib/projectsDatabase"
@@ -380,6 +376,7 @@ const ProjectsShowContent = () => {
   const [bankInfoMap, setBankInfoMap] = useState<
     Record<string, { bankName: string; bankCode?: string; accountType?: string | null }>
   >({})
+  const [clientsDirectory, setClientsDirectory] = useState<ClientDirectoryRecord[] | null>(null)
   const itemIdRef = useRef(0)
 
   const projectId = useMemo(() => {
@@ -564,6 +561,46 @@ const ProjectsShowContent = () => {
     : buildClientState(currentInvoiceRecord, client, project)
 
   const editingClient = draftInvoice?.client ?? resolvedClient
+
+  // Autofill client details when company name matches our directory
+  useEffect(() => {
+    const run = async () => {
+      if (invoiceMode === "idle") return
+      const name = draftInvoice?.client?.companyName?.trim()
+      if (!name) return
+      try {
+        const list = clientsDirectory ?? (await fetchClientsDirectory())
+        if (!clientsDirectory) setClientsDirectory(list)
+        const lower = name.toLowerCase()
+        const match = list.find((c) => {
+          const byName = typeof c.companyName === "string" && c.companyName.trim().toLowerCase() === lower
+          const byId = typeof (c as any).documentId === "string" && (c as any).documentId.trim().toLowerCase() === lower
+          return byName || byId
+        })
+        if (match) {
+          setDraftInvoice((prev) => {
+            if (!prev) return prev
+            const current = prev.client ?? ({} as any)
+            return {
+              ...prev,
+              client: {
+                companyName: current.companyName ?? (match.companyName ?? null),
+                addressLine1: current.addressLine1 ?? (match.addressLine1 ?? null),
+                addressLine2: current.addressLine2 ?? (match.addressLine2 ?? null),
+                addressLine3: current.addressLine3 ?? (match.addressLine3 ?? null),
+                region: current.region ?? (match.region ?? (match as any).addressLine5 ?? null),
+                representative: current.representative ?? (match.nameAddressed ?? match.name ?? null),
+              },
+            }
+          })
+        }
+      } catch {
+        // ignore
+      }
+    }
+    void run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftInvoice?.client?.companyName, invoiceMode])
 
   const activeItems = resolvedDraft?.items ?? []
   const subtotal = computeSubtotal(activeItems)
@@ -2684,9 +2721,9 @@ const ProjectsShowContent = () => {
           font-weight: 600;
           color: #0f172a;
           text-align: left;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: initial;
         }
 
         .invoice-cell.number {
@@ -2697,12 +2734,14 @@ const ProjectsShowContent = () => {
 
         .invoice-cell.amount {
           font-variant-numeric: tabular-nums;
+          white-space: nowrap;
         }
 
         .invoice-cell.status {
           display: flex;
           align-items: center;
           gap: 8px;
+          white-space: nowrap;
         }
 
         .invoice-cell.pay-to {
@@ -2710,6 +2749,7 @@ const ProjectsShowContent = () => {
           flex-direction: column;
           align-items: flex-start;
           color: #0f172a;
+          white-space: normal;
         }
 
         .bank-name {

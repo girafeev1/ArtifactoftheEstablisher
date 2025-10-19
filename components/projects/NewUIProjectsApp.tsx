@@ -390,8 +390,8 @@ const ProjectsContent = () => {
     sorters: {
       initial: [
         {
-          field: "projectDateIso",
-          order: "desc",
+          field: "projectNumber",
+          order: "descend",
         },
       ],
     },
@@ -617,7 +617,6 @@ const ProjectsContent = () => {
       projectTitle: sanitizeText(values.projectTitle ?? ""),
       presenterWorkType: sanitizeText(values.presenterWorkType ?? ""),
       projectNature: sanitizeText(values.projectNature ?? ""),
-      clientCompany: sanitizeText(values.clientCompany ?? ""),
     }
 
     // Optional: Project Pickup Date → ISO UTC midnight
@@ -919,7 +918,6 @@ const ProjectsContent = () => {
               projectTitle: "",
               presenterWorkType: "",
               projectNature: "",
-              clientCompany: "",
               projectDate: undefined,
             }}
           >
@@ -981,9 +979,7 @@ const ProjectsContent = () => {
               <span style={{ fontFamily: KARLA_FONT, fontWeight: 700, color: '#0f172a' }}>Pickup:</span>
               <DatePicker style={{ flex: 1 }} value={createForm.getFieldValue('projectDate')} onChange={(v) => createForm.setFieldsValue({ projectDate: v })} />
             </div>
-            <Form.Item label="Client Company" name="clientCompany">
-              <Input allowClear placeholder="Client company" />
-            </Form.Item>
+            {/* Client Company moved to invoice scope; removed from project create */}
           </Form>
         </Modal>
       </div>
