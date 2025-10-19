@@ -341,13 +341,25 @@ export default function ProjectsDatabasePage({
                 const primary = `#${(project.projectNumber ?? '').replace(/^#/, '')} — ${stringOrNA(
                   project.projectTitle
                 )}`
-                const segments = [
-                  amountText(project.amount),
-                  paidStatusText(project.paid),
-                ]
-                const paidDate = paidDateText(project.paid, project.onDateDisplay)
-                if (paidDate) {
-                  segments.push(paidDate)
+                const segments = [amountText(project.amount)]
+                // Derive status from invoices when available, fallback to project fields
+                let statusLabel: string | null = null
+                if (Array.isArray((project as any).invoices) && (project as any).invoices.length > 0) {
+                  const invoices = (project as any).invoices as Array<{ paid: boolean | null }>
+                  const total = invoices.length
+                  const cleared = invoices.filter((inv) => inv.paid === true).length
+                  if (cleared === 0) {
+                    statusLabel = 'Due'
+                  } else if (cleared < total) {
+                    statusLabel = 'Partially Cleared'
+                  } else {
+                    statusLabel = 'All Clear'
+                  }
+                } else {
+                  statusLabel = paidStatusText(project.paid)
+                }
+                if (statusLabel) {
+                  segments.push(statusLabel)
                 }
 
                 return (
