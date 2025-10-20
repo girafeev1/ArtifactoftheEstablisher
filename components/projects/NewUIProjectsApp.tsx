@@ -23,6 +23,7 @@ import {
   Typography,
   Modal,
   DatePicker,
+  Space,
 } from "antd"
 import { EyeOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons"
 import debounce from "lodash.debounce"
@@ -606,6 +607,15 @@ const ProjectsContent = () => {
     }
 
     const values = createForm.getFieldsValue()
+    try {
+      console.log('[CreateProject] form values', {
+        projectNumber: values?.projectNumber,
+        projectTitle: values?.projectTitle,
+        presenterWorkType: values?.presenterWorkType,
+        projectNature: values?.projectNature,
+        projectDate: values?.projectDate && (values.projectDate as any).format ? (values.projectDate as any).format('YYYY-MM-DD') : values?.projectDate,
+      })
+    } catch {}
     try {
       console.log('[CreateProject] form.getFieldsValue keys', Object.keys(values || {}))
       console.log(
