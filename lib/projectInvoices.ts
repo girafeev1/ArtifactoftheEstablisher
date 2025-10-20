@@ -566,52 +566,21 @@ export const fetchInvoicesForProject = async (
     projectRef = doc(projectsDb, year, projectId)
   }
 
-  const listedIds = await listInvoiceCollectionIds(year, projectId).catch((error) => {
-    console.warn("[projectInvoices] listInvoiceCollectionIds failed", { error })
-    return [] as string[]
-  })
-
-  const discovered = new Set<string>()
-  listedIds.forEach((id) => {
-    if (isSupportedInvoiceCollection(id)) {
-      discovered.add(id)
-    }
-  })
-
-  LEGACY_INVOICE_COLLECTION_IDS.forEach((id) => {
-    discovered.add(id)
-  })
-
-  if (discovered.size === 0) {
-    return []
-  }
-
   const invoices: ProjectInvoiceRecord[] = []
-
-  for (const collectionId of Array.from(discovered).sort((a, b) => a.localeCompare(b))) {
-    try {
-      const collectionRef = collection(projectRef, collectionId)
-      const snapshot = await getDocs(collectionRef)
-      snapshot.forEach((document) => {
-        if (
-          LEGACY_INVOICE_COLLECTION_IDS.has(collectionId) &&
-          !legacyInvoiceDocumentIdPattern.test(document.id)
-        ) {
-          return
-        }
-        invoices.push(buildInvoiceRecord(collectionId, document.id, document.data()))
-      })
-    } catch (error) {
-      console.warn("[projectInvoices] Failed to fetch invoices", {
-        projectId,
-        collectionId,
-        error,
-      })
-    }
+  try {
+    const collectionRef = collection(projectRef, SINGLE_INVOICE_COLLECTION_ID)
+    const snapshot = await getDocs(collectionRef)
+    snapshot.forEach((document) => {
+      invoices.push(buildInvoiceRecord(SINGLE_INVOICE_COLLECTION_ID, document.id, document.data()))
+    })
+  } catch (error) {
+    console.warn("[projectInvoices] Failed to fetch invoices from unified collection", {
+      projectId,
+      error,
+    })
   }
 
-  invoices.sort((a, b) => a.collectionId.localeCompare(b.collectionId))
-
+  invoices.sort((a, b) => a.invoiceNumber.localeCompare(b.invoiceNumber))
   return invoices
 }
 
