@@ -4,6 +4,10 @@
 > Convention: ✅ done, ⏳ in progress, 🧭 next / planned.
 
 Latest change summary
+- Invoice-centric Project Details merged (PR #296): unified invoice collection, moved invoice logic out of project docs, added per-invoice audit logging, and improved project view layout.
+- Project create form refinements: default sort by project number DESC, moved Project Pickup Date above Client Company, auto-fill client details on name, and simplified create fields.
+- Invoice create UX: show Create Invoice CTA when none exist; restored filled header inputs; refined status select width and alignment.
+- Logging: added verbose client/API logging for project create/patch; fixed client-log recursion and preserved original console; throttled 403 list warnings.
 - Badge now renders top-right in the app, confirming deploys reach prod (shows the active P-prompt id).
 - PaymentDetail groundwork present: single Remaining wrapper + assignment zero-state; final single-blink hookup still pending.
 - ERL directory helpers + identifier normalization improved; Entity/Bank/Account dropdowns not visible yet in Add Payment dialog or in Payment Detail editing-on-empty.
@@ -13,6 +17,82 @@ Latest change summary
 - Deploy noise reduced; investigating occasional builds after “archive PR ###” context commits.
 
 Tasks T-xxx
+### T-090
+- Title: Invoice-centric project details — unify invoice model and polish UI (P-029)
+- Branch: codex/invoice-centric-project-details
+- PR: #296
+- Status: Completed
+- Outcomes:
+  - Unified invoice documents under collection `invoice`; removed invoice/payment/client write-through on project docs.
+  - Project detail layout polished; per-invoice audit logging added; refreshed billing UI.
+  - Firestore rename/cleanup scripts added (rename IDs; remove legacy subcollections).
+- Commits: 8bac9c2 (merge), 7c45b71, 6a62b61, 57a8ccf, dd8e554, 584d8c5, e1e9777, 5a0a8c3, 2b0e5c0
+- Notes:
+
+### T-091
+- Title: Project create flow — sort, pickup date placement, auto-fill client details (P-030)
+- Branch: main
+- PR: —
+- Status: Completed
+- Outcomes:
+  - Default list sort by project number DESC; write pickup date; moved pickup date above client company in create form.
+  - Auto-fill client details by name; align header/rows.
+- Commits: 471a590, 8f8099e, bb04abd, 032d59d, d2eb085
+- Notes:
+
+### T-092
+- Title: Invoice creation UX — CTA & header inputs; status width (P-031)
+- Branch: main
+- PR: —
+- Status: Completed
+- Outcomes:
+  - Show "Create Invoice" CTA when no invoices; restore filled header inputs on create dialog.
+  - Refine status select width; align invoice rows to headers; polish list aggregation.
+- Commits: 4c31afd, 86cdebd, 435f81c, 7ed5157
+- Notes:
+
+### T-093
+- Title: Client/API logging and client-log recursion fix (P-032)
+- Branch: main
+- PR: —
+- Status: Completed
+- Outcomes:
+  - Added dev fetch wrapper; verbose client/API logs for create/patch; payload key logs.
+  - Prevented recursive client-log loops; preserved original console; throttled 403 list warnings.
+- Commits: 8c2e43f, d341596, c5511b7, f12c54c
+- Notes:
+
+### T-094
+- Title: Duplicate Projects page to New UI (Refine/AntD) and compile under Next 15 (P-033)
+- Branch: codex/duplicate-projects-page-to-new-ui
+- PR: #295
+- Status: Completed
+- Outcomes:
+  - New UI routes under `/dashboard/new-ui/projects` incl. list and show pages; wired basic data provider.
+  - Ensured compile against Next.js 15; added antd reset and minimal Refine scaffolding.
+- Commits: b42a8c6 (merge), b03543e, pages/new-ui files, styles/antd-reset.css, types/refinedev.d.ts
+- Notes:
+
+### T-095
+- Title: Refine client gallery and preview (P-034)
+- Branch: codex/refine-client-gallery
+- PR: #254
+- Status: Completed
+- Outcomes:
+  - Added client accounts preview page; stabilized search/gallery hooks; styling passes.
+- Commits: 43741b2 (merge), ca186aa, f23e62e, 524d399
+- Notes:
+
+### T-096
+- Title: New UI scaffolding — AppShell, client-accounts page, tests (P-035)
+- Branch: main
+- PR: —
+- Status: Completed
+- Outcomes:
+  - Added `components/new-ui/AppShell.tsx` with Refine providers; created `pages/dashboard/new-ui/client-accounts.tsx` and tests.
+- Commits: b03543e, f58b212, 5fa7f58
+- Notes:
+
 ### T-080
 - Title: Payment UI polish & data rules (P-024)
 - Branch: codex/feat-payment-ui-polish-p024
@@ -88,6 +168,13 @@ Tasks table — add/update:
 
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
+| T-096 | New UI scaffolding — AppShell + client-accounts + tests | ✅    | components/new-ui/AppShell.tsx; pages/dashboard/new-ui; __tests__/pages/dashboard/new-ui |
+| T-095 | Refine client gallery and preview                          | ✅    | pages/dashboard/new-ui/client-accounts.tsx; styles/antd-reset.css |
+| T-094 | Duplicate Projects page to New UI (Next 15 compile)        | ✅    | pages/dashboard/new-ui/projects/*; types/refinedev.d.ts |
+| T-093 | Client/API logging and recursion fix                        | ✅    | pages/api/client-log.ts; logging wrappers |
+| T-092 | Invoice creation UX — CTA & header inputs; status width     | ✅    | invoices UI changes |
+| T-091 | Project create flow — sort, pickup date, auto-fill          | ✅    | project list/create form |
+| T-090 | Invoice-centric project details — unify model               | ✅    | merge PR #296; rename/cleanup scripts |
 | T-300 | 3-dots settings button: sticky bottom-left inside white card | ⏳    | Position within card footer row; not sidebar |
 | T-301 | Sticky Back inside StudentDialog sticky footer | ⏳    | Footer anchors Back; body is scroll container |
 | T-302 | Remaining blink = single element; Amount never blinks | ⏳    | Remove duplicate render; a11y reduced-motion |

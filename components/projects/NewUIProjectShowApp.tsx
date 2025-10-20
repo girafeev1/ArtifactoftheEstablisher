@@ -430,10 +430,9 @@ const ProjectsShowContent = () => {
           setInvoiceMode("idle")
           setDraftInvoice(null)
         } else {
-          const draft = buildDraftForNewInvoice(invoiceRecords, normalizedProject, normalizedClient)
-          itemIdRef.current = draft.items.length
-          setDraftInvoice(draft)
-          setInvoiceMode("create")
+          // Do not auto-enter create mode; surface a clear CTA instead
+          setInvoiceMode("idle")
+          setDraftInvoice(null)
           setActiveInvoiceIndex(0)
         }
       } catch (error) {
@@ -771,9 +770,10 @@ const ProjectsShowContent = () => {
       const payToInfo = paidToIdentifier ? bankInfoMap[paidToIdentifier] ?? null : null
       const displayBankName = payToInfo?.bankName
         ? (() => {
+            // Build acronym for long names (>=3 tokens)
             const tokens = payToInfo.bankName.replace(/-/g, ' ').split(/\s+/).filter(Boolean)
             if (tokens.length >= 3) {
-              return tokens.map(t => t[0]?.toUpperCase() ?? '').join('')
+              return tokens.map(t => (t[0] || '').toUpperCase()).join('')
             }
             return payToInfo.bankName
           })()
@@ -790,6 +790,7 @@ const ProjectsShowContent = () => {
         payToText: paidToIdentifier,
         payToInfo,
         collectionId: invoice.collectionId,
+        displayBankName,
         index,
       }
     })
@@ -799,6 +800,16 @@ const ProjectsShowContent = () => {
         draftInvoice.paidTo && draftInvoice.paidTo.trim().length > 0
           ? draftInvoice.paidTo.trim()
           : null
+      const pendingInfo = pendingIdentifier ? bankInfoMap[pendingIdentifier] ?? null : null
+      const pendingDisplayBankName = pendingInfo?.bankName
+        ? (() => {
+            const tokens = pendingInfo.bankName.replace(/-/g, ' ').split(/\s+/).filter(Boolean)
+            if (tokens.length >= 3) {
+              return tokens.map(t => (t[0] || '').toUpperCase()).join('')
+            }
+            return pendingInfo.bankName
+          })()
+        : null
       entries.push({
         invoiceNumber: draftInvoice.invoiceNumber,
         pending: true,
@@ -808,7 +819,8 @@ const ProjectsShowContent = () => {
         statusColor: statusToColorKey(draftInvoice.paymentStatus),
         paidOnText: null,
         payToText: pendingIdentifier ?? draftInvoice.client?.companyName ?? null,
-        payToInfo: pendingIdentifier ? bankInfoMap[pendingIdentifier] ?? null : null,
+        payToInfo: pendingInfo,
+        displayBankName: pendingDisplayBankName,
         collectionId: draftInvoice.collectionId,
         index: invoices.length,
       })
@@ -1989,7 +2001,7 @@ const ProjectsShowContent = () => {
                               </div>
                             ) : payToInfo ? (
                               <div className="bank-display">
-                                <span className="bank-name">{displayBankName || entry.payToText}</span>
+                                <span className="bank-name">{entry.displayBankName || entry.payToText}</span>
                                 {payToInfo.accountType ? (
                                   <span className="account-chip">{payToInfo.accountType} Account</span>
                                 ) : null}
@@ -2765,11 +2777,11 @@ const ProjectsShowContent = () => {
         .invoice-row {
           display: grid;
           grid-template-columns:
-            minmax(160px, 1.2fr)
-            minmax(120px, 0.8fr)
-            minmax(140px, 1fr)
-            minmax(160px, 1.1fr)
-            minmax(120px, 0.8fr);
+            minmax(140px, max-content)  /* Invoice # */
+            minmax(90px, max-content)   /* Amount */
+            minmax(100px, max-content)  /* Status */
+            minmax(200px, 1fr)          /* To (flex grows) */
+            minmax(110px, max-content); /* On */
           align-items: flex-start;
           gap: 12px;
           font-family: ${KARLA_FONT};

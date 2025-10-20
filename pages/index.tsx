@@ -21,7 +21,7 @@ export default function MainPage({ firstName }: { firstName: string }) {
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getSession(ctx);
   if (!session) {
-    return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
+    return { redirect: { destination: '/auth/signin', permanent: false } };
   }
   const firstName = session.user?.name?.split(' ')[0] || '';
   return { props: { firstName } };

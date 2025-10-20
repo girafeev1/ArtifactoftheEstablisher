@@ -954,7 +954,7 @@ const ProjectsContent = () => {
         <Modal
           title="Create Project"
           open={createModalOpen}
-          destroyOnClose
+          destroyOnHidden
           onCancel={handleCreateCancel}
           onOk={handleCreateSubmit}
           okText="Create Project"
@@ -1026,20 +1026,14 @@ const ProjectsContent = () => {
             <Form.Item label="Project Nature" name="projectNature">
               <Input allowClear placeholder="Project nature" />
             </Form.Item>
-            {/* Header-style line: project number + pickup date */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 4px' }}>
-              <span style={{ fontFamily: KARLA_FONT, fontWeight: 700, color: '#0f172a' }}>Pickup:</span>
-              <DatePicker
-                style={{ flex: 1 }}
-                value={createForm.getFieldValue('projectDate')}
-                onChange={(v) => {
-                  try {
-                    console.log('[CreateProject] date change', v && (v as any).format ? (v as any).format('YYYY-MM-DD') : v)
-                  } catch {}
-                  createForm.setFieldsValue({ projectDate: v })
-                }}
-              />
-            </div>
+            {/* Pickup date (projectDate) */}
+            <Form.Item label="Project Pickup Date" name="projectDate">
+              <DatePicker style={{ width: '100%' }} onChange={(v) => {
+                try {
+                  console.log('[CreateProject] date change', v && (v as any).format ? (v as any).format('YYYY-MM-DD') : v)
+                } catch {}
+              }} />
+            </Form.Item>
             {/* Client Company moved to invoice scope; removed from project create */}
           </Form>
         </Modal>

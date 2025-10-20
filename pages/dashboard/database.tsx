@@ -284,7 +284,7 @@ export const getServerSideProps: GetServerSideProps<DatabasePageProps> = async (
   try {
     const session = await getSession(ctx);
     if (!session?.accessToken) {
-      return { redirect: { destination: '/api/auth/signin/google', permanent: false } };
+      return { redirect: { destination: '/auth/signin', permanent: false } };
     }
     const { drive, sheets } = initializeApis('user', {
       accessToken: session.accessToken as string,

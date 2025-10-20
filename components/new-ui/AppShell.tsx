@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactNode } from "react"
-import Head from "next/head"
 import {
   Refine,
   useMenu,
@@ -327,12 +326,6 @@ const AppShell = ({
 
   return (
     <ConfigProvider theme={themeConfig}>
-      <Head>
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&display=swap"
-        />
-      </Head>
       <AntdApp>
         <Refine
           dataProvider={dataProvider}

@@ -73,6 +73,20 @@ export default function SignInPage() {
   useEffect(() => {
     if (status === 'authenticated') {
       void router.replace('/')
+      return
+    }
+    // Strip leftover provider error param (e.g., error=google) from URL to avoid
+    // polluting NextAuth signIn('credentials') result.
+    if (router.isReady && typeof router.query.error === 'string') {
+      const { callbackUrl } = router.query
+      void router.replace(
+        {
+          pathname: router.pathname,
+          query: callbackUrl ? { callbackUrl } : undefined,
+        },
+        undefined,
+        { shallow: true },
+      )
     }
   }, [status, router])
 
@@ -237,7 +251,9 @@ export default function SignInPage() {
       throw new Error('No response from authentication service')
     }
 
-    if (response.error) {
+    // Some URLs may retain a stale ?error=... query from an earlier redirect.
+    // Treat as failure only if NextAuth reports ok === false or status >= 400.
+    if ((response.ok === false) || (!!response.error && response.status && response.status >= 400)) {
       console.error('[auth] NextAuth credential exchange failed', response)
       const diagnosticMessage = await diagnoseCredentialFailure(params, response.error)
       const mappedError =
