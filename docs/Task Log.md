@@ -26,7 +26,16 @@ Tasks T-xxx
   - Unified invoice documents under collection `invoice`; removed invoice/payment/client write-through on project docs.
   - Project detail layout polished; per-invoice audit logging added; refreshed billing UI.
   - Firestore rename/cleanup scripts added (rename IDs; remove legacy subcollections).
-- Commits: 8bac9c2 (merge), 7c45b71, 6a62b61, 57a8ccf, dd8e554, 584d8c5, e1e9777, 5a0a8c3, 2b0e5c0
+- Commits:
+  - 8bac9c2 — 2025-10-12 19:39 +0800
+  - 7c45b71 — 2025-10-19 04:38 +0800
+  - 6a62b61 — 2025-10-18 22:39 +0800
+  - 57a8ccf — 2025-10-18 21:58 +0800
+  - dd8e554 — 2025-10-12 19:28 +0800
+  - 584d8c5 — 2025-10-12 18:10 +0800
+  - e1e9777 — 2025-10-12 18:07 +0800
+  - 5a0a8c3 — 2025-10-12 17:22 +0800
+  - 2b0e5c0 — 2025-10-12 17:08 +0800
 - Notes:
 
 ### T-091
@@ -37,7 +46,12 @@ Tasks T-xxx
 - Outcomes:
   - Default list sort by project number DESC; write pickup date; moved pickup date above client company in create form.
   - Auto-fill client details by name; align header/rows.
-- Commits: 471a590, 8f8099e, bb04abd, 032d59d, d2eb085
+- Commits:
+  - 471a590 — 2025-10-19 15:56 +0800
+  - 8f8099e — 2025-10-19 15:52 +0800
+  - bb04abd — 2025-10-19 04:42 +0800
+  - 032d59d — 2025-10-18 22:55 +0800
+  - d2eb085 — 2025-10-18 22:49 +0800
 - Notes:
 
 ### T-092
@@ -48,7 +62,11 @@ Tasks T-xxx
 - Outcomes:
   - Show "Create Invoice" CTA when no invoices; restore filled header inputs on create dialog.
   - Refine status select width; align invoice rows to headers; polish list aggregation.
-- Commits: 4c31afd, 86cdebd, 435f81c, 7ed5157
+- Commits:
+  - 4c31afd — 2025-10-20 20:08 +0800
+  - 86cdebd — 2025-10-20 21:09 +0800
+  - 435f81c — 2025-10-19 06:46 +0800
+  - 7ed5157 — 2025-10-19 07:00 +0800
 - Notes:
 
 ### T-093
@@ -59,7 +77,11 @@ Tasks T-xxx
 - Outcomes:
   - Added dev fetch wrapper; verbose client/API logs for create/patch; payload key logs.
   - Prevented recursive client-log loops; preserved original console; throttled 403 list warnings.
-- Commits: 8c2e43f, d341596, c5511b7, f12c54c
+- Commits:
+  - 8c2e43f — 2025-10-20 17:52 +0800
+  - d341596 — 2025-10-20 10:31 +0800
+  - c5511b7 — 2025-10-20 19:19 +0800
+  - f12c54c — 2025-10-20 19:38 +0800
 - Notes:
 
 ### T-094
@@ -70,7 +92,10 @@ Tasks T-xxx
 - Outcomes:
   - New UI routes under `/dashboard/new-ui/projects` incl. list and show pages; wired basic data provider.
   - Ensured compile against Next.js 15; added antd reset and minimal Refine scaffolding.
-- Commits: b42a8c6 (merge), b03543e, pages/new-ui files, styles/antd-reset.css, types/refinedev.d.ts
+- Commits:
+  - b42a8c6 — 2025-10-11 20:38 +0800
+  - b03543e — 2025-10-12 03:40 +0800
+  - pages/new-ui files, styles/antd-reset.css, types/refinedev.d.ts
 - Notes:
 
 ### T-095
@@ -80,7 +105,11 @@ Tasks T-xxx
 - Status: Completed
 - Outcomes:
   - Added client accounts preview page; stabilized search/gallery hooks; styling passes.
-- Commits: 43741b2 (merge), ca186aa, f23e62e, 524d399
+- Commits:
+  - 43741b2 — 2025-10-05 05:11 +0800
+  - ca186aa — 2025-10-04 20:48 +0800
+  - f23e62e — 2025-10-04 20:31 +0800
+  - 524d399 — 2025-10-04 19:15 +0800
 - Notes:
 
 ### T-096
@@ -90,7 +119,10 @@ Tasks T-xxx
 - Status: Completed
 - Outcomes:
   - Added `components/new-ui/AppShell.tsx` with Refine providers; created `pages/dashboard/new-ui/client-accounts.tsx` and tests.
-- Commits: b03543e, f58b212, 5fa7f58
+- Commits:
+  - b03543e — 2025-10-12 03:40 +0800
+  - f58b212 — 2025-10-04 18:03 +0800
+  - 5fa7f58 — 2025-10-04 18:54 +0800
 - Notes:
 
 ### T-080
