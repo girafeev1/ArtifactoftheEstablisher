@@ -1067,6 +1067,8 @@ const ProjectsShowContent = () => {
 
     try {
       setProjectEditMode("saving")
+      console.log('[ProjectHeaderSave] updates keys', Object.keys(updatesPayload))
+      console.log('[ProjectHeaderSave] projectDate', updatesPayload.projectDate)
       const response = await fetch(
         `/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`,
         {
@@ -1078,6 +1080,7 @@ const ProjectsShowContent = () => {
           }),
         },
       )
+      console.log('[ProjectHeaderSave] response', response.status)
 
       const payload = (await response.json().catch(() => ({}))) as { error?: string }
 

@@ -192,6 +192,8 @@ export function ProjectDatabaseCreateForm({
     }
 
     payload.projectDate = toIsoUtcStringOrNull(form.projectDate)
+    console.log('[CreateProjectDialog] payload keys', Object.keys(payload))
+    console.log('[CreateProjectDialog] projectDate', payload.projectDate)
 
     try {
       const response = await fetch(
@@ -202,6 +204,7 @@ export function ProjectDatabaseCreateForm({
           body: JSON.stringify({ project: payload }),
         }
       )
+      console.log('[CreateProjectDialog] response', response.status)
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))

@@ -634,6 +634,10 @@ const ProjectsContent = () => {
       // ignore invalid date; let backend treat as null
     }
 
+    console.log('[CreateProject] payload keys', Object.keys(payload))
+    if ('projectDate' in payload) {
+      console.log('[CreateProject] projectDate', payload.projectDate)
+    }
     setCreateSubmitting(true)
     try {
       const response = await fetch(`/api/projects/${encodeURIComponent(yearValue)}`, {
@@ -642,6 +646,7 @@ const ProjectsContent = () => {
         credentials: "include",
         body: JSON.stringify({ project: payload }),
       })
+      console.log('[CreateProject] response', response.status)
 
       const raw = await response.json().catch(() => ({}))
       const body = raw as { error?: string; project?: ProjectRecord }
