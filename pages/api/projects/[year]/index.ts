@@ -46,9 +46,14 @@ export default async function handler(
     'unknown'
 
   try {
+    const projectPayload = (req.body as any).project as Record<string, unknown>
+    try {
+      const keys = Object.keys(projectPayload || {})
+      console.info('[api/projects/:year] create payload keys', { year, keys, hasProjectDate: 'projectDate' in (projectPayload || {}) })
+    } catch {}
     const result = await createProjectInDatabase({
       year,
-      data: (req.body as any).project,
+      data: projectPayload,
       createdBy,
     })
 

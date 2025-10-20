@@ -48,10 +48,15 @@ export default async function handler(
     'unknown'
 
   try {
+    const updates = (req.body as any).updates
+    try {
+      const keys = Object.keys(updates || {})
+      console.info('[api/projects/:year/:id] update payload keys', { year, projectId, keys, hasProjectDate: 'projectDate' in (updates || {}) })
+    } catch {}
     const result = await updateProjectInDatabase({
       year,
       projectId,
-      updates: (req.body as any).updates,
+      updates,
       editedBy,
     })
 

@@ -31,7 +31,7 @@ import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
 import type { ProjectRecord } from "../../lib/projectsDatabase"
 import type { ProjectInvoiceRecord } from "../../lib/projectInvoices"
 import dayjs, { type Dayjs } from "dayjs"
-import { resolveBankAccountIdentifier } from "../../lib/erlDirectory"
+import { resolveBankAccountIdentifier, listBanks, listAccounts, lookupAccount, type BankInfo, type AccountInfo } from "../../lib/erlDirectory"
 
 import AppShell from "../new-ui/AppShell"
 import {
@@ -376,6 +376,9 @@ const ProjectsShowContent = () => {
   const [bankInfoMap, setBankInfoMap] = useState<
     Record<string, { bankName: string; bankCode?: string; accountType?: string | null }>
   >({})
+  const [bankList, setBankList] = useState<BankInfo[] | null>(null)
+  const [selectedBankCode, setSelectedBankCode] = useState<string | null>(null)
+  const [accountList, setAccountList] = useState<AccountInfo[] | null>(null)
   const [clientsDirectory, setClientsDirectory] = useState<ClientDirectoryRecord[] | null>(null)
   const itemIdRef = useRef(0)
 
@@ -498,6 +501,40 @@ const ProjectsShowContent = () => {
     void run()
     return () => controller.abort()
   }, [invoices, draftInvoice?.paidTo])
+
+  // Load banks when editing invoice
+  useEffect(() => {
+    if (invoiceMode === "idle") return
+    let cancelled = false
+    const load = async () => {
+      try {
+        if (!bankList) {
+          const banks = await listBanks()
+          if (!cancelled) setBankList(banks)
+        }
+        // if we have a paidTo identifier but no selected bank, try to infer from account lookup
+        if (draftInvoice?.paidTo && !selectedBankCode) {
+          try {
+            const info = await lookupAccount(draftInvoice.paidTo)
+            if (!cancelled && info?.bankCode) {
+              setSelectedBankCode(String(info.bankCode).padStart(3, '0'))
+              // fetch accounts for that bank
+              const banks = bankList ?? []
+              const chosen = banks.find((b) => b.bankCode === String(info.bankCode).padStart(3, '0'))
+              if (chosen) {
+                const accounts = await listAccounts(chosen)
+                if (!cancelled) setAccountList(accounts)
+              }
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [invoiceMode, draftInvoice?.paidTo, bankList, selectedBankCode])
 
   useEffect(() => {
     if (!project || projectEditMode !== "view") {
@@ -1909,17 +1946,35 @@ const ProjectsShowContent = () => {
                           </div>
                           <div className="invoice-cell pay-to">
                             {isEditingRow && draftInvoice ? (
-                              <Input
-                                value={draftInvoice.paidTo ?? ""}
-                                onChange={(e) => {
-                                  e.stopPropagation()
-                                  handlePaidToChange(e.target.value)
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                bordered={false}
-                                className="invoice-input editing"
-                                placeholder="Bank identifier (e.g., ERL-OCBC-S)"
-                              />
+                              <div className="bank-selectors" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                                <Select
+                                  placeholder="Bank"
+                                  size="small"
+                                  value={selectedBankCode ?? undefined}
+                                  onChange={async (code: string) => {
+                                    setSelectedBankCode(code)
+                                    const found = (bankList ?? []).find((b) => b.bankCode === code)
+                                    if (found) {
+                                      const accounts = await listAccounts(found)
+                                      setAccountList(accounts)
+                                    } else {
+                                      setAccountList([])
+                                    }
+                                  }}
+                                  options={(bankList ?? []).map((b) => ({ label: `${b.bankName} (${b.bankCode})`, value: b.bankCode }))}
+                                  style={{ width: '100%', marginBottom: 6 }}
+                                  dropdownMatchSelectWidth={false}
+                                />
+                                <Select
+                                  placeholder="Account"
+                                  size="small"
+                                  value={draftInvoice.paidTo ?? undefined}
+                                  onChange={(val: string) => handlePaidToChange(val)}
+                                  options={(accountList ?? []).map((a) => ({ label: a.accountType ? `${a.accountType} Account` : 'Account', value: a.accountDocId }))}
+                                  style={{ width: '100%' }}
+                                  dropdownMatchSelectWidth={false}
+                                />
+                              </div>
                             ) : payToInfo ? (
                               <div className="bank-display">
                                 <span className="bank-name">
@@ -2813,6 +2868,10 @@ const ProjectsShowContent = () => {
           cursor: pointer;
         }
 
+        .invoice-row.head {
+          padding: 12px 16px;
+        }
+
         .invoice-row.selectable-row:hover {
           border-color: #cbd5f5;
           background: #f8fafc;
@@ -2882,6 +2941,8 @@ const ProjectsShowContent = () => {
           border-radius: 12px !important;
           font-family: ${KARLA_FONT};
           font-weight: 600;
+          width: auto !important;
+          min-width: 110px;
         }
 
         .invoice-status-select :global(.ant-select-selection-item) {
