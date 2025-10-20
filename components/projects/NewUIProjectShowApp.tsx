@@ -1699,10 +1699,10 @@ const ProjectsShowContent = () => {
                 value={projectDraft.projectNumber}
                 onChange={(event) => handleProjectDraftChange("projectNumber", event.target.value)}
                 placeholder="Project number"
-                bordered={false}
+                variant="filled"
                 className="descriptor-input"
                 disabled={projectEditSaving}
-                style={{ maxWidth: 240 }}
+                style={{ maxWidth: 280 }}
               />
             ) : (
               <span className="descriptor-number">{project.projectNumber ? `#${project.projectNumber}` : '-'}</span>
@@ -1714,10 +1714,10 @@ const ProjectsShowContent = () => {
                 onChange={handleProjectDateChange}
                 format="MMM DD, YYYY"
                 allowClear
-                bordered={false}
+                variant="filled"
                 className="descriptor-picker"
                 disabled={projectEditSaving}
-                style={{ minWidth: 160 }}
+                style={{ minWidth: 180 }}
               />
             ) : (
               <span className="descriptor-date">
@@ -1748,17 +1748,17 @@ const ProjectsShowContent = () => {
           <div className="title-row">
             <div className="title-content">
               {isProjectEditing ? (
-                <Input
-                  value={projectDraft.presenterWorkType}
-                  onChange={(event) =>
-                    handleProjectDraftChange("presenterWorkType", event.target.value)
-                  }
-                  placeholder="Project type"
-                  bordered={false}
-                  className="presenter-input"
-                  disabled={projectEditSaving}
-                  style={{ width: "100%", maxWidth: 480 }}
-                />
+              <Input
+                value={projectDraft.presenterWorkType}
+                onChange={(event) =>
+                  handleProjectDraftChange("presenterWorkType", event.target.value)
+                }
+                placeholder="Project type"
+                variant="filled"
+                className="presenter-input"
+                disabled={projectEditSaving}
+                style={{ width: "100%", maxWidth: 480 }}
+              />
               ) : (
                 <Text className="presenter-type">{stringOrNA(project.presenterWorkType)}</Text>
               )}
@@ -1767,7 +1767,7 @@ const ProjectsShowContent = () => {
                   value={projectDraft.projectTitle}
                   onChange={(event) => handleProjectDraftChange("projectTitle", event.target.value)}
                   placeholder="Project title"
-                  bordered={false}
+                  variant="filled"
                   className="project-title-input"
                   disabled={projectEditSaving}
                   style={{ width: "100%", maxWidth: 620 }}
@@ -1783,7 +1783,7 @@ const ProjectsShowContent = () => {
                     value={projectDraft.projectNature}
                     onChange={(event) => handleProjectDraftChange("projectNature", event.target.value)}
                     placeholder="Project nature"
-                    bordered={false}
+                    variant="filled"
                     className="project-nature-input"
                     disabled={projectEditSaving}
                     style={{ width: "100%", maxWidth: 560 }}
@@ -1798,7 +1798,7 @@ const ProjectsShowContent = () => {
                     value={projectDraft.subsidiary}
                     onChange={(event) => handleProjectDraftChange("subsidiary", event.target.value)}
                     placeholder="Subsidiary"
-                    bordered={false}
+                    variant="filled"
                     className="subsidiary-input"
                     disabled={projectEditSaving}
                     style={{ width: "100%", maxWidth: 360 }}
@@ -1835,17 +1835,20 @@ const ProjectsShowContent = () => {
                   <Title level={5} className="section-heading">
                     Billing &amp; Payments
                   </Title>
-                  <Button
-                    type="default"
-                    icon={<EditOutlined />}
-                    onClick={handlePrimaryInvoiceEdit}
-                    className="edit-invoice-button"
-                    disabled={invoiceEntries.length === 0 || invoiceMode === "create"}
-                  >
-                    Edit Invoice
-                  </Button>
+                  {hasInvoices ? (
+                    <Button
+                      type="default"
+                      icon={<EditOutlined />}
+                      onClick={handlePrimaryInvoiceEdit}
+                      className="edit-invoice-button"
+                      disabled={invoiceEntries.length === 0 || invoiceMode === "create"}
+                    >
+                      Edit Invoice
+                    </Button>
+                  ) : null}
                 </div>
-                <div className="invoice-table">
+                {hasInvoices || invoiceMode !== "idle" ? (
+                  <div className="invoice-table">
                   <div className="invoice-row head">
                     <span className="invoice-cell heading">Invoice #</span>
                     <span className="invoice-cell heading">Amount</span>
@@ -1931,8 +1934,8 @@ const ProjectsShowContent = () => {
                                     onChange={handleInvoiceStatusChange}
                                     options={ANT_INVOICE_STATUS_OPTIONS}
                                     className="invoice-status-select"
-                                    dropdownMatchSelectWidth={160}
-                                    style={{ minWidth: 140 }}
+                                    popupMatchSelectWidth={false}
+                                    style={{ width: 'auto', minWidth: 120 }}
                                   />
                               </div>
                             ) : entry.pending ? (
@@ -2025,8 +2028,13 @@ const ProjectsShowContent = () => {
                       <span className="invoice-cell paid-on">{totalPaidOnText}</span>
                     </div>
                   ) : null}
-                </div>
-                {invoiceMode === "idle" ? (
+                  </div>
+                ) : (
+                  <div className="invoice-empty-row" role="region" aria-label="No invoices">
+                    <Button type="primary" onClick={() => prepareDraft("create")}>Create Invoice</Button>
+                  </div>
+                )}
+                {invoiceMode === "idle" && hasInvoices ? (
                   <div className="billing-actions">
                     <Space size={12} wrap>
                       <Button type="primary" onClick={() => prepareDraft("create")}>
@@ -2048,6 +2056,7 @@ const ProjectsShowContent = () => {
                   </div>
                 ) : null}
               </section>
+              {(hasInvoices || invoiceMode !== "idle") && (
               <aside className={`client-panel ${isEditingInvoice ? "editing" : ""}`}>
                 <span className="summary-label client-label">Client</span>
                 <div className={`company-block ${isEditingInvoice ? "editing" : ""}`}>
@@ -2111,6 +2120,8 @@ const ProjectsShowContent = () => {
                   )}
                 </div>
               </aside>
+              )}
+              {(hasInvoices || invoiceMode !== "idle") && (
               <section className="items-section">
                 <div className="items-header">
                   <Title level={5} className="section-heading">
@@ -2165,6 +2176,7 @@ const ProjectsShowContent = () => {
                   </div>
                 ) : null}
               </section>
+              )}
             </div>
           </div>
         </Card>
