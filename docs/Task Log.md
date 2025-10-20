@@ -26,11 +26,11 @@ Tasks T-xxx
   - Unified invoice documents under collection `invoice`; removed invoice/payment/client write-through on project docs.
   - Project detail layout polished; per-invoice audit logging added; refreshed billing UI.
   - Firestore rename/cleanup scripts added (rename IDs; remove legacy subcollections).
-- Commits:
-  - 8bac9c2 — 2025-10-12 19:39 +0800
+– Commits:
   - 7c45b71 — 2025-10-19 04:38 +0800
   - 6a62b61 — 2025-10-18 22:39 +0800
   - 57a8ccf — 2025-10-18 21:58 +0800
+  - 8bac9c2 — 2025-10-12 19:39 +0800
   - dd8e554 — 2025-10-12 19:28 +0800
   - 584d8c5 — 2025-10-12 18:10 +0800
   - e1e9777 — 2025-10-12 18:07 +0800
@@ -46,7 +46,7 @@ Tasks T-xxx
 - Outcomes:
   - Default list sort by project number DESC; write pickup date; moved pickup date above client company in create form.
   - Auto-fill client details by name; align header/rows.
-- Commits:
+– Commits:
   - 471a590 — 2025-10-19 15:56 +0800
   - 8f8099e — 2025-10-19 15:52 +0800
   - bb04abd — 2025-10-19 04:42 +0800
@@ -62,11 +62,11 @@ Tasks T-xxx
 - Outcomes:
   - Show "Create Invoice" CTA when no invoices; restore filled header inputs on create dialog.
   - Refine status select width; align invoice rows to headers; polish list aggregation.
-- Commits:
-  - 4c31afd — 2025-10-20 20:08 +0800
+– Commits:
   - 86cdebd — 2025-10-20 21:09 +0800
-  - 435f81c — 2025-10-19 06:46 +0800
+  - 4c31afd — 2025-10-20 20:08 +0800
   - 7ed5157 — 2025-10-19 07:00 +0800
+  - 435f81c — 2025-10-19 06:46 +0800
 - Notes:
 
 ### T-093
@@ -77,11 +77,11 @@ Tasks T-xxx
 - Outcomes:
   - Added dev fetch wrapper; verbose client/API logs for create/patch; payload key logs.
   - Prevented recursive client-log loops; preserved original console; throttled 403 list warnings.
-- Commits:
+– Commits:
+  - f12c54c — 2025-10-20 19:38 +0800
+  - c5511b7 — 2025-10-20 19:19 +0800
   - 8c2e43f — 2025-10-20 17:52 +0800
   - d341596 — 2025-10-20 10:31 +0800
-  - c5511b7 — 2025-10-20 19:19 +0800
-  - f12c54c — 2025-10-20 19:38 +0800
 - Notes:
 
 ### T-094
@@ -92,9 +92,9 @@ Tasks T-xxx
 - Outcomes:
   - New UI routes under `/dashboard/new-ui/projects` incl. list and show pages; wired basic data provider.
   - Ensured compile against Next.js 15; added antd reset and minimal Refine scaffolding.
-- Commits:
-  - b42a8c6 — 2025-10-11 20:38 +0800
+– Commits:
   - b03543e — 2025-10-12 03:40 +0800
+  - b42a8c6 — 2025-10-11 20:38 +0800
   - pages/new-ui files, styles/antd-reset.css, types/refinedev.d.ts
 - Notes:
 
@@ -119,10 +119,10 @@ Tasks T-xxx
 - Status: Completed
 - Outcomes:
   - Added `components/new-ui/AppShell.tsx` with Refine providers; created `pages/dashboard/new-ui/client-accounts.tsx` and tests.
-- Commits:
+– Commits:
   - b03543e — 2025-10-12 03:40 +0800
-  - f58b212 — 2025-10-04 18:03 +0800
   - 5fa7f58 — 2025-10-04 18:54 +0800
+  - f58b212 — 2025-10-04 18:03 +0800
 - Notes:
 
 ### T-080
@@ -198,6 +198,51 @@ Tasks T-xxx
 
 Tasks table — add/update:
 
+### Archived (superseded by Refine/invoices)
+
+- T-301 — Sticky Back inside StudentDialog sticky footer
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Place Back/Cancel inside page or modal footer using AntD Layout.
+    - Avoid legacy dialog scroller; ensure sticky footer across viewport.
+
+- T-074 — Sticky dialog footer (window bottom, not scroller)
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Use AntD PageHeader/Footer and Affix for cross-page sticky actions.
+    - Back/Save aligned to footer row; body scrolls independently.
+
+- T-302 — Remaining blink = single element; Amount never blinks
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Replace blink with stable status tags/badges; no animation.
+    - Respect prefers-reduced-motion; color-only indicators.
+
+- T-303 — Payment Detail editing-on-empty (Entity/Bank/Account/Ref)
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Invoice detail supports Paid To/On and Ref # with zero-state.
+    - Persist editedBy/timestamp; typed fields; audit log.
+
+- T-304 — Add Payment cascade UI (Entity→Bank→Account) in dialog
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - For invoices, cascade selectors for payee (entity→bank→account).
+    - Source from erlDirectory; reset dependent selects on change.
+
+- T-075 — Add Payment: Method/Entity/Bank/Account/RefNumber (+ writes)
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Invoice writes: paidTo, paidOn, ref #, editedBy, timestamp.
+    - Keep per-invoice audit trail; no legacy payment doc writes.
+
+- T-058 — Payment History blink (yellow/red thresholds)
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Replace blink thresholds with discrete status icons/colors.
+    - Ensure accessibility (contrast, no motion).
+
+
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
 | T-096 | New UI scaffolding — AppShell + client-accounts + tests | ✅    | components/new-ui/AppShell.tsx; pages/dashboard/new-ui; __tests__/pages/dashboard/new-ui |
@@ -208,15 +253,15 @@ Tasks table — add/update:
 | T-091 | Project create flow — sort, pickup date, auto-fill          | ✅    | project list/create form |
 | T-090 | Invoice-centric project details — unify model               | ✅    | merge PR #296; rename/cleanup scripts |
 | T-300 | 3-dots settings button: sticky bottom-left inside white card | ⏳    | Position within card footer row; not sidebar |
-| T-301 | Sticky Back inside StudentDialog sticky footer | ⏳    | Footer anchors Back; body is scroll container |
-| T-302 | Remaining blink = single element; Amount never blinks | ⏳    | Remove duplicate render; a11y reduced-motion |
-| T-303 | Payment Detail editing-on-empty (Entity/Bank/Account/Ref) | ⏳    | Save writes + identifier compute + audit |
-| T-304 | Add Payment cascade UI (Entity→Bank→Account) in dialog | ⏳    | Visible selects + dependent options |
+| T-301 | Sticky Back inside StudentDialog sticky footer | Won’t Do | Footer anchors Back; body is scroll container |
+| T-302 | Remaining blink = single element; Amount never blinks | Won’t Do | Remove duplicate render; a11y reduced-motion |
+| T-303 | Payment Detail editing-on-empty (Entity/Bank/Account/Ref) | Won’t Do | Save writes + identifier compute + audit |
+| T-304 | Add Payment cascade UI (Entity→Bank→Account) in dialog | Won’t Do | Visible selects + dependent options |
 | T-305 | Sessions tab: sorting + persist + aria-sort | 🧭    | Default unchanged; per-user preference |
 | T-072 | Header ellipsis & width decouple (header no longer blocks narrow columns)                     | ✅    | Table headers CSS + autosize guard |
 | T-073 | Payment History “For Session(s)” max 5 then “…”                                                | ✅    | PaymentHistory formatter; detail-only; list pending |
-| T-074 | Sticky dialog footer (window bottom, not scroller)                                            | ⏳    | Back lives in scroller; move into footer in P-026. |
-| T-075 | Add Payment: Method/Entity/Bank/Account/RefNumber fields + writes (timestamp, editedBy)       | 🧭    | PaymentModal, writes, types |
+| T-074 | Sticky dialog footer (window bottom, not scroller)                                            | Won’t Do | Back lives in scroller; move into footer in P-026. |
+| T-075 | Add Payment: Method/Entity/Bank/Account/RefNumber fields + writes (timestamp, editedBy)       | Won’t Do | PaymentModal, writes, types |
 | T-076 | ERL directory integration (read banks+accounts from `erl-directory`; graceful fallback)       | 🧭    | lib/erlDirectory.ts, firebase init |
 | T-077 | Payment list: rename columns; add Method & Entity                                             | ✅    | PaymentHistory.tsx (Method, Entity, Bank Account, Reference #) |
 | T-078 | Payment detail: two-column summary layout                                                     | ✅    | PaymentDetail.tsx, styles (identifier & ref #; “For Session(s)” View all/Hide) |
@@ -231,7 +276,7 @@ Tasks table — add/update:
 | T-055 | Loading UX: spinner→blinking “–” in value (respect reduced-motion)       | 🧭    | OverviewTab & other fields; remove label spinners |
 | T-056 | Card Due parity & loading fallback                                       | 🧭    | Prefer cached.billingSummary; show “–” while loading |
 | T-057 | Sessions: “Session Vouchers” column hidden by default (persist per user) | 🧭    | SessionsTab columns/filters |
-| T-058 | Payment History blink: yellow (remaining>0), red (< minUnpaidRate)       | 🧭    | PaymentHistory; minUnpaidRate util; a11y fallback |
+| T-058 | Payment History blink: yellow (remaining>0), red (< minUnpaidRate)       | Won’t Do | PaymentHistory; minUnpaidRate util; a11y fallback |
 | T-059 | Base Rate info icon relocation (Billing tab Base Rate field)             | 🧭    | Move from Session Detail to Billing tab |
 | T-060 | Base Rate History: footer Add, sub-dialog (Rate+Effective Date), editing | 🧭    | Inline fix for missing effectDate; keep tooltips/currency |
 | T-061 | Column min-width v3 (~24–26px) + ellipsis + keyboard resize              | 🧭    | useColumnWidths + cell styles |
