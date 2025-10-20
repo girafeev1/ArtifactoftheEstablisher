@@ -46,7 +46,10 @@ Tasks T-xxx
 - Outcomes:
   - Default list sort by project number DESC; write pickup date; moved pickup date above client company in create form.
   - Auto-fill client details by name; align header/rows.
-– Commits:
+  - AntD Modal deprecation fix: replaced `destroyOnClose` with `destroyOnHidden` in create modal.
+  - Pickup Date rendered as labeled Form.Item (“Project Pickup Date”) with full-width DatePicker (replaces inline header row control).
+  - Next.js compliance: moved Google Fonts from next/head into `pages/_document.tsx` to resolve stylesheet warning.
+- Commits:
   - 471a590 — 2025-10-19 15:56 +0800
   - 8f8099e — 2025-10-19 15:52 +0800
   - bb04abd — 2025-10-19 04:42 +0800
@@ -62,7 +65,11 @@ Tasks T-xxx
 - Outcomes:
   - Show "Create Invoice" CTA when no invoices; restore filled header inputs on create dialog.
   - Refine status select width; align invoice rows to headers; polish list aggregation.
-– Commits:
+  - Do not auto-enter create mode when no invoices; remain idle and surface the explicit CTA.
+  - Status select min-width tightened (110px → 90px) to fit header layout.
+  - Bank name abbreviation policy: show first three tokens then ellipsis for long names.
+  - Client header polish: flash-fill animation on edited fields; add Title select (Mr./Ms./Mrs.) to prefix representative; format label as “Attn: <name>”.
+- Commits:
   - 86cdebd — 2025-10-20 21:09 +0800
   - 4c31afd — 2025-10-20 20:08 +0800
   - 7ed5157 — 2025-10-19 07:00 +0800
