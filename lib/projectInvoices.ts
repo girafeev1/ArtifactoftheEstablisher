@@ -298,6 +298,7 @@ const indexToSuffix = (index: number) => {
   return indexToLetters(index)
 }
 
+const _403LoggedKeys = new Set<string>()
 const listInvoiceCollectionIds = async (year: string, projectId: string): Promise<string[]> => {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
   const projectKey = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
@@ -344,11 +345,15 @@ const listInvoiceCollectionIds = async (year: string, projectId: string): Promis
     clearTimeout(timeout)
 
     if (!response.ok) {
-      console.warn(
-        "[projectInvoices] Failed to list invoice collection IDs",
-        response.status,
-        response.statusText,
-      )
+      const key = `${year}/${projectId}`
+      if (response.status !== 403 || !_403LoggedKeys.has(key)) {
+        console.warn(
+          "[projectInvoices] Failed to list invoice collection IDs",
+          response.status,
+          response.statusText,
+        )
+        if (response.status === 403) _403LoggedKeys.add(key)
+      }
       return []
     }
 

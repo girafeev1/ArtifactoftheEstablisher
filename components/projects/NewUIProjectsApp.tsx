@@ -606,6 +606,13 @@ const ProjectsContent = () => {
     }
 
     const values = createForm.getFieldsValue()
+    try {
+      console.log('[CreateProject] form.getFieldsValue keys', Object.keys(values || {}))
+      console.log(
+        '[CreateProject] form.projectDate',
+        values?.projectDate && (values.projectDate as any).format ? (values.projectDate as any).format('YYYY-MM-DD') : values?.projectDate,
+      )
+    } catch {}
     const trimmedProjectNumber = (values.projectNumber ?? "").replace(/^#/, '').trim()
     if (!trimmedProjectNumber) {
       message.error("Project number is required.")
@@ -982,7 +989,16 @@ const ProjectsContent = () => {
             {/* Header-style line: project number + pickup date */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 4px' }}>
               <span style={{ fontFamily: KARLA_FONT, fontWeight: 700, color: '#0f172a' }}>Pickup:</span>
-              <DatePicker style={{ flex: 1 }} value={createForm.getFieldValue('projectDate')} onChange={(v) => createForm.setFieldsValue({ projectDate: v })} />
+              <DatePicker
+                style={{ flex: 1 }}
+                value={createForm.getFieldValue('projectDate')}
+                onChange={(v) => {
+                  try {
+                    console.log('[CreateProject] date change', v && (v as any).format ? (v as any).format('YYYY-MM-DD') : v)
+                  } catch {}
+                  createForm.setFieldsValue({ projectDate: v })
+                }}
+              />
             </div>
             {/* Client Company moved to invoice scope; removed from project create */}
           </Form>
