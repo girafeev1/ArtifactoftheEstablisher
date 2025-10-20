@@ -788,15 +788,45 @@ const ProjectsContent = () => {
         dataIndex: "actions",
         align: "center" as const,
         render: (_: unknown, record: ProjectRow) => (
-          <Button
-            type="text"
-            icon={<EyeOutlined />}
-            aria-label="View project details"
-            onClick={(event) => {
-              event.stopPropagation()
-              navigateToDetails(record)
-            }}
-          />
+          <Space>
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              aria-label="View project details"
+              onClick={(event) => {
+                event.stopPropagation()
+                navigateToDetails(record)
+              }}
+            />
+            <Button
+              danger
+              type="text"
+              aria-label="Delete project"
+              onClick={(event) => {
+                event.stopPropagation()
+                Modal.confirm({
+                  title: 'Delete this project?',
+                  content: `#${record.projectNumber} — this action cannot be undone`,
+                  okType: 'danger',
+                  async onOk() {
+                    try {
+                      const res = await fetch(`/api/projects/${encodeURIComponent(record.year)}/${encodeURIComponent(record.id)}`, {
+                        method: 'DELETE',
+                        credentials: 'include',
+                      })
+                      if (!res.ok) throw new Error('Delete failed')
+                      message.success('Project deleted')
+                      await (tableQuery as unknown as { refetch?: () => Promise<unknown> })?.refetch?.()
+                    } catch (e) {
+                      message.error(e instanceof Error ? e.message : 'Delete failed')
+                    }
+                  },
+                })
+              }}
+            >
+              Delete
+            </Button>
+          </Space>
         ),
       },
     ]

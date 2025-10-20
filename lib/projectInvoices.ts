@@ -298,7 +298,7 @@ const indexToSuffix = (index: number) => {
   return indexToLetters(index)
 }
 
-const listInvoiceCollectionIds = async (year: string, projectId: string): Promise<string[]> => {
+export const listInvoiceCollectionIds = async (year: string, projectId: string): Promise<string[]> => {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
   const projectKey = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
 

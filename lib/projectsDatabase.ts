@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore'
 
 import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from './firebase'
+import { listInvoiceCollectionIds } from './projectInvoices'
 
 const YEAR_ID_PATTERN = /^\d{4}$/
 const FALLBACK_YEAR_IDS = ['2025', '2024', '2023', '2022', '2021']
@@ -70,6 +71,15 @@ export interface ProjectCreateInput {
 
 export interface ProjectCreateResult {
   project: ProjectRecord
+}
+
+export interface ProjectDeleteInput {
+  year: string
+  projectId: string
+}
+
+export interface ProjectDeleteResult {
+  deleted: boolean
 }
 
 const toTimestamp = (value: unknown): Timestamp | null => {
@@ -520,4 +530,35 @@ export const updateProjectInDatabase = async ({
   return {
     updatedFields: changedEntries.map(([field]) => field),
   }
+}
+
+export const deleteProjectInDatabase = async ({ year, projectId }: ProjectDeleteInput): Promise<ProjectDeleteResult> => {
+  const trimmedYear = year.trim()
+  if (!YEAR_ID_PATTERN.test(trimmedYear)) {
+    throw new Error('Invalid year identifier provided')
+  }
+
+  let projectRef = doc(projectsDb, PROJECTS_ROOT, trimmedYear, PROJECTS_SUBCOLLECTION, projectId)
+  let snapshot = await getDoc(projectRef)
+  if (!snapshot.exists()) {
+    projectRef = doc(projectsDb, trimmedYear, projectId)
+    snapshot = await getDoc(projectRef)
+  }
+  if (!snapshot.exists()) {
+    return { deleted: false }
+  }
+
+  try {
+    const collIds = await listInvoiceCollectionIds(trimmedYear, projectId)
+    for (const cid of collIds) {
+      const subRef = collection(projectRef, cid)
+      const docs = await getDocs(subRef)
+      for (const d of docs.docs) {
+        await d.ref.delete().catch(() => {})
+      }
+    }
+  } catch {}
+
+  await projectRef.delete()
+  return { deleted: true }
 }

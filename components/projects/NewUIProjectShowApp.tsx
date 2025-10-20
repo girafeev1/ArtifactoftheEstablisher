@@ -738,10 +738,7 @@ const ProjectsShowContent = () => {
           : typeof invoice.amount === "number" && !Number.isNaN(invoice.amount)
           ? invoice.amount
           : null
-      const paidOnFormatted = formatProjectDate(
-        invoice.paidOnIso ?? null,
-        invoice.paidOnDisplay ?? null,
-      )
+      const paidOnFormatted = formatProjectDate(invoice.paidOnIso ?? null, invoice.paidOnDisplay ?? null)
 
       const isActiveRow = invoiceMode !== "idle" && index === activeInvoiceIndex
       const draftStatus = draftInvoice?.paymentStatus ?? null
@@ -772,6 +769,15 @@ const ProjectsShowContent = () => {
 
       const paidToIdentifier = invoice.paidTo && invoice.paidTo.trim().length > 0 ? invoice.paidTo.trim() : null
       const payToInfo = paidToIdentifier ? bankInfoMap[paidToIdentifier] ?? null : null
+      const displayBankName = payToInfo?.bankName
+        ? (() => {
+            const tokens = payToInfo.bankName.replace(/-/g, ' ').split(/\s+/).filter(Boolean)
+            if (tokens.length >= 3) {
+              return tokens.map(t => t[0]?.toUpperCase() ?? '').join('')
+            }
+            return payToInfo.bankName
+          })()
+        : null
 
       return {
         invoiceNumber: isActiveRow && draftInvoice ? draftInvoice.invoiceNumber : invoice.invoiceNumber,
@@ -1531,8 +1537,8 @@ const ProjectsShowContent = () => {
             const description = record.feeType?.trim() ? record.feeType.trim() : null
             return (
               <div className="item-display">
-                <span className="item-title-text">{title}</span>
-                {description ? <span className="item-description">{description}</span> : null}
+                <div className="item-title-text">{title}</div>
+                {description ? <div className="item-description">{description}</div> : null}
               </div>
             )
           }
@@ -1702,7 +1708,7 @@ const ProjectsShowContent = () => {
                 variant="filled"
                 className="descriptor-input"
                 disabled={projectEditSaving}
-                style={{ maxWidth: 280 }}
+                style={{ width: 160 }}
               />
             ) : (
               <span className="descriptor-number">{project.projectNumber ? `#${project.projectNumber}` : '-'}</span>
@@ -1801,7 +1807,7 @@ const ProjectsShowContent = () => {
                     variant="filled"
                     className="subsidiary-input"
                     disabled={projectEditSaving}
-                    style={{ width: "100%", maxWidth: 360 }}
+                    style={{ width: 240 }}
                   />
                 </div>
               ) : project.subsidiary ? (
@@ -1983,9 +1989,7 @@ const ProjectsShowContent = () => {
                               </div>
                             ) : payToInfo ? (
                               <div className="bank-display">
-                                <span className="bank-name">
-                                  {payToInfo.bankName || entry.payToText}
-                                </span>
+                                <span className="bank-name">{displayBankName || entry.payToText}</span>
                                 {payToInfo.accountType ? (
                                   <span className="account-chip">{payToInfo.accountType} Account</span>
                                 ) : null}
@@ -2948,9 +2952,7 @@ const ProjectsShowContent = () => {
           padding: 16px 0;
         }
 
-        .invoice-status-control {
-          width: 160px;
-        }
+        .invoice-status-control { width: fit-content; }
 
         .invoice-status-select :global(.ant-select-selector) {
           border-radius: 12px !important;
@@ -2960,10 +2962,7 @@ const ProjectsShowContent = () => {
           min-width: 110px;
         }
 
-        .invoice-status-select :global(.ant-select-selection-item) {
-          display: flex;
-          align-items: center;
-        }
+        .invoice-status-select :global(.ant-select-selection-item) { display: flex; align-items: center; white-space: nowrap; }
 
         .draft-pill {
           font-family: ${KARLA_FONT};
