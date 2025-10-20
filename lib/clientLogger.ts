@@ -1,13 +1,23 @@
 export function setupClientLogging() {
   if (typeof window === 'undefined') return;
-  const win = window as unknown as { __clientLogSetup?: boolean };
+  const win = window as unknown as { __clientLogSetup?: boolean; __logGuard?: boolean };
   if (win.__clientLogSetup) return;
   win.__clientLogSetup = true;
+  const original = {
+    log: console.log.bind(console),
+    warn: console.warn.bind(console),
+    error: console.error.bind(console),
+    info: console.info.bind(console),
+  } as const;
   (['log', 'warn', 'error'] as const).forEach(level => {
-    const original = console[level].bind(console);
     console[level] = (...args: any[]) => {
+      // Avoid recursive logging and skip internal HTTP markers
+      if (win.__logGuard || (typeof args?.[0] === 'string' && String(args[0]).startsWith('[HTTP]'))) {
+        return original[level](...args);
+      }
       try {
-        fetch('/api/client-log', {
+        win.__logGuard = true;
+        void fetch('/api/client-log', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -17,13 +27,10 @@ export function setupClientLogging() {
             pathname: window.location.pathname,
             userAgent: navigator.userAgent,
           }),
-        }).catch(() => {
-          /* ignore network errors */
-        });
-      } catch (_) {
-        /* ignore logging errors */
-      }
-      original(...args);
+        }).catch(() => {/* ignore */});
+      } catch {/* ignore */}
+      finally { win.__logGuard = false; }
+      return original[level](...args);
     };
   });
 
@@ -37,6 +44,9 @@ export function setupClientLogging() {
         g.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
           const url = typeof input === 'string' ? input : (input as Request).url;
           const method = (init?.method || (typeof input !== 'string' && (input as Request).method) || 'GET').toUpperCase();
+          if (url.includes('/api/client-log')) {
+            return originalFetch(input as any, init);
+          }
           let bodySummary = '';
           try {
             const raw = init?.body as any;
@@ -51,11 +61,11 @@ export function setupClientLogging() {
               }
             }
           } catch {}
-          console.log('[HTTP] →', method, url, bodySummary);
+          original.info('[HTTP] →', method, url, bodySummary);
           const start = Date.now();
           const res = await originalFetch(input as any, init);
           const ms = Date.now() - start;
-          console.log('[HTTP] ←', res.status, method, url, `${ms}ms`);
+          original.info('[HTTP] ←', res.status, method, url, `${ms}ms`);
           return res;
         };
       }
