@@ -1706,6 +1706,7 @@ const ProjectsShowContent = () => {
                     placeholder="Type of Fee"
                     variant="borderless"
                     autoSize={{ minRows: 1, maxRows: 3 }}
+                    className="item-description-edit"
                     onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
                   />
                 </div>
@@ -1996,7 +1997,7 @@ const ProjectsShowContent = () => {
                 </div>
               ) : project.subsidiary ? (
                 <div className="subsidiary-row">
-                  <Tag className="subsidiary-chip">{stringOrNA(subsidiaryInfo?.englishName ?? project.subsidiary)}</Tag>
+                  <Tag className="subsidiary-chip">{subsidiaryInfo?.englishName ? stringOrNA(subsidiaryInfo.englishName) : (project.subsidiary ? '...' : '-')}</Tag>
                 </div>
               ) : null}
             </div>
@@ -2149,6 +2150,7 @@ const ProjectsShowContent = () => {
                                   placeholder="Bank"
                                   size="small"
                                   value={selectedBankCode ?? undefined}
+                                  optionLabelProp="collapsedLabel"
                                   onChange={async (code: string) => {
                                     setSelectedBankCode(code)
                                     const found = (bankList ?? []).find((b) => b.bankCode === code)
@@ -2161,16 +2163,14 @@ const ProjectsShowContent = () => {
                                   }}
                                   options={(bankList ?? []).map((b) => ({
                                     value: b.bankCode,
-                                    label: b.bankName,
-                                  }))}
-                                  optionRender={(option) => {
-                                    const label = `${option.value} ${option.label}`;
-                                    return (
-                                      <div className="bank-option-label-fade" title={label}>
-                                        {label}
+                                    label: `${b.bankName} (${b.bankCode})`,
+                                    collapsedLabel: (
+                                      <div className="bank-selected" title={`${b.bankName} (${b.bankCode})`}>
+                                        <span className="bank-selected-name">{b.bankName}</span>
+                                        <span className="bank-selected-code">({b.bankCode})</span>
                                       </div>
-                                    );
-                                  }}
+                                    ),
+                                  }))}
                                   style={{ width: 160 }}
                                   popupMatchSelectWidth={false}
                                 />
@@ -2289,7 +2289,7 @@ const ProjectsShowContent = () => {
                           }
                         }}
                         placeholder="Company name"
-                        className={`client-input company company-autocomplete ${flashClientFields ? 'flash-fill text-flash' : ''}`}
+                        className={`client-input company company-autocomplete ${flashClientFields ? 'flash-fill' : ''}`}
                         style={{ textAlign: 'right', width: '100%' }}
                         filterOption={(inputValue, option) =>
                           String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
@@ -2298,9 +2298,7 @@ const ProjectsShowContent = () => {
                       <Input
                         value={editingClient?.addressLine1 ?? ""}
                         onChange={(event) => handleClientFieldChange("addressLine1", event.target.value)}
-                        placeholder="Address line 1"
-                        variant="borderless"
-                        className={`client-input ${flashClientFields ? 'flash-fill text-flash' : ''}`}
+className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
                         style={{ textAlign: 'right' }}
                       />
                       <Input
@@ -2308,7 +2306,7 @@ const ProjectsShowContent = () => {
                         onChange={(event) => handleClientFieldChange("addressLine2", event.target.value)}
                         placeholder="Address line 2"
                         variant="borderless"
-                        className={`client-input ${flashClientFields ? 'flash-fill text-flash' : ''}`}
+                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
                         style={{ textAlign: 'right' }}
                       />
                       <Input
@@ -2316,7 +2314,7 @@ const ProjectsShowContent = () => {
                         onChange={(event) => handleClientFieldChange("addressLine3", event.target.value)}
                         placeholder="Address line 3"
                         variant="borderless"
-                        className={`client-input ${flashClientFields ? 'flash-fill text-flash' : ''}`}
+                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
                         style={{ textAlign: 'right' }}
                       />
                       <Input
@@ -2324,7 +2322,7 @@ const ProjectsShowContent = () => {
                         onChange={(event) => handleClientFieldChange("region", event.target.value)}
                         placeholder="Region"
                         variant="borderless"
-                        className={`client-input ${flashClientFields ? 'flash-fill text-flash' : ''}`}
+                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
                         style={{ textAlign: 'right' }}
                       />
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -2443,7 +2441,7 @@ const ProjectsShowContent = () => {
           </div>
         </Card>
         {subsidiaryInfo ? (
-          <div className="subsidiary-card">
+          <div className="subsidiary-card is-footer">
             {subsidiaryInfo.englishName ? (
               <div className="sub-name-en">{spaceify(subsidiaryInfo.englishName)}</div>
             ) : null}
@@ -2932,12 +2930,12 @@ const ProjectsShowContent = () => {
           0%, 100% { background-color: #f8fafc; box-shadow: inset 0 0 0 1px #cbd5f5; }
           50% { background-color: #ffffff; box-shadow: inset 0 0 0 2px #3b82f6; }
         }
-        .company-autocomplete.flash-fill :global(.ant-select-selection-item) { animation: text-flare 600ms ease-out; }
-        .flash-fill.text-flash :global(input) { animation: text-flare 600ms ease-out; }
-        @keyframes text-flare {
-          0% { text-shadow: none; transform: scale(1); color: inherit; }
-          30% { text-shadow: 0 0 16px rgba(255,255,255,1); transform: scale(1.05); color: #fff; }
-          100% { text-shadow: none; transform: scale(1); color: inherit; }
+        .flash-fill {
+          animation: flash-fill 900ms ease-in-out;
+        }
+        @keyframes flash-fill {
+          0%, 100% { background-color: #f8fafc; }
+          50% { background-color: #ffff99; }
         }
 
         :global(.client-input.ant-input::placeholder) {
@@ -3012,6 +3010,15 @@ const ProjectsShowContent = () => {
         .sub-address { font-family: 'Cormorant Infant', serif; font-weight: 400; font-size: 7px; color: #000; }
         .sub-contact { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 7px; color: #595959; }
         .sub-email, .sub-phone { letter-spacing: 0.08em; }
+
+        .subsidiary-card.is-footer {
+          position: relative;
+          text-align: left;
+          margin-top: 24px;
+          padding: 16px;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+        }
 
 
         .billing-layout {
@@ -3166,12 +3173,6 @@ const ProjectsShowContent = () => {
         .bank-option-code {
           flex: 0 0 auto;
           margin-left: 8px;
-        }
-
-        .bank-option-label-fade {
-          white-space: nowrap;
-          overflow: hidden;
-          mask-image: linear-gradient(to right, black 90%, transparent 100%);
         }
 
         /* Collapsed selection: wrapped name + code at right with soft fade */
@@ -3375,6 +3376,11 @@ const ProjectsShowContent = () => {
           color: #374151;
           display: block;
           white-space: normal;
+        }
+        .item-description-edit {
+          font-style: italic;
+          color: #374151;
+          font-weight: 700 !important;
         }
         .item-edit .ant-input-textarea textarea { font-style: italic; color: #374151; font-weight: 700 !important; }
 
