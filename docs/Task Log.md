@@ -132,6 +132,24 @@ Tasks T-xxx
   - f58b212 — 2025-10-04 18:03 +0800
 - Notes:
 
+### T-097
+- Title: Project header delete action + invoice detail polish (P-036)
+- Branch: main
+- PR: —
+- Status: ⏳ In Progress
+- Outcomes (planned):
+  - Add red Delete button to the left of Cancel in project header when editing; call existing DELETE API via `handleProjectDelete`.
+  - Hide invoice items header/divider until explicit action; conditionally render based on state.
+  - Shorten stacked dropdown widths to ~220px while keeping container at 100%.
+  - Track `lastMatchedCompanyRef`; when company name mismatch occurs, clear dependent fields and reset reference.
+  - Enhance `flash-fill` visibility: lighter highlight (#fff8c2), ~800ms duration.
+  - Style polish: make `.item-description` italic, color #374151, font-weight 400; align TextArea styling.
+  - Include `subsidiary` field in Create Project form (initial values + submission payload); ensure updates persist.
+  - Tooltip: apply AntD overlay styling/class; note follow-cursor is not directly supported; set zero mouseLeaveDelay.
+  - Right-align edited client inputs where appropriate; adjust column widths; hide sections when empty; deduplicate elements.
+- Notes:
+  - Source: session 019a01e1-63f6-71a2-a3c5-327de95ffdd7 (end-of-session planning)
+
 ### T-080
 - Title: Payment UI polish & data rules (P-024)
 - Branch: codex/feat-payment-ui-polish-p024
@@ -252,6 +270,7 @@ Tasks table — add/update:
 
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
+| T-097 | Project header delete + invoice detail polish        | ⏳    | Delete CTA; items header visibility; flash-fill; subsidiary field |
 | T-096 | New UI scaffolding — AppShell + client-accounts + tests | ✅    | components/new-ui/AppShell.tsx; pages/dashboard/new-ui; __tests__/pages/dashboard/new-ui |
 | T-095 | Refine client gallery and preview                          | ✅    | pages/dashboard/new-ui/client-accounts.tsx; styles/antd-reset.css |
 | T-094 | Duplicate Projects page to New UI (Next 15 compile)        | ✅    | pages/dashboard/new-ui/projects/*; types/refinedev.d.ts |
