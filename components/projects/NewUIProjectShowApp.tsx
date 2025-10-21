@@ -166,7 +166,13 @@ const renderMixed = (text: string | null | undefined, zhClass: string, enClass: 
   ))
 }
 
-const spaceify = (value: string) => value.split('').join(' ')
+const spaceify = (value: string) => (
+  value
+    .split('')
+    .map((ch) => (ch === ' ' ? '  ' : `${ch} `))
+    .join('')
+    .trim()
+)
 
 type InvoiceTableRow = {
   key: string
@@ -2168,8 +2174,15 @@ const ProjectsShowContent = () => {
                                   })) as any}
                                   // Render combined bank name + code in one line for dropdown items only
                                   optionRender={(option: any) => {
-                                    const name = option?.data?.bankName ?? ''
-                                    const code = option?.data?.bankCode ?? String(option.value ?? '')
+                                    let name = option?.data?.bankName as string | undefined
+                                    let code = option?.data?.bankCode as string | undefined
+                                    if (!name || !code) {
+                                      const t = typeof option.title === 'string' ? option.title : ''
+                                      const m = t.match(/^(.*)\s+\((\d{3})\)\s*$/)
+                                      if (m) { name = m[1]; code = m[2] }
+                                    }
+                                    name = (name || '').trim()
+                                    code = (code || String(option.value || '')).trim()
                                     return (
                                       <div className="bank-option">
                                         <span className="bank-option-name">{name}</span>
@@ -2930,13 +2943,13 @@ const ProjectsShowContent = () => {
         .company-autocomplete :global(.ant-select-selection-search) { margin-left: auto; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete :global(.ant-select-selection-search-input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete :global(.ant-select-selection-search-input input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
-        .company-autocomplete.flash-fill :global(.ant-select-selector) { animation: text-flare 600ms ease-in-out; }
+        .company-autocomplete.flash-fill :global(.ant-select-selector) { animation: text-flare 800ms ease-in-out; }
         .flash-fill.text-flash :global(input),
-        .flash-fill.text-flash :global(.ant-select-selection-item) { animation: text-flare 600ms ease-in-out; }
+        .flash-fill.text-flash :global(.ant-select-selection-item) { animation: text-flare 800ms ease-in-out; }
         @keyframes text-flare {
-          0% { text-shadow: 0 0 0 #fff; transform: scale(1); }
-          40% { text-shadow: 0 0 8px rgba(255,255,255,0.9); transform: scale(1.01); }
-          100% { text-shadow: none; transform: scale(1); }
+          0% { text-shadow: 0 0 0 #fff; transform: scale(1); filter: saturate(120%); }
+          35% { text-shadow: 0 0 10px rgba(255,255,255,1); transform: scale(1.03); filter: saturate(140%); }
+          100% { text-shadow: none; transform: scale(1); filter: none; }
         }
 
         :global(.client-input.ant-input::placeholder) {
@@ -3006,8 +3019,8 @@ const ProjectsShowContent = () => {
         .subsidiary-card { position: absolute; top: 0; right: 0; text-align: right; }
         .sub-name-en { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 10px; color: #000; letter-spacing: 0.08em; }
         .sub-name-zh { font-family: 'Iansui', sans-serif; font-weight: 700; font-size: 8px; color: #000; letter-spacing: 0.08em; }
-        .sub-name-en.big { font-size: 30px; }
-        .sub-name-zh.big { font-size: 24px; }
+        .sub-name-en.big { font-size: 20px; }
+        .sub-name-zh.big { font-size: 16px; }
         .sub-address { font-family: 'Cormorant Infant', serif; font-weight: 400; font-size: 7px; color: #000; }
         .sub-contact { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 7px; color: #595959; }
         .sub-email, .sub-phone { letter-spacing: 0.08em; }
@@ -3363,13 +3376,13 @@ const ProjectsShowContent = () => {
 
         .item-description {
           font-family: ${KARLA_FONT};
-          font-weight: 200 !important;
+          font-weight: 700 !important;
           font-style: italic;
           color: #374151;
           display: block;
           white-space: normal;
         }
-        .item-edit .ant-input-textarea textarea { font-style: italic; color: #374151; font-weight: 200 !important; }
+        .item-edit .ant-input-textarea textarea { font-style: italic; color: #374151; font-weight: 700 !important; }
 
         .item-edit {
           display: flex;
