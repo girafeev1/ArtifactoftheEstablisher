@@ -28,17 +28,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 
   try {
-    const parent = collection(projectsDb, 'projects', y, 'projects')
-    const snap = await getDocs(parent)
     let count = 0
-    for (const d of snap.docs) {
-      const ref = doc(projectsDb, 'projects', y, 'projects', d.id)
-      await updateDoc(ref, { subsidiary: 'ERL' }).catch(() => {})
-      count += 1
-    }
+    // Try nested path first: projects/{year}/projects/*
+    try {
+      const nested = collection(projectsDb, 'projects', y, 'projects')
+      const snap = await getDocs(nested)
+      for (const d of snap.docs) {
+        await updateDoc(doc(projectsDb, 'projects', y, 'projects', d.id), { subsidiary: 'ERL' }).catch(() => {})
+        count += 1
+      }
+    } catch {}
+    // Fallback: legacy root-level year collection: {year}/*
+    try {
+      const legacy = collection(projectsDb, y)
+      const snap2 = await getDocs(legacy)
+      for (const d of snap2.docs) {
+        await updateDoc(doc(projectsDb, y, d.id), { subsidiary: 'ERL' }).catch(() => {})
+        count += 1
+      }
+    } catch {}
     return res.status(200).json({ updated: count, year: y })
   } catch (e) {
     return res.status(500).json({ error: 'Rename failed' })
   }
 }
-

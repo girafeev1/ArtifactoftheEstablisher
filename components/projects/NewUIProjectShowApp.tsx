@@ -1842,6 +1842,16 @@ const ProjectsShowContent = () => {
             </Button>
           </div>
           <div className="header-block">
+            {subsidiaryInfo ? (
+              <div className="subsidiary-card">
+                {subsidiaryInfo.englishName ? (
+                  <div className="sub-name-en big">{spaceify(subsidiaryInfo.englishName)}</div>
+                ) : null}
+                {subsidiaryInfo.chineseName ? (
+                  <div className="sub-name-zh big">{spaceify(subsidiaryInfo.chineseName)}</div>
+                ) : null}
+              </div>
+            ) : null}
           <div className="descriptor-line">
             {isProjectEditing ? (
               <Input
@@ -1980,7 +1990,7 @@ const ProjectsShowContent = () => {
                 </div>
               ) : project.subsidiary ? (
                 <div className="subsidiary-row">
-                  <Tag className="subsidiary-chip">{stringOrNA(project.subsidiary)}</Tag>
+                  <Tag className="subsidiary-chip">{stringOrNA(subsidiaryInfo?.englishName ?? project.subsidiary)}</Tag>
                 </div>
               ) : null}
             </div>
@@ -2497,6 +2507,7 @@ const ProjectsShowContent = () => {
           display: flex;
           flex-direction: column;
           gap: 6px;
+          position: relative;
         }
 
         .descriptor-line {
@@ -2806,6 +2817,8 @@ const ProjectsShowContent = () => {
           text-align: right;
           gap: 10px;
         }
+        .company-block.editing :global(input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
+        .company-block.editing :global(.ant-select-selector) { direction: rtl; unicode-bidi: plaintext; }
 
         :global(.edit-invoice-button.ant-btn) {
           font-family: ${KARLA_FONT};
@@ -2917,13 +2930,14 @@ const ProjectsShowContent = () => {
         .company-autocomplete :global(.ant-select-selection-search) { margin-left: auto; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete :global(.ant-select-selection-search-input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete :global(.ant-select-selection-search-input input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
-        .company-autocomplete.flash-fill :global(.ant-select-selector) {
-          outline: 3px solid #ffffff !important;
-          animation: field-flash 700ms ease-in-out;
+        .company-autocomplete.flash-fill :global(.ant-select-selector) { animation: text-flare 600ms ease-in-out; }
+        .flash-fill.text-flash :global(input),
+        .flash-fill.text-flash :global(.ant-select-selection-item) { animation: text-flare 600ms ease-in-out; }
+        @keyframes text-flare {
+          0% { text-shadow: 0 0 0 #fff; transform: scale(1); }
+          40% { text-shadow: 0 0 8px rgba(255,255,255,0.9); transform: scale(1.01); }
+          100% { text-shadow: none; transform: scale(1); }
         }
-        .flash-fill { animation: field-flash 700ms ease-in-out; }
-        :global(.client-input.flash-fill) { animation: field-flash 700ms ease-in-out; }
-        @keyframes field-flash { 0% { filter: brightness(1.35); background: #ffffff !important; } 100% { filter: none; background: #f8fafc !important; } }
 
         :global(.client-input.ant-input::placeholder) {
           color: #94a3b8;
@@ -2989,14 +3003,11 @@ const ProjectsShowContent = () => {
         }
 
         /* Subsidiary info card top-right */
-        .subsidiary-card {
-          position: absolute;
-          top: 16px;
-          right: 16px;
-          text-align: right;
-        }
+        .subsidiary-card { position: absolute; top: 0; right: 0; text-align: right; }
         .sub-name-en { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 10px; color: #000; letter-spacing: 0.08em; }
         .sub-name-zh { font-family: 'Iansui', sans-serif; font-weight: 700; font-size: 8px; color: #000; letter-spacing: 0.08em; }
+        .sub-name-en.big { font-size: 30px; }
+        .sub-name-zh.big { font-size: 24px; }
         .sub-address { font-family: 'Cormorant Infant', serif; font-weight: 400; font-size: 7px; color: #000; }
         .sub-contact { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 7px; color: #595959; }
         .sub-email, .sub-phone { letter-spacing: 0.08em; }
