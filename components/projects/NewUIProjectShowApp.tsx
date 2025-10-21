@@ -1304,6 +1304,7 @@ const ProjectsShowContent = () => {
     projectDraft.projectTitle,
     projectDraft.projectNumber,
     projectDraft.projectDateIso,
+    projectDraft.subsidiary,
   ])
 
   const handleAddItem = useCallback(() => {
@@ -1685,7 +1686,7 @@ const ProjectsShowContent = () => {
               <div className="item-display">
                 <div className="item-title-text">{title}</div>
                 {description ? (
-                  <div className="item-description" style={{ fontStyle: 'italic', color: '#374151' }}>{description}</div>
+                  <div className="item-description">{description}</div>
                 ) : null}
               </div>
             )
@@ -1705,7 +1706,6 @@ const ProjectsShowContent = () => {
                     placeholder="Type of Fee"
                     variant="borderless"
                     autoSize={{ minRows: 1, maxRows: 3 }}
-                    style={{ fontStyle: 'italic', color: '#374151' }}
                     onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
                   />
                 </div>
@@ -1979,7 +1979,7 @@ const ProjectsShowContent = () => {
                     style={{ width: "100%", maxWidth: 560 }}
                   />
                 ) : (
-                  <Text className="project-nature" style={{ fontStyle: 'italic' }}>{stringOrNA(project.projectNature)}</Text>
+                  <Text className="project-nature"><em>{stringOrNA(project.projectNature)}</em></Text>
                 )}
               </div>
               {isProjectEditing ? (
@@ -2149,7 +2149,6 @@ const ProjectsShowContent = () => {
                                   placeholder="Bank"
                                   size="small"
                                   value={selectedBankCode ?? undefined}
-                                  optionLabelProp="collapsedLabel"
                                   onChange={async (code: string) => {
                                     setSelectedBankCode(code)
                                     const found = (bankList ?? []).find((b) => b.bankCode === code)
@@ -2162,14 +2161,16 @@ const ProjectsShowContent = () => {
                                   }}
                                   options={(bankList ?? []).map((b) => ({
                                     value: b.bankCode,
-                                    label: `${b.bankName} (${b.bankCode})`,
-                                    collapsedLabel: (
-                                      <div className="bank-selected" title={`${b.bankName} (${b.bankCode})`}>
-                                        <span className="bank-selected-name">{b.bankName}</span>
-                                        <span className="bank-selected-code">({b.bankCode})</span>
-                                      </div>
-                                    ),
+                                    label: b.bankName,
                                   }))}
+                                  optionRender={(option) => {
+                                    const label = `${option.value} ${option.label}`;
+                                    return (
+                                      <div className="bank-option-label-fade" title={label}>
+                                        {label}
+                                      </div>
+                                    );
+                                  }}
                                   style={{ width: 160 }}
                                   popupMatchSelectWidth={false}
                                 />
@@ -2642,10 +2643,12 @@ const ProjectsShowContent = () => {
           display: block;
           font-family: ${KARLA_FONT};
           font-weight: 500;
-          font-style: italic !important;
           color: #475569;
           line-height: 1.1;
           margin: 0;
+        }
+        .project-nature em {
+          font-style: italic;
         }
 
         .project-nature-input {
@@ -2923,6 +2926,12 @@ const ProjectsShowContent = () => {
         .company-autocomplete :global(.ant-select-selection-search) { margin-left: auto; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete :global(.ant-select-selection-search-input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete :global(.ant-select-selection-search-input input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
+        .company-autocomplete textarea { text-align: right !important; }
+        .company-autocomplete.flash-fill :global(.ant-select-selector), .flash-fill { animation: flash-fill 900ms ease-in-out; }
+        @keyframes flash-fill {
+          0%, 100% { background-color: #f8fafc; box-shadow: inset 0 0 0 1px #cbd5f5; }
+          50% { background-color: #ffffff; box-shadow: inset 0 0 0 2px #3b82f6; }
+        }
         .company-autocomplete.flash-fill :global(.ant-select-selection-item) { animation: text-flare 600ms ease-out; }
         .flash-fill.text-flash :global(input) { animation: text-flare 600ms ease-out; }
         @keyframes text-flare {
@@ -3157,6 +3166,12 @@ const ProjectsShowContent = () => {
         .bank-option-code {
           flex: 0 0 auto;
           margin-left: 8px;
+        }
+
+        .bank-option-label-fade {
+          white-space: nowrap;
+          overflow: hidden;
+          mask-image: linear-gradient(to right, black 90%, transparent 100%);
         }
 
         /* Collapsed selection: wrapped name + code at right with soft fade */
