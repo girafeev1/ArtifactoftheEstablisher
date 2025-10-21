@@ -40,6 +40,7 @@ import {
   type NormalizedProject,
 } from "./projectUtils"
 import { generateSequentialProjectNumber, sanitizeText, toIsoUtcStringOrNull } from "../projectdialog/projectFormUtils"
+import { fetchSubsidiaryById } from "../../lib/subsidiaries"
 
 if (typeof window === "undefined") {
   console.info("[projects] Module loaded", {
@@ -425,6 +426,7 @@ const ProjectsContent = () => {
   const [createYear, setCreateYear] = useState<string | undefined>(undefined)
   const [createNumbersLoading, setCreateNumbersLoading] = useState(false)
   const [createSubmitting, setCreateSubmitting] = useState(false)
+  const [subsidiaryMap, setSubsidiaryMap] = useState<Record<string, string>>({})
   const [editingProjectNumber, setEditingProjectNumber] = useState(false)
   const [createFormTouched, setCreateFormTouched] = useState(false)
 
@@ -793,7 +795,7 @@ const ProjectsContent = () => {
         render: (_: string | null, record: ProjectRow) => (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {record.subsidiary ? (
-              <Tag style={subsidiaryTagStyle}>{stringOrNA(record.subsidiary)}</Tag>
+              <Tag style={subsidiaryTagStyle}>{stringOrNA(subsidiaryMap[record.subsidiary] || record.subsidiary)}</Tag>
             ) : null}
             <span style={primaryRowTextStyle}>{stringOrNA(record.clientCompany)}</span>
           </div>
@@ -858,6 +860,25 @@ const ProjectsContent = () => {
       message.error(messageText)
     }
   }, [message, tableQuery?.error])
+
+  // Build map of subsidiary identifier -> englishName for current rows
+  useEffect(() => {
+    const run = async () => {
+      const rows = (tableQuery?.data?.data || []) as ProjectRow[]
+      const uniq = Array.from(new Set(rows.map(r => (r.subsidiary || '').trim()).filter(Boolean)))
+      if (uniq.length === 0) return
+      const next: Record<string, string> = { ...subsidiaryMap }
+      await Promise.all(uniq.map(async (id) => {
+        if (!next[id]) {
+          const info = await fetchSubsidiaryById(id).catch(() => null)
+          if (info?.englishName) next[id] = info.englishName
+        }
+      }))
+      setSubsidiaryMap(next)
+    }
+    void run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableQuery?.data?.data])
 
   return (
     <div
