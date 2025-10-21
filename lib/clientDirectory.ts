@@ -280,13 +280,17 @@ export const updateClientInDirectory = async ({
 
   const logsCollection = collection(docRef, CLIENT_LOG_COLLECTION)
   await Promise.all(
-    changedFields.map((field) =>
-      addDoc(logsCollection, {
+    changedFields.map((field) => {
+      const oldValue = snapshot.get(field)
+      const newValue = updatePayload[field]
+      return addDoc(logsCollection, {
         field,
+        oldValue,
+        newValue,
         editedBy,
         timestamp: serverTimestamp(),
       })
-    )
+    })
   )
 
   return { updatedFields: changedFields }

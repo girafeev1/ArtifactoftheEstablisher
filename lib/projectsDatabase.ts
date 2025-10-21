@@ -518,13 +518,16 @@ export const updateProjectInDatabase = async ({
   await updateDoc(projectRef, updatePayload)
 
   const logsCollection = collection(projectRef, UPDATE_LOG_COLLECTION)
-  const logWrites = changedEntries.map(([field]) =>
-    addDoc(logsCollection, {
+  const logWrites = changedEntries.map(([field, newValue]) => {
+    const oldValue = currentData[field]
+    return addDoc(logsCollection, {
       field,
+      oldValue,
+      newValue,
       editedBy,
       timestamp: serverTimestamp(),
     })
-  )
+  })
 
   await Promise.all(logWrites)
 

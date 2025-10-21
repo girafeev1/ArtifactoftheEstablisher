@@ -2,18 +2,6 @@
 
 import { drive_v3, sheets_v4 } from 'googleapis';
 
-export interface AddressBookEntry {
-  companyName: string;
-  title: string;
-  nameAddressed: string;
-  emailAddress: string;
-  addressLine1: string;
-  addressLine2: string;
-  addressLine3: string;
-  addressLine4: string;
-  addressLine5: string;
-}
-
 export interface BankAccountRow {
   companyName: string;
   bankName: string;
@@ -22,8 +10,19 @@ export interface BankAccountRow {
   accountNumber: string;
   fpsId?: string;
   fpsEmail?: string;
-  // Remove comments field if not used; identifier is the key field for matching.
   identifier?: string;
+}
+
+export interface AddressBookEntry {
+  companyName: string;
+  title: string;
+  representative: string;
+  email: string;
+  addressLine1: string;
+  addressLine2: string;
+  addressLine3: string;
+  addressLine4: string;
+  addressLine5: string;
 }
 
 export interface SubsidiaryData {
@@ -103,7 +102,7 @@ export async function fetchAddressBook(
     companyName: r[0] || '',
       title: r[1] || '',
       representative: r[2] || '',
-      emailAddress: r[3] || '',    addressLine1: r[4] || '',
+      email: r[3] || '',    addressLine1: r[4] || '',
     addressLine2: r[5] || '',
     addressLine3: r[6] || '',
     addressLine4: r[7] || '',
