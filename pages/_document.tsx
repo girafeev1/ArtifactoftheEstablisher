@@ -11,7 +11,7 @@ class MyDocument extends Document {
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
           <link
             rel="stylesheet"
-            href="https://fonts.googleapis.com/css2?family=Iansui&family=Yuji+Mai&family=Karla:wght@200;300;400;500;600;700&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Iansui:wght@400;700&family=Yuji+Mai:wght@400;700&family=Cormorant+Infant:wght@400;700&family=Karla:wght@200;300;400;500;600;700&display=swap"
           />
         </Head>
         <body>

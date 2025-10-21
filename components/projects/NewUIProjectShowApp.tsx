@@ -35,6 +35,7 @@ import type { ProjectRecord } from "../../lib/projectsDatabase"
 import type { ProjectInvoiceRecord } from "../../lib/projectInvoices"
 import dayjs, { type Dayjs } from "dayjs"
 import { resolveBankAccountIdentifier, listBanks, listAccounts, lookupAccount, type BankInfo, type AccountInfo } from "../../lib/erlDirectory"
+import { fetchSubsidiaryById } from "../../lib/subsidiaries"
 
 import AppShell from "../new-ui/AppShell"
 import {
@@ -164,6 +165,8 @@ const renderMixed = (text: string | null | undefined, zhClass: string, enClass: 
     <span key={`${p.key}-${i}`} className={p.zh ? zhClass : enClass}>{p.text}</span>
   ))
 }
+
+const spaceify = (value: string) => value.split('').join(' ')
 
 type InvoiceTableRow = {
   key: string
@@ -415,6 +418,16 @@ const ProjectsShowContent = () => {
   const [flashClientFields, setFlashClientFields] = useState(false)
   const lastMatchedCompanyRef = useRef<string | null>(null)
   const itemIdRef = useRef(0)
+  const [subsidiaryInfo, setSubsidiaryInfo] = useState<{
+    englishName?: string
+    chineseName?: string
+    addressLine1?: string
+    addressLine2?: string
+    addressLine3?: string
+    region?: string
+    email?: string
+    phone?: string
+  } | null>(null)
 
   const projectId = useMemo(() => {
     const raw = router.query.projectId
@@ -499,6 +512,17 @@ const ProjectsShowContent = () => {
       controller.abort()
     }
   }, [loadProject, router.isReady])
+
+  // Fetch subsidiary info for header card
+  useEffect(() => {
+    const run = async () => {
+      const id = project?.subsidiary?.trim()
+      if (!id) { setSubsidiaryInfo(null); return }
+      const info = await fetchSubsidiaryById(id)
+      setSubsidiaryInfo(info)
+    }
+    void run()
+  }, [project?.subsidiary])
 
   // Resolve bank identifiers (paidTo) into bank name/account type for display
   useEffect(() => {
@@ -2119,16 +2143,23 @@ const ProjectsShowContent = () => {
                                       setAccountList([])
                                     }
                                   }}
+                                  optionLabelProp="label"
+                                  optionFilterProp="title"
                                   options={(bankList ?? []).map((b) => ({
                                     value: b.bankCode,
-                                    label: `${b.bankName} (${b.bankCode})`,
-                                  }))}
+                                    title: `${b.bankName} (${b.bankCode})`,
+                                    label: (
+                                      <div className="bank-selected" title={`${b.bankName} (${b.bankCode})`}>
+                                        <span className="bank-selected-name">{b.bankName}</span>
+                                        <span className="bank-selected-code">({b.bankCode})</span>
+                                      </div>
+                                    ),
+                                    data: { bankName: b.bankName, bankCode: b.bankCode },
+                                  })) as any}
                                   // Render combined bank name + code in one line for dropdown items only
                                   optionRender={(option: any) => {
-                                    const labelStr = typeof option.label === 'string' ? option.label : ''
-                                    const match = labelStr.match(/^(.*)\s+\((\d{3})\)\s*$/)
-                                    const name = (match ? match[1] : labelStr).trim()
-                                    const code = (match ? match[2] : String(option.value ?? ''))
+                                    const name = option?.data?.bankName ?? ''
+                                    const code = option?.data?.bankCode ?? String(option.value ?? '')
                                     return (
                                       <div className="bank-option">
                                         <span className="bank-option-name">{name}</span>
@@ -2407,6 +2438,28 @@ const ProjectsShowContent = () => {
             </div>
           </div>
         </Card>
+        {subsidiaryInfo ? (
+          <div className="subsidiary-card">
+            {subsidiaryInfo.englishName ? (
+              <div className="sub-name-en">{spaceify(subsidiaryInfo.englishName)}</div>
+            ) : null}
+            {subsidiaryInfo.chineseName ? (
+              <div className="sub-name-zh">{spaceify(subsidiaryInfo.chineseName)}</div>
+            ) : null}
+            <div className="sub-address">
+              {subsidiaryInfo.addressLine1 || ''}
+              {subsidiaryInfo.addressLine2 ? (<><br />{subsidiaryInfo.addressLine2}</>) : null}
+              {subsidiaryInfo.addressLine3 ? (<><br />{subsidiaryInfo.addressLine3}</>) : null}
+              {subsidiaryInfo.region ? (<><br />{subsidiaryInfo.region}, Hong Kong</>) : null}
+            </div>
+            {(subsidiaryInfo.email || subsidiaryInfo.phone) ? (
+              <div className="sub-contact">
+                {subsidiaryInfo.email ? <div className="sub-email">{spaceify(subsidiaryInfo.email)}</div> : null}
+                {subsidiaryInfo.phone ? <div className="sub-phone">{spaceify(String(subsidiaryInfo.phone))}</div> : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </Space>
       </div>
       {/* eslint-disable-next-line react/no-unknown-property */}
@@ -2934,6 +2987,20 @@ const ProjectsShowContent = () => {
           gap: 16px;
           flex: 1;
         }
+
+        /* Subsidiary info card top-right */
+        .subsidiary-card {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          text-align: right;
+        }
+        .sub-name-en { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 10px; color: #000; letter-spacing: 0.08em; }
+        .sub-name-zh { font-family: 'Iansui', sans-serif; font-weight: 700; font-size: 8px; color: #000; letter-spacing: 0.08em; }
+        .sub-address { font-family: 'Cormorant Infant', serif; font-weight: 400; font-size: 7px; color: #000; }
+        .sub-contact { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 7px; color: #595959; }
+        .sub-email, .sub-phone { letter-spacing: 0.08em; }
+
 
         .billing-layout {
           display: grid;
