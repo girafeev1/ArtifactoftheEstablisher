@@ -39,8 +39,38 @@ import {
   stringOrNA,
   type NormalizedProject,
 } from "./projectUtils"
-import { generateSequentialProjectNumber, sanitizeText, toIsoUtcStringOrNull } from "../projectdialog/projectFormUtils"
+
 import { fetchSubsidiaryById } from "../../lib/subsidiaries"
+
+const sanitizeText = (value: string | null | undefined): string | null => {
+  if (typeof value !== "string") {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+const toIsoUtcStringOrNull = (value: string | null | undefined): string | null => {
+  if (typeof value !== "string") {
+    return null
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+  return parsed.toISOString()
+}
+
+const generateSequentialProjectNumber = (year: string, existingNumbers: string[]): string => {
+  const prefix = `${year.slice(-2)}-` // e.g., "25-" for 2025
+  let counter = 1
+  let newNumber = ""
+  do {
+    newNumber = `${prefix}${String(counter).padStart(3, "0")}`
+    counter++
+  } while (existingNumbers.includes(newNumber))
+  return newNumber
+}
 
 if (typeof window === "undefined") {
   console.info("[projects] Module loaded", {

@@ -20,7 +20,7 @@ export interface ClientDirectoryRecord {
   companyName: string
   title: string | null
   representative: string | null
-  emailAddress: string | null
+  email: string | null
   phone: string | null
   addressLine1: string | null
   addressLine2: string | null
@@ -111,7 +111,7 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
         companyName,
         title,
         representative,
-        emailAddress: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
+        email: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
         phone: sanitizeString(data.phone),
         addressLine1: sanitizeString(data.addressLine1),
         addressLine2: sanitizeString(data.addressLine2),
@@ -157,7 +157,7 @@ export interface ClientDirectoryWriteInput {
   companyName: string
   title?: string | null
   representative?: string | null
-  emailAddress?: string | null
+  email?: string | null
   phone?: string | null
   addressLine1?: string | null
   addressLine2?: string | null
@@ -180,7 +180,7 @@ const buildClientDocument = (input: ClientDirectoryWriteInput, options?: { fallb
     companyName: sanitizeWriteValue(input.companyName) ?? '',
     title: sanitizeWriteValue(input.title),
     representative,
-    emailAddress: sanitizeWriteValue(input.emailAddress),
+    email: sanitizeWriteValue(input.email),
     phone: sanitizeWriteValue(input.phone),
     addressLine1: sanitizeWriteValue(input.addressLine1),
     addressLine2: sanitizeWriteValue(input.addressLine2),

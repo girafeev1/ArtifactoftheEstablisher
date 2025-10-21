@@ -82,7 +82,7 @@ type ClientDetailsFormValues = {
   companyName: string
   title?: string | null
   representative?: string | null
-  emailAddress?: string | null
+  email?: string | null
   phone?: string | null
   addressLine1?: string | null
   addressLine2?: string | null
@@ -91,7 +91,7 @@ type ClientDetailsFormValues = {
 }
 
 type AddClientFormValues = Required<
-  Pick<ClientDetailsFormValues, "companyName" | "title" | "representative" | "emailAddress" | "region">
+  Pick<ClientDetailsFormValues, "companyName" | "title" | "representative" | "email" | "region">
 > &
   Partial<Pick<ClientDetailsFormValues, "phone" | "addressLine1" | "addressLine2" | "addressLine3">>
 
@@ -192,7 +192,7 @@ const normalizeRecord = (raw: DirectoryApiRecord, index: number): ClientAccountR
     displayName,
     baseName,
     honorific,
-    email: toNullableString(raw.emailAddress),
+    email: toNullableString(raw.email),
     phone: toNullableString(raw.phone),
     addressLine1: toNullableString(raw.addressLine1),
     addressLine2: toNullableString(raw.addressLine2),
@@ -762,7 +762,7 @@ const ClientDetailsDrawer = ({
     companyName: entry.source.companyName ?? entry.company.name,
     title: entry.source.title ?? entry.honorific ?? null,
     representative: entry.source.representative ?? entry.baseName ?? null,
-    emailAddress: entry.source.emailAddress ?? entry.email ?? null,
+    email: entry.source.email ?? entry.email ?? null,
     phone: entry.source.phone ?? entry.phone ?? null,
     addressLine1: entry.source.addressLine1 ?? entry.addressLine1 ?? null,
     addressLine2: entry.source.addressLine2 ?? entry.addressLine2 ?? null,
@@ -933,7 +933,7 @@ const ClientDetailsDrawer = ({
                   <Input placeholder="Enter representative name" />
                 </Form.Item>
               </div>
-              <Form.Item label="Email" name="emailAddress" rules={[{ type: "email", message: "Enter a valid email" }]}> 
+              <Form.Item label="Email" name="email" rules={[{ type: "email", message: "Enter a valid email" }]}> 
                 <Input placeholder="Enter email" type="email" />
               </Form.Item>
               <Form.Item label="Phone" name="phone">
@@ -1075,7 +1075,7 @@ const AddClientModal = ({
             <Input placeholder="Representative name" />
           </Form.Item>
         </div>
-        <Form.Item label="Email" name="emailAddress">
+        <Form.Item label="Email" name="email">
           <Input placeholder="Email" type="email" />
         </Form.Item>
         <Form.Item label="Phone" name="phone">
@@ -1252,7 +1252,7 @@ const ClientAccountsContent = () => {
             companyName: values.companyName,
             title: values.title,
             representative: values.representative,
-            emailAddress: values.emailAddress,
+            email: values.email,
             phone: values.phone,
             addressLine1: values.addressLine1,
             addressLine2: values.addressLine2,
@@ -1291,7 +1291,7 @@ const ClientAccountsContent = () => {
             companyName: values.companyName,
             title: values.title,
             representative: values.representative,
-            emailAddress: values.emailAddress,
+            email: values.email,
             phone: values.phone,
             addressLine1: values.addressLine1,
             addressLine2: values.addressLine2,

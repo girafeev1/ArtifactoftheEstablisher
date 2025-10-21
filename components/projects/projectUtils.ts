@@ -16,6 +16,7 @@ export type NormalizedClient = {
   addressLine3: string | null
   region: string | null
   representative: string | null
+  email: string | null
 }
 
 const trimOrNull = (value: string | null | undefined) => {
@@ -116,6 +117,7 @@ export const normalizeProject = (record: ProjectRecord): NormalizedProject => {
 export const normalizeClient = (record: ClientDirectoryRecord): NormalizedClient => {
   const companyName = trimOrNull(record.companyName)
   const representative = trimOrNull(record.representative)
+  const email = trimOrNull(record.email)
 
   return {
     companyName,
@@ -124,6 +126,7 @@ export const normalizeClient = (record: ClientDirectoryRecord): NormalizedClient
     addressLine3: trimOrNull(record.addressLine3),
     region: trimOrNull(record.region ?? record.addressLine5 ?? null),
     representative,
+    email,
   }
 }
 
