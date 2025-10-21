@@ -169,7 +169,7 @@ const renderMixed = (text: string | null | undefined, zhClass: string, enClass: 
 const spaceify = (value: string) => (
   value
     .split('')
-    .map((ch) => (ch === ' ' ? '  ' : `${ch} `))
+    .map((ch) => (ch === ' ' ? '   ' : `${ch} `))
     .join('')
     .trim()
 )
@@ -411,6 +411,7 @@ const ProjectsShowContent = () => {
     subsidiary: "",
   })
   const [invoiceNumberEditing, setInvoiceNumberEditing] = useState(false)
+  const [isManagingInvoices, setIsManagingInvoices] = useState(false)
   // Equalize status button widths to the longest label
   const statusButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [statusButtonWidth, setStatusButtonWidth] = useState<number | undefined>(undefined)
@@ -434,6 +435,7 @@ const ProjectsShowContent = () => {
     email?: string
     phone?: string
   } | null>(null)
+  const [isSubsidiaryDropdownOpen, setIsSubsidiaryDropdownOpen] = useState(false)
 
   const projectId = useMemo(() => {
     const raw = router.query.projectId
@@ -529,6 +531,8 @@ const ProjectsShowContent = () => {
     }
     void run()
   }, [project?.subsidiary])
+
+
 
   // Resolve bank identifiers (paidTo) into bank name/account type for display
   useEffect(() => {
@@ -677,7 +681,7 @@ const ProjectsShowContent = () => {
     void router.push("/dashboard/new-ui/projects")
   }, [router])
 
-  const isEditingInvoice = invoiceMode !== "idle"
+  const isEditingInvoice = invoiceMode !== "idle" || isManagingInvoices
 
   const currentInvoiceRecord =
     invoiceMode === "idle" && invoices.length > 0
@@ -1725,7 +1729,7 @@ const ProjectsShowContent = () => {
         dataIndex: "unitPrice",
         title: <span className="items-heading">Unit Price</span>,
         width: 140,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1750,7 +1754,7 @@ const ProjectsShowContent = () => {
         dataIndex: "quantity",
         title: <span className="items-heading">Qty</span>,
         width: 100,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1775,7 +1779,7 @@ const ProjectsShowContent = () => {
         dataIndex: "discount",
         title: <span className="items-heading">Discount</span>,
         width: 140,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1798,7 +1802,7 @@ const ProjectsShowContent = () => {
         key: "total",
         dataIndex: "total",
         title: <span className="items-heading">Total</span>,
-        align: "right",
+        align: "left",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (_: unknown, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1850,12 +1854,28 @@ const ProjectsShowContent = () => {
           </div>
           <div className="header-block">
             {subsidiaryInfo ? (
-              <div className="subsidiary-card">
+              <div
+                className="subsidiary-card"
+                onClick={() => isProjectEditing && setIsSubsidiaryDropdownOpen(true)}
+                style={{ cursor: isProjectEditing ? "pointer" : "default" }}
+              >
                 {subsidiaryInfo.englishName ? (
                   <div className="sub-name-en big">{spaceify(subsidiaryInfo.englishName)}</div>
                 ) : null}
                 {subsidiaryInfo.chineseName ? (
                   <div className="sub-name-zh big">{spaceify(subsidiaryInfo.chineseName)}</div>
+                ) : null}
+                <div className="sub-address">
+                  {subsidiaryInfo.addressLine1 || ''}
+                  {subsidiaryInfo.addressLine2 ? (<><br />{subsidiaryInfo.addressLine2}</>) : null}
+                  {subsidiaryInfo.addressLine3 ? (<><br />{subsidiaryInfo.addressLine3}</>) : null}
+                  {subsidiaryInfo.region ? (<><br />{subsidiaryInfo.region}, Hong Kong</>) : null}
+                </div>
+                {(subsidiaryInfo.email || subsidiaryInfo.phone) ? (
+                  <div className="sub-contact">
+                    {subsidiaryInfo.email ? <div className="sub-email">{spaceify(subsidiaryInfo.email)}</div> : null}
+                    {subsidiaryInfo.phone ? <div className="sub-phone">{spaceify(String(subsidiaryInfo.phone))}</div> : null}
+                  </div>
                 ) : null}
               </div>
             ) : null}
@@ -1934,6 +1954,7 @@ const ProjectsShowContent = () => {
               </button>
             )}
           </div>
+          </div>
           <div className="title-row">
             <div className="title-content">
               {isProjectEditing ? (
@@ -1946,7 +1967,7 @@ const ProjectsShowContent = () => {
                 variant="filled"
                 className="presenter-input"
                 disabled={projectEditSaving}
-                style={{ width: "100%", maxWidth: 480, textAlign: 'right' }}
+                style={{ width: "100%", maxWidth: 480, textAlign: 'left' }}
               />
               ) : (
                 <Text className="presenter-type" style={{ display: 'block' }}>
@@ -1961,7 +1982,7 @@ const ProjectsShowContent = () => {
                   variant="filled"
                   className="project-title-input"
                   disabled={projectEditSaving}
-                  style={{ width: "100%", maxWidth: 620, textAlign: 'right' }}
+                  style={{ width: "100%", maxWidth: 620, textAlign: 'left' }}
                 />
               ) : (
                 <Title level={2} className="project-title">
@@ -1985,13 +2006,16 @@ const ProjectsShowContent = () => {
               </div>
               {isProjectEditing ? (
                 <div className="subsidiary-row">
-                  <Input
+                  <Select
+                    showSearch
                     value={projectDraft.subsidiary}
-                    onChange={(event) => handleProjectDraftChange("subsidiary", event.target.value)}
-                    placeholder="Subsidiary"
-                    variant="filled"
-                    className="subsidiary-input"
-                    disabled={projectEditSaving}
+                    placeholder="Select Subsidiary"
+                    optionFilterProp="children"
+                    onChange={(value) => handleProjectDraftChange("subsidiary", value)}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={(allSubsidiaries ?? [] as SubsidiaryData[]).map(s => ({ value: s.identifier, label: s.englishName }))}
                     style={{ width: 240 }}
                   />
                 </div>
@@ -2000,7 +2024,7 @@ const ProjectsShowContent = () => {
                   <Tag className="subsidiary-chip">{subsidiaryInfo?.englishName ? stringOrNA(subsidiaryInfo.englishName) : (project.subsidiary ? '...' : '-')}</Tag>
                 </div>
               ) : null}
-            </div>
+
           </div>
         </div>
         <div className="status-row">
@@ -2026,21 +2050,33 @@ const ProjectsShowContent = () => {
           <div className="billing-card-content">
             <div className="billing-layout">
               <section className="billing-section">
-                {(hasInvoices || invoiceMode !== "idle") ? (
+                {(hasInvoices || isManagingInvoices || invoiceMode !== "idle") ? (
                   <div className="billing-section-header">
+                    <span className="summary-label client-label">Invoice</span>
                     <Title level={5} className="section-heading">
                       Billing &amp; Payments
                     </Title>
                     {invoiceMode === "idle" ? (
                       <div className="billing-header-actions">
-                        <Button type="primary" className="add-invoice-top" onClick={() => prepareDraft("create")}>
-                          + Add Invoice
+                        <Button type="primary" className="add-invoice-top" onClick={() => {
+                          if (isManagingInvoices) {
+                            setIsManagingInvoices(false)
+                            setInvoiceMode("idle")
+                            setDraftInvoice(null)
+                          } else {
+                            setIsManagingInvoices(true)
+                            if (invoices.length === 0) {
+                              prepareDraft("create")
+                            }
+                          }
+                        }}>
+                          {isManagingInvoices ? "Done Managing Invoices" : (invoices.length > 0 ? "Manage Invoices" : "Manage Invoice")}
                         </Button>
                       </div>
                     ) : null}
                   </div>
                 ) : null}
-                {hasInvoices || invoiceMode !== "idle" ? (
+                {hasInvoices || isManagingInvoices || invoiceMode !== "idle" ? (
                   <div className="invoice-table">
                   <div className="invoice-row head">
                     <span className="invoice-cell heading">Invoice #</span>
@@ -2097,20 +2133,7 @@ const ProjectsShowContent = () => {
                                   {displayNumber}
                                 </span>
                               )}
-                            {!isPending && !isEditingRow ? (
-                              <button
-                                type="button"
-                                className="invoice-edit-trigger"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  handleBeginInvoiceRowEdit(index, entry.pending)
-                                }}
-                                disabled={invoiceMode !== "idle"}
-                                aria-label="Edit invoice"
-                              >
-                                <EditOutlined />
-                              </button>
-                            ) : null}
+
                           </div>
                           <div className="invoice-cell amount">
                             {amountText(isEditingRow ? total : entry.amount)}
@@ -2240,13 +2263,16 @@ const ProjectsShowContent = () => {
                   ) : null}
                   </div>
                 ) : null}
-                {invoiceMode === "create" && hasInvoices ? (
+                {isManagingInvoices ? (
                   <div className="billing-actions">
                     <Space size={12} wrap>
-                      <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
+                      <Button onClick={() => {
+                        handleCancelInvoice()
+                        setIsManagingInvoices(false)
+                      }} disabled={savingInvoice}>
                         Cancel
                       </Button>
-                      <Button type="primary" disabled>
+                      <Button type="primary" onClick={() => prepareDraft("create")}>
                         Add Additional Invoice
                       </Button>
                     </Space>
@@ -2340,7 +2366,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
                             handleClientFieldChange('representative', `${title} ${nameOnly}`.trim())
                           }}
                           options={[{value:'Mr.',label:'Mr.'},{value:'Ms.',label:'Ms.'},{value:'Mrs.',label:'Mrs.'}]}
-                          style={{ width: 84 }}
+                          style={{ width: 100 }}
                           popupMatchSelectWidth={false}
                         />
                         <Input
@@ -2440,28 +2466,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
             </div>
           </div>
         </Card>
-        {subsidiaryInfo ? (
-          <div className="subsidiary-card is-footer">
-            {subsidiaryInfo.englishName ? (
-              <div className="sub-name-en">{spaceify(subsidiaryInfo.englishName)}</div>
-            ) : null}
-            {subsidiaryInfo.chineseName ? (
-              <div className="sub-name-zh">{spaceify(subsidiaryInfo.chineseName)}</div>
-            ) : null}
-            <div className="sub-address">
-              {subsidiaryInfo.addressLine1 || ''}
-              {subsidiaryInfo.addressLine2 ? (<><br />{subsidiaryInfo.addressLine2}</>) : null}
-              {subsidiaryInfo.addressLine3 ? (<><br />{subsidiaryInfo.addressLine3}</>) : null}
-              {subsidiaryInfo.region ? (<><br />{subsidiaryInfo.region}, Hong Kong</>) : null}
-            </div>
-            {(subsidiaryInfo.email || subsidiaryInfo.phone) ? (
-              <div className="sub-contact">
-                {subsidiaryInfo.email ? <div className="sub-email">{spaceify(subsidiaryInfo.email)}</div> : null}
-                {subsidiaryInfo.phone ? <div className="sub-phone">{spaceify(String(subsidiaryInfo.phone))}</div> : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+
       </Space>
       </div>
       {/* eslint-disable-next-line react/no-unknown-property */}
@@ -2697,6 +2702,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           display: inline-flex;
           align-items: center;
           gap: 8px;
+          margin-top: 16px;
         }
 
         .descriptor-edit-trigger {
@@ -2930,13 +2936,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           0%, 100% { background-color: #f8fafc; box-shadow: inset 0 0 0 1px #cbd5f5; }
           50% { background-color: #ffffff; box-shadow: inset 0 0 0 2px #3b82f6; }
         }
-        .flash-fill {
-          animation: flash-fill 900ms ease-in-out;
-        }
-        @keyframes flash-fill {
-          0%, 100% { background-color: #f8fafc; }
-          50% { background-color: #ffff99; }
-        }
+
 
         :global(.client-input.ant-input::placeholder) {
           color: #94a3b8;
@@ -3025,7 +3025,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
           grid-template-areas:
-            "billing client"
+            "client billing"
             "items items";
           gap: 24px;
           align-items: stretch;
@@ -3050,6 +3050,8 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .billing-section {
           grid-area: billing;
+          align-items: flex-end;
+          text-align: right;
         }
 
         .billing-section-header {
@@ -3067,6 +3069,11 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           border-top: 1px solid #e2e8f0;
         }
 
+        .client-label {
+          font-size: 11px;
+          align-self: flex-end;
+        }
+
         .client-panel {
           grid-area: client;
           display: flex;
@@ -3076,18 +3083,6 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           padding: 8px 0 0;
           align-items: flex-end;
           text-align: right;
-        }
-
-        .client-panel.editing {
-          align-items: stretch;
-          text-align: left;
-          gap: 16px;
-          padding-top: 0;
-        }
-
-        .client-label {
-          font-size: 11px;
-          align-self: flex-end;
           margin-top: 36px; /* align with invoice header row */
         }
 
@@ -3379,8 +3374,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         }
         .item-description-edit {
           font-style: italic;
-          color: #374151;
-          font-weight: 700 !important;
+          font-weight: 300 !important;
         }
         .item-edit .ant-input-textarea textarea { font-style: italic; color: #374151; font-weight: 700 !important; }
 

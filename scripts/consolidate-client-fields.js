@@ -53,19 +53,38 @@ async function migrate() {
     const nameAddressed = data.nameAddressed
     const currentRepresentative = data.representative
 
-    const representative = nameAddressed || name || null
+    let needsUpdate = false
+    const payload = {}
 
-    // We only need to update if there's no representative or if old fields exist
-    if (representative && (!currentRepresentative || name || nameAddressed)) {
+    // If 'name' field exists, mark for deletion
+    if (name !== undefined) {
+      payload.name = FieldValue.delete()
+      needsUpdate = true
+    }
+
+    // If 'nameAddressed' field exists, mark for deletion
+    if (nameAddressed !== undefined) {
+      payload.nameAddressed = FieldValue.delete()
+      needsUpdate = true
+    }
+
+    // Only update 'representative' if it's currently undefined or null
+    if (currentRepresentative === undefined || currentRepresentative === null) {
+        const consolidatedValue = nameAddressed || name || null;
+        if (consolidatedValue !== null) { // Only set if there's a value to set
+            payload.representative = consolidatedValue;
+            needsUpdate = true;
+        } else if (currentRepresentative === undefined) { // If it's undefined and no consolidated value, set to null
+            payload.representative = null;
+            needsUpdate = true;
+        }
+    }
+
+    if (needsUpdate) {
       console.log(`[migrate] Updating doc: ${doc.id}`)
-      console.log(`  - name: ${name}, nameAddressed: ${nameAddressed}`)
-      console.log(`  -> representative: ${representative}`)
-
-      const payload = {
-        representative,
-        name: FieldValue.delete(),
-        nameAddressed: FieldValue.delete(),
-      }
+      console.log(`  - old name: ${name}, old nameAddressed: ${nameAddressed}`)
+      console.log(`  - current representative: ${currentRepresentative}`)
+      console.log(`  -> new representative (if set): ${payload.representative !== undefined ? payload.representative : currentRepresentative}`)
       batch.update(doc.ref, payload)
       updatedCount++
     }

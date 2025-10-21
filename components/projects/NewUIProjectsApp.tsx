@@ -524,7 +524,7 @@ const ProjectsContent = () => {
   const [createYear, setCreateYear] = useState<string | undefined>(undefined)
   const [createNumbersLoading, setCreateNumbersLoading] = useState(false)
   const [createSubmitting, setCreateSubmitting] = useState(false)
-  const [subsidiaryMap, setSubsidiaryMap] = useState<Record<string, string>>({})
+  const [subsidiaryMap, setSubsidiaryMap] = useState<Record<string, { englishName: string, chineseName: string }>>({})
   const [editingProjectNumber, setEditingProjectNumber] = useState(false)
   const [createFormTouched, setCreateFormTouched] = useState(false)
 
@@ -893,7 +893,9 @@ const ProjectsContent = () => {
         render: (_: string | null, record: ProjectRow) => (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {record.subsidiary ? (
-              <Tag style={subsidiaryTagStyle}>{stringOrNA(subsidiaryMap[record.subsidiary] || record.subsidiary)}</Tag>
+              <Tooltip title={subsidiaryMap[record.subsidiary]?.chineseName} placement="top">
+                <Tag style={subsidiaryTagStyle}>{stringOrNA(subsidiaryMap[record.subsidiary]?.englishName || record.subsidiary)}</Tag>
+              </Tooltip>
             ) : null}
             <span style={primaryRowTextStyle}>{stringOrNA(record.clientCompany)}</span>
           </div>
@@ -965,11 +967,11 @@ const ProjectsContent = () => {
       const rows = (tableQuery?.data?.data || []) as ProjectRow[]
       const uniq = Array.from(new Set(rows.map(r => (r.subsidiary || '').trim()).filter(Boolean)))
       if (uniq.length === 0) return
-      const next: Record<string, string> = { ...subsidiaryMap }
+      const next: Record<string, { englishName: string, chineseName: string }> = { ...subsidiaryMap }
       await Promise.all(uniq.map(async (id) => {
         if (!next[id]) {
           const info = await fetchSubsidiaryById(id).catch(() => null)
-          if (info?.englishName) next[id] = info.englishName
+          if (info?.englishName) next[id] = { englishName: info.englishName, chineseName: info.chineseName ?? '' }
         }
       }))
       setSubsidiaryMap(next)
