@@ -11,17 +11,33 @@ import {
   Box,
 } from '@mui/material';
 
-export interface ClientDetails {
-  companyName: string;
-  title: string;
-  nameAddressed: string;
-  emailAddress: string;
-  addressLine1: string;
-  addressLine2: string;
-  addressLine3: string;
-  addressLine4: string;
-  addressLine5: string;
+interface ViewClientDialogProps {
+  open: boolean;
+  client: {
+    documentId: string;
+    companyName: string;
+    title: string;
+    representative: string;
+    emailAddress: string;
+    phone: string;
+    addressLine1: string;
+    addressLine2: string;
+    addressLine3: string;
+    addressLine4: string;
+    addressLine5: string;
+  };
+  onClose: () => void;
 }
+
+const ViewClientDialog: React.FC<ViewClientDialogProps> = ({ open, client, onClose }) => {
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Client Details</DialogTitle>
+      <DialogContent>
+        <Typography variant="h6">{client.companyName}</Typography>
+        <Typography>
+          {client.title} {client.representative}
+        </Typography>
 
 interface ViewClientDialogProps {
   open: boolean;

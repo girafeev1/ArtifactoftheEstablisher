@@ -19,8 +19,7 @@ export interface ClientDirectoryRecord {
   documentId: string
   companyName: string
   title: string | null
-  name: string | null
-  nameAddressed: string | null
+  representative: string | null
   emailAddress: string | null
   phone: string | null
   addressLine1: string | null
@@ -89,17 +88,12 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
       const documentId = doc.id
       const companyName = sanitizeString(data.companyName) ?? doc.id
       const title = sanitizeString(data.title)
-      const name = sanitizeString(data.name)
-      let nameAddressed = sanitizeString(data.nameAddressed)
+      let representative = sanitizeString(data.representative)
 
-      if (!nameAddressed) {
-        nameAddressed = name ?? null
-      }
-
-      if (title && nameAddressed) {
+      if (title && representative) {
         const normalizedTitle = title.toLowerCase()
-        if (nameAddressed.toLowerCase().startsWith(normalizedTitle)) {
-          nameAddressed = nameAddressed.slice(title.length).trimStart()
+        if (representative.toLowerCase().startsWith(normalizedTitle)) {
+          representative = representative.slice(title.length).trimStart()
         }
       }
 
@@ -116,8 +110,7 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
         documentId,
         companyName,
         title,
-        name,
-        nameAddressed,
+        representative,
         emailAddress: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
         phone: sanitizeString(data.phone),
         addressLine1: sanitizeString(data.addressLine1),
@@ -163,8 +156,7 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
 export interface ClientDirectoryWriteInput {
   companyName: string
   title?: string | null
-  name?: string | null
-  nameAddressed?: string | null
+  representative?: string | null
   emailAddress?: string | null
   phone?: string | null
   addressLine1?: string | null
@@ -181,15 +173,13 @@ const CLIENT_LOG_COLLECTION = 'updateLogs'
 const sanitizeWriteValue = (value: unknown): string | null => sanitizeString(value)
 
 const buildClientDocument = (input: ClientDirectoryWriteInput, options?: { fallbackName?: string }) => {
-  const name = sanitizeWriteValue(input.name)
-  const nameAddressed =
-    sanitizeWriteValue(input.nameAddressed) ?? name ?? sanitizeWriteValue(options?.fallbackName)
+  const representative =
+    sanitizeWriteValue(input.representative) ?? sanitizeWriteValue(options?.fallbackName)
 
   return {
     companyName: sanitizeWriteValue(input.companyName) ?? '',
     title: sanitizeWriteValue(input.title),
-    name: name ?? nameAddressed,
-    nameAddressed,
+    representative,
     emailAddress: sanitizeWriteValue(input.emailAddress),
     phone: sanitizeWriteValue(input.phone),
     addressLine1: sanitizeWriteValue(input.addressLine1),

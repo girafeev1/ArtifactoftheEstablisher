@@ -81,7 +81,7 @@ type ActionHandlers = {
 type ClientDetailsFormValues = {
   companyName: string
   title?: string | null
-  nameAddressed?: string | null
+  representative?: string | null
   emailAddress?: string | null
   phone?: string | null
   addressLine1?: string | null
@@ -91,7 +91,7 @@ type ClientDetailsFormValues = {
 }
 
 type AddClientFormValues = Required<
-  Pick<ClientDetailsFormValues, "companyName" | "title" | "nameAddressed" | "emailAddress" | "region">
+  Pick<ClientDetailsFormValues, "companyName" | "title" | "representative" | "emailAddress" | "region">
 > &
   Partial<Pick<ClientDetailsFormValues, "phone" | "addressLine1" | "addressLine2" | "addressLine3">>
 
@@ -183,7 +183,7 @@ const normalizeRecord = (raw: DirectoryApiRecord, index: number): ClientAccountR
   const companyName = toNullableString(raw.companyName)
   const companyDisplay = formatDisplayValue(companyName)
   const honorific = toNullableString(raw.title)
-  const baseName = toNullableString(raw.nameAddressed) ?? toNullableString(raw.name)
+  const baseName = toNullableString(raw.representative)
   const displayName = composeDisplayName(baseName, honorific, companyDisplay)
   const companyInitial = getCompanyInitial(companyDisplay)
 
@@ -761,7 +761,7 @@ const ClientDetailsDrawer = ({
   const hydrateValues = (entry: ClientAccountRow): ClientDetailsFormValues => ({
     companyName: entry.source.companyName ?? entry.company.name,
     title: entry.source.title ?? entry.honorific ?? null,
-    nameAddressed: entry.source.nameAddressed ?? entry.baseName ?? null,
+    representative: entry.source.representative ?? entry.baseName ?? null,
     emailAddress: entry.source.emailAddress ?? entry.email ?? null,
     phone: entry.source.phone ?? entry.phone ?? null,
     addressLine1: entry.source.addressLine1 ?? entry.addressLine1 ?? null,
@@ -926,7 +926,7 @@ const ClientDetailsDrawer = ({
                 </Form.Item>
                 <Form.Item
                   label="Representative"
-                  name="nameAddressed"
+                  name="representative"
                   style={{ flex: 1, minWidth: 200 }}
                   rules={[{ required: true, message: "Representative name is required" }]}
                 >
@@ -1069,7 +1069,7 @@ const AddClientModal = ({
           </Form.Item>
           <Form.Item
             label="Representative"
-            name="nameAddressed"
+            name="representative"
             style={{ flex: 1, minWidth: 200 }}
           >
             <Input placeholder="Representative name" />
@@ -1251,8 +1251,7 @@ const ClientAccountsContent = () => {
           client: {
             companyName: values.companyName,
             title: values.title,
-            nameAddressed: values.nameAddressed,
-            name: values.nameAddressed,
+            representative: values.representative,
             emailAddress: values.emailAddress,
             phone: values.phone,
             addressLine1: values.addressLine1,
@@ -1291,8 +1290,7 @@ const ClientAccountsContent = () => {
           updates: {
             companyName: values.companyName,
             title: values.title,
-            nameAddressed: values.nameAddressed,
-            name: values.nameAddressed,
+            representative: values.representative,
             emailAddress: values.emailAddress,
             phone: values.phone,
             addressLine1: values.addressLine1,

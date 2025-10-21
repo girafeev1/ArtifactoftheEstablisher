@@ -115,7 +115,7 @@ export const normalizeProject = (record: ProjectRecord): NormalizedProject => {
 
 export const normalizeClient = (record: ClientDirectoryRecord): NormalizedClient => {
   const companyName = trimOrNull(record.companyName)
-  const representative = trimOrNull(record.nameAddressed) ?? trimOrNull(record.name)
+  const representative = trimOrNull(record.representative)
 
   return {
     companyName,

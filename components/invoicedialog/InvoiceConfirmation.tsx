@@ -51,7 +51,7 @@ export default function InvoiceConfirmation({ open, onClose, onConfirm, basicInf
         <Box sx={{ mb: 2 }}>
           <Typography variant="subtitle1">Bill To</Typography>
           <Typography>{billTo.companyName}</Typography>
-          <Typography>{billTo.title} {billTo.nameAddressed}</Typography>
+          <Typography>{billTo.title} {billTo.representative}</Typography>
           <Typography>{billTo.addressLine1}</Typography>
           <Typography>{billTo.addressLine2}</Typography>
           <Typography>{billTo.addressLine3}</Typography>

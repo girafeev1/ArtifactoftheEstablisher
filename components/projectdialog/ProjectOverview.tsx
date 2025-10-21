@@ -22,10 +22,10 @@ export interface ProjectData {
   invoiceUrl?: string;
 }
 
-export interface ClientEntry {
+interface Client {
   companyName: string;
   title: string;
-  nameAddressed: string;
+  representative: string;
   emailAddress: string;
   addressLine1: string;
   addressLine2: string;

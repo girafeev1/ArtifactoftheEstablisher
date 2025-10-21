@@ -172,11 +172,21 @@ export default function DatabasePage({ clients, bankAccounts, error }: DatabaseP
               {filteredClients.map((entry, idx) => (
                 <ListItem key={`${entry.companyName}-${idx}`} disablePadding>
                   <ListItemButton onClick={() => handleClientClick(entry)}>
+                    interface ClientEntry {
+                      companyName: string;
+                      title: string;
+                      representative: string;
+                      emailAddress: string;
+                      phone: string;
+                      address: string;
+                    }
+                    
+                    // ... (other code)
+                    
                     <ListItemText
                       primary={entry.companyName}
-                      secondary={`${entry.title} ${entry.nameAddressed} - ${entry.emailAddress}`}
-                    />
-                  </ListItemButton>
+                      secondary={`${entry.title} ${entry.representative} - ${entry.emailAddress}`}
+                    />                  </ListItemButton>
                 </ListItem>
               ))}
             </List>

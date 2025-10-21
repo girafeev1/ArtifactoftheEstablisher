@@ -101,10 +101,9 @@ export async function fetchAddressBook(
   const rows = resp.data.values || [];
   return rows.map((r) => ({
     companyName: r[0] || '',
-    title: r[1] || '',
-    nameAddressed: r[2] || '',
-    emailAddress: r[3] || '',
-    addressLine1: r[4] || '',
+      title: r[1] || '',
+      representative: r[2] || '',
+      emailAddress: r[3] || '',    addressLine1: r[4] || '',
     addressLine2: r[5] || '',
     addressLine3: r[6] || '',
     addressLine4: r[7] || '',

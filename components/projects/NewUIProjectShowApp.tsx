@@ -723,7 +723,7 @@ const ProjectsShowContent = () => {
                   addressLine2: current.addressLine2 ?? (match.addressLine2 ?? null),
                   addressLine3: current.addressLine3 ?? (match.addressLine3 ?? null),
                   region: current.region ?? (match.region ?? (match as any).addressLine5 ?? null),
-                  representative: current.representative ?? ((match.title ? `${match.title} ` : '') + (match.nameAddressed ?? match.name ?? '')),
+                  representative: current.representative ?? ((match.title ? `${match.title} ` : '') + (match.representative ?? '')),
                 },
               }
             })
@@ -2277,7 +2277,7 @@ const ProjectsShowContent = () => {
                                   addressLine2: match.addressLine2 ?? null,
                                   addressLine3: match.addressLine3 ?? null,
                                   region: match.region ?? (match as any).addressLine5 ?? null,
-                                  representative: (match.title ? `${match.title} ` : '') + (match.nameAddressed ?? match.name ?? ''),
+                                  representative: (match.title ? `${match.title} ` : '') + (match.representative ?? ''),
                                 },
                               }
                             })
