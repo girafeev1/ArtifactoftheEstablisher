@@ -2148,11 +2148,10 @@ const ProjectsShowContent = () => {
                                 <Select
                                   placeholder="Bank"
                                   size="small"
-                                  value={selectedBankCode ? { value: selectedBankCode } : undefined}
-                                  labelInValue
-                                  onChange={async (option) => {
-                                    const code = option?.value
-                                    setSelectedBankCode(code ?? null)
+                                  value={selectedBankCode ?? undefined}
+                                  optionLabelProp="collapsedLabel"
+                                  onChange={async (code: string) => {
+                                    setSelectedBankCode(code)
                                     const found = (bankList ?? []).find((b) => b.bankCode === code)
                                     if (found) {
                                       const accounts = await listAccounts(found)
@@ -2163,23 +2162,16 @@ const ProjectsShowContent = () => {
                                   }}
                                   options={(bankList ?? []).map((b) => ({
                                     value: b.bankCode,
-                                    label: (
-                                      <div className="bank-option">
-                                        <span className="bank-option-name">{b.bankName}</span>
-                                        <span className="bank-option-code">({b.bankCode})</span>
+                                    label: `${b.bankName} (${b.bankCode})`,
+                                    collapsedLabel: (
+                                      <div className="bank-selected" title={`${b.bankName} (${b.bankCode})`}>
+                                        <span className="bank-selected-name">{b.bankName}</span>
+                                        <span className="bank-selected-code">({b.bankCode})</span>
                                       </div>
                                     ),
-                                    bankName: b.bankName,
-                                    bankCode: b.bankCode,
                                   }))}
-                                  tagRender={() => null}
-                                  dropdownRender={(menu) => menu}
                                   style={{ width: 160 }}
                                   popupMatchSelectWidth={false}
-                                  suffixIcon={null}
-                                  showArrow
-                                  virtual={false}
-                                  optionRender={(option) => option.label}
                                 />
                                 <Select
                                   placeholder="Account"
