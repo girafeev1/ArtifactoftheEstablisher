@@ -308,7 +308,7 @@ const AppShell = ({
   resources,
   allowedMenuKeys,
 }: AppShellProps) => {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
   const screens = Grid.useBreakpoint()
   const isMobile = typeof screens.lg === "undefined" ? false : !screens.lg
 

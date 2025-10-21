@@ -3,6 +3,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -554,11 +555,11 @@ export const deleteProjectInDatabase = async ({ year, projectId }: ProjectDelete
       const subRef = collection(projectRef, cid)
       const docs = await getDocs(subRef)
       for (const d of docs.docs) {
-        await d.ref.delete().catch(() => {})
+        await deleteDoc(d.ref).catch(() => {})
       }
     }
   } catch {}
 
-  await projectRef.delete()
+  await deleteDoc(projectRef)
   return { deleted: true }
 }

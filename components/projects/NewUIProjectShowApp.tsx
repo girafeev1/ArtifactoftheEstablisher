@@ -13,6 +13,7 @@ import {
   Card,
   Col,
   DatePicker,
+  Modal,
   Empty,
   Input,
   InputNumber,
@@ -23,6 +24,8 @@ import {
   Table,
   Tag,
   Typography,
+  AutoComplete,
+  Tooltip,
 } from "antd"
 import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons"
 import { fetchClientsDirectory } from "../../lib/clientDirectory"
@@ -49,6 +52,8 @@ import { projectsDataProvider } from "./NewUIProjectsApp"
 const { Title, Text } = Typography
 
 const KARLA_FONT = "'Karla', sans-serif"
+const IANSUI_FONT = "'Iansui', 'Karla', sans-serif"
+const YUJI_MAI_FONT = "'Yuji Mai', 'Karla', serif"
 const STATUS_STEPS = ["Project Saved", "Invoice Drafted", "Payment Received"] as const
 const paymentPalette = {
   green: { backgroundColor: "#dcfce7", color: "#166534" },
@@ -134,6 +139,30 @@ type ProjectDraftState = {
   projectNumber: string
   projectDateIso: string | null
   subsidiary: string
+}
+
+const isCjk = (ch: string) => /[\u3400-\u9FFF\uF900-\uFAFF]/.test(ch)
+
+const renderMixed = (text: string | null | undefined, zhClass: string, enClass: string) => {
+  const value = (text ?? '').toString()
+  if (!value) return null
+  const parts: Array<{ key: string; text: string; zh: boolean }> = []
+  let buf = ''
+  let zh = isCjk(value[0] ?? '')
+  for (const ch of value) {
+    const nextZh = isCjk(ch)
+    if (nextZh !== zh) {
+      parts.push({ key: `${parts.length}`, text: buf, zh })
+      buf = ch
+      zh = nextZh
+    } else {
+      buf += ch
+    }
+  }
+  if (buf) parts.push({ key: `${parts.length}`, text: buf, zh })
+  return parts.map((p, i) => (
+    <span key={`${p.key}-${i}`} className={p.zh ? zhClass : enClass}>{p.text}</span>
+  ))
 }
 
 type InvoiceTableRow = {
@@ -373,6 +402,9 @@ const ProjectsShowContent = () => {
     subsidiary: "",
   })
   const [invoiceNumberEditing, setInvoiceNumberEditing] = useState(false)
+  // Equalize status button widths to the longest label
+  const statusButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [statusButtonWidth, setStatusButtonWidth] = useState<number | undefined>(undefined)
   const [bankInfoMap, setBankInfoMap] = useState<
     Record<string, { bankName: string; bankCode?: string; accountType?: string | null }>
   >({})
@@ -380,6 +412,8 @@ const ProjectsShowContent = () => {
   const [selectedBankCode, setSelectedBankCode] = useState<string | null>(null)
   const [accountList, setAccountList] = useState<AccountInfo[] | null>(null)
   const [clientsDirectory, setClientsDirectory] = useState<ClientDirectoryRecord[] | null>(null)
+  const [flashClientFields, setFlashClientFields] = useState(false)
+  const lastMatchedCompanyRef = useRef<string | null>(null)
   const itemIdRef = useRef(0)
 
   const projectId = useMemo(() => {
@@ -575,6 +609,40 @@ const ProjectsShowContent = () => {
     }
   }, [invoiceMode])
 
+  // When a bank is selected and the account list is missing, fetch accounts
+  useEffect(() => {
+    const run = async () => {
+      if (invoiceMode === 'idle') return
+      if (!selectedBankCode) return
+      const found = (bankList ?? []).find((b) => b.bankCode === selectedBankCode)
+      if (found) {
+        const accounts = await listAccounts(found)
+        setAccountList(accounts)
+      }
+    }
+    void run()
+  }, [invoiceMode, selectedBankCode, bankList])
+
+  // Measure status buttons after render and on resize; set a uniform width
+  useEffect(() => {
+    const measure = () => {
+      const widths = statusButtonRefs.current
+        .map((el) => (el ? Math.ceil(el.getBoundingClientRect().width) : 0))
+        .filter((w) => Number.isFinite(w) && w > 0)
+      if (widths.length > 0) {
+        const max = Math.max(...widths)
+        if (!statusButtonWidth || Math.abs(max - statusButtonWidth) > 1) {
+          setStatusButtonWidth(max)
+        }
+      }
+    }
+    measure()
+    const ro = new ResizeObserver(() => measure())
+    statusButtonRefs.current.forEach((el) => el && ro.observe(el))
+    return () => ro.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project])
+
   const handleBack = useCallback(() => {
     void router.push("/dashboard/new-ui/projects")
   }, [router])
@@ -625,10 +693,35 @@ const ProjectsShowContent = () => {
                 addressLine2: current.addressLine2 ?? (match.addressLine2 ?? null),
                 addressLine3: current.addressLine3 ?? (match.addressLine3 ?? null),
                 region: current.region ?? (match.region ?? (match as any).addressLine5 ?? null),
-                representative: current.representative ?? (match.nameAddressed ?? match.name ?? null),
+                representative: current.representative ?? ((match.title ? `${match.title} ` : '') + (match.nameAddressed ?? match.name ?? '')),
               },
             }
           })
+          lastMatchedCompanyRef.current = match.companyName?.toLowerCase() ?? null
+          setFlashClientFields(true)
+          setTimeout(() => setFlashClientFields(false), 600)
+        } else {
+          // If previously matched but now no longer matches, clear autofilled fields.
+          if (lastMatchedCompanyRef.current) {
+            lastMatchedCompanyRef.current = null
+            setDraftInvoice((prev) => {
+              if (!prev) return prev
+              const current = prev.client ?? ({} as any)
+              return {
+                ...prev,
+                client: {
+                  companyName: current.companyName ?? null,
+                  addressLine1: null,
+                  addressLine2: null,
+                  addressLine3: null,
+                  region: null,
+                  representative: null,
+                },
+              }
+            })
+            setFlashClientFields(true)
+            setTimeout(() => setFlashClientFields(false), 600)
+          }
         }
       } catch {
         // ignore
@@ -770,10 +863,14 @@ const ProjectsShowContent = () => {
       const payToInfo = paidToIdentifier ? bankInfoMap[paidToIdentifier] ?? null : null
       const displayBankName = payToInfo?.bankName
         ? (() => {
-            // Build acronym for long names (>=3 tokens)
+            // Build acronym for long names (>=3 tokens), ignoring lower-case words (e.g., "and").
             const tokens = payToInfo.bankName.replace(/-/g, ' ').split(/\s+/).filter(Boolean)
             if (tokens.length >= 3) {
-              return tokens.map(t => (t[0] || '').toUpperCase()).join('')
+              const letters = tokens
+                .filter((t) => /^[A-Z]/.test(t[0] || ''))
+                .map((t) => (t[0] || '').toUpperCase())
+                .join('')
+              return letters.length >= 2 ? letters : payToInfo.bankName
             }
             return payToInfo.bankName
           })()
@@ -805,7 +902,11 @@ const ProjectsShowContent = () => {
         ? (() => {
             const tokens = pendingInfo.bankName.replace(/-/g, ' ').split(/\s+/).filter(Boolean)
             if (tokens.length >= 3) {
-              return tokens.map(t => (t[0] || '').toUpperCase()).join('')
+              const letters = tokens
+                .filter((t) => /^[A-Z]/.test(t[0] || ''))
+                .map((t) => (t[0] || '').toUpperCase())
+                .join('')
+              return letters.length >= 2 ? letters : pendingInfo.bankName
             }
             return pendingInfo.bankName
           })()
@@ -1550,36 +1651,39 @@ const ProjectsShowContent = () => {
             return (
               <div className="item-display">
                 <div className="item-title-text">{title}</div>
-                {description ? <div className="item-description">{description}</div> : null}
+                {description ? (
+                  <div className="item-description" style={{ fontStyle: 'italic', color: '#374151' }}>{description}</div>
+                ) : null}
               </div>
             )
           }
 
-          return (
-            <div className="item-edit">
-              <div className="item-edit-fields">
-                <Input
-                  value={record.title}
-                  placeholder="Item title"
-                  bordered={false}
-                  onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
-                />
-                <Input.TextArea
-                  value={record.feeType}
-                  placeholder="Description"
-                  bordered={false}
-                  autoSize={{ minRows: 1, maxRows: 3 }}
-                  onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
+            return (
+              <div className="item-edit">
+                <div className="item-edit-fields">
+                  <Input
+                    value={record.title}
+                    placeholder="Item title"
+                    variant="borderless"
+                    onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
+                  />
+                  <Input.TextArea
+                    value={record.feeType}
+                    placeholder="Type of Fee"
+                    variant="borderless"
+                    autoSize={{ minRows: 1, maxRows: 3 }}
+                    style={{ fontStyle: 'italic', color: '#374151' }}
+                    onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
+                  />
+                </div>
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => handleRemoveItem(record.key)}
                 />
               </div>
-              <Button
-                type="text"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => handleRemoveItem(record.key)}
-              />
-            </div>
-          )
+            )
         },
       },
       {
@@ -1600,7 +1704,7 @@ const ProjectsShowContent = () => {
             <InputNumber
               value={value}
               min={-1000000}
-              bordered={false}
+              variant="borderless"
               style={{ width: "100%" }}
               onChange={(next) => handleItemChange(record.key, "unitPrice", next ?? 0)}
             />
@@ -1625,7 +1729,7 @@ const ProjectsShowContent = () => {
             <InputNumber
               value={value}
               min={0}
-              bordered={false}
+              variant="borderless"
               style={{ width: "100%" }}
               onChange={(next) => handleItemChange(record.key, "quantity", next ?? 0)}
             />
@@ -1649,7 +1753,7 @@ const ProjectsShowContent = () => {
           return (
             <InputNumber
               value={value}
-              bordered={false}
+              variant="borderless"
               style={{ width: "100%" }}
               onChange={(next) => handleItemChange(record.key, "discount", next ?? 0)}
             />
@@ -1744,6 +1848,29 @@ const ProjectsShowContent = () => {
             )}
             {isProjectEditing ? (
               <div className="descriptor-actions">
+                <Button danger onClick={async () => {
+                  if (!project) return
+                  Modal.confirm({
+                    title: 'Delete this project?',
+                    content: `#${project.projectNumber} — this action cannot be undone`,
+                    okType: 'danger',
+                    async onOk() {
+                      try {
+                        const res = await fetch(`/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`, {
+                          method: 'DELETE',
+                          credentials: 'include',
+                        })
+                        if (!res.ok) throw new Error('Delete failed')
+                        message.success('Project deleted')
+                        void router.push('/dashboard/new-ui/projects')
+                      } catch (e) {
+                        message.error(e instanceof Error ? e.message : 'Delete failed')
+                      }
+                    }
+                  })
+                }} disabled={projectEditSaving}>
+                  Delete
+                </Button>
                 <Button className="project-cancel" onClick={cancelProjectEditing} disabled={projectEditSaving}>
                   Cancel
                 </Button>
@@ -1775,10 +1902,12 @@ const ProjectsShowContent = () => {
                 variant="filled"
                 className="presenter-input"
                 disabled={projectEditSaving}
-                style={{ width: "100%", maxWidth: 480 }}
+                style={{ width: "100%", maxWidth: 480, textAlign: 'right' }}
               />
               ) : (
-                <Text className="presenter-type">{stringOrNA(project.presenterWorkType)}</Text>
+                <Text className="presenter-type" style={{ textAlign: 'right', display: 'block' }}>
+                  {renderMixed(project.presenterWorkType, 'zh-presenter', 'en-presenter')}
+                </Text>
               )}
               {isProjectEditing ? (
                 <Input
@@ -1788,11 +1917,11 @@ const ProjectsShowContent = () => {
                   variant="filled"
                   className="project-title-input"
                   disabled={projectEditSaving}
-                  style={{ width: "100%", maxWidth: 620 }}
+                  style={{ width: "100%", maxWidth: 620, textAlign: 'right' }}
                 />
               ) : (
-                <Title level={2} className="project-title">
-                  {stringOrNA(project.projectTitle)}
+                <Title level={2} className="project-title" style={{ textAlign: 'right' }}>
+                  {renderMixed(project.projectTitle, 'zh-title', 'en-title')}
                 </Title>
               )}
               <div className={`nature-row ${isProjectEditing ? "editing" : ""}`}>
@@ -1807,7 +1936,7 @@ const ProjectsShowContent = () => {
                     style={{ width: "100%", maxWidth: 560 }}
                   />
                 ) : (
-                  <Text className="project-nature">{stringOrNA(project.projectNature)}</Text>
+                  <Text className="project-nature" style={{ fontStyle: 'italic' }}>{stringOrNA(project.projectNature)}</Text>
                 )}
               </div>
               {isProjectEditing ? (
@@ -1839,32 +1968,34 @@ const ProjectsShowContent = () => {
                 className={`status-button ${index === 0 ? "first" : ""} ${
                   index === STATUS_STEPS.length - 1 ? "last" : ""
                 } ${index <= paymentStatusIndex ? "done" : ""}`}
+                ref={(el) => {
+                  statusButtonRefs.current[index] = el
+                }}
+                style={statusButtonWidth ? { width: `${statusButtonWidth}px` } : undefined}
               >
                 {label}
               </button>
             ))}
           </div>
         </div>
-        <Card className="details-card billing-card" bordered={false}>
+        <Card className="details-card billing-card" variant="filled">
           <div className="billing-card-content">
             <div className="billing-layout">
               <section className="billing-section">
-                <div className="billing-section-header">
-                  <Title level={5} className="section-heading">
-                    Billing &amp; Payments
-                  </Title>
-                  {hasInvoices ? (
-                    <Button
-                      type="default"
-                      icon={<EditOutlined />}
-                      onClick={handlePrimaryInvoiceEdit}
-                      className="edit-invoice-button"
-                      disabled={invoiceEntries.length === 0 || invoiceMode === "create"}
-                    >
-                      Edit Invoice
-                    </Button>
-                  ) : null}
-                </div>
+                {(hasInvoices || invoiceMode !== "idle") ? (
+                  <div className="billing-section-header">
+                    <Title level={5} className="section-heading">
+                      Billing &amp; Payments
+                    </Title>
+                    {invoiceMode === "idle" ? (
+                      <div className="billing-header-actions">
+                        <Button type="primary" className="add-invoice-top" onClick={() => prepareDraft("create")}>
+                          Add Additional Invoice
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {hasInvoices || invoiceMode !== "idle" ? (
                   <div className="invoice-table">
                   <div className="invoice-row head">
@@ -1953,7 +2084,7 @@ const ProjectsShowContent = () => {
                                     options={ANT_INVOICE_STATUS_OPTIONS}
                                     className="invoice-status-select"
                                     popupMatchSelectWidth={false}
-                                    style={{ width: 'auto', minWidth: 120 }}
+                                    style={{ width: 'auto', minWidth: 90 }}
                                   />
                               </div>
                             ) : entry.pending ? (
@@ -1985,9 +2116,25 @@ const ProjectsShowContent = () => {
                                       setAccountList([])
                                     }
                                   }}
-                                  options={(bankList ?? []).map((b) => ({ label: `${b.bankName} (${b.bankCode})`, value: b.bankCode }))}
-                                  style={{ width: '100%', marginBottom: 6 }}
-                                  dropdownMatchSelectWidth={false}
+                                  options={(bankList ?? []).map((b) => ({
+                                    value: b.bankCode,
+                                    label: `${b.bankName} (${b.bankCode})`,
+                                  }))}
+                                  // Render combined bank name + code in one line for dropdown items only
+                                  optionRender={(option: any) => {
+                                    const labelStr = typeof option.label === 'string' ? option.label : ''
+                                    const match = labelStr.match(/^(.*)\s+\((\d{3})\)\s*$/)
+                                    const name = (match ? match[1] : labelStr).trim()
+                                    const code = (match ? match[2] : String(option.value ?? ''))
+                                    return (
+                                      <div className="bank-option">
+                                        <span className="bank-option-name">{name}</span>
+                                        <span className="bank-option-code">({code})</span>
+                                      </div>
+                                    )
+                                  }}
+                                  style={{ width: 160 }}
+                                  popupMatchSelectWidth={false}
                                 />
                                 <Select
                                   placeholder="Account"
@@ -1995,13 +2142,22 @@ const ProjectsShowContent = () => {
                                   value={draftInvoice.paidTo ?? undefined}
                                   onChange={(val: string) => handlePaidToChange(val)}
                                   options={(accountList ?? []).map((a) => ({ label: a.accountType ? `${a.accountType} Account` : 'Account', value: a.accountDocId }))}
-                                  style={{ width: '100%' }}
-                                  dropdownMatchSelectWidth={false}
+                                  style={{ width: 160 }}
+                                  popupMatchSelectWidth={false}
                                 />
                               </div>
                             ) : payToInfo ? (
                               <div className="bank-display">
-                                <span className="bank-name">{entry.displayBankName || entry.payToText}</span>
+                                <Tooltip
+                                  title={payToInfo.bankName}
+                                  mouseEnterDelay={0}
+                                  placement="topRight"
+                                  overlayStyle={{ maxWidth: 360 }}
+                                  overlayInnerStyle={{ background: '#fff8c2', color: '#0f172a', boxShadow: '0 6px 16px rgba(0,0,0,0.15)', textAlign: 'right', whiteSpace: 'normal', wordBreak: 'break-word' }}
+                                  overlayClassName="bank-tooltip"
+                                >
+                                  <span className="bank-name">{entry.displayBankName || entry.payToText}</span>
+                                </Tooltip>
                                 {payToInfo.accountType ? (
                                   <span className="account-chip">{payToInfo.accountType} Account</span>
                                 ) : null}
@@ -2019,7 +2175,7 @@ const ProjectsShowContent = () => {
                                 onChange={(v) => {
                                   handlePaidOnChange(v)
                                 }}
-                                bordered={false}
+                                variant="borderless"
                                 format="MMM DD, YYYY"
                                 placeholder="Select date"
                                 allowClear
@@ -2045,19 +2201,6 @@ const ProjectsShowContent = () => {
                     </div>
                   ) : null}
                   </div>
-                ) : (
-                  <div className="invoice-empty-row" role="region" aria-label="No invoices">
-                    <Button type="primary" onClick={() => prepareDraft("create")}>Create Invoice</Button>
-                  </div>
-                )}
-                {invoiceMode === "idle" && hasInvoices ? (
-                  <div className="billing-actions">
-                    <Space size={12} wrap>
-                      <Button type="primary" onClick={() => prepareDraft("create")}>
-                        Add Additional Invoice
-                      </Button>
-                    </Space>
-                  </div>
                 ) : null}
                 {invoiceMode === "create" && hasInvoices ? (
                   <div className="billing-actions">
@@ -2078,48 +2221,98 @@ const ProjectsShowContent = () => {
                 <div className={`company-block ${isEditingInvoice ? "editing" : ""}`}>
                   {isEditingInvoice ? (
                     <>
-                      <Input
+                      <AutoComplete
                         value={editingClient?.companyName ?? ""}
-                        onChange={(event) => handleClientFieldChange("companyName", event.target.value)}
+                        onChange={(value) => handleClientFieldChange("companyName", value)}
+                        options={(clientsDirectory ?? []).map((c) => ({ value: c.companyName }))}
+                        onSelect={(value) => {
+                          const list = clientsDirectory ?? []
+                          const match = list.find((c) => c.companyName === value)
+                          if (match) {
+                            setDraftInvoice((prev) => {
+                              if (!prev) return prev
+                              return {
+                                ...prev,
+                                client: {
+                                  companyName: match.companyName,
+                                  addressLine1: match.addressLine1 ?? null,
+                                  addressLine2: match.addressLine2 ?? null,
+                                  addressLine3: match.addressLine3 ?? null,
+                                  region: match.region ?? (match as any).addressLine5 ?? null,
+                                  representative: (match.title ? `${match.title} ` : '') + (match.nameAddressed ?? match.name ?? ''),
+                                },
+                              }
+                            })
+                            setFlashClientFields(true)
+                            setTimeout(() => setFlashClientFields(false), 600)
+                          }
+                        }}
                         placeholder="Company name"
-                        bordered={false}
-                        className="client-input company"
+                        className={`client-input company company-autocomplete ${flashClientFields ? 'flash-fill' : ''}`}
+                        style={{ textAlign: 'right', width: '100%' }}
+                        filterOption={(inputValue, option) =>
+                          String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
+                        }
                       />
                       <Input
                         value={editingClient?.addressLine1 ?? ""}
                         onChange={(event) => handleClientFieldChange("addressLine1", event.target.value)}
                         placeholder="Address line 1"
-                        bordered={false}
-                        className="client-input"
+                        variant="borderless"
+                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
+                        style={{ textAlign: 'right' }}
                       />
                       <Input
                         value={editingClient?.addressLine2 ?? ""}
                         onChange={(event) => handleClientFieldChange("addressLine2", event.target.value)}
                         placeholder="Address line 2"
-                        bordered={false}
-                        className="client-input"
+                        variant="borderless"
+                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
+                        style={{ textAlign: 'right' }}
                       />
                       <Input
                         value={editingClient?.addressLine3 ?? ""}
                         onChange={(event) => handleClientFieldChange("addressLine3", event.target.value)}
                         placeholder="Address line 3"
-                        bordered={false}
-                        className="client-input"
+                        variant="borderless"
+                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
+                        style={{ textAlign: 'right' }}
                       />
                       <Input
                         value={editingClient?.region ?? ""}
                         onChange={(event) => handleClientFieldChange("region", event.target.value)}
                         placeholder="Region"
-                        bordered={false}
-                        className="client-input"
+                        variant="borderless"
+                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
+                        style={{ textAlign: 'right' }}
                       />
-                      <Input
-                        value={editingClient?.representative ?? ""}
-                        onChange={(event) => handleClientFieldChange("representative", event.target.value)}
-                        placeholder="Attention / Representative"
-                        bordered={false}
-                        className="client-input"
-                      />
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <Select
+                          placeholder="Title"
+                          size="small"
+                          value={(() => {
+                            const rep = editingClient?.representative ?? ''
+                            const m = rep.match(/^(Mr\.|Ms\.|Mrs\.)\s+/)
+                            return m ? m[1] : undefined
+                          })()}
+                          onChange={(title: string) => {
+                            const current = editingClient?.representative ?? ''
+                            const nameOnly = current.replace(/^(Mr\.|Ms\.|Mrs\.)\s+/i, '').trim()
+                            handleClientFieldChange('representative', `${title} ${nameOnly}`.trim())
+                          }}
+                          options={[{value:'Mr.',label:'Mr.'},{value:'Ms.',label:'Ms.'},{value:'Mrs.',label:'Mrs.'}]}
+                          style={{ width: 84 }}
+                          popupMatchSelectWidth={false}
+                        />
+                        <Input
+                          value={editingClient?.representative ?? ""}
+                          onChange={(event) => handleClientFieldChange("representative", event.target.value)}
+                          placeholder="Attention / Representative"
+                          variant="borderless"
+                          className="client-input"
+                          style={{ textAlign: 'right' }}
+                        />
+                      </div>
                     </>
                   ) : (
                     <>
@@ -2129,7 +2322,7 @@ const ProjectsShowContent = () => {
                       <div className="company-line">{stringOrNA(companyLine3)}</div>
                       {resolvedClient?.representative ? (
                         <div className="company-line client-attn">
-                          <strong>Attn: {resolvedClient.representative}</strong>
+                          <strong><em>Attn:</em></strong>&nbsp;<strong>{resolvedClient.representative}</strong>
                         </div>
                       ) : null}
                     </>
@@ -2137,62 +2330,74 @@ const ProjectsShowContent = () => {
                 </div>
               </aside>
               )}
-              {(hasInvoices || invoiceMode !== "idle") && (
-              <section className="items-section">
+              <section className="items-section" style={{ borderTop: (!hasInvoices && invoiceMode === 'idle') ? 'none' : undefined, paddingTop: (!hasInvoices && invoiceMode === 'idle') ? 0 : undefined }}>
+                {!( !hasInvoices && invoiceMode === 'idle') ? (
                 <div className="items-header">
                   <Title level={5} className="section-heading">
                     Invoice Detail
                   </Title>
                 </div>
-                <Table<InvoiceTableRow>
-                  dataSource={itemsRows}
-                  columns={itemsColumns}
-                  pagination={false}
-                  rowKey="key"
-                  className="invoice-items"
-                />
-                <div className="totals-panel">
-                  <div className="totals-row">
-                    <span className="meta-label">Sub-total</span>
-                    <span className="meta-value">{amountText(subtotal)}</span>
-                  </div>
-                  <div className="totals-row">
-                    <span className="meta-label">Tax / Discount</span>
-                    {isEditingInvoice ? (
-                      <InputNumber
-                        value={taxPercent}
-                        bordered={false}
-                        onChange={handleTaxChange}
-                        className="tax-input"
-                      />
-                    ) : (
-                      <span className="meta-value">{formatPercentText(taxPercent)}</span>
-                    )}
-                  </div>
-                  <div className="totals-row total">
-                    <span className="meta-label">Total</span>
-                    <span className="meta-value">{amountText(total)}</span>
-                  </div>
-                  {taxAmount !== 0 ? (
-                    <div className="tax-hint">({amountText(taxAmount)} adjustment)</div>
-                  ) : null}
-                </div>
-                {isEditingInvoice ? (
-                  <div className="items-actions">
-                    <Space size={12}>
-                      {showInvoiceCancel ? (
-                        <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
-                          Cancel
-                        </Button>
-                      ) : null}
-                      <Button type="primary" onClick={handleSaveInvoice} loading={savingInvoice}>
-                        {invoiceMode === "create" ? "Confirm" : "Save"}
-                      </Button>
-                    </Space>
-                  </div>
                 ) : null}
+                {!hasInvoices && invoiceMode === "idle" ? (
+                  <div style={{ display:'flex', justifyContent:'center', padding: '24px 0' }}>
+                    <Button type="default" size="large" onClick={() => prepareDraft("create")}>
+                      <span className="cta-blink">Get Started</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Table<InvoiceTableRow>
+                      dataSource={itemsRows}
+                      columns={itemsColumns}
+                      pagination={false}
+                      rowKey="key"
+                      className="invoice-items"
+                    />
+                    {activeItems.length > 0 ? (
+                    <div className="totals-panel">
+                      <div className="totals-row">
+                        <span className="meta-label">Sub-total</span>
+                        <span className="meta-value">{amountText(subtotal)}</span>
+                      </div>
+                      <div className="totals-row">
+                        <span className="meta-label">Tax / Discount</span>
+                        {isEditingInvoice ? (
+                          <InputNumber
+                            value={taxPercent}
+                            variant="borderless"
+                            onChange={handleTaxChange}
+                            className="tax-input"
+                          />
+                        ) : (
+                          <span className="meta-value">{formatPercentText(taxPercent)}</span>
+                        )}
+                      </div>
+                      <div className="totals-row total">
+                        <span className="meta-label">Total</span>
+                        <span className="meta-value">{amountText(total)}</span>
+                      </div>
+                      {taxAmount !== 0 ? (
+                        <div className="tax-hint">({amountText(taxAmount)} adjustment)</div>
+                      ) : null}
+                    </div>
+                    ) : null}
+                    {isEditingInvoice ? (
+                      <div className="items-actions">
+                        <Space size={12}>
+                          {showInvoiceCancel ? (
+                            <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
+                              Cancel
+                            </Button>
+                          ) : null}
+                          <Button type="primary" onClick={handleSaveInvoice} loading={savingInvoice}>
+                            {invoiceMode === "create" ? "Confirm" : "Save"}
+                          </Button>
+                        </Space>
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </section>
-              )}
             </div>
           </div>
         </Card>
@@ -2311,6 +2516,7 @@ const ProjectsShowContent = () => {
           letter-spacing: 0.08em;
           line-height: 1;
           margin: 0;
+          text-align: right;
         }
 
         .presenter-input,
@@ -2346,7 +2552,14 @@ const ProjectsShowContent = () => {
           color: #0f172a;
           line-height: 1.01;
           padding: 0;
+          text-align: right;
         }
+
+        /* Mixed font for CJK vs Latin */
+        .zh-title { font-family: ${YUJI_MAI_FONT}; }
+        .en-title { font-family: ${KARLA_FONT}; }
+        .zh-presenter { font-family: ${IANSUI_FONT}; }
+        .en-presenter { font-family: ${KARLA_FONT}; }
 
         :global(.project-title.ant-typography) {
           margin: 0 !important;
@@ -2368,7 +2581,7 @@ const ProjectsShowContent = () => {
           display: block;
           font-family: ${KARLA_FONT};
           font-weight: 500;
-          font-style: italic;
+          font-style: italic !important;
           color: #475569;
           line-height: 1.1;
           margin: 0;
@@ -2376,7 +2589,7 @@ const ProjectsShowContent = () => {
 
         .project-nature-input {
           font-weight: 500;
-          font-style: italic;
+          font-style: italic !important;
           color: #475569;
           line-height: 1.1;
         }
@@ -2532,8 +2745,8 @@ const ProjectsShowContent = () => {
         }
 
         .company-block.editing {
-          align-items: stretch;
-          text-align: left;
+          align-items: flex-end;
+          text-align: right;
           gap: 10px;
         }
 
@@ -2628,7 +2841,30 @@ const ProjectsShowContent = () => {
         :global(.client-input.ant-input-affix-wrapper),
         :global(.client-input.ant-input-textarea) {
           background: #f8fafc;
+          text-align: right !important;
         }
+        .company-autocomplete :global(.ant-select-selector) {
+          background: #f8fafc !important;
+          box-shadow: inset 0 0 0 1px #cbd5f5;
+          border-radius: 10px;
+          padding: 3px 10px !important;
+          text-align: right;
+          display: flex;
+          justify-content: flex-end;
+        }
+        .company-autocomplete :global(.ant-select-selection-item) { width: 100%; text-align: right !important; margin-left: auto; justify-content: flex-end !important; display: flex !important; }
+        .company-autocomplete :global(.ant-select-selection-item-content) { width: 100%; text-align: right !important; display: block; }
+        .company-autocomplete :global(.ant-select-selection-placeholder) { width: 100%; text-align: right !important; }
+        .company-autocomplete :global(.ant-select-selection-search) { margin-left: auto; }
+        .company-autocomplete :global(.ant-select-selection-search-input) { text-align: right !important; }
+        .company-autocomplete :global(.ant-select-selection-search-input input) { text-align: right !important; }
+        .company-autocomplete.flash-fill :global(.ant-select-selector) {
+          outline: 3px solid #ffffff !important;
+          animation: field-flash 700ms ease-in-out;
+        }
+        .flash-fill { animation: field-flash 700ms ease-in-out; }
+        :global(.client-input.flash-fill) { animation: field-flash 700ms ease-in-out; }
+        @keyframes field-flash { 0% { filter: brightness(1.35); background: #ffffff !important; } 100% { filter: none; background: #f8fafc !important; } }
 
         :global(.client-input.ant-input::placeholder) {
           color: #94a3b8;
@@ -2779,8 +3015,8 @@ const ProjectsShowContent = () => {
           grid-template-columns:
             minmax(140px, max-content)  /* Invoice # */
             minmax(90px, max-content)   /* Amount */
-            minmax(100px, max-content)  /* Status */
-            minmax(200px, 1fr)          /* To (flex grows) */
+            minmax(90px, max-content)   /* Status */
+            minmax(200px, 200px)        /* To (fixed to prevent overlap) */
             minmax(110px, max-content); /* On */
           align-items: flex-start;
           gap: 12px;
@@ -2829,6 +3065,28 @@ const ProjectsShowContent = () => {
           gap: 8px;
           white-space: nowrap;
         }
+
+        /* Bank column and selectors should not exceed fixed width */
+        .invoice-cell.pay-to { width: 200px; }
+        .bank-selectors { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+        .bank-selectors :global(.ant-select) { width: 100%; }
+        .bank-selectors :global(.ant-select-selector) { width: 100%; }
+
+        /* Status select narrower */
+        .invoice-status-select :global(.ant-select-selector) { min-width: 90px; }
+
+        /* Bank option label with ellipsis and code visible */
+        .bank-option { display: grid; grid-template-columns: 1fr auto; gap: 8px; min-width: 0; align-items: start; }
+        .bank-option-name { min-width: 0; overflow: visible; white-space: normal; word-break: break-word; }
+        .bank-option-code {
+          flex: 0 0 auto;
+          margin-left: 8px;
+        }
+
+        /* Collapsed selection: wrapped name + code at right with soft fade */
+        .bank-selected { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; width: 100%; }
+        .bank-selected-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: clip; }
+        .bank-selected-code { flex: 0 0 auto; }
 
         .invoice-cell.pay-to {
           display: flex;
@@ -2984,6 +3242,8 @@ const ProjectsShowContent = () => {
           animation: blink 1.2s infinite;
         }
 
+        .cta-blink { animation: blink 1.2s ease-in-out infinite; font-style: italic; }
+
         .billing-actions {
           margin-top: 8px;
         }
@@ -3019,11 +3279,13 @@ const ProjectsShowContent = () => {
 
         .item-description {
           font-family: ${KARLA_FONT};
-          font-weight: 500;
+          font-weight: 300 !important;
+          font-style: italic;
           color: #374151;
           display: block;
           white-space: normal;
         }
+        .item-edit .ant-input-textarea textarea { font-style: italic; color: #374151; font-weight: 300 !important; }
 
         .item-edit {
           display: flex;
@@ -3122,6 +3384,15 @@ const ProjectsShowContent = () => {
             opacity: 0.3;
           }
         }
+
+        /* Tooltip customizations for bank tooltip */
+        :global(.bank-tooltip .ant-tooltip-arrow::before) {
+          background: #fff8c2 !important;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        :global(.bank-tooltip) { opacity: 1; }
+        .page-wrapper.flash-page::before { content: ""; position: fixed; inset: 0; background: rgba(255,255,255,1); pointer-events: none; animation: page-flash 900ms ease-in-out forwards; z-index: 9999; }
+        @keyframes page-flash { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
       `}</style>
     </div>
   )

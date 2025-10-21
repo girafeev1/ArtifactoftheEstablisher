@@ -25,7 +25,7 @@ import {
   DatePicker,
   Space,
 } from "antd"
-import { EyeOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons"
+import { EyeOutlined, PlusOutlined, SearchOutlined, DeleteOutlined } from "@ant-design/icons"
 import debounce from "lodash.debounce"
 
 import type { ProjectRecord } from "../../lib/projectsDatabase"
@@ -426,6 +426,7 @@ const ProjectsContent = () => {
   const [createNumbersLoading, setCreateNumbersLoading] = useState(false)
   const [createSubmitting, setCreateSubmitting] = useState(false)
   const [editingProjectNumber, setEditingProjectNumber] = useState(false)
+  const [createFormTouched, setCreateFormTouched] = useState(false)
 
   const availableYears = useMemo(() => {
     const metaYears = (tableQuery?.data?.meta?.years as string[] | undefined) ?? projectsCache.years
@@ -634,6 +635,7 @@ const ProjectsContent = () => {
       projectTitle: sanitizeText(values.projectTitle ?? ""),
       presenterWorkType: sanitizeText(values.presenterWorkType ?? ""),
       projectNature: sanitizeText(values.projectNature ?? ""),
+      subsidiary: sanitizeText(values.subsidiary ?? 'Establish Records Limited'),
     }
 
     // Optional: Project Pickup Date → ISO UTC midnight
@@ -674,13 +676,18 @@ const ProjectsContent = () => {
 
       message.success("Project created")
       setCreateModalOpen(false)
-      setCreateYear(undefined)
-      createForm.resetFields()
-      if (yearValue !== activeYear) {
-        handleYearChange(yearValue)
+      const created = body.project
+      if (created?.id) {
+        // Navigate straight to the new project details
+        void router.push(`/dashboard/new-ui/projects/show/${encodeURIComponent(created.id)}`)
+      } else {
+        setCreateYear(undefined)
+        createForm.resetFields()
+        if (yearValue !== activeYear) {
+          handleYearChange(yearValue)
+        }
+        await (tableQuery as unknown as { refetch?: () => Promise<unknown> })?.refetch?.()
       }
-      // Refetch project list after successful creation
-      await (tableQuery as unknown as { refetch?: () => Promise<unknown> })?.refetch?.()
     } catch (error) {
       const description = error instanceof Error ? error.message : "Failed to create project"
       message.error(description)
@@ -809,9 +816,9 @@ const ProjectsContent = () => {
               }}
             />
             <Button
-              danger
               type="text"
               aria-label="Delete project"
+              icon={<DeleteOutlined style={{ color: '#dc2626' }} />}
               onClick={(event) => {
                 event.stopPropagation()
                 Modal.confirm({
@@ -833,9 +840,7 @@ const ProjectsContent = () => {
                   },
                 })
               }}
-            >
-              Delete
-            </Button>
+            />
           </Space>
         ),
       },
@@ -954,7 +959,7 @@ const ProjectsContent = () => {
         <Modal
           title="Create Project"
           open={createModalOpen}
-          destroyOnHidden
+          destroyOnClose
           onCancel={handleCreateCancel}
           onOk={handleCreateSubmit}
           okText="Create Project"
@@ -978,7 +983,7 @@ const ProjectsContent = () => {
               {editingProjectNumber ? (
                 <Input
                   autoFocus
-                  bordered={false}
+                  variant="borderless"
                   size="large"
                   style={{ fontWeight: 700, fontSize: 20, padding: 0 }}
                   defaultValue={createForm.getFieldValue("projectNumber")}
@@ -997,20 +1002,41 @@ const ProjectsContent = () => {
                   }}
                 />
               ) : (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setEditingProjectNumber(true)}
-                  style={{
-                    fontWeight: 700,
-                    fontSize: 20,
-                    fontFamily: KARLA_FONT,
-                    cursor: "pointer",
-                  }}
-                  title="Click to edit project number"
-                >
-                  {createForm.getFieldValue("projectNumber") || "(click to enter number)"}
-                </span>
+                (
+                  () => {
+                    const numberVal = createForm.getFieldValue("projectNumber")
+                    if (!numberVal) {
+                      return (
+                        <span
+                          aria-label="loading project number"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#94a3b8' }}
+                        >
+                          <span className="spinner" />
+                          Generating…
+                        </span>
+                      )
+                    }
+                    return (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setEditingProjectNumber(true)}
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 20,
+                          fontFamily: KARLA_FONT,
+                          cursor: "pointer",
+                          fontStyle: createFormTouched ? 'normal' : 'italic',
+                          color: createFormTouched ? '#0f172a' : '#64748b',
+                          animation: createFormTouched ? 'none' : 'soft-blink 1.2s ease-in-out infinite',
+                        }}
+                        title="Click to edit project number"
+                      >
+                        {numberVal}
+                      </span>
+                    )
+                  }
+                )()
               )}
             </div>
             {/* keep the value in form without visible label */}
@@ -1018,13 +1044,13 @@ const ProjectsContent = () => {
               <Input />
             </Form.Item>
             <Form.Item label="Project Title" name="projectTitle">
-              <Input allowClear placeholder="Project title" />
+              <Input allowClear placeholder="Project title" onChange={() => setCreateFormTouched(true)} />
             </Form.Item>
             <Form.Item label="Presenter/ Work Type" name="presenterWorkType">
-              <Input allowClear placeholder="Presenter work type" />
+              <Input allowClear placeholder="Presenter work type" onChange={() => setCreateFormTouched(true)} />
             </Form.Item>
             <Form.Item label="Project Nature" name="projectNature">
-              <Input allowClear placeholder="Project nature" />
+              <Input allowClear placeholder="Project nature" onChange={() => setCreateFormTouched(true)} />
             </Form.Item>
             {/* Pickup date (projectDate) */}
             <Form.Item label="Project Pickup Date" name="projectDate">
@@ -1032,10 +1058,31 @@ const ProjectsContent = () => {
                 try {
                   console.log('[CreateProject] date change', v && (v as any).format ? (v as any).format('YYYY-MM-DD') : v)
                 } catch {}
+                setCreateFormTouched(true)
               }} />
+            </Form.Item>
+            <Form.Item label="Subsidiary" name="subsidiary" initialValue="Establish Records Limited">
+              <Input allowClear placeholder="Subsidiary" onChange={() => setCreateFormTouched(true)} />
             </Form.Item>
             {/* Client Company moved to invoice scope; removed from project create */}
           </Form>
+          <style jsx>{`
+            @keyframes soft-blink {
+              0% { opacity: 1; }
+              50% { opacity: 0.45; }
+              100% { opacity: 1; }
+            }
+            .spinner {
+              width: 14px;
+              height: 14px;
+              border-radius: 9999px;
+              border: 2px solid #cbd5e1;
+              border-top-color: #94a3b8;
+              display: inline-block;
+              animation: spin 0.8s linear infinite;
+            }
+            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          `}</style>
         </Modal>
       </div>
     </div>

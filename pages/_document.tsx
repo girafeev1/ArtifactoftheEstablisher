@@ -11,7 +11,7 @@ class MyDocument extends Document {
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
           <link
             rel="stylesheet"
-            href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Iansui&family=Yuji+Mai&family=Karla:wght@300;400;500;600;700&display=swap"
           />
         </Head>
         <body>
@@ -24,4 +24,3 @@ class MyDocument extends Document {
 }
 
 export default MyDocument
-
