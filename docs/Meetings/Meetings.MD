@@ -1,0 +1,44 @@
+# Meetings Index (2025)
+
+The following UUIDs correspond to sessions related to the ArtifactoftheEstablisher web app. Locate the logs under `~/.codex/sessions/2025/`.
+
+- 01998319-6440-7ba1-8b92-ea51fa2ec039
+  - /Users/gutchumi/.codex/sessions/2025/09/26/rollout-2025-09-26T06-58-23-01998319-6440-7ba1-8b92-ea51fa2ec039.jsonl
+- 019984d4-c538-7ef3-aca5-7e2018f13408
+  - /Users/gutchumi/.codex/sessions/2025/09/26/rollout-2025-09-26T15-02-40-019984d4-c538-7ef3-aca5-7e2018f13408.jsonl
+- 0199872c-a9d5-7582-a53d-8343a8b100e3
+  - /Users/gutchumi/.codex/sessions/2025/09/27/rollout-2025-09-27T01-57-55-0199872c-a9d5-7582-a53d-8343a8b100e3.jsonl
+- 0199897e-6666-7d90-9699-f99c2be26e40
+  - /Users/gutchumi/.codex/sessions/2025/09/27/rollout-2025-09-27T12-46-26-0199897e-6666-7d90-9699-f99c2be26e40.jsonl
+- 01998982-b27e-7012-8806-952739af4020
+  - /Users/gutchumi/.codex/sessions/2025/09/27/rollout-2025-09-27T12-51-08-01998982-b27e-7012-8806-952739af4020.jsonl
+- 0199a434-2502-79f2-84a0-895b4ec638ea
+  - /Users/gutchumi/.codex/sessions/2025/10/02/rollout-2025-10-02T17-15-04-0199a434-2502-79f2-84a0-895b4ec638ea.jsonl
+- 0199a63e-8e16-7331-81b1-9141aac675c0
+  - /Users/gutchumi/.codex/sessions/2025/10/03/rollout-2025-10-03T02-45-41-0199a63e-8e16-7331-81b1-9141aac675c0.jsonl
+- 0199ad1d-f536-71b0-a649-db86b5ac4483
+  - /Users/gutchumi/.codex/sessions/2025/10/04/rollout-2025-10-04T10-47-25-0199ad1d-f536-71b0-a649-db86b5ac4483.jsonl
+- 0199c835-cdef-73a3-959b-c290ab6041f5
+  - /Users/gutchumi/.codex/sessions/2025/10/09/rollout-2025-10-09T17-03-13-0199c835-cdef-73a3-959b-c290ab6041f5.jsonl
+- 0199d03e-079e-7860-a15d-e55aa7b3abaf
+  - /Users/gutchumi/.codex/sessions/2025/10/11/rollout-2025-10-11T06-29-10-0199d03e-079e-7860-a15d-e55aa7b3abaf.jsonl
+- 0199d345-f0fa-7571-96b8-f11e32f00ffd
+  - /Users/gutchumi/.codex/sessions/2025/10/11/rollout-2025-10-11T20-36-40-0199d345-f0fa-7571-96b8-f11e32f00ffd.jsonl
+- 0199d48d-b77b-71b0-b62d-88532df62812
+  - /Users/gutchumi/.codex/sessions/2025/10/12/rollout-2025-10-12T02-34-41-0199d48d-b77b-71b0-b62d-88532df62812.jsonl
+- 0199d725-df98-7721-8544-fcf94b8b7d40
+  - /Users/gutchumi/.codex/sessions/2025/10/12/rollout-2025-10-12T14-40-07-0199d725-df98-7721-8544-fcf94b8b7d40.jsonl
+- 0199d74f-cc0c-7f01-9e1b-04f2c9e7fde6
+  - /Users/gutchumi/.codex/sessions/2025/10/12/rollout-2025-10-12T15-25-55-0199d74f-cc0c-7f01-9e1b-04f2c9e7fde6.jsonl
+- 0199d7b2-c154-70d1-a05a-ad88eca1be9f
+  - /Users/gutchumi/.codex/sessions/2025/10/12/rollout-2025-10-12T17-14-00-0199d7b2-c154-70d1-a05a-ad88eca1be9f.jsonl
+- 0199d81a-7b9b-7930-a166-6d758a3aab95
+  - /Users/gutchumi/.codex/sessions/2025/10/12/rollout-2025-10-12T19-07-18-0199d81a-7b9b-7930-a166-6d758a3aab95.jsonl
+- 0199f75e-693a-7013-a8d0-cb074d3a134d
+  - /Users/gutchumi/.codex/sessions/2025/10/18/rollout-2025-10-18T20-49-43-0199f75e-693a-7013-a8d0-cb074d3a134d.jsonl
+- 0199f8cf-aa4f-7f31-9090-85ff1f4e3e79
+  - /Users/gutchumi/.codex/sessions/2025/10/19/rollout-2025-10-19T03-33-03-0199f8cf-aa4f-7f31-9090-85ff1f4e3e79.jsonl
+- 019a01e1-63f6-71a2-a3c5-327de95ffdd7
+  - /Users/gutchumi/.codex/sessions/2025/10/20/rollout-2025-10-20T21-48-59-019a01e1-63f6-71a2-a3c5-327de95ffdd7.jsonl
+- 019a0302-5d0f-79d1-b20a-9cbb25919779
+  - /Users/gutchumi/.codex/sessions/2025/10/21/rollout-2025-10-21T03-04-37-019a0302-5d0f-79d1-b20a-9cbb25919779.jsonl
