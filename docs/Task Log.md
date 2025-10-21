@@ -133,22 +133,87 @@ Tasks T-xxx
 - Notes:
 
 ### T-097
-- Title: Project header delete action + invoice detail polish (P-036)
+- Title: Project header Delete action (P-036a)
 - Branch: main
 - PR: —
 - Status: ⏳ In Progress
 - Outcomes (planned):
-  - Add red Delete button to the left of Cancel in project header when editing; call existing DELETE API via `handleProjectDelete`.
-  - Hide invoice items header/divider until explicit action; conditionally render based on state.
-  - Shorten stacked dropdown widths to ~220px while keeping container at 100%.
-  - Track `lastMatchedCompanyRef`; when company name mismatch occurs, clear dependent fields and reset reference.
-  - Enhance `flash-fill` visibility: lighter highlight (#fff8c2), ~800ms duration.
-  - Style polish: make `.item-description` italic, color #374151, font-weight 400; align TextArea styling.
-  - Include `subsidiary` field in Create Project form (initial values + submission payload); ensure updates persist.
-  - Tooltip: apply AntD overlay styling/class; note follow-cursor is not directly supported; set zero mouseLeaveDelay.
-  - Right-align edited client inputs where appropriate; adjust column widths; hide sections when empty; deduplicate elements.
+  - Add a red Delete button to the left of Cancel in the project header when editing.
+  - Call existing DELETE API via `handleProjectDelete`; include confirm dialog and success/error feedback.
 - Notes:
-  - Source: session 019a01e1-63f6-71a2-a3c5-327de95ffdd7 (end-of-session planning)
+  - Source: session 019a01e1-63f6-71a2-a3c5-327de95ffdd7
+
+### T-098
+- Title: Invoice items header gating (P-036b)
+- Branch: main
+- PR: —
+- Status: 🧭 Planned
+- Outcomes (planned):
+  - Hide invoice items header/divider until explicit action; conditionally render based on mode/state.
+- Notes:
+
+### T-099
+- Title: Stacked dropdown sizing (~220px) (P-036c)
+- Branch: main
+- PR: —
+- Status: 🧭 Planned
+- Outcomes (planned):
+  - Use ~220px widths for stacked selects while keeping their container at 100% width.
+- Notes:
+
+### T-100
+- Title: Company match clear-on-mismatch (P-036d)
+- Branch: main
+- PR: —
+- Status: 🧭 Planned
+- Outcomes (planned):
+  - Track `lastMatchedCompanyRef`; when the company name mismatches, clear dependent fields and reset reference.
+- Notes:
+
+### T-101
+- Title: Flash-fill visibility polish (P-036e)
+- Branch: main
+- PR: —
+- Status: 🧭 Planned
+- Outcomes (planned):
+  - Increase visibility of `flash-fill` (e.g., #fff8c2; ~800ms duration).
+- Notes:
+
+### T-102
+- Title: Item description & TextArea styling (P-036f)
+- Branch: main
+- PR: —
+- Status: 🧭 Planned
+- Outcomes (planned):
+  - Make `.item-description` italic, color #374151, weight 400; align TextArea styling accordingly.
+- Notes:
+
+### T-103
+- Title: Create Project — add `subsidiary` field (P-036g)
+- Branch: main
+- PR: —
+- Status: 🧭 Planned
+- Outcomes (planned):
+  - Add `subsidiary` to Create Project initial values and submission payload; persist on update.
+- Notes:
+
+### T-104
+- Title: Tooltip styling for bank info (P-036h)
+- Branch: main
+- PR: —
+- Status: 🧭 Planned
+- Outcomes (planned):
+  - Apply AntD overlay styles/class; set `mouseLeaveDelay: 0`; note follow-cursor not directly supported.
+- Notes:
+
+### T-105
+- Title: Client header alignment & cleanup (P-036i)
+- Branch: main
+- PR: —
+- Status: 🧭 Planned
+- Outcomes (planned):
+  - Right-align edited client inputs where appropriate; adjust column widths; hide empty sections; deduplicate elements.
+- Notes:
 
 ### T-080
 - Title: Payment UI polish & data rules (P-024)
@@ -270,7 +335,15 @@ Tasks table — add/update:
 
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
-| T-097 | Project header delete + invoice detail polish        | ⏳    | Delete CTA; items header visibility; flash-fill; subsidiary field |
+| T-105 | Client header alignment & cleanup                    | 🧭    | Right-align inputs; widths; hide empty; dedupe |
+| T-104 | Tooltip styling for bank info                        | 🧭    | overlay class; zero mouseLeaveDelay |
+| T-103 | Create Project: add `subsidiary` field               | 🧭    | Initial values + payload; persist updates |
+| T-102 | Item description/textarea styling                    | 🧭    | Italic; #374151; weight 400 |
+| T-101 | Flash-fill visibility polish                         | 🧭    | #fff8c2; ~800ms |
+| T-100 | Company match clear-on-mismatch                      | 🧭    | lastMatchedCompanyRef; clear dependent fields |
+| T-099 | Stacked dropdown sizing (~220px)                     | 🧭    | Keep container 100% |
+| T-098 | Invoice items header gating                          | 🧭    | Conditional render until explicit action |
+| T-097 | Project header Delete action                         | ⏳    | Delete CTA; DELETE API; confirm + feedback |
 | T-096 | New UI scaffolding — AppShell + client-accounts + tests | ✅    | components/new-ui/AppShell.tsx; pages/dashboard/new-ui; __tests__/pages/dashboard/new-ui |
 | T-095 | Refine client gallery and preview                          | ✅    | pages/dashboard/new-ui/client-accounts.tsx; styles/antd-reset.css |
 | T-094 | Duplicate Projects page to New UI (Next 15 compile)        | ✅    | pages/dashboard/new-ui/projects/*; types/refinedev.d.ts |
