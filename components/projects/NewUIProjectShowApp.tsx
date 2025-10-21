@@ -681,26 +681,29 @@ const ProjectsShowContent = () => {
           const byId = typeof (c as any).documentId === "string" && (c as any).documentId.trim().toLowerCase() === lower
           return byName || byId
         })
-        if (match) {
-          setDraftInvoice((prev) => {
-            if (!prev) return prev
-            const current = prev.client ?? ({} as any)
-            return {
-              ...prev,
-              client: {
-                companyName: current.companyName ?? (match.companyName ?? null),
-                addressLine1: current.addressLine1 ?? (match.addressLine1 ?? null),
-                addressLine2: current.addressLine2 ?? (match.addressLine2 ?? null),
-                addressLine3: current.addressLine3 ?? (match.addressLine3 ?? null),
-                region: current.region ?? (match.region ?? (match as any).addressLine5 ?? null),
-                representative: current.representative ?? ((match.title ? `${match.title} ` : '') + (match.nameAddressed ?? match.name ?? '')),
-              },
-            }
-          })
-          lastMatchedCompanyRef.current = match.companyName?.toLowerCase() ?? null
-          setFlashClientFields(true)
-          setTimeout(() => setFlashClientFields(false), 600)
-        } else {
+          if (match) {
+            setDraftInvoice((prev) => {
+              if (!prev) return prev
+              const current = prev.client ?? ({} as any)
+              return {
+                ...prev,
+                client: {
+                  companyName: current.companyName ?? (match.companyName ?? null),
+                  addressLine1: current.addressLine1 ?? (match.addressLine1 ?? null),
+                  addressLine2: current.addressLine2 ?? (match.addressLine2 ?? null),
+                  addressLine3: current.addressLine3 ?? (match.addressLine3 ?? null),
+                  region: current.region ?? (match.region ?? (match as any).addressLine5 ?? null),
+                  representative: current.representative ?? ((match.title ? `${match.title} ` : '') + (match.nameAddressed ?? match.name ?? '')),
+                },
+              }
+            })
+            lastMatchedCompanyRef.current = match.companyName?.toLowerCase() ?? null
+            setFlashClientFields(false)
+            requestAnimationFrame(() => {
+              setFlashClientFields(true)
+              setTimeout(() => setFlashClientFields(false), 700)
+            })
+          } else {
           // If previously matched but now no longer matches, clear autofilled fields.
           if (lastMatchedCompanyRef.current) {
             lastMatchedCompanyRef.current = null
@@ -1905,7 +1908,7 @@ const ProjectsShowContent = () => {
                 style={{ width: "100%", maxWidth: 480, textAlign: 'right' }}
               />
               ) : (
-                <Text className="presenter-type" style={{ textAlign: 'right', display: 'block' }}>
+                <Text className="presenter-type" style={{ display: 'block' }}>
                   {renderMixed(project.presenterWorkType, 'zh-presenter', 'en-presenter')}
                 </Text>
               )}
@@ -1920,7 +1923,7 @@ const ProjectsShowContent = () => {
                   style={{ width: "100%", maxWidth: 620, textAlign: 'right' }}
                 />
               ) : (
-                <Title level={2} className="project-title" style={{ textAlign: 'right' }}>
+                <Title level={2} className="project-title">
                   {renderMixed(project.projectTitle, 'zh-title', 'en-title')}
                 </Title>
               )}
@@ -1990,7 +1993,7 @@ const ProjectsShowContent = () => {
                     {invoiceMode === "idle" ? (
                       <div className="billing-header-actions">
                         <Button type="primary" className="add-invoice-top" onClick={() => prepareDraft("create")}>
-                          {"<+ Add Invoice>"}
+                          + Add Invoice
                         </Button>
                       </div>
                     ) : null}
@@ -2118,19 +2121,14 @@ const ProjectsShowContent = () => {
                                   }}
                                   options={(bankList ?? []).map((b) => ({
                                     value: b.bankCode,
-                                    label: (
-                                      <div className="bank-selected" title={`${b.bankName} (${b.bankCode})`}>
-                                        <span className="bank-selected-name">{b.bankName}</span>
-                                        <span className="bank-selected-code">({b.bankCode})</span>
-                                      </div>
-                                    ),
-                                    data: { bankCode: b.bankCode, bankName: b.bankName },
-                                  })) as any}
+                                    label: `${b.bankName} (${b.bankCode})`,
+                                  }))}
                                   // Render combined bank name + code in one line for dropdown items only
                                   optionRender={(option: any) => {
-                                    const data = option.data || {}
-                                    const name = String(data.bankName ?? '').trim()
-                                    const code = String(data.bankCode ?? option.value ?? '')
+                                    const labelStr = typeof option.label === 'string' ? option.label : ''
+                                    const match = labelStr.match(/^(.*)\s+\((\d{3})\)\s*$/)
+                                    const name = (match ? match[1] : labelStr).trim()
+                                    const code = (match ? match[2] : String(option.value ?? ''))
                                     return (
                                       <div className="bank-option">
                                         <span className="bank-option-name">{name}</span>
@@ -2248,8 +2246,11 @@ const ProjectsShowContent = () => {
                                 },
                               }
                             })
-                            setFlashClientFields(true)
-                            setTimeout(() => setFlashClientFields(false), 600)
+                            setFlashClientFields(false)
+                            requestAnimationFrame(() => {
+                              setFlashClientFields(true)
+                              setTimeout(() => setFlashClientFields(false), 700)
+                            })
                           }
                         }}
                         placeholder="Company name"
@@ -2521,7 +2522,6 @@ const ProjectsShowContent = () => {
           letter-spacing: 0.08em;
           line-height: 1;
           margin: 0;
-          text-align: right;
         }
 
         .presenter-input,
@@ -2557,7 +2557,6 @@ const ProjectsShowContent = () => {
           color: #0f172a;
           line-height: 1.01;
           padding: 0;
-          text-align: right;
         }
 
         /* Mixed font for CJK vs Latin */
@@ -2856,13 +2855,15 @@ const ProjectsShowContent = () => {
           text-align: right;
           display: flex;
           justify-content: flex-end;
+          direction: rtl;
+          unicode-bidi: plaintext;
         }
-        .company-autocomplete :global(.ant-select-selection-item) { width: 100%; text-align: right !important; margin-left: auto; justify-content: flex-end !important; display: flex !important; }
-        .company-autocomplete :global(.ant-select-selection-item-content) { width: 100%; text-align: right !important; display: block; }
+        .company-autocomplete :global(.ant-select-selection-item) { width: 100%; text-align: right !important; margin-left: auto; justify-content: flex-end !important; display: flex !important; direction: rtl; unicode-bidi: plaintext; }
+        .company-autocomplete :global(.ant-select-selection-item-content) { width: 100%; text-align: right !important; display: block; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete :global(.ant-select-selection-placeholder) { width: 100%; text-align: right !important; }
-        .company-autocomplete :global(.ant-select-selection-search) { margin-left: auto; }
-        .company-autocomplete :global(.ant-select-selection-search-input) { text-align: right !important; }
-        .company-autocomplete :global(.ant-select-selection-search-input input) { text-align: right !important; }
+        .company-autocomplete :global(.ant-select-selection-search) { margin-left: auto; direction: rtl; unicode-bidi: plaintext; }
+        .company-autocomplete :global(.ant-select-selection-search-input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
+        .company-autocomplete :global(.ant-select-selection-search-input input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete.flash-fill :global(.ant-select-selector) {
           outline: 3px solid #ffffff !important;
           animation: field-flash 700ms ease-in-out;
@@ -3284,13 +3285,13 @@ const ProjectsShowContent = () => {
 
         .item-description {
           font-family: ${KARLA_FONT};
-          font-weight: 300 !important;
+          font-weight: 200 !important;
           font-style: italic;
           color: #374151;
           display: block;
           white-space: normal;
         }
-        .item-edit .ant-input-textarea textarea { font-style: italic; color: #374151; font-weight: 300 !important; }
+        .item-edit .ant-input-textarea textarea { font-style: italic; color: #374151; font-weight: 200 !important; }
 
         .item-edit {
           display: flex;
