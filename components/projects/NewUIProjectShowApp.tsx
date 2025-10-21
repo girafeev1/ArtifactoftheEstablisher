@@ -1990,7 +1990,7 @@ const ProjectsShowContent = () => {
                     {invoiceMode === "idle" ? (
                       <div className="billing-header-actions">
                         <Button type="primary" className="add-invoice-top" onClick={() => prepareDraft("create")}>
-                          Add Additional Invoice
+                          {"<+ Add Invoice>"}
                         </Button>
                       </div>
                     ) : null}
@@ -2118,14 +2118,19 @@ const ProjectsShowContent = () => {
                                   }}
                                   options={(bankList ?? []).map((b) => ({
                                     value: b.bankCode,
-                                    label: `${b.bankName} (${b.bankCode})`,
-                                  }))}
+                                    label: (
+                                      <div className="bank-selected" title={`${b.bankName} (${b.bankCode})`}>
+                                        <span className="bank-selected-name">{b.bankName}</span>
+                                        <span className="bank-selected-code">({b.bankCode})</span>
+                                      </div>
+                                    ),
+                                    data: { bankCode: b.bankCode, bankName: b.bankName },
+                                  })) as any}
                                   // Render combined bank name + code in one line for dropdown items only
                                   optionRender={(option: any) => {
-                                    const labelStr = typeof option.label === 'string' ? option.label : ''
-                                    const match = labelStr.match(/^(.*)\s+\((\d{3})\)\s*$/)
-                                    const name = (match ? match[1] : labelStr).trim()
-                                    const code = (match ? match[2] : String(option.value ?? ''))
+                                    const data = option.data || {}
+                                    const name = String(data.bankName ?? '').trim()
+                                    const code = String(data.bankCode ?? option.value ?? '')
                                     return (
                                       <div className="bank-option">
                                         <span className="bank-option-name">{name}</span>
@@ -2248,7 +2253,7 @@ const ProjectsShowContent = () => {
                           }
                         }}
                         placeholder="Company name"
-                        className={`client-input company company-autocomplete ${flashClientFields ? 'flash-fill' : ''}`}
+                        className={`client-input company company-autocomplete ${flashClientFields ? 'flash-fill text-flash' : ''}`}
                         style={{ textAlign: 'right', width: '100%' }}
                         filterOption={(inputValue, option) =>
                           String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
@@ -2259,7 +2264,7 @@ const ProjectsShowContent = () => {
                         onChange={(event) => handleClientFieldChange("addressLine1", event.target.value)}
                         placeholder="Address line 1"
                         variant="borderless"
-                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
+                        className={`client-input ${flashClientFields ? 'flash-fill text-flash' : ''}`}
                         style={{ textAlign: 'right' }}
                       />
                       <Input
@@ -2267,7 +2272,7 @@ const ProjectsShowContent = () => {
                         onChange={(event) => handleClientFieldChange("addressLine2", event.target.value)}
                         placeholder="Address line 2"
                         variant="borderless"
-                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
+                        className={`client-input ${flashClientFields ? 'flash-fill text-flash' : ''}`}
                         style={{ textAlign: 'right' }}
                       />
                       <Input
@@ -2275,7 +2280,7 @@ const ProjectsShowContent = () => {
                         onChange={(event) => handleClientFieldChange("addressLine3", event.target.value)}
                         placeholder="Address line 3"
                         variant="borderless"
-                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
+                        className={`client-input ${flashClientFields ? 'flash-fill text-flash' : ''}`}
                         style={{ textAlign: 'right' }}
                       />
                       <Input
@@ -2283,7 +2288,7 @@ const ProjectsShowContent = () => {
                         onChange={(event) => handleClientFieldChange("region", event.target.value)}
                         placeholder="Region"
                         variant="borderless"
-                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
+                        className={`client-input ${flashClientFields ? 'flash-fill text-flash' : ''}`}
                         style={{ textAlign: 'right' }}
                       />
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
