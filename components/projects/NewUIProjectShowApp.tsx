@@ -2148,9 +2148,11 @@ const ProjectsShowContent = () => {
                                 <Select
                                   placeholder="Bank"
                                   size="small"
-                                  value={selectedBankCode ?? undefined}
-                                  onChange={async (code: string) => {
-                                    setSelectedBankCode(code)
+                                  value={selectedBankCode ? { value: selectedBankCode } : undefined}
+                                  labelInValue
+                                  onChange={async (option) => {
+                                    const code = option?.value
+                                    setSelectedBankCode(code ?? null)
                                     const found = (bankList ?? []).find((b) => b.bankCode === code)
                                     if (found) {
                                       const accounts = await listAccounts(found)
@@ -2159,39 +2161,25 @@ const ProjectsShowContent = () => {
                                       setAccountList([])
                                     }
                                   }}
-                                  optionLabelProp="label"
-                                  optionFilterProp="title"
                                   options={(bankList ?? []).map((b) => ({
                                     value: b.bankCode,
-                                    title: `${b.bankName} (${b.bankCode})`,
                                     label: (
-                                      <div className="bank-selected" title={`${b.bankName} (${b.bankCode})`}>
-                                        <span className="bank-selected-name">{b.bankName}</span>
-                                        <span className="bank-selected-code">({b.bankCode})</span>
+                                      <div className="bank-option">
+                                        <span className="bank-option-name">{b.bankName}</span>
+                                        <span className="bank-option-code">({b.bankCode})</span>
                                       </div>
                                     ),
-                                    data: { bankName: b.bankName, bankCode: b.bankCode },
-                                  })) as any}
-                                  // Render combined bank name + code in one line for dropdown items only
-                                  optionRender={(option: any) => {
-                                    let name = option?.data?.bankName as string | undefined
-                                    let code = option?.data?.bankCode as string | undefined
-                                    if (!name || !code) {
-                                      const t = typeof option.title === 'string' ? option.title : ''
-                                      const m = t.match(/^(.*)\s+\((\d{3})\)\s*$/)
-                                      if (m) { name = m[1]; code = m[2] }
-                                    }
-                                    name = (name || '').trim()
-                                    code = (code || String(option.value || '')).trim()
-                                    return (
-                                      <div className="bank-option">
-                                        <span className="bank-option-name">{name}</span>
-                                        <span className="bank-option-code">({code})</span>
-                                      </div>
-                                    )
-                                  }}
+                                    bankName: b.bankName,
+                                    bankCode: b.bankCode,
+                                  }))}
+                                  tagRender={() => null}
+                                  dropdownRender={(menu) => menu}
                                   style={{ width: 160 }}
                                   popupMatchSelectWidth={false}
+                                  suffixIcon={null}
+                                  showArrow
+                                  virtual={false}
+                                  optionRender={(option) => option.label}
                                 />
                                 <Select
                                   placeholder="Account"
@@ -2943,13 +2931,12 @@ const ProjectsShowContent = () => {
         .company-autocomplete :global(.ant-select-selection-search) { margin-left: auto; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete :global(.ant-select-selection-search-input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
         .company-autocomplete :global(.ant-select-selection-search-input input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
-        .company-autocomplete.flash-fill :global(.ant-select-selector) { animation: text-flare 800ms ease-in-out; }
-        .flash-fill.text-flash :global(input),
-        .flash-fill.text-flash :global(.ant-select-selection-item) { animation: text-flare 800ms ease-in-out; }
+        .company-autocomplete.flash-fill :global(.ant-select-selection-item) { animation: text-flare 600ms ease-out; }
+        .flash-fill.text-flash :global(input) { animation: text-flare 600ms ease-out; }
         @keyframes text-flare {
-          0% { text-shadow: 0 0 0 #fff; transform: scale(1); filter: saturate(120%); }
-          35% { text-shadow: 0 0 10px rgba(255,255,255,1); transform: scale(1.03); filter: saturate(140%); }
-          100% { text-shadow: none; transform: scale(1); filter: none; }
+          0% { text-shadow: none; transform: scale(1); color: inherit; }
+          30% { text-shadow: 0 0 16px rgba(255,255,255,1); transform: scale(1.05); color: #fff; }
+          100% { text-shadow: none; transform: scale(1); color: inherit; }
         }
 
         :global(.client-input.ant-input::placeholder) {
