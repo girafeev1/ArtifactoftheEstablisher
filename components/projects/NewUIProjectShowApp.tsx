@@ -35,7 +35,7 @@ import type { ProjectRecord } from "../../lib/projectsDatabase"
 import type { ProjectInvoiceRecord } from "../../lib/projectInvoices"
 import dayjs, { type Dayjs } from "dayjs"
 import { resolveBankAccountIdentifier, listBanks, listAccounts, lookupAccount, type BankInfo, type AccountInfo } from "../../lib/erlDirectory"
-import { fetchSubsidiaryById } from "../../lib/subsidiaries"
+import { fetchSubsidiaryById, fetchSubsidiaries, type SubsidiaryDoc } from "../../lib/subsidiaries"
 
 import AppShell from "../new-ui/AppShell"
 import {
@@ -2004,7 +2004,7 @@ const ProjectsShowContent = () => {
                   <Text className="project-nature"><em>{stringOrNA(project.projectNature)}</em></Text>
                 )}
               </div>
-              {isProjectEditing ? (
+              {isProjectEditing && allSubsidiaries ? (
                 <div className="subsidiary-row">
                   <Select
                     showSearch
@@ -2015,11 +2015,177 @@ const ProjectsShowContent = () => {
                     filterOption={(input, option) =>
                       (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                     }
-                    options={(allSubsidiaries ?? [] as SubsidiaryData[]).map(s => ({ value: s.identifier, label: s.englishName }))}
+                    options={(allSubsidiaries ?? [] as SubsidiaryDoc[]).map(s => ({ value: s.identifier, label: s.englishName }))}
                     style={{ width: 240 }}
                   />
                 </div>
               ) : project.subsidiary ? (
+              {subsidiaryInfo ? (
+                <div
+                  className="subsidiary-card"
+                  onClick={() => isProjectEditing && setIsSubsidiaryDropdownOpen(true)}
+                  style={{ cursor: isProjectEditing ? "pointer" : "default" }}
+                >
+                  {subsidiaryInfo.englishName ? (
+                    <div className="sub-name-en big">{spaceify(subsidiaryInfo.englishName)}</div>
+                  ) : null}
+                  {subsidiaryInfo.chineseName ? (
+                    <div className="sub-name-zh big">{spaceify(subsidiaryInfo.chineseName)}</div>
+                  ) : null}
+                  <div className="sub-address">
+                    {subsidiaryInfo.addressLine1 || ''}
+                    {subsidiaryInfo.addressLine2 ? (<><br />{subsidiaryInfo.addressLine2}</>) : null}
+                    {subsidiaryInfo.addressLine3 ? (<><br />{subsidiaryInfo.addressLine3}</>) : null}
+                    {subsidiaryInfo.region ? (<><br />{subsidiaryInfo.region}, Hong Kong</>) : null}
+                  </div>
+                  {(subsidiaryInfo.email || subsidiaryInfo.phone) ? (
+                    <div className="sub-contact">
+                      {subsidiaryInfo.email ? <div className="sub-email">{spaceify(subsidiaryInfo.email)}</div> : null}
+                      {subsidiaryInfo.phone ? <div className="sub-phone">{spaceify(String(subsidiaryInfo.phone))}</div> : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            <div className="descriptor-line">
+              {isProjectEditing ? (
+                <Input
+                  value={projectDraft.projectNumber}
+                  onChange={(event) => handleProjectDraftChange("projectNumber", event.target.value)}
+                  placeholder="Project number"
+                  variant="filled"
+                  className="descriptor-input"
+                  disabled={projectEditSaving}
+                  style={{ width: 160 }}
+                />
+              ) : (
+                <span className="descriptor-number">{project.projectNumber ? `#${project.projectNumber}` : '-'}</span>
+              )}
+              <span className="descriptor-separator">/</span>
+              {isProjectEditing ? (
+                <DatePicker
+                  value={projectDraft.projectDateIso ? dayjs(projectDraft.projectDateIso) : null}
+                  onChange={handleProjectDateChange}
+                  format="MMM DD, YYYY"
+                  allowClear
+                  variant="filled"
+                  className="descriptor-picker"
+                  disabled={projectEditSaving}
+                  style={{ minWidth: 180 }}
+                />
+              ) : (
+                <span className="descriptor-date">
+                  {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
+                </span>
+              )}
+              {isProjectEditing ? (
+                <div className="descriptor-actions">
+                  <Button danger onClick={async () => {
+                    if (!project) return
+                    Modal.confirm({
+                      title: 'Delete this project?',
+                      content: `#${project.projectNumber} — this action cannot be undone`,
+                      okType: 'danger',
+                      async onOk() {
+                        try {
+                          const res = await fetch(`/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`, {
+                            method: 'DELETE',
+                            credentials: 'include',
+                          })
+                          if (!res.ok) throw new Error('Delete failed')
+                          message.success('Project deleted')
+                          void router.push('/dashboard/new-ui/projects')
+                        } catch (e) {
+                          message.error(e instanceof Error ? e.message : 'Delete failed')
+                        }
+                      }
+                    })
+                  }} disabled={projectEditSaving}>
+                    Delete
+                  </Button>
+                  <Button className="project-cancel" onClick={cancelProjectEditing} disabled={projectEditSaving}>
+                    Cancel
+                  </Button>
+                  <Button type="primary" className="project-save" onClick={saveProjectEdits} loading={projectEditSaving}>
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="descriptor-edit-trigger"
+                  onClick={startProjectEditing}
+                  aria-label="Edit project details"
+                  style={{ marginLeft: 8 }}
+                >
+                  <EditOutlined />
+                </button>
+              )}
+            </div>
+            </div>
+            <div className="title-row">
+              <div className="title-content">
+                {isProjectEditing ? (
+                <Input
+                  value={projectDraft.presenterWorkType}
+                  onChange={(event) =>
+                    handleProjectDraftChange("presenterWorkType", event.target.value)
+                  }
+                  placeholder="Project type"
+                  variant="filled"
+                  className="presenter-input"
+                  disabled={projectEditSaving}
+                  style={{ width: "100%", maxWidth: 480, textAlign: 'left' }}
+                />
+                ) : (
+                  <Text className="presenter-type" style={{ display: 'block' }}>
+                    {renderMixed(project.presenterWorkType, 'zh-presenter', 'en-presenter')}
+                  </Text>
+                )}
+                {isProjectEditing ? (
+                  <Input
+                    value={projectDraft.projectTitle}
+                    onChange={(event) => handleProjectDraftChange("projectTitle", event.target.value)}
+                    placeholder="Project title"
+                    variant="filled"
+                    className="project-title-input"
+                    disabled={projectEditSaving}
+                    style={{ width: "100%", maxWidth: 620, textAlign: 'left' }}
+                  />
+                ) : (
+                  <Title level={2} className="project-title">
+                    {renderMixed(project.projectTitle, 'zh-title', 'en-title')}
+                  </Title>
+                )}
+                                              <div className={`nature-row ${isProjectEditing ? "editing" : ""}`}>
+                                                {isProjectEditing ? (
+                                                  <Input
+                                                    value={projectDraft.projectNature}
+                                                    onChange={(event) => handleProjectDraftChange("projectNature", event.target.value)}
+                                                    placeholder="Project nature"
+                                                    variant="filled"
+                                                    className="project-nature-input"
+                                                    disabled={projectEditSaving}
+                                                    style={{ width: "100%", maxWidth: 560 }}
+                                                  />
+                                                ) : (
+                                                  <Text className="project-nature"><em>{stringOrNA(project.projectNature)}</em></Text>
+                                                )}
+                                              </div>
+                                              <div className="subsidiary-row">
+                                                <Select
+                                                  showSearch
+                                                  value={projectDraft.subsidiary}
+                                                  placeholder="Select Subsidiary"
+                                                  optionFilterProp="children"
+                                                  onChange={(value) => handleProjectDraftChange("subsidiary", value)}
+                                                  filterOption={(input, option) =>
+                                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                                  }
+                                                  options={(allSubsidiaries ?? [] as SubsidiaryDoc[]).map(s => ({ value: s.identifier, label: s.englishName }))}
+                                                  style={{ width: 240 }}
+                                                  disabled={!isProjectEditing}
+                                                />
+                                              </div>                {console.log('allSubsidiaries:', allSubsidiaries);}
                 <div className="subsidiary-row">
                   <Tag className="subsidiary-chip">{subsidiaryInfo?.englishName ? stringOrNA(subsidiaryInfo.englishName) : (project.subsidiary ? '...' : '-')}</Tag>
                 </div>
