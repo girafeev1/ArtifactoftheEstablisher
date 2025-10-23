@@ -35,7 +35,7 @@ import type { ProjectRecord } from "../../lib/projectsDatabase"
 import type { ProjectInvoiceRecord } from "../../lib/projectInvoices"
 import dayjs, { type Dayjs } from "dayjs"
 import { resolveBankAccountIdentifier, listBanks, listAccounts, lookupAccount, type BankInfo, type AccountInfo } from "../../lib/erlDirectory"
-import { fetchSubsidiaryById } from "../../lib/subsidiaries"
+import { fetchSubsidiaryById, fetchSubsidiaries, type SubsidiaryDoc } from "../../lib/subsidiaries"
 
 import AppShell from "../new-ui/AppShell"
 import {
@@ -436,6 +436,16 @@ const ProjectsShowContent = () => {
     phone?: string
   } | null>(null)
   const [isSubsidiaryDropdownOpen, setIsSubsidiaryDropdownOpen] = useState(false)
+  const [allSubsidiaries, setAllSubsidiaries] = useState<SubsidiaryDoc[] | null>(null)
+
+  useEffect(() => {
+    const run = async () => {
+      const list = await fetchSubsidiaries()
+      setAllSubsidiaries(list)
+    }
+    void run()
+  }, [])
+
 
   const projectId = useMemo(() => {
     const raw = router.query.projectId
@@ -2015,7 +2025,7 @@ const ProjectsShowContent = () => {
                     filterOption={(input, option) =>
                       (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                     }
-                    options={(allSubsidiaries ?? [] as SubsidiaryData[]).map(s => ({ value: s.identifier, label: s.englishName }))}
+                    options={(allSubsidiaries ?? [] as SubsidiaryDoc[]).map(s => ({ value: s.identifier, label: s.englishName }))}
                     style={{ width: 240 }}
                   />
                 </div>
@@ -2467,11 +2477,32 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           </div>
         </Card>
 
-      </Space>
-      </div>
-      {/* eslint-disable-next-line react/no-unknown-property */}
-      <style jsx>{`
-        .page-wrapper {
+              </Space>
+            </div>
+            {subsidiaryInfo ? (
+              <div className="subsidiary-card is-footer">
+                {subsidiaryInfo.englishName ? (
+                  <div className="sub-name-en">{spaceify(subsidiaryInfo.englishName)}</div>
+                ) : null}
+                {subsidiaryInfo.chineseName ? (
+                  <div className="sub-name-zh">{subsidiaryInfo.chineseName}</div>
+                ) : null}
+                <div className="sub-address">
+                  {subsidiaryInfo.addressLine1 || ''}
+                  {subsidiaryInfo.addressLine2 ? (<><br />{subsidiaryInfo.addressLine2}</>) : null}
+                  {subsidiaryInfo.addressLine3 ? (<><br />{subsidiaryInfo.addressLine3}</>) : null}
+                  {subsidiaryInfo.region ? (<><br />{subsidiaryInfo.region}, Hong Kong</>) : null}
+                </div>
+                {(subsidiaryInfo.email || subsidiaryInfo.phone) ? (
+                  <div className="sub-contact">
+                    {subsidiaryInfo.email ? <div className="sub-email">{spaceify(subsidiaryInfo.email)}</div> : null}
+                    {subsidiaryInfo.phone ? <div className="sub-phone">{spaceify(String(subsidiaryInfo.phone))}</div> : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {/* eslint-disable-next-line react/no-unknown-property */}
+            <style jsx>{`        .page-wrapper {
           padding: 32px 24px 48px;
           background: #f8fafc;
           min-height: 100%;
@@ -2933,8 +2964,8 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         .company-autocomplete textarea { text-align: right !important; }
         .company-autocomplete.flash-fill :global(.ant-select-selector), .flash-fill { animation: flash-fill 900ms ease-in-out; }
         @keyframes flash-fill {
-          0%, 100% { background-color: #f8fafc; box-shadow: inset 0 0 0 1px #cbd5f5; }
-          50% { background-color: #ffffff; box-shadow: inset 0 0 0 2px #3b82f6; }
+          0%, 100% { background-color: #f8fafc; }
+          50% { background-color: #ffff99; }
         }
 
 
@@ -3010,6 +3041,17 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         .sub-address { font-family: 'Cormorant Infant', serif; font-weight: 400; font-size: 7px; color: #000; }
         .sub-contact { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 7px; color: #595959; }
         .sub-email, .sub-phone { letter-spacing: 0.08em; }
+
+        .subsidiary-card.is-footer {
+          position: relative;
+          text-align: left;
+          margin: 24px auto 0;
+          padding: 16px;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          max-width: 1040px;
+        }
+
 
         .subsidiary-card.is-footer {
           position: relative;
@@ -3374,7 +3416,8 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         }
         .item-description-edit {
           font-style: italic;
-          font-weight: 300 !important;
+          color: #374151;
+          font-weight: 700 !important;
         }
         .item-edit .ant-input-textarea textarea { font-style: italic; color: #374151; font-weight: 700 !important; }
 

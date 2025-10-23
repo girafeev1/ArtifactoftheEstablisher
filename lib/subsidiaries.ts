@@ -1,8 +1,9 @@
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore, collection, getDocs } from 'firebase/firestore'
 import { app } from './firebase'
 import { doc, getDoc } from 'firebase/firestore'
 
 export type SubsidiaryDoc = {
+  identifier: string
   englishName?: string
   chineseName?: string
   addressLine1?: string
@@ -27,3 +28,12 @@ export async function fetchSubsidiaryById(id: string): Promise<SubsidiaryDoc | n
   }
 }
 
+export async function fetchSubsidiaries(): Promise<SubsidiaryDoc[]> {
+  try {
+    const snapshot = await getDocs(collection(refDb, 'Subsidiaries'))
+    return snapshot.docs.map(doc => ({ identifier: doc.id, ...doc.data() } as SubsidiaryDoc))
+  } catch (err) {
+    console.error(err)
+    return []
+  }
+}

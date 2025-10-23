@@ -894,7 +894,7 @@ const ProjectsContent = () => {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {record.subsidiary ? (
               <Tooltip title={subsidiaryMap[record.subsidiary]?.chineseName} placement="top">
-                <Tag style={subsidiaryTagStyle}>{stringOrNA(subsidiaryMap[record.subsidiary]?.englishName || record.subsidiary)}</Tag>
+                <Tag style={subsidiaryTagStyle}>{stringOrNA(subsidiaryMap[record.subsidiary]?.englishName ?? (record.subsidiary ? 'Loading...' : '-'))}</Tag>
               </Tooltip>
             ) : null}
             <span style={primaryRowTextStyle}>{stringOrNA(record.clientCompany)}</span>
@@ -947,7 +947,7 @@ const ProjectsContent = () => {
         ),
       },
     ]
-  }, [navigateToDetails])
+  }, [navigateToDetails, subsidiaryMap])
 
   const yearOptions = availableYears.map((year) => ({ label: year, value: year }))
   const subsidiaryOptions = availableSubsidiaries.map((value) => ({ label: value, value }))
