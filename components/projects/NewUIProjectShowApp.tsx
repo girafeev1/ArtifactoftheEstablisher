@@ -690,7 +690,6 @@ const ProjectsShowContent = () => {
   }, [router])
 
   const isEditingInvoice = invoiceMode !== "idle" || isManagingInvoices
-  console.log('isEditingInvoice:', isEditingInvoice);
 
   const currentInvoiceRecord =
     invoiceMode === "idle" && invoices.length > 0
