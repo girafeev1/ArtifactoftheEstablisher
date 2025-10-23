@@ -2380,8 +2380,14 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
                           popupMatchSelectWidth={false}
                         />
                         <Input
-                          value={editingClient?.representative ?? ""}
-                          onChange={(event) => handleClientFieldChange("representative", event.target.value)}
+                          value={(editingClient?.representative ?? "").replace(/^(Mr\.|Ms\.|Mrs\.)\s+/i, '').trim()}
+                          onChange={(event) => {
+                            const newName = event.target.value
+                            const current = editingClient?.representative ?? ''
+                            const titleMatch = current.match(/^(Mr\.|Ms\.|Mrs\.)\s+/i)
+                            const title = titleMatch ? titleMatch[0] : ''
+                            handleClientFieldChange("representative", `${title}${newName}`.trim())
+                          }}
                           placeholder="Attention / Representative"
                           variant="borderless"
                           className="client-input"
@@ -3092,8 +3098,8 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .billing-section {
           grid-area: billing;
-          align-items: flex-end;
-          text-align: right;
+          align-items: flex-start;
+          text-align: left;
         }
 
         .billing-section-header {
@@ -3123,8 +3129,8 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           gap: 12px;
           min-width: 0;
           padding: 8px 0 0;
-          align-items: flex-end;
-          text-align: right;
+          align-items: flex-start;
+          text-align: left;
           margin-top: 36px; /* align with invoice header row */
         }
 
@@ -3384,6 +3390,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .items-header {
           margin-bottom: 12px;
+          text-align: left;
         }
 
         .items-heading {
