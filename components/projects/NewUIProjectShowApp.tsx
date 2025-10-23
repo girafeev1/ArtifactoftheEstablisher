@@ -166,13 +166,11 @@ const renderMixed = (text: string | null | undefined, zhClass: string, enClass: 
   ))
 }
 
-const spaceify = (value: string) => (
-  value
-    .split('')
-    .map((ch) => (ch === ' ' ? '   ' : `${ch} `))
-    .join('')
-    .trim()
-)
+const spaceify = (value: string) => {
+  return value.split(' ').map(word => {
+    return word.split('').join(' ');
+  }).join('   ').trim();
+}
 
 type InvoiceTableRow = {
   key: string
@@ -692,6 +690,7 @@ const ProjectsShowContent = () => {
   }, [router])
 
   const isEditingInvoice = invoiceMode !== "idle" || isManagingInvoices
+  console.log('isEditingInvoice:', isEditingInvoice);
 
   const currentInvoiceRecord =
     invoiceMode === "idle" && invoices.length > 0
@@ -2484,31 +2483,9 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         </Card>
 
               </Space>
-            </div>
-            {subsidiaryInfo ? (
-              <div className="subsidiary-card is-footer">
-                {subsidiaryInfo.englishName ? (
-                  <div className="sub-name-en">{spaceify(subsidiaryInfo.englishName)}</div>
-                ) : null}
-                {subsidiaryInfo.chineseName ? (
-                  <div className="sub-name-zh">{subsidiaryInfo.chineseName}</div>
-                ) : null}
-                <div className="sub-address">
-                  {subsidiaryInfo.addressLine1 || ''}
-                  {subsidiaryInfo.addressLine2 ? (<><br />{subsidiaryInfo.addressLine2}</>) : null}
-                  {subsidiaryInfo.addressLine3 ? (<><br />{subsidiaryInfo.addressLine3}</>) : null}
-                  {subsidiaryInfo.region ? (<><br />{subsidiaryInfo.region}, Hong Kong</>) : null}
-                </div>
-                {(subsidiaryInfo.email || subsidiaryInfo.phone) ? (
-                  <div className="sub-contact">
-                    {subsidiaryInfo.email ? <div className="sub-email">{spaceify(subsidiaryInfo.email)}</div> : null}
-                    {subsidiaryInfo.phone ? <div className="sub-phone">{spaceify(String(subsidiaryInfo.phone))}</div> : null}
                   </div>
-                ) : null}
-              </div>
-            ) : null}
-            {/* eslint-disable-next-line react/no-unknown-property */}
-            <style jsx>{`        .page-wrapper {
+                  {/* eslint-disable-next-line react/no-unknown-property */}
+                  <style jsx>{`        .page-wrapper {
           padding: 32px 24px 48px;
           background: #f8fafc;
           min-height: 100%;
@@ -3040,23 +3017,15 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         /* Subsidiary info card top-right */
         .subsidiary-card { position: absolute; top: 0; right: 0; text-align: right; }
-        .sub-name-en { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 10px; color: #000; letter-spacing: 0.08em; }
-        .sub-name-zh { font-family: 'Iansui', sans-serif; font-weight: 700; font-size: 8px; color: #000; letter-spacing: 0.08em; }
+        .sub-name-en { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 10px; color: #000; letter-spacing: 0.08em; white-space: pre-wrap; }
+        .sub-name-zh { font-family: 'Iansui', sans-serif; font-weight: 700; font-size: 8px; color: #000; letter-spacing: 0.08em; white-space: pre-wrap; }
         .sub-name-en.big { font-size: 20px; }
         .sub-name-zh.big { font-size: 16px; }
-        .sub-address { font-family: 'Cormorant Infant', serif; font-weight: 400; font-size: 7px; color: #000; }
-        .sub-contact { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 7px; color: #595959; }
-        .sub-email, .sub-phone { letter-spacing: 0.08em; }
+        .sub-address { font-family: 'Cormorant Infant', serif; font-weight: 400; font-size: 11px; color: #000; }
+        .sub-contact { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 11px; color: #595959; }
+        .sub-email, .sub-phone { letter-spacing: 0.08em; white-space: pre-wrap; }
 
-        .subsidiary-card.is-footer {
-          position: relative;
-          text-align: left;
-          margin: 24px auto 0;
-          padding: 16px;
-          border: 1px solid #e2e8f0;
-          border-radius: 16px;
-          max-width: 1040px;
-        }
+
 
 
         .subsidiary-card.is-footer {
@@ -3073,7 +3042,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
           grid-template-areas:
-            "client billing"
+            "billing client"
             "items items";
           gap: 24px;
           align-items: stretch;
@@ -3098,14 +3067,14 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .billing-section {
           grid-area: billing;
-          align-items: flex-start;
-          text-align: left;
+          align-items: flex-end;
+          text-align: right;
         }
 
         .billing-section-header {
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-start;
           gap: 12px;
           flex-wrap: wrap;
         }
@@ -3426,7 +3395,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           color: #374151;
           font-weight: 700 !important;
         }
-        .item-edit .ant-input-textarea textarea { font-style: italic; color: #374151; font-weight: 700 !important; }
+
 
         .item-edit {
           display: flex;
