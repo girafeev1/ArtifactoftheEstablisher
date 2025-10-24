@@ -484,6 +484,6 @@ export default function CoachingSessions() {
 }
 
 export async function getStaticProps() {
-  const { latestPromptIdFromFiles } = await import('../../../lib/promptId')
+  const { latestPromptIdFromFiles } = await import('../../../lib/promptId-server')
   return { props: { promptId: latestPromptIdFromFiles() } }
 }
