@@ -27,6 +27,16 @@ export async function loadSecrets(): Promise<SecretFetchResult> {
     NEXTAUTH_URL: process.env.NEXTAUTH_URL || '',
   };
 
+  // Provide safe development defaults if missing locally
+  if (process.env.NODE_ENV !== 'production') {
+    if (!secrets.NEXTAUTH_SECRET) {
+      secrets.NEXTAUTH_SECRET = 'dev-secret'
+    }
+    if (!secrets.NEXTAUTH_URL) {
+      secrets.NEXTAUTH_URL = 'http://localhost:3000'
+    }
+  }
+
   // NEXTAUTH_URL must be available at runtime for NextAuth to construct links
   if (secrets.NEXTAUTH_URL) {
     process.env.NEXTAUTH_URL = secrets.NEXTAUTH_URL;

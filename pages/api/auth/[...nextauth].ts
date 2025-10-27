@@ -21,6 +21,26 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
           refreshToken: { label: 'Google Refresh Token', type: 'text' },
         },
         async authorize(credentials) {
+          // Development bypass: allow sign-in without Firebase Admin credentials
+          // Set DEV_AUTH_BYPASS=1 in .env.local to enable. LOCAL ONLY.
+          if (process.env.DEV_AUTH_BYPASS === '1') {
+            const devUser = {
+              id: 'dev-user',
+              name: 'Dev User',
+              email: 'dev@example.com',
+              image: null,
+              firebase: {
+                claims: { devBypass: true },
+                idToken: credentials?.idToken ?? null,
+              },
+              google: {
+                accessToken: credentials?.accessToken ?? null,
+                refreshToken: credentials?.refreshToken ?? null,
+              },
+            } as any
+            return devUser
+          }
+
           if (!credentials?.idToken) {
             throw new Error('Missing Firebase ID token')
           }
