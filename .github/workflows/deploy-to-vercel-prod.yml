@@ -14,8 +14,8 @@ concurrency:
 
 jobs:
   deploy:
-    # Run only for pushes to main (avoid failing on feature branches)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Only run on pushes to main and when a Vercel token is configured
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.VERCEL_TOKEN != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
