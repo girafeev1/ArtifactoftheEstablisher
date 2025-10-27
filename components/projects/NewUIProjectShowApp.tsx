@@ -36,6 +36,7 @@ import type { ProjectInvoiceRecord } from "../../lib/projectInvoices"
 import dayjs, { type Dayjs } from "dayjs"
 import { resolveBankAccountIdentifier, listBanks, listAccounts, lookupAccount, type BankInfo, type AccountInfo } from "../../lib/erlDirectory"
 import { fetchSubsidiaryById, fetchSubsidiaries, type SubsidiaryDoc } from "../../lib/subsidiaries"
+import clsx from 'clsx'
 
 import AppShell from "../new-ui/AppShell"
 import {
@@ -142,7 +143,7 @@ type ProjectDraftState = {
   subsidiary: string
 }
 
-const isCjk = (ch: string) => /[\u3400-\u9FFF\uF900-\uFAFF]/.test(ch)
+const isCjk = (ch: string) => /[㐀-鿿豈-﫿]/.test(ch)
 
 const renderMixed = (text: string | null | undefined, zhClass: string, enClass: string) => {
   const value = (text ?? '').toString()
@@ -381,7 +382,7 @@ const computeTotals = (subtotal: number, percent: number) => {
 
 const formatPercentText = (percent: number) => {
   const safe = Number(percent) || 0
-  return `${safe.toFixed(2).replace(/\.00$/, "")}\u0025`
+  return `${safe.toFixed(2)}%`
 }
 
 const toNullableString = (value: string) => {
@@ -413,9 +414,7 @@ const ProjectsShowContent = () => {
   // Equalize status button widths to the longest label
   const statusButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [statusButtonWidth, setStatusButtonWidth] = useState<number | undefined>(undefined)
-  const [bankInfoMap, setBankInfoMap] = useState<
-    Record<string, { bankName: string; bankCode?: string; accountType?: string | null }>
-  >({})
+  const [bankInfoMap, setBankInfoMap] = useState< Record<string, { bankName: string; bankCode?: string; accountType?: string | null }> >({})
   const [bankList, setBankList] = useState<BankInfo[] | null>(null)
   const [selectedBankCode, setSelectedBankCode] = useState<string | null>(null)
   const [accountList, setAccountList] = useState<AccountInfo[] | null>(null)
@@ -623,7 +622,7 @@ const ProjectsShowContent = () => {
       projectDateIso: project.projectDateIso ?? null,
       subsidiary: project.subsidiary ?? "",
     })
-  }, [project, projectEditMode])
+  }, [project])
 
   const hasInvoices = invoices.length > 0
   const { totalValue: aggregatedInvoiceTotal, hasAmount: hasAggregatedInvoiceAmount } =
@@ -1115,12 +1114,7 @@ const ProjectsShowContent = () => {
 
   const handleProjectDraftChange = useCallback(
     (
-      field:
-        | "presenterWorkType"
-        | "projectTitle"
-        | "projectNature"
-        | "projectNumber"
-        | "subsidiary",
+      field: "presenterWorkType" | "projectTitle" | "projectNature" | "projectNumber" | "subsidiary",
       value: string,
     ) => {
       setProjectDraft((previous) => ({ ...previous, [field]: value }))
@@ -1859,6 +1853,48 @@ const ProjectsShowContent = () => {
             >
               Back to Projects
             </Button>
+            {isProjectEditing ? (
+              <div className="descriptor-actions">
+                <Button danger onClick={async () => {
+                  if (!project) return
+                  Modal.confirm({
+                    title: 'Delete this project?',
+                    content: `#${project.projectNumber} — this action cannot be undone`,
+                    okType: 'danger',
+                    async onOk() {
+                      try {
+                        const res = await fetch(`/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`, {
+                          method: 'DELETE',
+                          credentials: 'include',
+                        })
+                        if (!res.ok) throw new Error('Delete failed')
+                        message.success('Project deleted')
+                        void router.push('/dashboard/new-ui/projects')
+                      } catch (e) {
+                        message.error(e instanceof Error ? e.message : 'Delete failed')
+                      }
+                    }
+                  })
+                }} disabled={projectEditSaving}>
+                  Delete
+                </Button>
+                <Button className="project-cancel" onClick={cancelProjectEditing} disabled={projectEditSaving}>
+                  Cancel
+                </Button>
+                <Button type="primary" className="project-save" onClick={saveProjectEdits} loading={projectEditSaving}>
+                  Save
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="descriptor-edit-trigger"
+                onClick={startProjectEditing}
+                aria-label="Edit project details"
+              >
+                <EditOutlined />
+              </button>
+            )}
           </div>
           <div className="header-block">
             {subsidiaryInfo ? (
@@ -1918,49 +1954,7 @@ const ProjectsShowContent = () => {
                 {formatProjectDate(project.projectDateIso, project.projectDateDisplay)}
               </span>
             )}
-            {isProjectEditing ? (
-              <div className="descriptor-actions">
-                <Button danger onClick={async () => {
-                  if (!project) return
-                  Modal.confirm({
-                    title: 'Delete this project?',
-                    content: `#${project.projectNumber} — this action cannot be undone`,
-                    okType: 'danger',
-                    async onOk() {
-                      try {
-                        const res = await fetch(`/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`, {
-                          method: 'DELETE',
-                          credentials: 'include',
-                        })
-                        if (!res.ok) throw new Error('Delete failed')
-                        message.success('Project deleted')
-                        void router.push('/dashboard/new-ui/projects')
-                      } catch (e) {
-                        message.error(e instanceof Error ? e.message : 'Delete failed')
-                      }
-                    }
-                  })
-                }} disabled={projectEditSaving}>
-                  Delete
-                </Button>
-                <Button className="project-cancel" onClick={cancelProjectEditing} disabled={projectEditSaving}>
-                  Cancel
-                </Button>
-                <Button type="primary" className="project-save" onClick={saveProjectEdits} loading={projectEditSaving}>
-                  Save
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="descriptor-edit-trigger"
-                onClick={startProjectEditing}
-                aria-label="Edit project details"
-                style={{ marginLeft: 8 }}
-              >
-                <EditOutlined />
-              </button>
-            )}
+            
           </div>
           </div>
           <div className="title-row">
@@ -1978,9 +1972,7 @@ const ProjectsShowContent = () => {
                 style={{ width: "100%", maxWidth: 480, textAlign: 'left' }}
               />
               ) : (
-                <Text className="presenter-type" style={{ display: 'block' }}>
-                  {renderMixed(project.presenterWorkType, 'zh-presenter', 'en-presenter')}
-                </Text>
+                <Text className="presenter-type" style={{ display: 'block' }}>{renderMixed(project.presenterWorkType, 'iansui-text', 'karla-label')}</Text>
               )}
               {isProjectEditing ? (
                 <Input
@@ -1993,9 +1985,7 @@ const ProjectsShowContent = () => {
                   style={{ width: "100%", maxWidth: 620, textAlign: 'left' }}
                 />
               ) : (
-                <Title level={2} className="project-title">
-                  {renderMixed(project.projectTitle, 'zh-title', 'en-title')}
-                </Title>
+                <Title level={2} className="project-title">{renderMixed(project.projectTitle, 'yuji-title', 'karla-label')}</Title>
               )}
               <div className={`nature-row ${isProjectEditing ? "editing" : ""}`}>
                 {isProjectEditing ? (
@@ -2009,7 +1999,7 @@ const ProjectsShowContent = () => {
                     style={{ width: "100%", maxWidth: 560 }}
                   />
                 ) : (
-                  <Text className="project-nature"><em>{stringOrNA(project.projectNature)}</em></Text>
+                  <Text className="project-nature"><em>{renderMixed(project.projectNature, 'yuji-title', 'karla-label')}</em></Text>
                 )}
               </div>
               {isProjectEditing ? (
@@ -2041,9 +2031,7 @@ const ProjectsShowContent = () => {
               <button
                 key={label}
                 type="button"
-                className={`status-button ${index === 0 ? "first" : ""} ${
-                  index === STATUS_STEPS.length - 1 ? "last" : ""
-                } ${index <= paymentStatusIndex ? "done" : ""}`}
+                className={`status-button ${index === 0 ? "first" : ""} ${ index === STATUS_STEPS.length - 1 ? "last" : ""} ${ index <= paymentStatusIndex ? "done" : ""}`}
                 ref={(el) => {
                   statusButtonRefs.current[index] = el
                 }}
@@ -2055,285 +2043,85 @@ const ProjectsShowContent = () => {
           </div>
         </div>
         <Card className="details-card billing-card" variant="filled">
-          <div className="billing-card-content">
-            <div className="billing-layout">
-              <section className="billing-section">
-                {(hasInvoices || isManagingInvoices || invoiceMode !== "idle") ? (
-                  <div className="billing-section-header">
-                    <span className="summary-label client-label">Invoice</span>
-                    <Title level={5} className="section-heading">
-                      Billing &amp; Payments
-                    </Title>
-                    {invoiceMode === "idle" ? (
-                      <div className="billing-header-actions">
-                        <Button type="primary" className="add-invoice-top" onClick={() => {
-                          if (isManagingInvoices) {
-                            setIsManagingInvoices(false)
-                            setInvoiceMode("idle")
-                            setDraftInvoice(null)
+            <div className="billing-card-content">
+              {(hasInvoices || isManagingInvoices || invoiceMode !== "idle") ? (
+                <div className="billing-section-header">
+                  <Title level={5} className="section-heading">
+                    Billing &amp; Payments
+                  </Title>
+                  {(invoiceMode === "idle" || isProjectEditing || isManagingInvoices) ? (
+                    <div className="billing-header-actions">
+                      <Button type="primary" className="add-invoice-top" onClick={() => {
+                        if (isManagingInvoices) {
+                          setIsManagingInvoices(false)
+                          setInvoiceMode("idle")
+                          setDraftInvoice(null)
+                        } else {
+                          setIsManagingInvoices(true)
+                          if (invoices.length === 0) {
+                            prepareDraft("create")
                           } else {
-                            setIsManagingInvoices(true)
-                            if (invoices.length === 0) {
-                              prepareDraft("create")
-                            }
+                            prepareDraft("edit")
                           }
-                        }}>
-                          {isManagingInvoices ? "Done Managing Invoices" : (invoices.length > 0 ? "Manage Invoices" : "Manage Invoice")}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                {hasInvoices || isManagingInvoices || invoiceMode !== "idle" ? (
-                  <div className="invoice-table">
-                  <div className="invoice-row head">
-                    <span className="invoice-cell heading">Invoice #</span>
-                    <span className="invoice-cell heading">Amount</span>
-                    <span className="invoice-cell heading">Status</span>
-                    <span className="invoice-cell heading">To</span>
-                    <span className="invoice-cell heading">On</span>
-                  </div>
-                  {invoiceEntries.length > 0 ? (
-                    invoiceEntries.map((entry, index) => {
-                      const isActive = index === activeEntryIndex
-                      const isEditingRow = invoiceMode !== "idle" && isActive
-                      const isPending = entry.pending
-                      const displayNumber =
-                        isEditingRow && draftInvoice
-                          ? `#${draftInvoice.invoiceNumber ?? ''}`
-                          : `#${entry.invoiceNumber}`
-                      const payToInfo = entry.payToInfo
-
-                      return (
-                        <div
-                          key={`${entry.invoiceNumber}-${index}`}
-                          role="button"
-                          tabIndex={0}
-                          className={`invoice-row selectable-row ${
-                            isActive ? "active" : ""
-                          } ${isPending ? "pending" : ""} ${isEditingRow ? "editing" : ""}`}
-                          onClick={() => handleSelectInvoice(index, entry.pending)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault()
-                              handleSelectInvoice(index, entry.pending)
-                            }
-                          }}
-                        >
-                          <div className="invoice-cell number">
-                            {isEditingRow && invoiceNumberEditing ? (
-                              <Input
-                                  value={draftInvoice?.invoiceNumber ?? ""}
-                                  onChange={(event) => handleInvoiceNumberInput(event.target.value)}
-                                  onBlur={finalizeInvoiceNumberEdit}
-                                  onKeyDown={handleInvoiceNumberKeyDown}
-                                  autoFocus
-                                  bordered={false}
-                                  className="invoice-input editing"
-                                  onClick={(event) => event.stopPropagation()}
-                                />
-                              ) : (
-                                <span
-                                  className={`invoice-number-text ${
-                                    isEditingRow ? "editing" : ""
-                                  }`}
-                                >
-                                  {displayNumber}
-                                </span>
-                              )}
-
-                          </div>
-                          <div className="invoice-cell amount">
-                            {amountText(isEditingRow ? total : entry.amount)}
-                          </div>
-                          <div className="invoice-cell status">
-                            {isEditingRow && draftInvoice ? (
-                              <div
-                                className="invoice-status-control"
-                                onClick={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => event.stopPropagation()}
-                              >
-                                  <Select
-                                    value={draftInvoice.paymentStatus ?? undefined}
-                                    onChange={handleInvoiceStatusChange}
-                                    options={ANT_INVOICE_STATUS_OPTIONS}
-                                    className="invoice-status-select"
-                                    popupMatchSelectWidth={false}
-                                    style={{ width: 'auto', minWidth: 90 }}
-                                  />
-                              </div>
-                            ) : entry.pending ? (
-                              <span className="draft-pill">Draft</span>
-                            ) : (
-                              <Tag
-                                color={paymentPalette[entry.statusColor].backgroundColor}
-                                className="status-chip"
-                                style={{ color: paymentPalette[entry.statusColor].color }}
-                              >
-                                {entry.statusLabel}
-                              </Tag>
-                            )}
-                          </div>
-                          <div className="invoice-cell pay-to">
-                            {isEditingRow && draftInvoice ? (
-                              <div className="bank-selectors" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                                <Select
-                                  placeholder="Bank"
-                                  size="small"
-                                  value={selectedBankCode ?? undefined}
-                                  optionLabelProp="collapsedLabel"
-                                  onChange={async (code: string) => {
-                                    setSelectedBankCode(code)
-                                    const found = (bankList ?? []).find((b) => b.bankCode === code)
-                                    if (found) {
-                                      const accounts = await listAccounts(found)
-                                      setAccountList(accounts)
-                                    } else {
-                                      setAccountList([])
-                                    }
-                                  }}
-                                  options={(bankList ?? []).map((b) => ({
-                                    value: b.bankCode,
-                                    label: `${b.bankName} (${b.bankCode})`,
-                                    collapsedLabel: (
-                                      <div className="bank-selected" title={`${b.bankName} (${b.bankCode})`}>
-                                        <span className="bank-selected-name">{b.bankName}</span>
-                                        <span className="bank-selected-code">({b.bankCode})</span>
-                                      </div>
-                                    ),
-                                  }))}
-                                  style={{ width: 160 }}
-                                  popupMatchSelectWidth={false}
-                                />
-                                <Select
-                                  placeholder="Account"
-                                  size="small"
-                                  value={draftInvoice.paidTo ?? undefined}
-                                  onChange={(val: string) => handlePaidToChange(val)}
-                                  options={(accountList ?? []).map((a) => ({ label: a.accountType ? `${a.accountType} Account` : 'Account', value: a.accountDocId }))}
-                                  style={{ width: 160 }}
-                                  popupMatchSelectWidth={false}
-                                />
-                              </div>
-                            ) : payToInfo ? (
-                              <div className="bank-display">
-                                <Tooltip
-                                  title={payToInfo.bankName}
-                                  mouseEnterDelay={0}
-                                  placement="topRight"
-                                  overlayStyle={{ maxWidth: 360 }}
-                                  overlayInnerStyle={{ background: '#fff8c2', color: '#0f172a', boxShadow: '0 6px 16px rgba(0,0,0,0.15)', textAlign: 'right', whiteSpace: 'normal', wordBreak: 'break-word' }}
-                                  overlayClassName="bank-tooltip"
-                                >
-                                  <span className="bank-name">{entry.displayBankName || entry.payToText}</span>
-                                </Tooltip>
-                                {payToInfo.accountType ? (
-                                  <span className="account-chip">{payToInfo.accountType} Account</span>
-                                ) : null}
-                              </div>
-                            ) : entry.payToText ? (
-                              <span className="bank-name">{entry.payToText}</span>
-                            ) : (
-                              "-"
-                            )}
-                          </div>
-                          <div className="invoice-cell paid-on">
-                            {isEditingRow && draftInvoice ? (
-                              <DatePicker
-                                value={draftInvoice.paidOnIso ? dayjs(draftInvoice.paidOnIso) : null}
-                                onChange={(v) => {
-                                  handlePaidOnChange(v)
-                                }}
-                                variant="borderless"
-                                format="MMM DD, YYYY"
-                                placeholder="Select date"
-                                allowClear
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            ) : (
-                              entry.paidOnText ?? "-"
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })
-                  ) : (
-                    <div className="invoice-empty-row">No invoices yet.</div>
-                  )}
-                  {invoiceEntries.length > 1 ? (
-                    <div className="invoice-row total" role="row">
-                      <span className="invoice-cell number total-label">Total:</span>
-                      <span className="invoice-cell amount">{amountText(projectTotalValue)}</span>
-                      <span className="invoice-cell status total-status">{totalStatusLabel}</span>
-                      <span className="invoice-cell pay-to">-</span>
-                      <span className="invoice-cell paid-on">{totalPaidOnText}</span>
+                        }
+                      }}>
+                        {isManagingInvoices ? "Done Managing Invoices" : (invoices.length > 0 ? "Manage Invoices" : "Manage Invoice")}
+                      </Button>
                     </div>
                   ) : null}
-                  </div>
-                ) : null}
-                {isManagingInvoices ? (
-                  <div className="billing-actions">
-                    <Space size={12} wrap>
-                      <Button onClick={() => {
-                        handleCancelInvoice()
-                        setIsManagingInvoices(false)
-                      }} disabled={savingInvoice}>
-                        Cancel
-                      </Button>
-                      <Button type="primary" onClick={() => prepareDraft("create")}>
-                        Add Additional Invoice
-                      </Button>
-                    </Space>
-                  </div>
-                ) : null}
-              </section>
-              {(hasInvoices || invoiceMode !== "idle") && (
-              <aside className={`client-panel ${isEditingInvoice ? "editing" : ""}`}>
+                </div>
+              ) : null}
+              {(hasInvoices || isManagingInvoices || invoiceMode !== "idle") ? (
+                <div className="billing-layout">
+              <aside className={clsx("client-panel", { editing: isEditingInvoice })} data-section="client">
                 <span className="summary-label client-label">Client</span>
-                <div className={`company-block ${isEditingInvoice ? "editing" : ""}`}>
-                  {isEditingInvoice ? (
-                    <>
-                      <AutoComplete
-                        value={editingClient?.companyName ?? ""}
-                        onChange={(value) => handleClientFieldChange("companyName", value)}
-                        options={(clientsDirectory ?? []).map((c) => ({ value: c.companyName }))}
-                        onSelect={(value) => {
-                          const list = clientsDirectory ?? []
-                          const match = list.find((c) => c.companyName === value)
-                          if (match) {
-                            setDraftInvoice((prev) => {
-                              if (!prev) return prev
-                              return {
-                                ...prev,
-                                client: {
-                                  companyName: match.companyName,
-                                  addressLine1: match.addressLine1 ?? null,
-                                  addressLine2: match.addressLine2 ?? null,
-                                  addressLine3: match.addressLine3 ?? null,
-                                  region: match.region ?? (match as any).addressLine5 ?? null,
-                                  representative: (match.title ? `${match.title} ` : '') + (match.representative ?? ''),
-                                },
-                              }
-                            })
-                            setFlashClientFields(false)
-                            requestAnimationFrame(() => {
-                              setFlashClientFields(true)
-                              setTimeout(() => setFlashClientFields(false), 700)
-                            })
-                          }
-                        }}
-                        placeholder="Company name"
-                        className={`client-input company company-autocomplete ${flashClientFields ? 'flash-fill' : ''}`}
-                        style={{ textAlign: 'right', width: '100%' }}
-                        filterOption={(inputValue, option) =>
-                          String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
+                {isEditingInvoice ? (
+                  <div className="company-block editing">
+                    <AutoComplete
+                      value={editingClient?.companyName ?? ""}
+                      onChange={(value) => handleClientFieldChange("companyName", value)}
+                      options={(clientsDirectory ?? []).map((c) => ({ value: c.companyName }))}
+                      onSelect={(value) => {
+                        const list = clientsDirectory ?? []
+                        const match = list.find((c) => c.companyName === value)
+                        if (match) {
+                          setDraftInvoice((prev) => {
+                            if (!prev) return prev
+                            return {
+                              ...prev,
+                              client: {
+                                companyName: match.companyName,
+                                addressLine1: match.addressLine1 ?? null,
+                                addressLine2: match.addressLine2 ?? null,
+                                addressLine3: match.addressLine3 ?? null,
+                                region: match.region ?? (match as any).addressLine5 ?? null,
+                                representative: (match.title ? `${match.title} ` : '') + (match.representative ?? ''),
+                              },
+                            }
+                          })
+                          lastMatchedCompanyRef.current = match.companyName?.toLowerCase() ?? null
+                          setFlashClientFields(false)
+                          requestAnimationFrame(() => {
+                            setFlashClientFields(true)
+                            setTimeout(() => setFlashClientFields(false), 700)
+                          })
                         }
-                      />
+                      }}
+                      placeholder="Company name"
+                      className={`client-input company company-autocomplete ${flashClientFields ? 'flash-fill' : ''}`}
+                      style={{ textAlign: 'left', width: '100%' }}
+                      filterOption={(inputValue, option) =>
+                        String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
+                      }
+                    />
+                    <div className="client-input-group">
                       <Input
                         value={editingClient?.addressLine1 ?? ""}
                         onChange={(event) => handleClientFieldChange("addressLine1", event.target.value)}
-className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
-                        style={{ textAlign: 'right' }}
+                        placeholder="Address line 1"
+                        variant="borderless"
+                        className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
+                        style={{ textAlign: 'left' }}
                       />
                       <Input
                         value={editingClient?.addressLine2 ?? ""}
@@ -2341,7 +2129,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
                         placeholder="Address line 2"
                         variant="borderless"
                         className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
-                        style={{ textAlign: 'right' }}
+                        style={{ textAlign: 'left' }}
                       />
                       <Input
                         value={editingClient?.addressLine3 ?? ""}
@@ -2349,7 +2137,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
                         placeholder="Address line 3"
                         variant="borderless"
                         className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
-                        style={{ textAlign: 'right' }}
+                        style={{ textAlign: 'left' }}
                       />
                       <Input
                         value={editingClient?.region ?? ""}
@@ -2357,128 +2145,284 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
                         placeholder="Region"
                         variant="borderless"
                         className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
-                        style={{ textAlign: 'right' }}
+                        style={{ textAlign: 'left' }}
                       />
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <Select
-                          placeholder="Title"
-                          size="small"
-                          value={(() => {
-                            const rep = editingClient?.representative ?? ''
-                            const m = rep.match(/^(Mr\.|Ms\.|Mrs\.)\s+/)
-                            return m ? m[1] : undefined
-                          })()}
-                          onChange={(title: string) => {
-                            const current = editingClient?.representative ?? ''
-                            const nameOnly = current.replace(/^(Mr\.|Ms\.|Mrs\.)\s+/i, '').trim()
-                            handleClientFieldChange('representative', `${title} ${nameOnly}`.trim())
-                          }}
-                          options={[{value:'Mr.',label:'Mr.'},{value:'Ms.',label:'Ms.'},{value:'Mrs.',label:'Mrs.'}]}
-                          style={{ width: 100 }}
-                          popupMatchSelectWidth={false}
-                        />
-                        <Input
-                          value={(editingClient?.representative ?? "").replace(/^(Mr\.|Ms\.|Mrs\.)\s+/i, '').trim()}
-                          onChange={(event) => {
-                            const newName = event.target.value
-                            const current = editingClient?.representative ?? ''
-                            const titleMatch = current.match(/^(Mr\.|Ms\.|Mrs\.)\s+/i)
-                            const title = titleMatch ? titleMatch[0] : ''
-                            handleClientFieldChange("representative", `${title}${newName}`.trim())
-                          }}
-                          placeholder="Attention / Representative"
-                          variant="borderless"
-                          className="client-input"
-                          style={{ textAlign: 'right' }}
-                        />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <Select
+                        placeholder="Title"
+                        size="small"
+                        value={(() => {
+                          const rep = editingClient?.representative ?? ''
+                          const m = rep.match(/^(Mr\.|Ms\.|Mrs\.)\s+/i)
+                          return m ? m[1] : undefined
+                        })()}
+                        onChange={(title: string) => {
+                          const current = editingClient?.representative ?? ''
+                          const nameOnly = current.replace(/^(Mr\.|Ms\.|Mrs\.)\s+/i, '').trim()
+                          handleClientFieldChange('representative', `${title} ${nameOnly}`.trim())
+                        }}
+                        options={[{value:'Mr.',label:'Mr.'},{value:'Ms.',label:'Ms.'},{value:'Mrs.',label:'Mrs.'}]}
+                        style={{ width: 100 }}
+                        popupMatchSelectWidth={false}
+                      />
+                      <Input
+                        value={(editingClient?.representative ?? "").replace(/^(Mr\.|Ms\.|Mrs\.)\s+/i, '').trim()}
+                        onChange={(event) => {
+                          const newName = event.target.value
+                          const current = editingClient?.representative ?? ''
+                          const titleMatch = current.match(/^(Mr\.|Ms\.|Mrs\.)\s+/i)
+                          const title = titleMatch ? titleMatch[0] : ''
+                          handleClientFieldChange("representative", `${title}${newName}`.trim())
+                        }}
+                        placeholder="Attention / Representative"
+                        variant="borderless"
+                        className="client-input"
+                        style={{ textAlign: 'left' }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="company-block">
+                    <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
+                    <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
+                    <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
+                    <div className="company-line">{stringOrNA(companyLine3)}</div>
+                    {resolvedClient?.representative ? (
+                      <div className="company-line client-attn">
+                        <strong><em>Attn:</em></strong>&nbsp;<strong>{resolvedClient.representative}</strong>
                       </div>
-                    </>
-                  ) : (
-                    <>
+                    ) : null}
+                  </div>
+                )}                  </aside>
+                  <section className="billing-section" data-section="billing">
+                    {(hasInvoices || isManagingInvoices || invoiceMode !== "idle") ? (
+                      <>
+                        <div className="billing-header-actions-container">
+                          <span className="summary-label client-label">Invoice</span>
+                        </div>
+                        <div className="invoice-table">
+                          {/* ... invoice table content ... */}
+                          {invoiceEntries.length > 0 ? (
+                            invoiceEntries.map((entry, index) => {
+                              const isActive = index === activeEntryIndex
+                              const isEditingRow = invoiceMode !== "idle" && isActive
+                              const isPending = entry.pending
+                              const displayNumber =
+                                isEditingRow && draftInvoice
+                                  ? `#${draftInvoice.invoiceNumber ?? ''}`
+                                  : `#${entry.invoiceNumber}`
+                              const payToInfo = entry.payToInfo
+
+                              return (
+                                <div
+                                  key={`${entry.invoiceNumber}-${index}`}
+                                  role="button"
+                                  tabIndex={0}
+                                  className={`invoice-row selectable-row ${isActive ? "active" : ""} ${isPending ? "pending" : ""} ${isEditingRow ? "editing" : ""}`}
+                                  onClick={() => handleSelectInvoice(index, entry.pending)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault()
+                                      handleSelectInvoice(index, entry.pending)
+                                    }
+                                  }}
+                                >
+                                  <div className="invoice-cell number">
+                                    {isManagingInvoices && invoiceNumberEditing ? (
+                                      <Input
+                                          value={draftInvoice?.invoiceNumber ?? ""}
+                                          onChange={(event) => handleInvoiceNumberInput(event.target.value)}
+                                          onBlur={finalizeInvoiceNumberEdit}
+                                          onKeyDown={handleInvoiceNumberKeyDown}
+                                          autoFocus
+                                          bordered={false}
+                                          className="invoice-input editing"
+                                          onClick={(event) => event.stopPropagation()}
+                                        />
+                                      ) : (
+                                        <span
+                                          className={`invoice-number-text ${isEditingRow ? "editing" : ""}`}
+                                        >
+                                          {displayNumber}
+                                        </span>
+                                      )}
+
+                                  </div>
+                                  <div className="invoice-cell amount">
+                                    {amountText(isManagingInvoices ? total : entry.amount)}
+                                  </div>
+                                  <div className="invoice-cell status">
+                                    {isManagingInvoices && draftInvoice ? (
+                                      <div
+                                        className="invoice-status-control"
+                                        onClick={(event) => event.stopPropagation()}
+                                        onKeyDown={(event) => event.stopPropagation()}
+                                      >
+                                          <Select
+                                            value={draftInvoice.paymentStatus ?? undefined}
+                                            onChange={handleInvoiceStatusChange}
+                                            options={ANT_INVOICE_STATUS_OPTIONS}
+                                            className="invoice-status-select"
+                                            popupMatchSelectWidth={false}
+                                            style={{ width: 'auto', minWidth: 90 }}
+                                          />
+                                      </div>
+                                    ) : entry.pending ? (
+                                      <span className="draft-pill">Draft</span>
+                                    ) : (
+                                      <Tag
+                                        color={paymentPalette[entry.statusColor].backgroundColor}
+                                        className="status-chip"
+                                        style={{ color: paymentPalette[entry.statusColor].color }}
+                                      >
+                                        {entry.statusLabel}
+                                      </Tag>
+                                    )}
+                                  </div>
+                                  <div className="invoice-cell pay-to">
+                                    {isManagingInvoices && draftInvoice ? (
+                                      <div className="bank-selectors" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                                        <Select
+                                          placeholder="Bank"
+                                          size="small"
+                                          value={selectedBankCode ?? undefined}
+                                          optionLabelProp="collapsedLabel"
+                                          onChange={async (code: string) => {
+                                            setSelectedBankCode(code)
+                                            const found = (bankList ?? []).find((b) => b.bankCode === code)
+                                            if (found) {
+                                              const accounts = await listAccounts(found)
+                                              setAccountList(accounts)
+                                            } else {
+                                              setAccountList([])
+                                            }
+                                          }}
+                                          options={(bankList ?? []).map((b) => ({
+                                            value: b.bankCode,
+                                            label: `${b.bankName} (${b.bankCode})`,
+                                            collapsedLabel: (
+                                              <div className="bank-selected" title={`${b.bankName} (${b.bankCode})`}>
+                                                <span className="bank-selected-name">{b.bankName}</span>
+                                                <span className="bank-selected-code">({b.bankCode})</span>
+                                              </div>
+                                            ),
+                                          }))}
+                                          style={{ width: 160 }}
+                                          popupMatchSelectWidth={false}
+                                        />
+                                        <Select
+                                          placeholder="Account"
+                                          size="small"
+                                          value={draftInvoice.paidTo ?? undefined}
+                                          onChange={(val: string) => handlePaidToChange(val)}
+                                          options={(accountList ?? []).map((a) => ({ label: a.accountType ? `${a.accountType} Account` : 'Account', value: a.accountDocId }))}
+                                          style={{ width: 160 }}
+                                          popupMatchSelectWidth={false}
+                                        />
+                                      </div>
+                                    ) : payToInfo ? (
+                                      <div className="bank-display">
+                                        <Tooltip
+                                          title={payToInfo.bankName}
+                                          mouseEnterDelay={0}
+                                          placement="topRight"
+                                          overlayStyle={{ maxWidth: 360 }}
+                                                                                     overlayInnerStyle={{ background: '#fff8c2', color: '#0f172a', boxShadow: '0 6px 16px rgba(0,0,0,0.15)', textAlign: 'right', whiteSpace: 'normal', wordBreak: 'break-word' }}                                          overlayClassName="bank-tooltip"
+                                        >
+                                          <span className="bank-name">{entry.displayBankName || entry.payToText}</span>
+                                        </Tooltip>
+                                        {payToInfo.accountType ? (
+                                          <span className="account-chip">{payToInfo.accountType} Account</span>
+                                        ) : null}
+                                      </div>
+                                    ) : entry.payToText ? (
+                                      <span className="bank-name">{entry.payToText}</span>
+                                    ) : (
+                                      "-"
+                                    )}
+                                  </div>
+                                  <div className="invoice-cell paid-on">
+                                    {isManagingInvoices && draftInvoice ? (
+                                      <DatePicker
+                                        value={draftInvoice.paidOnIso ? dayjs(draftInvoice.paidOnIso) : null}
+                                        onChange={(v) => {
+                                          handlePaidOnChange(v)
+                                        }}
+                                        variant="borderless"
+                                        format="MMM DD, YYYY"
+                                        placeholder="Select date"
+                                        allowClear
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    ) : (
+                                      entry.paidOnText ?? "-"
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <div className="invoice-empty-row">No invoices yet.</div>
+                          )}
+                          {invoiceEntries.length > 1 ? (
+                            <div className="invoice-row total" role="row">
+                              <span className="invoice-cell number total-label">Total:</span>
+                              <span className="invoice-cell amount">{amountText(projectTotalValue)}</span>
+                              <span className="invoice-cell status total-status">{totalStatusLabel}</span>
+                              <span className="invoice-cell pay-to">-</span>
+                              <span className="invoice-cell paid-on">{totalPaidOnText}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    ) : null}
+                    {invoiceMode === "idle" ? (
+                      <div className="billing-actions">
+                        <Space size={12} wrap>
+                          <Button type="primary" onClick={() => prepareDraft("create")}>
+                            Add Additional Invoice
+                          </Button>
+                        </Space>
+                      </div>
+                    ) : null}
+                    {invoiceMode === "create" && hasInvoices ? (
+                      <div className="billing-actions">
+                        <Space size={12} wrap>
+                          <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
+                            Cancel
+                          </Button>
+                          <Button type="primary" disabled>
+                            Add Additional Invoice
+                          </Button>
+                        </Space>
+                      </div>
+                    ) : null}
+                  </section>
+                  <aside className="client-panel">
+                    <span className="summary-label client-label">Client</span>
+                    <div className="company-block">
                       <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
                       <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
                       <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
                       <div className="company-line">{stringOrNA(companyLine3)}</div>
                       {resolvedClient?.representative ? (
                         <div className="company-line client-attn">
-                          <strong><em>Attn:</em></strong>&nbsp;<strong>{resolvedClient.representative}</strong>
+                          <strong>Attn: {resolvedClient.representative}</strong>
                         </div>
                       ) : null}
-                    </>
-                  )}
-                </div>
-              </aside>
-              )}
-              <section className="items-section" style={{ borderTop: (!hasInvoices && invoiceMode === 'idle') ? 'none' : undefined, paddingTop: (!hasInvoices && invoiceMode === 'idle') ? 0 : undefined }}>
-                {!( !hasInvoices && invoiceMode === 'idle') ? (
-                <div className="items-header">
-                  <Title level={5} className="section-heading">
-                    Invoice Detail
-                  </Title>
-                </div>
-                ) : null}
-                {!hasInvoices && invoiceMode === "idle" ? (
-                  <div style={{ display:'flex', justifyContent:'center', padding: '24px 0' }}>
-                    <Button type="default" size="large" onClick={() => prepareDraft("create")}>
-                      <span className="cta-blink">Get Started</span>
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <Table<InvoiceTableRow>
-                      dataSource={itemsRows}
-                      columns={itemsColumns}
-                      pagination={false}
-                      rowKey="key"
-                      className="invoice-items"
-                    />
-                    {activeItems.length > 0 ? (
-                    <div className="totals-panel">
-                      <div className="totals-row">
-                        <span className="meta-label">Sub-total</span>
-                        <span className="meta-value">{amountText(subtotal)}</span>
-                      </div>
-                      <div className="totals-row">
-                        <span className="meta-label">Tax / Discount</span>
-                        {isEditingInvoice ? (
-                          <InputNumber
-                            value={taxPercent}
-                            variant="borderless"
-                            onChange={handleTaxChange}
-                            className="tax-input"
-                          />
-                        ) : (
-                          <span className="meta-value">{formatPercentText(taxPercent)}</span>
-                        )}
-                      </div>
-                      <div className="totals-row total">
-                        <span className="meta-label">Total</span>
-                        <span className="meta-value">{amountText(total)}</span>
-                      </div>
-                      {taxAmount !== 0 ? (
-                        <div className="tax-hint">({amountText(taxAmount)} adjustment)</div>
-                      ) : null}
                     </div>
-                    ) : null}
-                    {isEditingInvoice ? (
-                      <div className="items-actions">
-                        <Space size={12}>
-                          {showInvoiceCancel ? (
-                            <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
-                              Cancel
-                            </Button>
-                          ) : null}
-                          <Button type="primary" onClick={handleSaveInvoice} loading={savingInvoice}>
-                            {invoiceMode === "create" ? "Confirm" : "Save"}
-                          </Button>
-                        </Space>
-                      </div>
-                    ) : null}
-                  </>
-                )}
-              </section>
+                  </aside>
+                </div>
+              ) : (
+                <div className="billing-empty-state">
+                  <Empty description="No invoices yet" />
+                  <Button type="primary" className="cta-blink" onClick={() => prepareDraft("create")}>
+                    Get Started
+                  </Button>
+                </div>
+              )}
             </div>
-          </div>
         </Card>
 
               </Space>
@@ -2508,7 +2452,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         .top-row {
           display: flex;
           align-items: center;
-          justify-content: flex-start;
+          justify-content: space-between;
           gap: 16px;
           flex-wrap: wrap;
         }
@@ -2589,7 +2533,6 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         }
 
         .presenter-type {
-          font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #475569;
           text-transform: uppercase;
@@ -2626,7 +2569,6 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .project-title {
           margin: 0;
-          font-family: ${KARLA_FONT};
           font-weight: 700;
           color: #0f172a;
           line-height: 1.01;
@@ -2634,10 +2576,18 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         }
 
         /* Mixed font for CJK vs Latin */
-        .zh-title { font-family: ${YUJI_MAI_FONT}; }
-        .en-title { font-family: ${KARLA_FONT}; }
-        .zh-presenter { font-family: ${IANSUI_FONT}; }
-        .en-presenter { font-family: ${KARLA_FONT}; }
+        :global(.project-nature .yuji-title),
+        :global(.project-title .yuji-title) {
+          font-family: 'Yuji Mai', 'Cantata One', serif !important;
+        }
+        :global(.project-nature .karla-label),
+        :global(.project-title .karla-label),
+        :global(.presenter-type .karla-label) {
+          font-family: 'Karla', 'Newsreader', sans-serif !important;
+        }
+        :global(.presenter-type .iansui-text) {
+          font-family: 'Iansui', 'Yuji Mai', serif !important;
+        }
 
         :global(.project-title.ant-typography) {
           margin: 0 !important;
@@ -2711,15 +2661,12 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         }
 
         .descriptor-actions {
-          margin-left: auto;
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          margin-top: 16px;
         }
 
         .descriptor-edit-trigger {
-          margin-left: auto;
           border: none;
           background: none;
           padding: 4px;
@@ -2821,17 +2768,17 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           display: flex;
           flex-direction: column;
           gap: 4px;
-          align-items: flex-end;
-          text-align: right;
+          align-items: flex-start;
+          text-align: left;
         }
 
         .company-block.editing {
-          align-items: flex-end;
-          text-align: right;
+          align-items: flex-start;
+          text-align: left;
           gap: 10px;
         }
-        .company-block.editing :global(input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
-        .company-block.editing :global(.ant-select-selector) { direction: rtl; unicode-bidi: plaintext; }
+        .company-block.editing :global(input) { text-align: left !important; direction: ltr; unicode-bidi: unset; }
+        .company-block.editing :global(.ant-select-selector) { direction: ltr; unicode-bidi: unset; }
 
         :global(.edit-invoice-button.ant-btn) {
           font-family: ${KARLA_FONT};
@@ -2877,6 +2824,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           text-transform: uppercase;
           letter-spacing: 0.8px;
           font-size: 12px;
+          text-align: right;
         }
 
         .summary-value {
@@ -2924,26 +2872,25 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         :global(.client-input.ant-input-affix-wrapper),
         :global(.client-input.ant-input-textarea) {
           background: #f8fafc;
-          text-align: right !important;
+          text-align: left !important;
         }
         .company-autocomplete :global(.ant-select-selector) {
           background: #f8fafc !important;
           box-shadow: inset 0 0 0 1px #cbd5f5;
           border-radius: 10px;
           padding: 3px 10px !important;
-          text-align: right;
+          text-align: left;
           display: flex;
-          justify-content: flex-end;
-          direction: rtl;
-          unicode-bidi: plaintext;
+          direction: ltr;
+          unicode-bidi: unset;
         }
-        .company-autocomplete :global(.ant-select-selection-item) { width: 100%; text-align: right !important; margin-left: auto; justify-content: flex-end !important; display: flex !important; direction: rtl; unicode-bidi: plaintext; }
-        .company-autocomplete :global(.ant-select-selection-item-content) { width: 100%; text-align: right !important; display: block; direction: rtl; unicode-bidi: plaintext; }
-        .company-autocomplete :global(.ant-select-selection-placeholder) { width: 100%; text-align: right !important; }
-        .company-autocomplete :global(.ant-select-selection-search) { margin-left: auto; direction: rtl; unicode-bidi: plaintext; }
-        .company-autocomplete :global(.ant-select-selection-search-input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
-        .company-autocomplete :global(.ant-select-selection-search-input input) { text-align: right !important; direction: rtl; unicode-bidi: plaintext; }
-        .company-autocomplete textarea { text-align: right !important; }
+        .company-autocomplete :global(.ant-select-selection-item) { width: 100%;           text-align: left !important; display: flex !important; direction: ltr; unicode-bidi: unset; }
+        .company-autocomplete :global(.ant-select-selection-item-content) {           text-align: left !important; display: block; direction: ltr; unicode-bidi: unset; }
+        .company-autocomplete :global(.ant-select-selection-placeholder) { width: 100%; text-align: left !important; }
+        .company-autocomplete :global(.ant-select-selection-search) { direction: ltr; unicode-bidi: unset; }
+        .company-autocomplete :global(.ant-select-selection-search-input) { text-align: left !important; direction: ltr; unicode-bidi: unset; }
+        .company-autocomplete :global(.ant-select-selection-search-input input) { text-align: left !important; direction: ltr; unicode-bidi: unset; }
+        .company-autocomplete textarea { text-align: left !important; }
         .company-autocomplete.flash-fill :global(.ant-select-selector), .flash-fill { animation: flash-fill 900ms ease-in-out; }
         @keyframes flash-fill {
           0%, 100% { background-color: #f8fafc; }
@@ -3029,7 +2976,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .subsidiary-card.is-footer {
           position: relative;
-          text-align: left;
+          text-align: right;
           margin-top: 24px;
           padding: 16px;
           border: 1px solid #e2e8f0;
@@ -3038,24 +2985,17 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
 
         .billing-layout {
+          margin-top: 8px;
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
+          grid-template-columns: 1fr 1fr;
           grid-template-areas:
-            "billing client"
+            "client billing"
             "items items";
           gap: 24px;
-          align-items: stretch;
+          align-items: start;
         }
 
-        @media (max-width: 991px) {
-          .billing-layout {
-            grid-template-columns: minmax(0, 1fr);
-            grid-template-areas:
-              "billing"
-              "client"
-              "items";
-          }
-        }
+
 
         .billing-section,
         .items-section {
@@ -3066,16 +3006,14 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .billing-section {
           grid-area: billing;
-          align-items: flex-end;
-          text-align: right;
+          align-items: flex-start;
+          text-align: left;
         }
 
         .billing-section-header {
           display: flex;
-          align-items: center;
-          justify-content: flex-start;
-          gap: 12px;
-          flex-wrap: wrap;
+          align-items: flex-end;
+          gap: 16px;
         }
 
         .items-section {
@@ -3088,6 +3026,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         .client-label {
           font-size: 11px;
           align-self: flex-end;
+          margin-top: 36px;
         }
 
         .client-panel {
@@ -3097,9 +3036,16 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           gap: 12px;
           min-width: 0;
           padding: 8px 0 0;
-          align-items: flex-start;
-          text-align: left;
+          align-items: flex-end;
+          text-align: right;
           margin-top: 36px; /* align with invoice header row */
+        }
+
+        .client-panel.editing {
+          align-items: stretch;
+          text-align: left;
+          gap: 16px;
+          padding-top: 0;
         }
 
         .client-panel.editing .client-label {
@@ -3111,6 +3057,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           display: flex;
           flex-direction: column;
           gap: 8px;
+          flex-grow: 1;
         }
 
         .invoice-row {
@@ -3121,7 +3068,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
             minmax(90px, max-content)   /* Status */
             minmax(200px, 200px)        /* To (fixed to prevent overlap) */
             minmax(110px, max-content); /* On */
-          align-items: flex-start;
+          align-items: center;
           gap: 12px;
           font-family: ${KARLA_FONT};
           justify-items: start;
@@ -3129,7 +3076,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .invoice-row.head {
           padding: 0 8px;
-          align-items: flex-end;
+          align-items: flex-start;
         }
 
         .invoice-row.head .invoice-cell {
@@ -3361,6 +3308,10 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           text-align: left;
         }
 
+        .items-header .section-heading {
+          text-align: left;
+        }
+
         .items-heading {
           font-family: ${KARLA_FONT};
           font-weight: 600;
@@ -3383,7 +3334,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .item-description {
           font-family: ${KARLA_FONT};
-          font-weight: 700 !important;
+          font-weight: 200 !important;
           font-style: italic;
           color: #374151;
           display: block;
@@ -3398,7 +3349,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
 
         .item-edit {
           display: flex;
-          align-items: flex-start;
+          align-items: flex-end;
           gap: 12px;
         }
 
@@ -3422,6 +3373,12 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
           text-align: left;
         }
 
+        .billing-header-actions-container {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
         .totals-panel {
           margin-top: 32px;
           display: flex;
@@ -3433,6 +3390,8 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         .totals-row {
           display: flex;
           gap: 24px;
+          justify-content: flex-end;
+          width: 100%;
         }
 
         .totals-row.total .meta-value {
@@ -3472,7 +3431,7 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         .items-actions {
           margin-top: 16px;
           display: flex;
-          justify-content: flex-start;
+          justify-content: flex-end;
         }
 
         @keyframes invoice-highlight {
@@ -3486,7 +3445,8 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         }
 
         @keyframes blink {
-          0%, 100% {
+          0%,
+          100% {
             opacity: 1;
           }
           50% {
@@ -3502,9 +3462,23 @@ className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
         :global(.bank-tooltip) { opacity: 1; }
         .page-wrapper.flash-page::before { content: ""; position: fixed; inset: 0; background: rgba(255,255,255,1); pointer-events: none; animation: page-flash 900ms ease-in-out forwards; z-index: 9999; }
         @keyframes page-flash { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
-      `}</style>
-    </div>
-  )
+              `}</style>
+              <style jsx global>{`
+                @import url('https://fonts.googleapis.com/css2?family=Yuji+Mai&family=Federo&family=Iansui&family=Karla:wght@300&display=block');
+                .ant-table-cell .item-description {
+                  font-family: ${KARLA_FONT};
+                  font-weight: 300 !important;
+                  font-style: italic;
+                  color: #374151;
+                  display: block;
+                  white-space: normal;
+                }
+      
+                .item-title-text {
+                  font-weight: 500 !important;
+                }
+              `}</style>
+          </div>  )
 }
 
 const ProjectsShowApp = () => (
