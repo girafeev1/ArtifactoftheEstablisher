@@ -30,9 +30,10 @@ jobs:
       - name: Install Vercel CLI
         run: npm i -g vercel@latest
 
-      - name: Pull production environment
       - name: Clean stale .vercel project link
         run: rm -rf .vercel
+
+      - name: Pull production environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         env:
           # Use secrets if set, then repo variables, then final fallback to known ids
