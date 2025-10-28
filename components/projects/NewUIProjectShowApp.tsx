@@ -1732,14 +1732,23 @@ const ProjectsShowContent = () => {
                     variant="borderless"
                     onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
                   />
-                  <Input.TextArea
-                    value={record.feeType}
-                    placeholder="Type of Fee"
-                    variant="borderless"
-                    autoSize={{ minRows: 1, maxRows: 3 }}
-                    className="item-description-edit"
-                    onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
-                  />
+                    <Input.TextArea
+                      value={record.feeType}
+                      placeholder="Type of Fee"
+                      variant="borderless"
+                      autoSize={{ minRows: 1, maxRows: 3 }}
+                      className="item-description-edit"
+                      onFocus={(event) => {
+                        try {
+                          const el = event.target as HTMLTextAreaElement
+                          el.style.fontStyle = 'italic'
+                          el.style.fontWeight = '300'
+                          el.style.fontFamily = 'Karla, sans-serif'
+                          el.style.color = '#374151'
+                        } catch {}
+                      }}
+                      onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
+                    />
                 </div>
                 <Button
                   type="text"
@@ -3463,6 +3472,7 @@ const ProjectsShowContent = () => {
         .totals-panel {
           --totals-label-width: 160px;
           margin-top: 32px;
+          margin-right: 12px;
           display: flex;
           flex-direction: column;
           gap: 8px;
