@@ -937,6 +937,7 @@ const ProjectsShowContent = () => {
 
     // When managing invoices (but not yet creating), show a blinking row to add an additional invoice
     if (isManagingInvoices && !draftInvoice) {
+      try { console.log('[ui] add-row-visible', { isManagingInvoices, hasDraft: !!draftInvoice, existing: invoices.length }); } catch {}
       entries.push({
         invoiceNumber: "Add additional invoice",
         pending: false,
@@ -1732,23 +1733,24 @@ const ProjectsShowContent = () => {
                     variant="borderless"
                     onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
                   />
-                    <Input.TextArea
-                      value={record.feeType}
-                      placeholder="Type of Fee"
-                      variant="borderless"
-                      autoSize={{ minRows: 1, maxRows: 3 }}
-                      className="item-description-edit"
-                      onFocus={(event) => {
-                        try {
-                          const el = event.target as HTMLTextAreaElement
-                          el.style.fontStyle = 'italic'
-                          el.style.fontWeight = '300'
-                          el.style.fontFamily = 'Karla, sans-serif'
-                          el.style.color = '#374151'
-                        } catch {}
-                      }}
-                      onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
-                    />
+                  <Input.TextArea
+                    value={record.feeType}
+                    placeholder="Type of Fee"
+                    variant="borderless"
+                    autoSize={{ minRows: 1, maxRows: 3 }}
+                    className="item-description-edit"
+                    style={{ fontStyle: 'italic', fontWeight: 300, fontFamily: 'Karla, sans-serif', color: '#374151' }}
+                    onFocus={(event) => {
+                      try {
+                        const el = event.target as HTMLTextAreaElement
+                        el.style.fontStyle = 'italic'
+                        el.style.fontWeight = '300'
+                        el.style.fontFamily = 'Karla, sans-serif'
+                        el.style.color = '#374151'
+                      } catch {}
+                    }}
+                    onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
+                  />
                 </div>
                 <Button
                   type="text"
@@ -2088,6 +2090,7 @@ const ProjectsShowContent = () => {
                       <Button
                         className="btn-outline manage-invoices"
                         onClick={() => {
+                          try { console.log('[ui] manage-toggle', { isManagingInvoices, invoiceMode, hasDraft: !!draftInvoice, invoiceCount: invoices.length }); } catch {}
                           if (isManagingInvoices) {
                             setIsManagingInvoices(false)
                             setInvoiceMode("idle")
