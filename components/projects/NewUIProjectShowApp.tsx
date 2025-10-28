@@ -2078,7 +2078,6 @@ const ProjectsShowContent = () => {
                   {(invoiceMode === "idle" || isProjectEditing || isManagingInvoices) ? (
                     <div className="billing-header-actions">
                       <Button
-                        size="small"
                         className="btn-outline manage-invoices"
                         onClick={() => {
                           if (isManagingInvoices) {
@@ -2467,8 +2466,6 @@ const ProjectsShowContent = () => {
                         ) : (
                           <span className="meta-value italic">{`${taxPercent}%`}</span>
                         )}
-                        <span className="meta-label">Adj</span>
-                        <span className="meta-value">{amountText(taxAmount)}</span>
                       </div>
                       <div className="totals-row total">
                         <span className="meta-label">Total</span>
