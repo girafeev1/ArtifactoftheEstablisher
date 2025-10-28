@@ -89,7 +89,8 @@ async function readCookies(domain) {
   } catch (e) { console.error('[capture] Cookie load error', e.message); }
 
   await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(WAIT_MS);
+  // Puppeteer v22 does not expose page.waitForTimeout; use a simple delay instead
+  await new Promise((resolve) => setTimeout(resolve, WAIT_MS));
 
   // Optional: export accessibility tree
   if (EXPORT_A11Y) {
@@ -130,7 +131,7 @@ async function readCookies(domain) {
           class: el.className || null,
           text: text.length > 120 ? text.slice(0,120)+'…' : text,
           rect: { x: r.x, y: r.y, width: r.width, height: r.height },
-          visibility: (el as any).offsetParent !== null || r.width>0 || r.height>0,
+          visibility: (el && el.offsetParent !== null) || r.width > 0 || r.height > 0,
         };
       });
     }, MAX_ELEMENTS);
