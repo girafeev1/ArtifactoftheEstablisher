@@ -2490,7 +2490,13 @@ const ProjectsShowContent = () => {
               ) : (
                 <div className="billing-empty-state">
                   <Empty description="No invoices yet" />
-                  <Button className="btn-outline get-started" onClick={() => prepareDraft("create")}>Get Started</Button>
+                  <Button
+                    className="btn-outline get-started"
+                    style={{ fontStyle: 'italic', fontWeight: 700, animation: 'blink 1.2s ease-in-out infinite' }}
+                    onClick={() => prepareDraft("create")}
+                  >
+                    Get Started
+                  </Button>
                 </div>
               )}
             </div>
@@ -3489,7 +3495,8 @@ const ProjectsShowContent = () => {
           gap: 8px;
           align-items: flex-end; /* keep the whole panel on the right */
           align-self: flex-end; /* anchor the block to the right inside items-section */
-          transform: translateX(-16px); /* clearer left nudge */
+          position: relative;
+          left: -16px; /* nudge left visibly */
         }
 
         .totals-row {
