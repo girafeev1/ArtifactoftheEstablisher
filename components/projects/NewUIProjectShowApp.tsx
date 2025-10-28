@@ -695,11 +695,10 @@ const ProjectsShowContent = () => {
       ? invoices[Math.min(activeInvoiceIndex, invoices.length - 1)] ?? null
       : null
 
-  const resolvedDraft = isEditingInvoice
-    ? draftInvoice
-    : currentInvoiceRecord
-    ? buildDraftFromInvoice(currentInvoiceRecord, client, project)
-    : draftInvoice
+  // Keep items visible in manage mode even when invoiceMode is idle by
+  // falling back to the currently selected invoice when no draft exists.
+  const resolvedDraft =
+    draftInvoice ?? (currentInvoiceRecord ? buildDraftFromInvoice(currentInvoiceRecord, client, project) : null)
 
   const resolvedClient = resolvedDraft
     ? resolvedDraft.client
@@ -2453,7 +2452,7 @@ const ProjectsShowContent = () => {
                         <span className="meta-value">{amountText(subtotal)}</span>
                       </div>
                       <div className="totals-row">
-                        <span className="meta-label">Tax/Discount %</span>
+                        <span className="meta-label">Tax/Discount</span>
                         {invoiceMode !== 'idle' ? (
                           <InputNumber
                             min={-100}
@@ -3467,7 +3466,7 @@ const ProjectsShowContent = () => {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          align-items: flex-start;
+          align-items: flex-end; /* keep the whole panel on the right */
         }
 
         .totals-row {
