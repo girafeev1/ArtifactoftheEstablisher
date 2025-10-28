@@ -3462,18 +3462,29 @@ const ProjectsShowContent = () => {
         }
 
         .totals-panel {
+          --totals-label-width: 160px;
           margin-top: 32px;
           display: flex;
           flex-direction: column;
           gap: 8px;
-          align-items: flex-end;
+          align-items: flex-start;
         }
 
         .totals-row {
           display: flex;
-          gap: 24px;
-          justify-content: flex-end;
-          width: 100%;
+          align-items: center;
+          gap: 12px;
+          justify-content: flex-start;
+        }
+
+        .totals-row .meta-label {
+          width: var(--totals-label-width);
+          text-align: right;
+        }
+
+        .totals-row .meta-value,
+        .totals-row .tax-input {
+          text-align: left;
         }
 
         .totals-row.total .meta-value {
@@ -3558,6 +3569,12 @@ const ProjectsShowContent = () => {
       
                 .item-title-text {
                   font-weight: 500 !important;
+                }
+                /* Make feeType edit textarea italic */
+                .item-description-edit.ant-input-textarea > textarea {
+                  font-style: italic;
+                  font-family: ${KARLA_FONT};
+                  color: #374151;
                 }
               `}</style>
           </div>  )
