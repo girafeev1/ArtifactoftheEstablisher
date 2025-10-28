@@ -3481,6 +3481,7 @@ const ProjectsShowContent = () => {
           gap: 8px;
           align-items: flex-end; /* keep the whole panel on the right */
           align-self: flex-end; /* anchor the block to the right inside items-section */
+          transform: translateX(-8px); /* nudge slightly left visually */
         }
 
         .totals-row {
