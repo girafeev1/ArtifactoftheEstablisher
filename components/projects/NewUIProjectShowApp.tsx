@@ -3471,21 +3471,16 @@ const ProjectsShowContent = () => {
         }
 
         .totals-row {
-          display: flex;
+          display: grid;
+          grid-template-columns: var(--totals-label-width) 1fr;
+          column-gap: 12px;
           align-items: center;
-          gap: 12px;
-          justify-content: flex-start;
+          justify-content: start;
+          width: 100%;
         }
-
-        .totals-row .meta-label {
-          width: var(--totals-label-width);
-          text-align: right;
-        }
-
-        .totals-row .meta-value,
-        .totals-row .tax-input {
-          text-align: left;
-        }
+        .totals-row .meta-label { text-align: right; }
+        .totals-row .meta-value { justify-self: start; text-align: left; }
+        .totals-row .tax-input { justify-self: start; }
 
         .totals-row.total .meta-value {
           font-size: 20px;
@@ -3571,7 +3566,9 @@ const ProjectsShowContent = () => {
                   font-weight: 500 !important;
                 }
                 /* Make feeType edit textarea italic (robust selector) */
-                :global(.item-description-edit textarea) {
+                :global(.item-description-edit textarea),
+                :global(.item-description-edit .ant-input),
+                :global(.item-description-edit .ant-input-textarea-show-count > textarea) {
                   font-style: italic !important;
                   font-family: ${KARLA_FONT} !important;
                   color: #374151 !important;
