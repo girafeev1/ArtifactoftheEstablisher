@@ -936,6 +936,25 @@ const ProjectsShowContent = () => {
       }
     })
 
+    // When managing invoices (but not yet creating), show a blinking row to add an additional invoice
+    if (isManagingInvoices && invoiceMode === "idle") {
+      entries.push({
+        invoiceNumber: "Add additional invoice",
+        pending: false,
+        amount: null as any,
+        paid: null as any,
+        statusLabel: null as any,
+        statusColor: "default" as any,
+        paidOnText: null as any,
+        payToText: null as any,
+        payToInfo: null as any,
+        displayBankName: null as any,
+        collectionId: undefined as any,
+        index: invoices.length,
+        createNew: true as any,
+      } as any)
+    }
+
     if (invoiceMode === "create" && draftInvoice) {
       const pendingIdentifier =
         draftInvoice.paidTo && draftInvoice.paidTo.trim().length > 0
@@ -1045,17 +1064,24 @@ const ProjectsShowContent = () => {
         if (invoiceMode === "create") {
           setActiveInvoiceIndex(index)
           setInvoiceNumberEditing(true)
+        } else {
+          // pending here means the "create new" blinking row; start creation
+          prepareDraft("create")
         }
         return
       }
 
       if (invoiceMode === "create") {
-        message.warning("Finish creating the current invoice before editing another.")
+        // Switch from creating to editing a specific invoice
+        prepareDraft("edit", index)
+        setInvoiceNumberEditing(true)
         return
       }
 
       if (invoiceMode !== "idle" && index !== activeInvoiceIndex) {
-        message.warning("Finish editing the current invoice before editing another.")
+        // Switch editing target
+        prepareDraft("edit", index)
+        setInvoiceNumberEditing(true)
         return
       }
 
@@ -1067,7 +1093,7 @@ const ProjectsShowContent = () => {
       prepareDraft("edit", index)
       setInvoiceNumberEditing(true)
     },
-    [activeInvoiceIndex, invoiceMode, message, prepareDraft, setActiveInvoiceIndex, setInvoiceNumberEditing],
+    [activeInvoiceIndex, invoiceMode, prepareDraft, setActiveInvoiceIndex, setInvoiceNumberEditing],
   )
 
   const handlePrimaryInvoiceEdit = useCallback(() => {
@@ -2214,17 +2240,25 @@ const ProjectsShowContent = () => {
                                   : `#${entry.invoiceNumber}`
                               const payToInfo = entry.payToInfo
 
+                              // clicking behavior: in manage mode, begin editing or create new
+                              const handleRowClick = () => {
+                                if (isManagingInvoices) {
+                                  handleBeginInvoiceRowEdit(index, entry.pending)
+                                } else {
+                                  handleSelectInvoice(index, entry.pending)
+                                }
+                              }
                               return (
                                 <div
                                   key={`${entry.invoiceNumber}-${index}`}
                                   role="button"
                                   tabIndex={0}
                                   className={`invoice-row selectable-row ${isActive ? "active" : ""} ${isPending ? "pending" : ""} ${isEditingRow ? "editing" : ""}`}
-                                  onClick={() => handleSelectInvoice(index, entry.pending)}
+                                  onClick={handleRowClick}
                                   onKeyDown={(event) => {
                                     if (event.key === "Enter" || event.key === " ") {
                                       event.preventDefault()
-                                      handleSelectInvoice(index, entry.pending)
+                                      handleRowClick()
                                     }
                                   }}
                                 >
@@ -2377,23 +2411,12 @@ const ProjectsShowContent = () => {
                         </div>
                       </>
                     ) : null}
-                    {invoiceMode === "idle" ? (
-                      <div className="billing-actions">
-                        <Space size={12} wrap>
-                          <Button type="primary" onClick={() => prepareDraft("create")}>
-                            Add Additional Invoice
-                          </Button>
-                        </Space>
-                      </div>
-                    ) : null}
+                    
                     {invoiceMode === "create" && hasInvoices ? (
                       <div className="billing-actions">
                         <Space size={12} wrap>
-                          <Button onClick={handleCancelInvoice} disabled={savingInvoice}>
+                          <Button className="btn-outline" onClick={handleCancelInvoice} disabled={savingInvoice}>
                             Cancel
-                          </Button>
-                          <Button type="primary" disabled>
-                            Add Additional Invoice
                           </Button>
                         </Space>
                       </div>
@@ -2412,9 +2435,7 @@ const ProjectsShowContent = () => {
               ) : (
                 <div className="billing-empty-state">
                   <Empty description="No invoices yet" />
-                  <Button type="primary" className="cta-blink" onClick={() => prepareDraft("create")}>
-                    Get Started
-                  </Button>
+                  <Button className="btn-outline get-started" onClick={() => prepareDraft("create")}>Get Started</Button>
                 </div>
               )}
             </div>
@@ -3038,6 +3059,26 @@ const ProjectsShowContent = () => {
         }
 
         .client-panel.editing { gap: 16px; padding-top: 0; }
+
+        /* Outline button style (white with gray border) */
+        :global(.btn-outline.ant-btn), .btn-outline {
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important; /* slate-300 */
+          color: #0f172a !important; /* black-ish */
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+        }
+
+        .get-started {
+          margin-top: 8px;
+          font-style: italic;
+        }
+
+        /* Blinking create-new row */
+        .create-new-blink { font-family: ${KARLA_FONT}; font-weight: 700; font-style: italic; color: #0f172a; animation: blink 1.2s ease-in-out infinite; }
+
+        /* Ensure English (Karla) part of project title is bold */
+        :global(.project-title .karla-label) { font-weight: 700 !important; }
 
         .invoice-table {
           display: flex;
