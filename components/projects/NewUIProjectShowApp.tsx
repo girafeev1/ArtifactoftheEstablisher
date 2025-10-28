@@ -936,7 +936,7 @@ const ProjectsShowContent = () => {
     })
 
     // When managing invoices (but not yet creating), show a blinking row to add an additional invoice
-    if (isManagingInvoices && invoiceMode === "idle") {
+    if (isManagingInvoices && !draftInvoice) {
       entries.push({
         invoiceNumber: "Add additional invoice",
         pending: false,
@@ -3467,6 +3467,7 @@ const ProjectsShowContent = () => {
           flex-direction: column;
           gap: 8px;
           align-items: flex-end; /* keep the whole panel on the right */
+          align-self: flex-end; /* anchor the block to the right inside items-section */
         }
 
         .totals-row {
@@ -3569,11 +3570,11 @@ const ProjectsShowContent = () => {
                 .item-title-text {
                   font-weight: 500 !important;
                 }
-                /* Make feeType edit textarea italic */
-                .item-description-edit.ant-input-textarea > textarea {
-                  font-style: italic;
-                  font-family: ${KARLA_FONT};
-                  color: #374151;
+                /* Make feeType edit textarea italic (robust selector) */
+                :global(.item-description-edit textarea) {
+                  font-style: italic !important;
+                  font-family: ${KARLA_FONT} !important;
+                  color: #374151 !important;
                 }
               `}</style>
           </div>  )
