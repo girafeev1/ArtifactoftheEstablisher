@@ -935,8 +935,8 @@ const ProjectsShowContent = () => {
       }
     })
 
-    // When managing invoices (but not yet creating), show a blinking row to add an additional invoice
-    if (isManagingInvoices && !draftInvoice) {
+    // In manage mode, always show a blinking row to add an additional invoice
+    if (isManagingInvoices) {
       try { console.log('[ui] add-row-visible', { isManagingInvoices, hasDraft: !!draftInvoice, existing: invoices.length }); } catch {}
       entries.push({
         invoiceNumber: "Add additional invoice",
@@ -2096,11 +2096,13 @@ const ProjectsShowContent = () => {
                             setInvoiceMode("idle")
                             setDraftInvoice(null)
                           } else {
-                            // Enter manage mode but do not start editing/creating automatically.
-                            // This keeps invoiceMode idle so the blinking "Add additional invoice" row appears.
+                            // Enter manage mode and start editing the current invoice if one exists; otherwise start create.
                             setIsManagingInvoices(true)
-                            setInvoiceMode("idle")
-                            setDraftInvoice(null)
+                            if (invoices.length > 0) {
+                              prepareDraft("edit")
+                            } else {
+                              prepareDraft("create")
+                            }
                           }
                         }}
                       >
@@ -3139,6 +3141,12 @@ const ProjectsShowContent = () => {
           color: #0f172a;
           animation: blink 1.2s ease-in-out infinite;
         }
+        /* Ensure inner span inherits italic + blink from AntD Button content */
+        .get-started :global(span) {
+          font-style: italic !important;
+          font-weight: 700 !important;
+          animation: blink 1.2s ease-in-out infinite !important;
+        }
 
         /* Blinking create-new row */
         .create-new-blink { font-family: ${KARLA_FONT}; font-weight: 700; font-style: italic; color: #0f172a; animation: blink 1.2s ease-in-out infinite; }
@@ -3473,7 +3481,7 @@ const ProjectsShowContent = () => {
         }
 
         .totals-panel {
-          --totals-label-width: 160px;
+          --totals-label-width: 180px;
           margin-top: 32px;
           margin-right: 12px;
           display: flex;
@@ -3481,7 +3489,7 @@ const ProjectsShowContent = () => {
           gap: 8px;
           align-items: flex-end; /* keep the whole panel on the right */
           align-self: flex-end; /* anchor the block to the right inside items-section */
-          transform: translateX(-8px); /* nudge slightly left visually */
+          transform: translateX(-16px); /* clearer left nudge */
         }
 
         .totals-row {
