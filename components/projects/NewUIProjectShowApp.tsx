@@ -2399,20 +2399,15 @@ const ProjectsShowContent = () => {
                       </div>
                     ) : null}
                   </section>
-                  <aside className="client-panel">
-                    <span className="summary-label client-label">Client</span>
-                    <div className="company-block">
-                      <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
-                      <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
-                      <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
-                      <div className="company-line">{stringOrNA(companyLine3)}</div>
-                      {resolvedClient?.representative ? (
-                        <div className="company-line client-attn">
-                          <strong>Attn: {resolvedClient.representative}</strong>
-                        </div>
-                      ) : null}
-                    </div>
-                  </aside>
+                  <section className="items-section" data-section="items">
+                    <Table
+                      dataSource={itemsRows}
+                      columns={itemsColumns as any}
+                      pagination={false}
+                      rowKey="key"
+                      className="items-table"
+                    />
+                  </section>
                 </div>
               ) : (
                 <div className="billing-empty-state">
@@ -3025,8 +3020,9 @@ const ProjectsShowContent = () => {
 
         .client-label {
           font-size: 11px;
-          align-self: flex-end;
-          margin-top: 36px;
+          align-self: flex-start;
+          margin-top: 0;
+          text-align: left;
         }
 
         .client-panel {
@@ -3036,22 +3032,12 @@ const ProjectsShowContent = () => {
           gap: 12px;
           min-width: 0;
           padding: 8px 0 0;
-          align-items: flex-end;
-          text-align: right;
-          margin-top: 36px; /* align with invoice header row */
-        }
-
-        .client-panel.editing {
           align-items: stretch;
           text-align: left;
-          gap: 16px;
-          padding-top: 0;
-        }
-
-        .client-panel.editing .client-label {
-          align-self: flex-start;
           margin-top: 0;
         }
+
+        .client-panel.editing { gap: 16px; padding-top: 0; }
 
         .invoice-table {
           display: flex;
