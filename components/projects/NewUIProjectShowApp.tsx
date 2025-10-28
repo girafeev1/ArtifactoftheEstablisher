@@ -3478,13 +3478,11 @@ const ProjectsShowContent = () => {
           justify-content: start;
           width: 100%;
         }
-        .totals-row .meta-label { text-align: right; }
-        .totals-row .meta-value { justify-self: start; text-align: left; }
+        .totals-row .meta-label { text-align: right; font-size: 13px; }
+        .totals-row .meta-value { justify-self: start; text-align: left; font-size: 16px; }
         .totals-row .tax-input { justify-self: start; }
 
-        .totals-row.total .meta-value {
-          font-size: 20px;
-        }
+        .totals-row.total .meta-value { font-size: 22px; }
 
         .tax-input {
           font-family: ${KARLA_FONT};
@@ -3570,6 +3568,7 @@ const ProjectsShowContent = () => {
                 :global(.item-description-edit .ant-input),
                 :global(.item-description-edit .ant-input-textarea-show-count > textarea) {
                   font-style: italic !important;
+                  font-weight: 300 !important;
                   font-family: ${KARLA_FONT} !important;
                   color: #374151 !important;
                 }
