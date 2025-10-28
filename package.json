@@ -54,7 +54,8 @@
     "migrate:bank": "node scripts/migrate-bank-directory.js",
     "db:cleanup-legacy-years": "node scripts/cleanup-legacy-root-years.js",
     "bank:cleanup-account-and-strip-path": "node scripts/cleanup-bankAccount-and-strip-path.js",
-    "bank:rename-lookup-to-account": "node scripts/rename-bank-lookup-to-account.js"
+    "bank:rename-lookup-to-account": "node scripts/rename-bank-lookup-to-account.js",
+    "capture:page": "node scripts/puppeteer-capture.js"
   },
   "author": "",
   "license": "ISC",
@@ -79,6 +80,7 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^30.0.5",
     "prettier": "^3.4.2",
+    "puppeteer": "^22.15.0",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2",
