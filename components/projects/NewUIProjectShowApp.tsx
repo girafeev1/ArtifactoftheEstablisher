@@ -2077,20 +2077,23 @@ const ProjectsShowContent = () => {
                   </Title>
                   {(invoiceMode === "idle" || isProjectEditing || isManagingInvoices) ? (
                     <div className="billing-header-actions">
-                      <Button type="primary" className="add-invoice-top" onClick={() => {
-                        if (isManagingInvoices) {
-                          setIsManagingInvoices(false)
-                          setInvoiceMode("idle")
-                          setDraftInvoice(null)
-                        } else {
-                          setIsManagingInvoices(true)
-                          if (invoices.length === 0) {
-                            prepareDraft("create")
+                      <Button
+                        size="small"
+                        className="btn-outline manage-invoices"
+                        onClick={() => {
+                          if (isManagingInvoices) {
+                            setIsManagingInvoices(false)
+                            setInvoiceMode("idle")
+                            setDraftInvoice(null)
                           } else {
-                            prepareDraft("edit")
+                            // Enter manage mode but do not start editing/creating automatically.
+                            // This keeps invoiceMode idle so the blinking "Add additional invoice" row appears.
+                            setIsManagingInvoices(true)
+                            setInvoiceMode("idle")
+                            setDraftInvoice(null)
                           }
-                        }
-                      }}>
+                        }}
+                      >
                         {isManagingInvoices ? "Done Managing Invoices" : (invoices.length > 0 ? "Manage Invoices" : "Manage Invoice")}
                       </Button>
                     </div>
@@ -2241,9 +2244,15 @@ const ProjectsShowContent = () => {
                               const payToInfo = entry.payToInfo
 
                               // clicking behavior: in manage mode, begin editing or create new
+                              const isCreateNew = (entry as any).createNew === true
                               const handleRowClick = () => {
                                 if (isManagingInvoices) {
-                                  handleBeginInvoiceRowEdit(index, entry.pending)
+                                  if (isCreateNew) {
+                                    // Start creating a new invoice from the blinking row
+                                    prepareDraft("create")
+                                  } else {
+                                    handleBeginInvoiceRowEdit(index, entry.pending)
+                                  }
                                 } else {
                                   handleSelectInvoice(index, entry.pending)
                                 }
@@ -2263,7 +2272,9 @@ const ProjectsShowContent = () => {
                                   }}
                                 >
                                   <div className="invoice-cell number">
-                                    {isManagingInvoices && invoiceNumberEditing ? (
+                                    {isManagingInvoices && (entry as any).createNew ? (
+                                      <span className="create-new-blink">Add additional invoice</span>
+                                    ) : isManagingInvoices && invoiceNumberEditing ? (
                                       <Input
                                           value={draftInvoice?.invoiceNumber ?? ""}
                                           onChange={(event) => handleInvoiceNumberInput(event.target.value)}
@@ -2284,10 +2295,12 @@ const ProjectsShowContent = () => {
 
                                   </div>
                                   <div className="invoice-cell amount">
-                                    {amountText(isManagingInvoices ? total : entry.amount)}
+                                    {(entry as any).createNew ? '-' : amountText(isManagingInvoices ? total : entry.amount)}
                                   </div>
                                   <div className="invoice-cell status">
-                                    {isManagingInvoices && draftInvoice ? (
+                                    {isManagingInvoices && (entry as any).createNew ? (
+                                      <span className="invoice-number-pending">-</span>
+                                    ) : isManagingInvoices && draftInvoice ? (
                                       <div
                                         className="invoice-status-control"
                                         onClick={(event) => event.stopPropagation()}
@@ -2315,7 +2328,9 @@ const ProjectsShowContent = () => {
                                     )}
                                   </div>
                                   <div className="invoice-cell pay-to">
-                                    {isManagingInvoices && draftInvoice ? (
+                                    {isManagingInvoices && (entry as any).createNew ? (
+                                      '-'
+                                    ) : isManagingInvoices && draftInvoice ? (
                                       <div className="bank-selectors" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                                         <Select
                                           placeholder="Bank"
@@ -2377,7 +2392,9 @@ const ProjectsShowContent = () => {
                                     )}
                                   </div>
                                   <div className="invoice-cell paid-on">
-                                    {isManagingInvoices && draftInvoice ? (
+                                    {isManagingInvoices && (entry as any).createNew ? (
+                                      '-'
+                                    ) : isManagingInvoices && draftInvoice ? (
                                       <DatePicker
                                         value={draftInvoice.paidOnIso ? dayjs(draftInvoice.paidOnIso) : null}
                                         onChange={(v) => {
@@ -2430,6 +2447,34 @@ const ProjectsShowContent = () => {
                       rowKey="key"
                       className="items-table"
                     />
+                    {/* Totals summary panel */}
+                    <div className="totals-panel">
+                      <div className="totals-row">
+                        <span className="meta-label">Sub-total</span>
+                        <span className="meta-value">{amountText(subtotal)}</span>
+                      </div>
+                      <div className="totals-row">
+                        <span className="meta-label">Tax/Discount %</span>
+                        {invoiceMode !== 'idle' ? (
+                          <InputNumber
+                            min={-100}
+                            max={100}
+                            step={0.5}
+                            value={taxPercent}
+                            onChange={(v) => handleTaxChange(typeof v === 'number' ? v : 0)}
+                            className="tax-input"
+                          />
+                        ) : (
+                          <span className="meta-value italic">{`${taxPercent}%`}</span>
+                        )}
+                        <span className="meta-label">Adj</span>
+                        <span className="meta-value">{amountText(taxAmount)}</span>
+                      </div>
+                      <div className="totals-row total">
+                        <span className="meta-label">Total</span>
+                        <span className="meta-value">{amountText(total)}</span>
+                      </div>
+                    </div>
                   </section>
                 </div>
               ) : (
@@ -2977,6 +3022,16 @@ const ProjectsShowContent = () => {
           flex: 1;
         }
 
+        .billing-empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          padding: 24px 0;
+          text-align: center;
+        }
+
         /* Subsidiary info card top-right */
         .subsidiary-card { position: absolute; top: 0; right: 0; text-align: right; }
         .sub-name-en { font-family: 'Cormorant Infant', serif; font-weight: 700; font-size: 10px; color: #000; letter-spacing: 0.08em; white-space: pre-wrap; }
@@ -3072,6 +3127,9 @@ const ProjectsShowContent = () => {
         .get-started {
           margin-top: 8px;
           font-style: italic;
+          font-weight: 700;
+          color: #0f172a;
+          animation: blink 1.2s ease-in-out infinite;
         }
 
         /* Blinking create-new row */
