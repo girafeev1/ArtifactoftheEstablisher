@@ -388,22 +388,16 @@ const refineDataProvider: DataProvider = {
     const filtered = applyFilters(normalized, filters)
     const sorted = applySorting(filtered, sorters)
 
-    const current = pagination?.current ?? 1
-    const pageSize = pagination?.pageSize ?? 12
-    const start = (current - 1) * pageSize
-    const paginated = sorted.slice(start, start + pageSize)
-
     try {
       console.info("[client-accounts] dp.getList: shaped", {
         total: sorted.length,
-        current,
-        pageSize,
-        sliced: paginated.length,
+        mode: 'client',
       })
     } catch {}
 
+    // Client-side pagination: return full dataset; refine slices in tableProps
     return {
-      data: paginated as unknown as TData[],
+      data: sorted as unknown as TData[],
       total: sorted.length,
     }
   },
@@ -1186,6 +1180,7 @@ const ClientAccountsContent = () => {
     resource: "client-directory",
     pagination: {
       pageSize: 12,
+      mode: "client",
     },
     sorters: {
       initial: [
