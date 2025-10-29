@@ -3712,6 +3712,35 @@ const ProjectsShowContent = () => {
                   0%, 100% { opacity: 1; }
                   50% { opacity: 0.3; }
                 }
+
+                /* High-specificity, global overrides namespaced to this component revision */
+                [data-ui-rev="r7"] .page-inner { max-width: 860px !important; padding: 0 16px !important; }
+                [data-ui-rev="r7"] .totals-panel { left: -24px !important; }
+
+                /* Raise breakpoint temporarily so reflow is easy to see; can revert to 1024px later */
+                @media (max-width: 1366px) {
+                  [data-ui-rev="r7"] .billing-layout {
+                    grid-template-columns: 1fr !important;
+                    grid-template-areas:
+                      "client"
+                      "billing"
+                      "items";
+                    gap: 16px !important;
+                  }
+                  [data-ui-rev="r7"] .invoice-row {
+                    grid-template-areas:
+                      "number amount status"
+                      "to to on" !important;
+                    grid-template-columns: minmax(0, 1fr) max-content max-content !important;
+                    align-items: start !important;
+                  }
+                  [data-ui-rev="r7"] .invoice-row .invoice-cell.number { grid-area: number; }
+                  [data-ui-rev="r7"] .invoice-row .invoice-cell.amount { grid-area: amount; }
+                  [data-ui-rev="r7"] .invoice-row .invoice-cell.status { grid-area: status; }
+                  [data-ui-rev="r7"] .invoice-row .invoice-cell.pay-to { grid-area: to; }
+                  [data-ui-rev="r7"] .invoice-row .invoice-cell.paid-on { grid-area: on; }
+                  [data-ui-rev="r7"] .invoice-row.head { grid-template-areas: "number amount status"; }
+                }
                 .ant-table-cell .item-description {
                   font-family: ${KARLA_FONT};
                   font-weight: 300 !important;
