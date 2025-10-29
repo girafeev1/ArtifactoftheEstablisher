@@ -339,15 +339,32 @@ const refineDataProvider: DataProvider = {
       return { data: [], total: 0 } as GetListResponse<TData>
     }
 
-    const response = await fetch("/api/client-directory", { credentials: "include" })
-    if (!response.ok) {
-      throw new Error("Failed to load client directory")
+    let normalized: ClientAccountRow[] = directoryCache.records
+    try {
+      const response = await fetch("/api/client-directory", {
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      } as RequestInit)
+      if (response.status === 304 && directoryCache.records.length > 0) {
+        // Use cached records
+        normalized = directoryCache.records
+      } else {
+        if (!response.ok) {
+          throw new Error("Failed to load client directory")
+        }
+        const payload = await response.json()
+        const rawItems: DirectoryApiRecord[] = payload.data ?? []
+        normalized = rawItems.map((entry, index) => normalizeRecord(entry, index))
+        directoryCache.records = normalized
+      }
+    } catch (e) {
+      // Network/cache fallback: if we have cache, use it; else rethrow
+      if (directoryCache.records.length === 0) {
+        throw e
+      }
+      normalized = directoryCache.records
     }
-
-    const payload = await response.json()
-    const rawItems: DirectoryApiRecord[] = payload.data ?? []
-    const normalized = rawItems.map((entry, index) => normalizeRecord(entry, index))
-    directoryCache.records = normalized
 
     const filtered = applyFilters(normalized, filters)
     const sorted = applySorting(filtered, sorters)
