@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 
-import { updateClientInDirectory } from '../../../lib/clientDirectory'
+import { updateClientInDirectoryAdmin } from '../../../lib/clientDirectoryAdmin'
 import { getAuthOptions } from '../auth/[...nextauth]'
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -35,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     'unknown'
 
   try {
-    const result = await updateClientInDirectory({
+    const result = await updateClientInDirectoryAdmin({
       id: clientId,
       updates: (req.body as any).updates,
       editedBy,

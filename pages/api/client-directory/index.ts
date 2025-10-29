@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 
-import { addClientToDirectory, fetchClientsDirectory } from '../../../lib/clientDirectory'
+import { fetchClientsDirectory } from '../../../lib/clientDirectory'
+import { addClientToDirectoryAdmin } from '../../../lib/clientDirectoryAdmin'
 import { getAuthOptions } from '../auth/[...nextauth]'
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -51,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     'unknown'
 
   try {
-    const result = await addClientToDirectory({
+    const result = await addClientToDirectoryAdmin({
       client: (req.body as any).client,
       createdBy,
     })

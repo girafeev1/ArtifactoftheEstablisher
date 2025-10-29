@@ -1,46 +1,41 @@
+// lib/firebaseAdmin.ts
+import type { ServiceAccount } from 'firebase-admin'
 import admin from 'firebase-admin'
 
-function stripWrappingQuotes(value: string): string {
-  if (value.length >= 2) {
-    const first = value[0]
-    const last = value[value.length - 1]
-    if (first === last && (first === '"' || first === "'")) {
-      return value.slice(1, -1)
+let appInitialized = false
+
+export const ensureAdminApp = () => {
+  if (appInitialized) return admin.app()
+  try {
+    if (!admin.apps.length) {
+      const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID
+      const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
+      const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY
+      if (projectId && clientEmail && privateKey) {
+        const creds: ServiceAccount = {
+          projectId,
+          clientEmail,
+          privateKey,
+        }
+        admin.initializeApp({ credential: admin.credential.cert(creds), projectId })
+      } else {
+        admin.initializeApp({ credential: admin.credential.applicationDefault() })
+      }
     }
-  }
-  return value
-}
-
-const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID
-const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
-const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY
-  ? stripWrappingQuotes(process.env.FIREBASE_ADMIN_PRIVATE_KEY).replace(/\\n/g, '\n')
-  : undefined
-
-const hasServiceAccountCredentials = Boolean(projectId && clientEmail && privateKey)
-
-export const firebaseAdminConfigStatus = {
-  hasProjectId: Boolean(projectId),
-  hasClientEmail: Boolean(clientEmail),
-  hasPrivateKey: Boolean(privateKey),
-  credentialSource: hasServiceAccountCredentials ? 'service-account' : 'default',
-} as const
-
-if (!admin.apps.length) {
-  if (hasServiceAccountCredentials) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: projectId!,
-        clientEmail: clientEmail!,
-        privateKey: privateKey!,
-      }),
-    })
-  } else {
-    console.warn(
-      '[auth] Firebase Admin initialized without FIREBASE_ADMIN service-account credentials. Token verification will fail until they are configured.'
-    )
-    admin.initializeApp()
+    appInitialized = true
+    return admin.app()
+  } catch (e) {
+    throw e
   }
 }
 
-export const firebaseAdminAuth = admin.auth()
+export const getAdminFirestore = (databaseId?: string) => {
+  const app = ensureAdminApp()
+  const fs = admin.firestore(app)
+  if (databaseId && databaseId !== '(default)') {
+    // @ts-ignore access internal settings to set databaseId
+    fs._settings = { ...fs._settings, databaseId }
+  }
+  return fs
+}
+
