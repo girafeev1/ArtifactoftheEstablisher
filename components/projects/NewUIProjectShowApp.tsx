@@ -1676,6 +1676,42 @@ const ProjectsShowContent = () => {
     }
   }, [draftInvoice, invoiceMode, message, project, updateProjectFromInvoices])
 
+  const handleDeleteInvoice = useCallback(async (collectionId: string, invoiceNumber: string) => {
+    if (!project) return
+    try {
+      await new Promise<void>((resolve, reject) => {
+        Modal.confirm({
+          title: 'Delete this invoice?',
+          content: `#${invoiceNumber} — this action cannot be undone`,
+          okType: 'danger',
+          async onOk() {
+            try {
+              const endpoint = `/api/projects/by-id/${encodeURIComponent(project.id)}/invoices`
+              const res = await fetch(endpoint, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ collectionId, invoiceNumber }),
+              })
+              const body = await res.json()
+              if (!res.ok) throw new Error(body?.error || 'Delete failed')
+              const updated = Array.isArray(body?.invoices) ? body.invoices : []
+              setInvoices(updated)
+              updateProjectFromInvoices(updated)
+              setActiveInvoiceIndex((prev) => Math.max(0, Math.min(prev, Math.max(updated.length - 1, 0))))
+              resolve()
+            } catch (e) {
+              reject(e)
+            }
+          },
+          onCancel() { resolve() },
+        })
+      })
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Delete failed')
+    }
+  }, [message, project, setInvoices, updateProjectFromInvoices])
+
   const itemsRows: InvoiceTableRow[] = useMemo(() => {
     if (!resolvedDraft) {
       return []
@@ -2243,6 +2279,14 @@ const ProjectsShowContent = () => {
                           <span className="summary-label client-label">Invoice</span>
                         </div>
                         <div className="invoice-table">
+                          {/* Column headers always visible */}
+                          <div className="invoice-row head" role="row">
+                            <span className="invoice-cell number">Invoice #</span>
+                            <span className="invoice-cell amount">Amount</span>
+                            <span className="invoice-cell status">Status</span>
+                            <span className="invoice-cell pay-to">To</span>
+                            <span className="invoice-cell paid-on">On</span>
+                          </div>
                           {/* ... invoice table content ... */}
                           {invoiceEntries.length > 0 ? (
                             invoiceEntries.map((entry, index) => {
@@ -2269,6 +2313,27 @@ const ProjectsShowContent = () => {
                                   handleSelectInvoice(index, entry.pending)
                                 }
                               }
+                              if (isCreateNew) {
+                                return (
+                                  <div
+                                    key={`add-row-${index}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    className={`invoice-row selectable-row pending add-row`}
+                                    onClick={handleRowClick}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault()
+                                        handleRowClick()
+                                      }
+                                    }}
+                                  >
+                                    <div className="invoice-cell add-cell" style={{ gridColumn: '1 / -1' }}>
+                                      <span className="create-new-blink">Add additional invoice</span>
+                                    </div>
+                                  </div>
+                                )
+                              }
                               return (
                                 <div
                                   key={`${entry.invoiceNumber}-${index}`}
@@ -2284,9 +2349,7 @@ const ProjectsShowContent = () => {
                                   }}
                                 >
                                   <div className="invoice-cell number">
-                                    {isManagingInvoices && (entry as any).createNew ? (
-                                      <span className="create-new-blink">Add additional invoice</span>
-                                    ) : isManagingInvoices && invoiceNumberEditing ? (
+                                    {isManagingInvoices && invoiceNumberEditing ? (
                                       <Input
                                           value={draftInvoice?.invoiceNumber ?? ""}
                                           onChange={(event) => handleInvoiceNumberInput(event.target.value)}
@@ -2304,15 +2367,25 @@ const ProjectsShowContent = () => {
                                           {displayNumber}
                                         </span>
                                       )}
+                                    {isManagingInvoices ? (
+                                      <Button
+                                        type="text"
+                                        danger
+                                        size="small"
+                                        icon={<DeleteOutlined />}
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleDeleteInvoice(entry.collectionId, entry.invoiceNumber)
+                                        }}
+                                      />
+                                    ) : null}
 
                                   </div>
                                   <div className="invoice-cell amount">
-                                    {(entry as any).createNew ? '-' : amountText(isManagingInvoices ? total : entry.amount)}
+                                    {amountText(isManagingInvoices ? total : entry.amount)}
                                   </div>
                                   <div className="invoice-cell status">
-                                    {isManagingInvoices && (entry as any).createNew ? (
-                                      <span className="invoice-number-pending">-</span>
-                                    ) : isManagingInvoices && draftInvoice ? (
+                                    {isManagingInvoices && draftInvoice ? (
                                       <div
                                         className="invoice-status-control"
                                         onClick={(event) => event.stopPropagation()}
@@ -2340,9 +2413,7 @@ const ProjectsShowContent = () => {
                                     )}
                                   </div>
                                   <div className="invoice-cell pay-to">
-                                    {isManagingInvoices && (entry as any).createNew ? (
-                                      '-'
-                                    ) : isManagingInvoices && draftInvoice ? (
+                                    {isManagingInvoices && draftInvoice ? (
                                       <div className="bank-selectors" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                                         <Select
                                           placeholder="Bank"
@@ -2404,9 +2475,7 @@ const ProjectsShowContent = () => {
                                     )}
                                   </div>
                                   <div className="invoice-cell paid-on">
-                                    {isManagingInvoices && (entry as any).createNew ? (
-                                      '-'
-                                    ) : isManagingInvoices && draftInvoice ? (
+                                    {isManagingInvoices && draftInvoice ? (
                                       <DatePicker
                                         value={draftInvoice.paidOnIso ? dayjs(draftInvoice.paidOnIso) : null}
                                         onChange={(v) => {
@@ -2428,7 +2497,7 @@ const ProjectsShowContent = () => {
                           ) : (
                             <div className="invoice-empty-row">No invoices yet.</div>
                           )}
-                          {invoiceEntries.length > 1 ? (
+                          {invoices.length > 1 ? (
                             <div className="invoice-row total" role="row">
                               <span className="invoice-cell number total-label">Total:</span>
                               <span className="invoice-cell amount">{amountText(projectTotalValue)}</span>
@@ -2513,7 +2582,7 @@ const ProjectsShowContent = () => {
         }
 
         .page-inner {
-          max-width: 1040px;
+          max-width: 920px;
           margin: 0 auto;
           width: 100%;
         }

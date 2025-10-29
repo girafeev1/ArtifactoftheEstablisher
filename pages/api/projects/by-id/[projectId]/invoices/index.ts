@@ -8,6 +8,7 @@ import {
   type InvoiceClientPayload,
   type InvoiceItemPayload,
   updateInvoiceForProject,
+  deleteInvoiceForProject,
 } from "../../../../../../lib/projectInvoices"
 import { getAuthOptions } from "../../../../auth/[...nextauth]"
 
@@ -107,8 +108,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Project ID is required" })
   }
 
-  if (!["POST", "PATCH"].includes(req.method ?? "")) {
-    res.setHeader("Allow", "POST, PATCH")
+  if (!["POST", "PATCH", "DELETE"].includes(req.method ?? "")) {
+    res.setHeader("Allow", "POST, PATCH, DELETE")
     return res.status(405).json({ error: "Method Not Allowed" })
   }
 
@@ -197,6 +198,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         invoiceNumber: updated.invoiceNumber,
       })
 
+      return respondWithInvoices(res, project, 200)
+    }
+
+    if (req.method === "DELETE") {
+      const body = req.body ?? {}
+      const collectionId = toStringValue(body.collectionId)
+      const invoiceNumber = toStringValue(body.invoiceNumber)?.replace(/^#/, '')
+      if (!collectionId || !invoiceNumber) {
+        return res.status(400).json({ error: "collectionId and invoiceNumber are required" })
+      }
+      await deleteInvoiceForProject({
+        year: project.year,
+        projectId: project.id,
+        collectionId,
+        invoiceNumber: invoiceNumber!,
+        editedBy: identity,
+      })
       return respondWithInvoices(res, project, 200)
     }
 

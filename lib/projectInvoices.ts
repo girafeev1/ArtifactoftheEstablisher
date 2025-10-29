@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteField, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp, updateDoc } from "firebase/firestore"
+import { addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp, updateDoc } from "firebase/firestore"
 
 import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from "./firebase"
 
@@ -875,6 +875,44 @@ export const updateInvoiceForProject = async (
   await logInvoiceChanges(documentRef, diffs, input.editedBy)
 
   return buildInvoiceRecord(input.collectionId, refreshedSnapshot.id, refreshedData ?? {})
+}
+
+export interface DeleteInvoiceInput {
+  year: string
+  projectId: string
+  collectionId: string
+  invoiceNumber: string
+  editedBy: string
+}
+
+export const deleteInvoiceForProject = async (
+  input: DeleteInvoiceInput,
+): Promise<void> => {
+  // Prefer nested; fallback to legacy path
+  let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
+  try {
+    const exists = await getDoc(projectRef)
+    if (!exists.exists()) {
+      projectRef = doc(projectsDb, input.year, input.projectId)
+    }
+  } catch {
+    projectRef = doc(projectsDb, input.year, input.projectId)
+  }
+
+  // Try requested collection first, then unified collection
+  let collectionRef = collection(projectRef, input.collectionId)
+  let documentRef = doc(collectionRef, input.invoiceNumber)
+  let existing = await getDoc(documentRef)
+  if (!existing.exists()) {
+    collectionRef = collection(projectRef, SINGLE_INVOICE_COLLECTION_ID)
+    documentRef = doc(collectionRef, input.invoiceNumber)
+    existing = await getDoc(documentRef)
+    if (!existing.exists()) {
+      throw new Error('Invoice not found')
+    }
+  }
+
+  await deleteDoc(documentRef)
 }
 
 export interface InvoiceSummaryResult {
