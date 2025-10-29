@@ -2128,9 +2128,13 @@ const ProjectsShowContent = () => {
                         onClick={() => {
                           try { console.log('[ui] manage-toggle', { isManagingInvoices, invoiceMode, hasDraft: !!draftInvoice, invoiceCount: invoices.length }); } catch {}
                           if (isManagingInvoices) {
-                            setIsManagingInvoices(false)
-                            setInvoiceMode("idle")
-                            setDraftInvoice(null)
+                            // Commit changes if a draft is present; otherwise exit manage mode
+                            if (draftInvoice) {
+                              void handleSaveInvoice()
+                            } else {
+                              setIsManagingInvoices(false)
+                              setInvoiceMode("idle")
+                            }
                           } else {
                             // Enter manage mode and start editing the current invoice if one exists; otherwise start create.
                             setIsManagingInvoices(true)
@@ -2142,7 +2146,7 @@ const ProjectsShowContent = () => {
                           }
                         }}
                       >
-                        {isManagingInvoices ? "Done Managing Invoices" : (invoices.length > 0 ? "Manage Invoices" : "Manage Invoice")}
+                        {isManagingInvoices ? (draftInvoice ? "Commit Changes" : "Done Managing") : (invoices.length > 0 ? "Manage Invoices" : "Manage Invoice")}
                       </Button>
                     </div>
                   ) : null}
@@ -3649,6 +3653,11 @@ const ProjectsShowContent = () => {
               `}</style>
               <style jsx global>{`
                 @import url('https://fonts.googleapis.com/css2?family=Yuji+Mai&family=Federo&family=Iansui&family=Karla:wght@300&display=block');
+                /* Global keyframes so inline animation names resolve reliably */
+                @keyframes blink {
+                  0%, 100% { opacity: 1; }
+                  50% { opacity: 0.3; }
+                }
                 .ant-table-cell .item-description {
                   font-family: ${KARLA_FONT};
                   font-weight: 300 !important;
