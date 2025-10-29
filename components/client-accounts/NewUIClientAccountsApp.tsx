@@ -664,6 +664,28 @@ const ClientAccountsTable = ({
     >
       <Table<ClientAccountRow>
         {...tableProps}
+        rowKey="id"
+        onRow={(record) => ({
+          onClick: (event) => {
+            const target = event.target as HTMLElement
+            if (target.closest('[data-table-action]')) {
+              return
+            }
+            onViewDetails(record)
+          },
+        })}
+        pagination={{
+          ...(tableProps.pagination || {}),
+          pageSizeOptions: ["12", "24", "48", "96"],
+          showTotal: (total) => <PaginationSummary total={total} />,
+          onChange: (page: number, pageSize?: number) => {
+            try { console.info('[client-accounts] pagination.onChange', { page, pageSize }) } catch {}
+            setCurrentPage(page)
+            if (tableProps.pagination && typeof (tableProps.pagination as any).onChange === 'function') {
+              (tableProps.pagination as any).onChange(page, pageSize)
+            }
+          },
+        }}
         onChange={(pagination, filters, sorter, extra) => {
           try {
             console.info('[client-accounts] table.onChange', {
@@ -676,21 +698,6 @@ const ClientAccountsTable = ({
           if (typeof (tableProps as any).onChange === 'function') {
             (tableProps as any).onChange(pagination, filters, sorter, extra)
           }
-        }}
-        rowKey="id"
-        onRow={(record) => ({
-          onClick: (event) => {
-            const target = event.target as HTMLElement
-            if (target.closest('[data-table-action]')) {
-              return
-            }
-            onViewDetails(record)
-          },
-        })}
-        pagination={{
-          ...tableProps.pagination,
-          pageSizeOptions: ["12", "24", "48", "96"],
-          showTotal: (total) => <PaginationSummary total={total} />,
         }}
       >
         <Table.Column<ClientAccountRow>
