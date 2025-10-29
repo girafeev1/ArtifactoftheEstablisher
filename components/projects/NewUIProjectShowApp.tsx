@@ -935,8 +935,8 @@ const ProjectsShowContent = () => {
       }
     })
 
-    // In manage mode, always show a blinking row to add an additional invoice
-    if (isManagingInvoices) {
+    // In manage mode (but not currently creating), show a blinking row to add an additional invoice
+    if (isManagingInvoices && invoiceMode !== 'create') {
       try { console.log('[ui] add-row-visible', { isManagingInvoices, hasDraft: !!draftInvoice, existing: invoices.length }); } catch {}
       entries.push({
         invoiceNumber: "Add additional invoice",
@@ -1913,7 +1913,7 @@ const ProjectsShowContent = () => {
   const projectEditSaving = projectEditMode === "saving"
   const showInvoiceCancel = invoiceMode !== "idle" && (invoiceMode === "edit" || hasInvoices)
   return (
-    <div className="page-wrapper">
+    <div className="page-wrapper" data-ui-rev="r7">
       <div className="page-inner">
         <Space direction="vertical" size={24} style={{ width: "100%" }}>
           <div className="top-row">
@@ -2586,7 +2586,7 @@ const ProjectsShowContent = () => {
         }
 
         .page-inner {
-          max-width: 920px;
+          max-width: 860px;
           margin: 0 auto;
           width: 100%;
         }
@@ -3560,7 +3560,7 @@ const ProjectsShowContent = () => {
         }
 
         .totals-panel {
-          --totals-label-width: 180px;
+          --totals-label-width: 190px;
           margin-top: 32px;
           margin-right: 12px;
           display: flex;
@@ -3569,7 +3569,7 @@ const ProjectsShowContent = () => {
           align-items: flex-end; /* keep the whole panel on the right */
           align-self: flex-end; /* anchor the block to the right inside items-section */
           position: relative;
-          left: -16px; /* nudge left visibly */
+          left: -24px; /* nudge left visibly */
         }
 
         .totals-row {
