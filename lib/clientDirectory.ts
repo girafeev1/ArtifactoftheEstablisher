@@ -224,8 +224,6 @@ export const addClientToDirectory = async ({
     ...payload,
     createdAt: timestamp,
     createdBy,
-    updatedAt: timestamp,
-    updatedBy: createdBy,
   })
 
   await addDoc(collection(docRef, CLIENT_LOG_COLLECTION), {
@@ -273,8 +271,7 @@ export const updateClientInDirectory = async ({
     return { updatedFields: [] as string[] }
   }
 
-  updatePayload.updatedAt = serverTimestamp()
-  updatePayload.updatedBy = editedBy
+  // Do not write updatedAt/updatedBy (avoid cache-ish fields)
 
   await updateDoc(docRef, updatePayload)
 

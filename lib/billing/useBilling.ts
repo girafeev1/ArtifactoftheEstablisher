@@ -26,14 +26,6 @@ export async function writeBillingSummary(abbr: string, result: BillingResult) {
       billingSummary: {
         balanceDue: result.balanceDue,
         voucherBalance: result.voucherBalance,
-        updatedAt: new Date(),
-      },
-      cached: {
-        billingSummary: {
-          balanceDue: result.balanceDue,
-          voucherBalance: result.voucherBalance,
-          updatedAt: new Date(),
-        },
       },
     },
     { merge: true },
@@ -47,4 +39,3 @@ export function invalidateBilling(abbr: string, account: string, qc: QueryClient
 export function useBillingClient() {
   return useQueryClient()
 }
-

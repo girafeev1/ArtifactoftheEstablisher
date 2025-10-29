@@ -791,7 +791,6 @@ export const createInvoiceForProject = async (
   payload.invoiceNumber = invoiceNumber
   payload.baseInvoiceNumber = baseInvoiceNumber
   payload.createdAt = serverTimestamp()
-  payload.updatedAt = serverTimestamp()
 
   await setDoc(documentRef, payload)
 
@@ -868,7 +867,6 @@ export const updateInvoiceForProject = async (
     return buildInvoiceRecord(input.collectionId, existing.id, existingData ?? {})
   }
 
-  payload.updatedAt = serverTimestamp()
   await updateDoc(documentRef, payload)
 
   const refreshedSnapshot = await getDoc(documentRef)

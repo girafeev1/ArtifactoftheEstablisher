@@ -2171,24 +2171,22 @@ const ProjectsShowContent = () => {
                     <div className="billing-header-actions">
                       <Button
                         className="btn-outline manage-invoices"
-                        onClick={() => {
+                        onClick={async () => {
                           try { console.log('[ui] manage-toggle', { isManagingInvoices, invoiceMode, hasDraft: !!draftInvoice, invoiceCount: invoices.length }); } catch {}
                           if (isManagingInvoices) {
-                            // Commit changes if a draft is present; otherwise exit manage mode
                             if (draftInvoice) {
-                              void handleSaveInvoice()
-                            } else {
-                              setIsManagingInvoices(false)
-                              setInvoiceMode("idle")
+                              await handleSaveInvoice()
                             }
+                            setIsManagingInvoices(false)
+                            setInvoiceMode('idle')
+                            return
+                          }
+                          // Enter manage mode and start editing the current invoice if one exists; otherwise start create.
+                          setIsManagingInvoices(true)
+                          if (invoices.length > 0) {
+                            prepareDraft('edit')
                           } else {
-                            // Enter manage mode and start editing the current invoice if one exists; otherwise start create.
-                            setIsManagingInvoices(true)
-                            if (invoices.length > 0) {
-                              prepareDraft("edit")
-                            } else {
-                              prepareDraft("create")
-                            }
+                            prepareDraft('create')
                           }
                         }}
                       >
@@ -2417,7 +2415,14 @@ const ProjectsShowContent = () => {
                                         icon={<DeleteOutlined />}
                                         onClick={(e) => {
                                           e.stopPropagation()
-                                          handleDeleteInvoice(entry.collectionId, entry.invoiceNumber)
+                                          if (isPending && invoiceMode === 'create') {
+                                            // Treat delete on pending row as cancel creation
+                                            setInvoiceNumberEditing(false)
+                                            setInvoiceMode('idle')
+                                            setDraftInvoice(null)
+                                          } else {
+                                            handleDeleteInvoice(entry.collectionId, entry.invoiceNumber)
+                                          }
                                         }}
                                       />
                                     ) : null}
@@ -2552,15 +2557,7 @@ const ProjectsShowContent = () => {
                       </>
                     ) : null}
                     
-                    {invoiceMode === "create" && hasInvoices ? (
-                      <div className="billing-actions">
-                        <Space size={12} wrap>
-                          <Button className="btn-outline" onClick={handleCancelInvoice} disabled={savingInvoice}>
-                            Cancel
-                          </Button>
-                        </Space>
-                      </div>
-                    ) : null}
+                    {/* Remove separate Cancel button; use trash on pending row to cancel */}
                   </section>
                   <section className="items-section" data-section="items">
                     <Table
