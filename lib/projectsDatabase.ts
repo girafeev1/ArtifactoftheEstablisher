@@ -426,7 +426,6 @@ export const createProjectInDatabase = async ({
     onDate: sanitized.onDate ?? null,
     createdBy,
     createdAt: timestamp,
-    updatedAt: timestamp,
   }
 
   await setDoc(projectRef, docPayload)

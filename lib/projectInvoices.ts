@@ -861,8 +861,14 @@ export const updateInvoiceForProject = async (
     { removeAggregates: true },
   )
 
-  payload.updatedAt = serverTimestamp()
+  // Compute diffs BEFORE writing; skip write/log if nothing changed
+  const proposedData = { ...existingData, ...payload }
+  const diffs = computeDocumentDiff(existingData, proposedData)
+  if (diffs.length === 0) {
+    return buildInvoiceRecord(input.collectionId, existing.id, existingData ?? {})
+  }
 
+  payload.updatedAt = serverTimestamp()
   await updateDoc(documentRef, payload)
 
   const refreshedSnapshot = await getDoc(documentRef)
@@ -871,8 +877,8 @@ export const updateInvoiceForProject = async (
   }
 
   const refreshedData = refreshedSnapshot.data()
-  const diffs = computeDocumentDiff(existingData, refreshedData ?? {})
-  await logInvoiceChanges(documentRef, diffs, input.editedBy)
+  const writeDiffs = computeDocumentDiff(existingData, refreshedData ?? {})
+  await logInvoiceChanges(documentRef, writeDiffs, input.editedBy)
 
   return buildInvoiceRecord(input.collectionId, refreshedSnapshot.id, refreshedData ?? {})
 }

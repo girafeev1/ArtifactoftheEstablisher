@@ -1612,6 +1612,39 @@ const ProjectsShowContent = () => {
     if (!project || !draftInvoice) {
       return
     }
+    // Front-end guard: if nothing changed, avoid hitting the API
+    try {
+      const current = invoices[activeInvoiceIndex]
+      if (current) {
+        const sameClient = JSON.stringify({
+          companyName: current.companyName ?? null,
+          addressLine1: current.addressLine1 ?? null,
+          addressLine2: current.addressLine2 ?? null,
+          addressLine3: current.addressLine3 ?? null,
+          region: current.region ?? null,
+          representative: current.representative ?? null,
+        }) === JSON.stringify(draftInvoice.client)
+
+        const sameItems = JSON.stringify((current.items ?? []).map(i => ({
+          title: i.title ?? '', feeType: i.feeType ?? '', unitPrice: i.unitPrice ?? 0, quantity: i.quantity ?? 0, discount: i.discount ?? 0,
+        }))) === JSON.stringify(draftInvoice.items)
+
+        const sameMeta = (
+          (current.taxOrDiscountPercent ?? 0) === (draftInvoice.taxOrDiscountPercent ?? 0) &&
+          (current.paymentStatus ?? null) === (draftInvoice.paymentStatus ?? null) &&
+          (current.paidTo ?? null) === (draftInvoice.paidTo ?? null) &&
+          (current.paidOnIso ?? null) === (draftInvoice.paidOnIso ?? null)
+        )
+
+        if (sameClient && sameItems && sameMeta && invoiceMode === 'edit') {
+          message.info('No changes to save')
+          setInvoiceNumberEditing(false)
+          setInvoiceMode('idle')
+          setDraftInvoice(null)
+          return
+        }
+      }
+    } catch {}
     const normalizedPaidTo = draftInvoice.paidTo ? draftInvoice.paidTo.trim() : ""
     // Ensure invoiceNumber to save has no leading '#'
     const normalizedInvoiceNumber = (draftInvoice.invoiceNumber ?? '').replace(/^#/, '').trim()
