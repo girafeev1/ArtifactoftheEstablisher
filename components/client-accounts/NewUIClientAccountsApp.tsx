@@ -625,6 +625,7 @@ type TableViewProps = {
   alphabetAvailable: ReadonlySet<string>
   alphabetActive: string | null
   onAlphabetSelect: (token: string | null) => void
+  onPageChange: (page: number, pageSize?: number) => void
 } & ActionHandlers
 
 const ClientAccountsTable = ({
@@ -633,6 +634,7 @@ const ClientAccountsTable = ({
   alphabetAvailable,
   alphabetActive,
   onAlphabetSelect,
+  onPageChange,
   onViewDetails,
   onSendEmail,
   onCall,
@@ -680,7 +682,7 @@ const ClientAccountsTable = ({
           showTotal: (total) => <PaginationSummary total={total} />,
           onChange: (page: number, pageSize?: number) => {
             try { console.info('[client-accounts] pagination.onChange', { page, pageSize }) } catch {}
-            setCurrentPage(page)
+            onPageChange(page, pageSize)
             if (tableProps.pagination && typeof (tableProps.pagination as any).onChange === 'function') {
               (tableProps.pagination as any).onChange(page, pageSize)
             }
@@ -1465,6 +1467,10 @@ const ClientAccountsContent = () => {
           alphabetAvailable={availableInitials}
           alphabetActive={activeInitial}
           onAlphabetSelect={handleAlphabetSelect}
+          onPageChange={(page, _pageSize) => {
+            try { console.info('[client-accounts] content.setCurrentPage', { page }) } catch {}
+            setCurrentPage(page)
+          }}
           onViewDetails={handleViewDetails}
           onSendEmail={handleSendEmail}
           onCall={handleCall}
