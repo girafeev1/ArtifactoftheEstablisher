@@ -865,6 +865,19 @@ const ProjectsShowContent = () => {
     return formatProjectDate(lastPaidIso, lastPaidDisplay)
   }, [clearedCount, lastPaidDisplay, lastPaidIso])
 
+  // Toggle for compact vs. full address in client view
+  const [showFullAddress, setShowFullAddress] = useState(false)
+  const compactAddress = useMemo(() => {
+    const parts = [
+      resolvedClient?.addressLine1,
+      resolvedClient?.addressLine2,
+      resolvedClient?.addressLine3,
+      resolvedClient?.region,
+    ].filter((p) => typeof p === 'string' && (p as string).trim().length > 0) as string[]
+    const text = parts.join(', ')
+    return text.length > 120 ? `${text.slice(0, 120)}…` : text
+  }, [resolvedClient?.addressLine1, resolvedClient?.addressLine2, resolvedClient?.addressLine3, resolvedClient?.region])
+
   const invoiceEntries = useMemo(() => {
     const entries = invoices.map((invoice, index) => {
       const rawAmount =
@@ -2265,15 +2278,25 @@ const ProjectsShowContent = () => {
                   </div>
                 ) : (
                   <div className="company-block">
-                    <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
-                    <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
-                    <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
-                    <div className="company-line">{stringOrNA(companyLine3)}</div>
-                    {resolvedClient?.representative ? (
-                      <div className="company-line client-attn">
-                        <strong><em>Attn:</em></strong>&nbsp;<strong>{resolvedClient.representative}</strong>
+                    <div className="company-name-row">
+                      <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
+                      {resolvedClient?.representative ? (
+                        <span className="attn-chip">Attn: {resolvedClient.representative}</span>
+                      ) : null}
+                    </div>
+                    {!showFullAddress ? (
+                      <div className="company-summary">
+                        <span className="company-line">{compactAddress || '-'}</span>
+                        <button type="button" className="link-button" onClick={() => setShowFullAddress(true)}>Show full</button>
                       </div>
-                    ) : null}
+                    ) : (
+                      <div className="company-full">
+                        <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
+                        <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
+                        <div className="company-line">{stringOrNA(companyLine3)}</div>
+                        <button type="button" className="link-button" onClick={() => setShowFullAddress(false)}>Hide</button>
+                      </div>
+                    )}
                   </div>
                 )}                  </aside>
                   <section className="billing-section" data-section="billing">
@@ -3204,6 +3227,11 @@ const ProjectsShowContent = () => {
 
         .client-panel.editing { gap: 16px; padding-top: 0; }
 
+        .company-name-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .attn-chip { font-family: ${KARLA_FONT}; font-weight: 600; color: #475569; background: #f1f5f9; border-radius: 999px; padding: 2px 8px; font-size: 12px; }
+        .company-summary { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+        .link-button { background: none; border: none; padding: 0; color: #2563eb; cursor: pointer; font-family: ${KARLA_FONT}; font-weight: 600; }
+
         /* Outline button style (white with gray border) */
         :global(.btn-outline.ant-btn), .btn-outline {
           background: #ffffff !important;
@@ -3640,6 +3668,32 @@ const ProjectsShowContent = () => {
           50% {
             opacity: 0.3;
           }
+        }
+
+        /* Responsive reflow for narrower screens */
+        @media (max-width: 1024px) {
+          .billing-layout {
+            grid-template-columns: 1fr;
+            grid-template-areas:
+              "client"
+              "billing"
+              "items";
+            gap: 16px;
+          }
+          .invoice-row {
+            grid-template-areas:
+              "number amount status"
+              "to to on";
+            grid-template-columns: minmax(0, 1fr) max-content max-content;
+            align-items: start;
+          }
+          .invoice-row .invoice-cell.number { grid-area: number; }
+          .invoice-row .invoice-cell.amount { grid-area: amount; }
+          .invoice-row .invoice-cell.status { grid-area: status; }
+          .invoice-row .invoice-cell.pay-to { grid-area: to; }
+          .invoice-row .invoice-cell.paid-on { grid-area: on; }
+          .invoice-row.head { grid-template-areas: "number amount status"; }
+          .bank-selectors { max-width: 100%; }
         }
 
         /* Tooltip customizations for bank tooltip */
