@@ -338,7 +338,14 @@ const refineDataProvider: DataProvider = {
     if (resource !== "client-directory") {
       return { data: [], total: 0 } as GetListResponse<TData>
     }
-
+    try {
+      console.info("[client-accounts] dp.getList: request", {
+        resource,
+        pagination,
+        sorters,
+        filters,
+      })
+    } catch {}
     let normalized: ClientAccountRow[] = directoryCache.records
     try {
       const response = await fetch("/api/client-directory", {
@@ -357,6 +364,12 @@ const refineDataProvider: DataProvider = {
         const rawItems: DirectoryApiRecord[] = payload.data ?? []
         normalized = rawItems.map((entry, index) => normalizeRecord(entry, index))
         directoryCache.records = normalized
+        try {
+          console.info("[client-accounts] dp.getList: fetched", {
+            count: normalized.length,
+            httpStatus: response.status,
+          })
+        } catch {}
       }
     } catch (e) {
       // Network/cache fallback: if we have cache, use it; else rethrow
@@ -364,6 +377,12 @@ const refineDataProvider: DataProvider = {
         throw e
       }
       normalized = directoryCache.records
+      try {
+        console.warn("[client-accounts] dp.getList: using cached due to fetch error", {
+          cachedCount: normalized.length,
+          error: e instanceof Error ? { message: e.message } : String(e),
+        })
+      } catch {}
     }
 
     const filtered = applyFilters(normalized, filters)
@@ -373,6 +392,15 @@ const refineDataProvider: DataProvider = {
     const pageSize = pagination?.pageSize ?? 12
     const start = (current - 1) * pageSize
     const paginated = sorted.slice(start, start + pageSize)
+
+    try {
+      console.info("[client-accounts] dp.getList: shaped", {
+        total: sorted.length,
+        current,
+        pageSize,
+        sliced: paginated.length,
+      })
+    } catch {}
 
     return {
       data: paginated as unknown as TData[],
@@ -636,6 +664,19 @@ const ClientAccountsTable = ({
     >
       <Table<ClientAccountRow>
         {...tableProps}
+        onChange={(pagination, filters, sorter, extra) => {
+          try {
+            console.info('[client-accounts] table.onChange', {
+              current: (pagination as any)?.current,
+              pageSize: (pagination as any)?.pageSize,
+              total: tableProps?.pagination?.total,
+              type: extra?.action,
+            })
+          } catch {}
+          if (typeof (tableProps as any).onChange === 'function') {
+            (tableProps as any).onChange(pagination, filters, sorter, extra)
+          }
+        }}
         rowKey="id"
         onRow={(record) => ({
           onClick: (event) => {
@@ -1164,9 +1205,21 @@ const ClientAccountsContent = () => {
     syncWithLocation: false,
   }) as any
 
+  useEffect(() => {
+    try {
+      console.info('[client-accounts] pagination.state', {
+        current: tableProps?.pagination?.current,
+        pageSize: tableProps?.pagination?.pageSize,
+        total: tableProps?.pagination?.total,
+        fetching: tableQuery.isFetching,
+      })
+    } catch {}
+  }, [tableProps?.pagination?.current, tableProps?.pagination?.pageSize, tableQuery.isFetching])
+
   const debouncedSearch = useMemo(
     () =>
       debounce((value: string) => {
+        try { console.info('[client-accounts] search.input', { value }) } catch {}
         searchFormProps?.onFinish?.({ name: value })
       }, 400),
     [searchFormProps],
@@ -1195,15 +1248,19 @@ const ClientAccountsContent = () => {
   }, [tableQuery.data?.data])
 
   const handleAlphabetSelect = (token: string | null) => {
+    try { console.info('[client-accounts] alphabet.select', { token }) } catch {}
     setCurrentPage(1)
     setFilters((previous: any[]) => {
       const base = (previous ?? []).filter(
         (entry: any) => !(entry && typeof entry === "object" && entry.field === "companyInitial"),
       )
       if (!token) {
+        try { console.info('[client-accounts] alphabet.filters', { filters: base }) } catch {}
         return base
       }
-      return [...base, { field: "companyInitial", operator: "eq", value: token }]
+      const next = [...base, { field: "companyInitial", operator: "eq", value: token }]
+      try { console.info('[client-accounts] alphabet.filters', { filters: next }) } catch {}
+      return next
     })
     setActiveInitial(token)
   }
