@@ -1926,7 +1926,7 @@ const ProjectsShowContent = () => {
   const projectEditSaving = projectEditMode === "saving"
   const showInvoiceCancel = invoiceMode !== "idle" && (invoiceMode === "edit" || hasInvoices)
   return (
-    <div className="page-wrapper" data-ui-rev="r7">
+    <div className="page-wrapper">
       <div className="page-inner">
         <Space direction="vertical" size={24} style={{ width: "100%" }}>
           <div className="top-row">
@@ -2278,25 +2278,15 @@ const ProjectsShowContent = () => {
                   </div>
                 ) : (
                   <div className="company-block">
-                    <div className="company-name-row">
-                      <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
-                      {resolvedClient?.representative ? (
-                        <span className="attn-chip">Attn: {resolvedClient.representative}</span>
-                      ) : null}
-                    </div>
-                    {!showFullAddress ? (
-                      <div className="company-summary">
-                        <span className="company-line">{compactAddress || '-'}</span>
-                        <button type="button" className="link-button" onClick={() => setShowFullAddress(true)}>Show full</button>
+                    <div className="company-name">{stringOrNA(resolvedClient?.companyName)}</div>
+                    <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
+                    <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
+                    <div className="company-line">{stringOrNA(companyLine3)}</div>
+                    {resolvedClient?.representative ? (
+                      <div className="company-line client-attn">
+                        <strong><em>Attn:</em></strong>&nbsp;<strong>{resolvedClient.representative}</strong>
                       </div>
-                    ) : (
-                      <div className="company-full">
-                        <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
-                        <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
-                        <div className="company-line">{stringOrNA(companyLine3)}</div>
-                        <button type="button" className="link-button" onClick={() => setShowFullAddress(false)}>Hide</button>
-                      </div>
-                    )}
+                    ) : null}
                   </div>
                 )}                  </aside>
                   <section className="billing-section" data-section="billing">
@@ -2306,14 +2296,6 @@ const ProjectsShowContent = () => {
                           <span className="summary-label client-label">Invoice</span>
                         </div>
                         <div className="invoice-table">
-                          {/* Column headers always visible */}
-                          <div className="invoice-row head" role="row">
-                            <span className="invoice-cell number">Invoice #</span>
-                            <span className="invoice-cell amount">Amount</span>
-                            <span className="invoice-cell status">Status</span>
-                            <span className="invoice-cell pay-to">To</span>
-                            <span className="invoice-cell paid-on">On</span>
-                          </div>
                           {/* ... invoice table content ... */}
                           {invoiceEntries.length > 0 ? (
                             invoiceEntries.map((entry, index) => {
@@ -2609,7 +2591,7 @@ const ProjectsShowContent = () => {
         }
 
         .page-inner {
-          max-width: 860px;
+          max-width: 1040px;
           margin: 0 auto;
           width: 100%;
         }
@@ -3227,10 +3209,7 @@ const ProjectsShowContent = () => {
 
         .client-panel.editing { gap: 16px; padding-top: 0; }
 
-        .company-name-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-        .attn-chip { font-family: ${KARLA_FONT}; font-weight: 600; color: #475569; background: #f1f5f9; border-radius: 999px; padding: 2px 8px; font-size: 12px; }
-        .company-summary { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-        .link-button { background: none; border: none; padding: 0; color: #2563eb; cursor: pointer; font-family: ${KARLA_FONT}; font-weight: 600; }
+        
 
         /* Outline button style (white with gray border) */
         :global(.btn-outline.ant-btn), .btn-outline {
@@ -3669,32 +3648,7 @@ const ProjectsShowContent = () => {
             opacity: 0.3;
           }
         }
-
-        /* Responsive reflow for narrower screens */
-        @media (max-width: 1024px) {
-          .billing-layout {
-            grid-template-columns: 1fr;
-            grid-template-areas:
-              "client"
-              "billing"
-              "items";
-            gap: 16px;
-          }
-          .invoice-row {
-            grid-template-areas:
-              "number amount status"
-              "to to on";
-            grid-template-columns: minmax(0, 1fr) max-content max-content;
-            align-items: start;
-          }
-          .invoice-row .invoice-cell.number { grid-area: number; }
-          .invoice-row .invoice-cell.amount { grid-area: amount; }
-          .invoice-row .invoice-cell.status { grid-area: status; }
-          .invoice-row .invoice-cell.pay-to { grid-area: to; }
-          .invoice-row .invoice-cell.paid-on { grid-area: on; }
-          .invoice-row.head { grid-template-areas: "number amount status"; }
-          .bank-selectors { max-width: 100%; }
-        }
+        
 
         /* Tooltip customizations for bank tooltip */
         :global(.bank-tooltip .ant-tooltip-arrow::before) {
@@ -3705,42 +3659,13 @@ const ProjectsShowContent = () => {
         .page-wrapper.flash-page::before { content: ""; position: fixed; inset: 0; background: rgba(255,255,255,1); pointer-events: none; animation: page-flash 900ms ease-in-out forwards; z-index: 9999; }
         @keyframes page-flash { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
               `}</style>
-              <style jsx global>{`
-                @import url('https://fonts.googleapis.com/css2?family=Yuji+Mai&family=Federo&family=Iansui&family=Karla:wght@300&display=block');
-                /* Global keyframes so inline animation names resolve reliably */
-                @keyframes blink {
-                  0%, 100% { opacity: 1; }
-                  50% { opacity: 0.3; }
-                }
-
-                /* High-specificity, global overrides namespaced to this component revision */
-                [data-ui-rev="r7"] .page-inner { max-width: 860px !important; padding: 0 16px !important; }
-                [data-ui-rev="r7"] .totals-panel { left: -24px !important; }
-
-                /* Raise breakpoint temporarily so reflow is easy to see; can revert to 1024px later */
-                @media (max-width: 1366px) {
-                  [data-ui-rev="r7"] .billing-layout {
-                    grid-template-columns: 1fr !important;
-                    grid-template-areas:
-                      "client"
-                      "billing"
-                      "items";
-                    gap: 16px !important;
-                  }
-                  [data-ui-rev="r7"] .invoice-row {
-                    grid-template-areas:
-                      "number amount status"
-                      "to to on" !important;
-                    grid-template-columns: minmax(0, 1fr) max-content max-content !important;
-                    align-items: start !important;
-                  }
-                  [data-ui-rev="r7"] .invoice-row .invoice-cell.number { grid-area: number; }
-                  [data-ui-rev="r7"] .invoice-row .invoice-cell.amount { grid-area: amount; }
-                  [data-ui-rev="r7"] .invoice-row .invoice-cell.status { grid-area: status; }
-                  [data-ui-rev="r7"] .invoice-row .invoice-cell.pay-to { grid-area: to; }
-                  [data-ui-rev="r7"] .invoice-row .invoice-cell.paid-on { grid-area: on; }
-                  [data-ui-rev="r7"] .invoice-row.head { grid-template-areas: "number amount status"; }
-                }
+               <style jsx global>{`
+                 @import url('https://fonts.googleapis.com/css2?family=Yuji+Mai&family=Federo&family=Iansui&family=Karla:wght@300&display=block');
+                 /* Global keyframes so inline animation names resolve reliably */
+                 @keyframes blink {
+                   0%, 100% { opacity: 1; }
+                   50% { opacity: 0.3; }
+                 }
                 .ant-table-cell .item-description {
                   font-family: ${KARLA_FONT};
                   font-weight: 300 !important;
