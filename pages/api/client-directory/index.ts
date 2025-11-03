@@ -1,8 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 
-import { fetchClientsDirectory } from '../../../lib/clientDirectory'
-import { addClientToDirectoryAdmin } from '../../../lib/clientDirectoryAdmin'
+import { fetchClientsDirectory, addClientToDirectory } from '../../../lib/clientDirectory'
 import { getAuthOptions } from '../auth/[...nextauth]'
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -52,13 +51,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     'unknown'
 
   try {
-    const result = await addClientToDirectoryAdmin({
+    console.info('[api/client-directory] POST begin', { keys: Object.keys((req.body as any).client || {}) })
+    const result = await addClientToDirectory({
       client: (req.body as any).client,
       createdBy,
     })
+    console.info('[api/client-directory] POST ok', result)
     return res.status(201).json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Create failed'
+    console.error('[api/client-directory] POST failed', { error: message })
     return res.status(400).json({ error: message })
   }
 }

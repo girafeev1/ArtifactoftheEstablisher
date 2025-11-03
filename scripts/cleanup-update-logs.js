@@ -22,7 +22,9 @@ const admin = require('firebase-admin')
 const { Firestore } = require('@google-cloud/firestore')
 
 function getFirestores() {
-  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID
+  const explicitProjectId = process.env.FIREBASE_ADMIN_PROJECT_ID
+  const fallbackProjectId = process.env.GOOGLE_CLOUD_PROJECT
+  const projectId = explicitProjectId || fallbackProjectId
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
   const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY
   const databaseIds = (process.env.DATABASE_IDS || '(default)')
@@ -31,18 +33,28 @@ function getFirestores() {
     .filter(Boolean)
 
   if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
+    if (projectId && clientEmail && privateKey) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId,
+          clientEmail,
+          privateKey,
+        }),
         projectId,
-        clientEmail,
-        privateKey,
-      }),
-      projectId,
-    })
+      })
+    } else {
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+        projectId,
+      })
+    }
   }
 
+  const resolvedProjectId = projectId || admin.app().options.projectId
+
   return databaseIds.map((dbId) => {
-    const fs = new Firestore({ projectId, databaseId: dbId })
+    const opts = resolvedProjectId ? { projectId: resolvedProjectId, databaseId: dbId } : { databaseId: dbId }
+    const fs = new Firestore(opts)
     return { id: dbId, db: fs }
   })
 }
@@ -118,4 +130,3 @@ run().catch((e) => {
   console.error('[cleanup] Failed:', e)
   process.exit(1)
 })
-

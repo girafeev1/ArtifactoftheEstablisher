@@ -215,6 +215,42 @@ Tasks T-xxx
   - Right-align edited client inputs where appropriate; adjust column widths; hide empty sections; deduplicate elements.
 - Notes:
 
+### T-106
+- Title: Client Accounts payment status via invoice-level due detection (P-037)
+- Branch: main
+- PR: —
+- Status: ⏳ In Progress
+- Outcomes (planned):
+  - Derive client payment status by scanning project invoices for outstanding balances tied to each client record.
+  - Match invoices to Firestore client accounts (company/contact) and mark Payment Due when any invoice remains unpaid.
+  - Remove legacy project-level payment status heuristics to avoid conflicting indicators.
+- Notes:
+  - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
+
+### T-107
+- Title: Invoice detail editing toggle & number editing parity (P-038)
+- Branch: main
+- PR: —
+- Status: ⏳ In Progress
+- Outcomes (planned):
+  - Add a dedicated “Edit Invoice Details” button beneath the invoice detail divider to control detail editability independent of Manage mode.
+  - Allow invoice number edits regardless of invoice count; ensure toggling resets the working draft safely.
+  - Relocate the header edit action beside Project Pickup Date and update styling per request.
+- Notes:
+  - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
+
+### T-108
+- Title: Invoice item layout polish (Sub-Qty, Notes, widths) (P-039)
+- Branch: main
+- PR: —
+- Status: ⏳ In Progress
+- Outcomes (planned):
+  - Narrow the “To” column within invoice tables to free space for items.
+  - Add a “Sub-Qty” field inline with the item title and persist the value.
+  - Support multiline Notes beneath fee type and render stored line breaks in the UI.
+- Notes:
+  - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
+
 ### T-080
 - Title: Payment UI polish & data rules (P-024)
 - Branch: codex/feat-payment-ui-polish-p024

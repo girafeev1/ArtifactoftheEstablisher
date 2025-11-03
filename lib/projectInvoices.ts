@@ -258,13 +258,16 @@ const logInvoiceChanges = async (
   changes: Array<{ field: string; before: unknown; after: unknown }>,
   editedBy: string,
 ) => {
-  if (changes.length === 0) {
+  const filtered = changes.filter(
+    (change) => change.field !== 'updatedAt' && change.field !== 'updatedBy',
+  )
+  if (filtered.length === 0) {
     return
   }
 
   const logsCollection = collection(invoiceRef, UPDATE_LOG_COLLECTION)
   await Promise.all(
-    changes.map((change) =>
+    filtered.map((change) =>
       addDoc(logsCollection, {
         field: change.field,
         previousValue: change.before,
@@ -377,6 +380,8 @@ export interface ProjectInvoiceItemRecord {
   unitPrice: number | null
   quantity: number | null
   discount: number | null
+  subQuantity: string | null
+  notes: string | null
 }
 
 export interface ProjectInvoiceRecord {
@@ -439,13 +444,17 @@ const buildItemsFromData = (data: Record<string, unknown>): ProjectInvoiceItemRe
     const unitPrice = toNumberValue(data[`item${index}UnitPrice`])
     const quantity = toNumberValue(data[`item${index}Quantity`])
     const discount = toNumberValue(data[`item${index}Discount`])
+    const subQuantity = toStringValue(data[`item${index}SubQuantity`])
+    const notes = toStringValue(data[`item${index}Notes`])
 
     const hasValue =
       title !== null ||
       feeType !== null ||
       unitPrice !== null ||
       quantity !== null ||
-      discount !== null
+      discount !== null ||
+      subQuantity !== null ||
+      notes !== null
 
     if (!hasValue) {
       if (count) {
@@ -454,7 +463,7 @@ const buildItemsFromData = (data: Record<string, unknown>): ProjectInvoiceItemRe
       break
     }
 
-    items.push({ title, feeType, unitPrice, quantity, discount })
+    items.push({ title, feeType, unitPrice, quantity, discount, subQuantity, notes })
   }
 
   return items
@@ -599,6 +608,8 @@ export interface InvoiceItemPayload {
   unitPrice: number
   quantity: number
   discount: number
+  subQuantity: string
+  notes: string
 }
 
 interface InvoiceWritePayload {
@@ -638,9 +649,17 @@ const sanitizeItemsPayload = (items: InvoiceItemPayload[]): InvoiceItemPayload[]
         typeof item.discount === "number" && !Number.isNaN(item.discount)
           ? item.discount
           : 0,
+      subQuantity: item.subQuantity?.trim() ?? "",
+      notes: item.notes?.trim() ?? "",
     }))
     .filter((item) =>
-      item.title.length > 0 || item.feeType.length > 0 || item.unitPrice > 0 || item.quantity > 0,
+      item.title.length > 0 ||
+      item.feeType.length > 0 ||
+      item.unitPrice > 0 ||
+      item.quantity > 0 ||
+      item.discount > 0 ||
+      item.subQuantity.length > 0 ||
+      item.notes.length > 0,
     )
 
 const buildInvoiceWritePayload = (
@@ -704,6 +723,8 @@ const buildInvoiceWritePayload = (
     result[`item${position}UnitPrice`] = item.unitPrice
     result[`item${position}Quantity`] = item.quantity
     result[`item${position}Discount`] = item.discount
+    result[`item${position}SubQuantity`] = item.subQuantity || null
+    result[`item${position}Notes`] = item.notes || null
   })
 
   for (let index = items.length + 1; index <= existingItemCount; index += 1) {
@@ -712,6 +733,8 @@ const buildInvoiceWritePayload = (
     result[`item${index}UnitPrice`] = deleteField()
     result[`item${index}Quantity`] = deleteField()
     result[`item${index}Discount`] = deleteField()
+    result[`item${index}SubQuantity`] = deleteField()
+    result[`item${index}Notes`] = deleteField()
   }
 
   if (options?.removeAggregates) {
@@ -810,6 +833,7 @@ export interface UpdateInvoiceInput extends InvoiceWritePayload {
   projectId: string
   collectionId: string
   invoiceNumber: string
+  originalInvoiceNumber?: string
   editedBy: string
 }
 
@@ -826,20 +850,60 @@ export const updateInvoiceForProject = async (
   } catch {
     projectRef = doc(projectsDb, input.year, input.projectId)
   }
-  // Prefer requested collection; fallback to unified 'invoice' if not found
-  let collectionRef = collection(projectRef, input.collectionId)
-  let documentRef = doc(collectionRef, input.invoiceNumber)
+  const locateInvoice = async (collectionId: string, invoiceId: string) => {
+    const colRef = collection(projectRef, collectionId)
+    const docRef = doc(colRef, invoiceId)
+    const snapshot = await getDoc(docRef)
+    return { collectionId, collectionRef: colRef, documentRef: docRef, snapshot }
+  }
 
-  let existing = await getDoc(documentRef)
+  const tryFallbackCollection = async (invoiceId: string) => {
+    if (input.collectionId === SINGLE_INVOICE_COLLECTION_ID) {
+      return null
+    }
+    const fallback = await locateInvoice(SINGLE_INVOICE_COLLECTION_ID, invoiceId)
+    return fallback.snapshot.exists() ? fallback : null
+  }
+
+  let resolvedCollectionId = input.collectionId
+  let initial = await locateInvoice(resolvedCollectionId, input.invoiceNumber)
+  let { collectionRef, documentRef, snapshot: existing } = initial
+
   if (!existing.exists()) {
-    if (input.collectionId !== SINGLE_INVOICE_COLLECTION_ID) {
-      collectionRef = collection(projectRef, SINGLE_INVOICE_COLLECTION_ID)
-      documentRef = doc(collectionRef, input.invoiceNumber)
-      existing = await getDoc(documentRef)
+    const fallback = await tryFallbackCollection(input.invoiceNumber)
+    if (fallback) {
+      resolvedCollectionId = fallback.collectionId
+      collectionRef = fallback.collectionRef
+      documentRef = fallback.documentRef
+      existing = fallback.snapshot
     }
-    if (!existing.exists()) {
-      throw new Error("Invoice not found")
+  }
+
+  const normalizedOriginal =
+    typeof input.originalInvoiceNumber === "string" && input.originalInvoiceNumber.trim().length > 0
+      ? input.originalInvoiceNumber.trim()
+      : null
+
+  if (!existing.exists() && normalizedOriginal) {
+    const originalAttempt = await locateInvoice(resolvedCollectionId, normalizedOriginal)
+    if (originalAttempt.snapshot.exists()) {
+      resolvedCollectionId = originalAttempt.collectionId
+      collectionRef = originalAttempt.collectionRef
+      documentRef = originalAttempt.documentRef
+      existing = originalAttempt.snapshot
+    } else {
+      const fallbackOriginal = await tryFallbackCollection(normalizedOriginal)
+      if (fallbackOriginal) {
+        resolvedCollectionId = fallbackOriginal.collectionId
+        collectionRef = fallbackOriginal.collectionRef
+        documentRef = fallbackOriginal.documentRef
+        existing = fallbackOriginal.snapshot
+      }
     }
+  }
+
+  if (!existing.exists()) {
+    throw new Error("Invoice not found")
   }
 
   const existingData = existing.data()
@@ -864,7 +928,7 @@ export const updateInvoiceForProject = async (
   const proposedData = { ...existingData, ...payload }
   const diffs = computeDocumentDiff(existingData, proposedData)
   if (diffs.length === 0) {
-    return buildInvoiceRecord(input.collectionId, existing.id, existingData ?? {})
+    return buildInvoiceRecord(resolvedCollectionId, existing.id, existingData ?? {})
   }
 
   await updateDoc(documentRef, payload)
@@ -878,7 +942,7 @@ export const updateInvoiceForProject = async (
   const writeDiffs = computeDocumentDiff(existingData, refreshedData ?? {})
   await logInvoiceChanges(documentRef, writeDiffs, input.editedBy)
 
-  return buildInvoiceRecord(input.collectionId, refreshedSnapshot.id, refreshedData ?? {})
+  return buildInvoiceRecord(resolvedCollectionId, refreshedSnapshot.id, refreshedData ?? {})
 }
 
 export interface DeleteInvoiceInput {

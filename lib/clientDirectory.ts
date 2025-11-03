@@ -13,7 +13,8 @@ import {
 } from 'firebase/firestore'
 
 import { getFirestoreForDatabase, getFirebaseDiagnosticsSnapshot } from './firebase'
-import { fetchProjectsFromDatabase } from './projectsDatabase'
+import { fetchProjectsFromDatabase, resolvePaymentStatusFlag } from './projectsDatabase'
+import { fetchInvoicesForProject, type ProjectInvoiceRecord } from './projectInvoices'
 
 export interface ClientDirectoryRecord {
   documentId: string
@@ -41,11 +42,26 @@ const sanitizeString = (value: unknown): string | null => {
 }
 
 const normalizeCompanyKey = (value: string | null | undefined) => {
-  if (typeof value !== 'string') {
-    return null
-  }
+  if (typeof value !== 'string') return null
   const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed.toLowerCase() : null
+  if (trimmed.length === 0) return null
+  // Canonicalize: case-insensitive, collapse and remove common punctuation and spaces
+  const lowered = trimmed.toLowerCase()
+  const canonical = lowered
+    .normalize('NFKC')
+    .replace(/[\s\-_,.&()\/\\]+/g, '')
+  return canonical
+}
+
+const invoiceSuggestsOutstanding = (invoice: ProjectInvoiceRecord): boolean => {
+  if (invoice.paid === true) {
+    return false
+  }
+  if (invoice.paid === false) {
+    return true
+  }
+  const flag = resolvePaymentStatusFlag(invoice.paymentStatus)
+  return flag === false
 }
 
 const computeOverdueCompanySet = async (): Promise<Set<string>> => {
@@ -53,14 +69,34 @@ const computeOverdueCompanySet = async (): Promise<Set<string>> => {
     const { projects } = await fetchProjectsFromDatabase()
     const overdue = new Set<string>()
 
-    projects.forEach((project) => {
-      if (project.paid === false) {
-        const key = normalizeCompanyKey(project.clientCompany)
-        if (key) {
-          overdue.add(key)
+    await Promise.all(
+      projects.map(async (project) => {
+        let invoices: ProjectInvoiceRecord[] = []
+        try {
+          invoices = await fetchInvoicesForProject(project.year, project.id)
+        } catch (err) {
+          console.error('[client-directory] Failed to fetch invoices for project', {
+            projectId: project.id,
+            error: err instanceof Error ? { message: err.message } : err,
+          })
+          return
         }
-      }
-    })
+
+        invoices.forEach((invoice) => {
+          if (!invoiceSuggestsOutstanding(invoice)) {
+            return
+          }
+          const addKey = (value: string | null | undefined) => {
+            const normalized = normalizeCompanyKey(value)
+            if (normalized) {
+              overdue.add(normalized)
+            }
+          }
+          addKey(invoice.companyName)
+          addKey(project.clientCompany)
+        })
+      }),
+    )
 
     return overdue
   } catch (error) {
@@ -117,7 +153,7 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
         addressLine2: sanitizeString(data.addressLine2),
         addressLine3: sanitizeString(data.addressLine3),
         addressLine4: sanitizeString(data.addressLine4),
-        addressLine5: sanitizeString(data.addressLine5) ?? sanitizeString(data.region),
+        addressLine5: sanitizeString(data.addressLine5),
         region: sanitizeString(data.region),
         createdAt,
         hasOverduePayment: false,
@@ -125,9 +161,13 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
     })
 
     const sorted = records.sort((a, b) => a.companyName.localeCompare(b.companyName))
+    const missing = new Set(overdueCompanies)
     const enriched = sorted.map((record) => {
       const key =
         normalizeCompanyKey(record.companyName) ?? normalizeCompanyKey(record.documentId)
+      if (key) {
+        missing.delete(key)
+      }
       return {
         ...record,
         hasOverduePayment: key ? overdueCompanies.has(key) : false,
@@ -137,6 +177,7 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
     console.info('[client-directory] Successfully fetched clients', {
       count: enriched.length,
       overdueCompanies: overdueCompanies.size,
+      unmatchedOverdueCompanies: Array.from(missing),
     })
 
     return enriched

@@ -61,6 +61,7 @@ type ClientAccountRow = {
   addressLine1: string | null
   addressLine2: string | null
   addressLine3: string | null
+  addressLine4: string | null
   region: string | null
   company: { id: string; name: string }
   companyInitial: string
@@ -156,25 +157,12 @@ const getAvatarColor = (seed: string) => {
 
 const formatAddressLines = (record: ClientAccountRow) => {
   const lines: string[] = []
-  if (record.addressLine1) {
-    lines.push(record.addressLine1)
-  }
-  if (record.addressLine2) {
-    lines.push(record.addressLine2)
-  }
-  const tail: string[] = []
-  if (record.addressLine3) {
-    tail.push(record.addressLine3)
-  }
-  if (record.region) {
-    tail.push(record.region)
-  }
-  if (tail.length > 0) {
-    lines.push(tail.join(", "))
-  }
-  if (lines.length === 0) {
-    return ["N/A"]
-  }
+  if (record.addressLine1) lines.push(record.addressLine1)
+  if (record.addressLine2) lines.push(record.addressLine2)
+  if (record.addressLine3) lines.push(record.addressLine3)
+  if ((record as any).addressLine4) lines.push((record as any).addressLine4)
+  if (record.region) lines.push(record.region)
+  if (lines.length === 0) return ["N/A"]
   return lines
 }
 
@@ -197,6 +185,7 @@ const normalizeRecord = (raw: DirectoryApiRecord, index: number): ClientAccountR
     addressLine1: toNullableString(raw.addressLine1),
     addressLine2: toNullableString(raw.addressLine2),
     addressLine3: toNullableString(raw.addressLine3),
+    addressLine4: toNullableString((raw as any).addressLine4),
     region: toNullableString(raw.region ?? raw.addressLine5),
     company: {
       id: raw.id,

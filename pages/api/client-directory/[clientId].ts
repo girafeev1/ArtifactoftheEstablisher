@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 
-import { updateClientInDirectoryAdmin } from '../../../lib/clientDirectoryAdmin'
+import { updateClientInDirectory } from '../../../lib/clientDirectory'
 import { getAuthOptions } from '../auth/[...nextauth]'
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -35,15 +35,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     'unknown'
 
   try {
-    const result = await updateClientInDirectoryAdmin({
+    console.info('[api/client-directory:id] PATCH begin', { clientId, keys: Object.keys((req.body as any).updates || {}) })
+    const result = await updateClientInDirectory({
       id: clientId,
       updates: (req.body as any).updates,
       editedBy,
     })
-
+    console.info('[api/client-directory:id] PATCH ok', { clientId, updated: result.updatedFields?.length ?? 0 })
     return res.status(200).json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Update failed'
+    console.error('[api/client-directory:id] PATCH failed', { clientId, error: message })
     return res.status(400).json({ error: message })
   }
 }

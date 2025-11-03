@@ -79,6 +79,8 @@ const normalizeItemsPayload = (value: unknown): InvoiceItemPayload[] => {
         unitPrice: toNumberValue(record.unitPrice) ?? 0,
         quantity: toNumberValue(record.quantity) ?? 0,
         discount: toNumberValue(record.discount) ?? 0,
+        subQuantity: toStringValue(record.subQuantity ?? record.subQty) ?? "",
+        notes: toStringValue(record.notes) ?? "",
       }
     })
     .filter((item): item is InvoiceItemPayload => Boolean(item))
@@ -165,6 +167,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const body = req.body ?? {}
       const collectionId = toStringValue(body.collectionId)
       const invoiceNumber = toStringValue(body.invoiceNumber)?.replace(/^#/, '')
+      const originalInvoiceNumber = toStringValue(body.originalInvoiceNumber)?.replace(/^#/, '')
 
       if (!collectionId || !invoiceNumber) {
         return res.status(400).json({ error: "collectionId and invoiceNumber are required" })
@@ -183,6 +186,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         collectionId,
         invoiceNumber: invoiceNumber!,
         baseInvoiceNumber: invoiceNumber!,
+        originalInvoiceNumber: originalInvoiceNumber ?? undefined,
         client,
         items,
         taxOrDiscountPercent,

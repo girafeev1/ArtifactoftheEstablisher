@@ -24,6 +24,42 @@ const FALLBACK_YEAR_IDS = ['2025', '2024', '2023', '2022', '2021']
 const PROJECTS_ROOT = 'projects'
 const PROJECTS_SUBCOLLECTION = 'projects'
 
+const POSITIVE_PAYMENT_EXACT = new Set([
+  'paid',
+  'cleared',
+  'received',
+  'settled',
+  'complete',
+  'completed',
+  'true',
+  'yes',
+  '1',
+  'paid in full',
+  'no payment due',
+  'not due',
+])
+
+const NEGATIVE_PAYMENT_EXACT = new Set([
+  'due',
+  'payment due',
+  'past due',
+  'unpaid',
+  'pending',
+  'outstanding',
+  'overdue',
+  'awaiting payment',
+  'awaiting',
+  'incomplete',
+  'draft',
+  'partial',
+  'false',
+  'no',
+  '0',
+])
+
+const POSITIVE_PAYMENT_KEYWORDS = ['paid', 'cleared', 'received', 'settled', 'complete']
+const NEGATIVE_PAYMENT_KEYWORDS = ['due', 'unpaid', 'outstanding', 'pending', 'overdue', 'awaiting', 'incomplete', 'partial']
+
 interface ListCollectionIdsResponse {
   collectionIds?: string[]
   error?: { message?: string }
@@ -39,6 +75,7 @@ export interface ProjectRecord {
   onDateIso: string | null
   paid: boolean | null
   paidTo: string | null
+  paymentStatus: string | null
   presenterWorkType: string | null
   projectDateDisplay: string | null
   projectDateIso: string | null
@@ -154,11 +191,57 @@ const toNumberValue = (value: unknown): number | null => {
   return null
 }
 
+const inferBooleanFromString = (value: string): boolean | null => {
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) {
+    return null
+  }
+  if (POSITIVE_PAYMENT_EXACT.has(normalized)) {
+    return true
+  }
+  if (NEGATIVE_PAYMENT_EXACT.has(normalized)) {
+    return false
+  }
+  if (POSITIVE_PAYMENT_KEYWORDS.some((token) => normalized.includes(token))) {
+    return true
+  }
+  if (NEGATIVE_PAYMENT_KEYWORDS.some((token) => normalized.includes(token))) {
+    return false
+  }
+  return null
+}
+
+export const resolvePaymentStatusFlag = (value: string | null | undefined): boolean | null => {
+  if (!value) {
+    return null
+  }
+  return inferBooleanFromString(value)
+}
+
 const toBooleanValue = (value: unknown): boolean | null => {
   if (typeof value === 'boolean') {
     return value
   }
+  if (typeof value === 'number') {
+    if (value === 1) return true
+    if (value === 0) return false
+    return null
+  }
+  if (typeof value === 'string' || value instanceof String) {
+    const inferred = inferBooleanFromString(value.toString())
+    if (inferred !== null) {
+      return inferred
+    }
+  }
   return null
+}
+
+const normalizePaymentStatus = (value: unknown): string | null => {
+  const raw = toStringValue(value)
+  if (!raw) {
+    return null
+  }
+  return raw.replace(/\s+/g, ' ').trim()
 }
 
 const buildProjectRecord = (
@@ -173,6 +256,13 @@ const buildProjectRecord = (
   const projectDateDisplay = formatDisplayDate(data.projectDate)
   const onDateIso = toIsoDate(data.onDate)
   const onDateDisplay = formatDisplayDate(data.onDate)
+  const paymentStatus = normalizePaymentStatus(
+    (data.paymentStatus ??
+      data.status ??
+      data.invoiceStatus ??
+      (data as Record<string, unknown>).paymentStatusLabel) ??
+      null,
+  )
 
   return {
     id,
@@ -184,6 +274,7 @@ const buildProjectRecord = (
     onDateIso,
     paid: toBooleanValue(data.paid),
     paidTo: toStringValue(data.paidTo),
+    paymentStatus,
     presenterWorkType: toStringValue(data.presenterWorkType),
     projectDateDisplay,
     projectDateIso,
@@ -192,6 +283,26 @@ const buildProjectRecord = (
     projectTitle: toStringValue(data.projectTitle),
     subsidiary: toStringValue(data.subsidiary),
   }
+}
+
+export const isProjectOverdue = (project: ProjectRecord): boolean => {
+  if (project.paid === true) {
+    return false
+  }
+  if (project.paid === false) {
+    return true
+  }
+  const statusFlag = resolvePaymentStatusFlag(project.paymentStatus)
+  if (statusFlag !== null) {
+    return statusFlag === false
+  }
+  return false
+}
+
+export const __projectsDatabaseInternals = {
+  toBooleanValue,
+  resolvePaymentStatusFlag,
+  isProjectOverdue,
 }
 
 const uniqueSortedYears = (values: Iterable<string>) =>
