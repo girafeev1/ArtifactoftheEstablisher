@@ -385,6 +385,7 @@ export interface ProjectInvoiceItemRecord {
   discount: number | null
   subQuantity: string | null
   notes: string | null
+  quantityUnit: string | null
 }
 
 export interface ProjectInvoiceRecord {
@@ -449,6 +450,7 @@ const buildItemsFromData = (data: Record<string, unknown>): ProjectInvoiceItemRe
     const discount = toNumberValue(data[`item${index}Discount`])
     const subQuantity = toStringValue(data[`item${index}SubQuantity`])
     const notes = toStringValue(data[`item${index}Notes`])
+    const quantityUnit = toStringValue(data[`item${index}QuantityUnit`])
 
     const hasValue =
       title !== null ||
@@ -457,7 +459,8 @@ const buildItemsFromData = (data: Record<string, unknown>): ProjectInvoiceItemRe
       quantity !== null ||
       discount !== null ||
       subQuantity !== null ||
-      notes !== null
+      notes !== null ||
+      quantityUnit !== null
 
     if (!hasValue) {
       if (count) {
@@ -466,7 +469,7 @@ const buildItemsFromData = (data: Record<string, unknown>): ProjectInvoiceItemRe
       break
     }
 
-    items.push({ title, feeType, unitPrice, quantity, discount, subQuantity, notes })
+    items.push({ title, feeType, unitPrice, quantity, discount, subQuantity, notes, quantityUnit })
   }
 
   return items
@@ -613,6 +616,7 @@ export interface InvoiceItemPayload {
   discount: number
   subQuantity: string
   notes: string
+  quantityUnit: string
 }
 
 interface InvoiceWritePayload {
@@ -654,6 +658,7 @@ const sanitizeItemsPayload = (items: InvoiceItemPayload[]): InvoiceItemPayload[]
           : 0,
       subQuantity: item.subQuantity?.trim() ?? "",
       notes: item.notes?.trim() ?? "",
+      quantityUnit: item.quantityUnit?.trim() ?? "",
     }))
     .filter((item) =>
       item.title.length > 0 ||
@@ -662,7 +667,8 @@ const sanitizeItemsPayload = (items: InvoiceItemPayload[]): InvoiceItemPayload[]
       item.quantity > 0 ||
       item.discount > 0 ||
       item.subQuantity.length > 0 ||
-      item.notes.length > 0,
+      item.notes.length > 0 ||
+      item.quantityUnit.length > 0,
     )
 
 const buildInvoiceWritePayload = (
@@ -728,6 +734,7 @@ const buildInvoiceWritePayload = (
     result[`item${position}Discount`] = item.discount
     result[`item${position}SubQuantity`] = item.subQuantity || null
     result[`item${position}Notes`] = item.notes || null
+    result[`item${position}QuantityUnit`] = item.quantityUnit || null
   })
 
   for (let index = items.length + 1; index <= existingItemCount; index += 1) {
@@ -738,6 +745,7 @@ const buildInvoiceWritePayload = (
     result[`item${index}Discount`] = deleteField()
     result[`item${index}SubQuantity`] = deleteField()
     result[`item${index}Notes`] = deleteField()
+    result[`item${index}QuantityUnit`] = deleteField()
   }
 
   if (options?.removeAggregates) {

@@ -112,6 +112,8 @@ type InvoiceDraftItem = {
   discount: number
   subQuantity: string
   notes: string
+  quantityUnit: string
+  discountInput: string
 }
 
 type InvoiceClientState = {
@@ -185,6 +187,8 @@ type InvoiceTableRow = {
   discount?: number
   subQuantity?: string
   notes?: string
+  quantityUnit?: string
+  discountInput?: string
 }
 
 const toNumberValue = (value: number | null | undefined) =>
@@ -337,6 +341,12 @@ const buildDraftFromInvoice = (
     discount: toNumberValue(item.discount),
     subQuantity: item.subQuantity ?? "",
     notes: item.notes ?? "",
+    quantityUnit: item.quantityUnit ?? "",
+    discountInput: formatDiscountInput(
+      toNumberValue(item.unitPrice),
+      toNumberValue(item.quantity),
+      toNumberValue(item.discount),
+    ),
   })),
   taxOrDiscountPercent: toNumberValue(invoice.taxOrDiscountPercent),
   paymentStatus:
@@ -368,6 +378,46 @@ const buildDraftForNewInvoice = (
     paidTo: null,
     paidOnIso: null,
   }
+}
+
+const formatDiscountInput = (unitPrice: number, quantity: number, discount: number) => {
+  const base = unitPrice * quantity
+  if (!discount || discount <= 0) {
+    return ""
+  }
+  if (base > 0) {
+    const percent = (discount / base) * 100
+    if (Number.isFinite(percent) && percent > 0) {
+      const rounded = Math.round(percent * 10) / 10
+      return `${rounded % 1 === 0 ? Math.round(rounded) : rounded}%`
+    }
+  }
+  return `${discount}`
+}
+
+const parseDiscountInput = (raw: string, unitPrice: number, quantity: number) => {
+  const base = unitPrice * quantity
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    return 0
+  }
+  if (trimmed.endsWith("%")) {
+    const numeric = Number(trimmed.slice(0, -1).trim())
+    if (!Number.isNaN(numeric) && numeric > 0 && base > 0) {
+      const amount = (base * numeric) / 100
+      return Math.max(0, Math.min(amount, base))
+    }
+    return 0
+  }
+  const cleaned = trimmed.replace(/[^0-9.\-]/g, "")
+  const numeric = Number(cleaned)
+  if (Number.isNaN(numeric) || numeric <= 0) {
+    return 0
+  }
+  if (base > 0) {
+    return Math.min(numeric, base)
+  }
+  return numeric
 }
 
 const computeLineTotal = (item: { unitPrice: number; quantity: number; discount: number }) => {
@@ -879,11 +929,14 @@ const ProjectsShowContent = () => {
     if (totalInvoiceCount === 0) {
       return "-"
     }
-    if (outstandingCount === 0) {
-      return "Cleared"
+    if (clearedCount === totalInvoiceCount) {
+      return "All Cleared"
     }
-    return `${outstandingCount}/${totalInvoiceCount} Due`
-  }, [outstandingCount, totalInvoiceCount])
+    if (clearedCount === 0) {
+      return "All Due"
+    }
+    return "Partially"
+  }, [clearedCount, totalInvoiceCount])
 
   const totalPaidOnText = useMemo(() => {
     if (clearedCount === 0) {
@@ -1399,6 +1452,8 @@ const ProjectsShowContent = () => {
             discount: 0,
             subQuantity: "",
             notes: "",
+            quantityUnit: "",
+            discountInput: "",
           },
         ],
       }
@@ -1415,14 +1470,68 @@ const ProjectsShowContent = () => {
           if (item.key !== key) {
             return item
           }
-          if (field === "unitPrice" || field === "quantity" || field === "discount") {
+          if (field === "unitPrice" || field === "quantity") {
             const numericValue =
               typeof value === "number" && !Number.isNaN(value)
                 ? value
                 : Number(value) || 0
-            return { ...item, [field]: numericValue }
+            const updated = {
+              ...item,
+              [field]: numericValue,
+            }
+            if (updated.discountInput) {
+              const amount = parseDiscountInput(
+                updated.discountInput,
+                toNumberValue(updated.unitPrice),
+                toNumberValue(updated.quantity),
+              )
+              updated.discount = amount
+            }
+            return updated
+          }
+          if (field === "quantityUnit") {
+            const stringValue = typeof value === "string" ? value : `${value}`
+            const cleaned = stringValue.replace(/^\s*\/+/u, "").trim()
+            return { ...item, quantityUnit: cleaned }
+          }
+          if (field === "discount") {
+            const numericValue =
+              typeof value === "number" && !Number.isNaN(value)
+                ? value
+                : Number(value) || 0
+            return {
+              ...item,
+              discount: Math.max(0, numericValue),
+              discountInput: numericValue > 0 ? `${numericValue}` : "",
+            }
           }
           return { ...item, [field]: typeof value === "string" ? value : `${value}` }
+        })
+        return { ...previous, items: nextItems }
+      })
+    },
+    [],
+  )
+
+  const handleDiscountInputChange = useCallback(
+    (key: string, rawValue: string) => {
+      const trimmed = rawValue.replace(/\s+/g, " ").trim()
+      setDraftInvoice((previous) => {
+        if (!previous) {
+          return previous
+        }
+        const nextItems = previous.items.map((item) => {
+          if (item.key !== key) {
+            return item
+          }
+          const unitPrice = toNumberValue(item.unitPrice)
+          const quantity = toNumberValue(item.quantity)
+          const amount = parseDiscountInput(trimmed, unitPrice, quantity)
+          return {
+            ...item,
+            discount: amount,
+            discountInput: trimmed,
+          }
         })
         return { ...previous, items: nextItems }
       })
@@ -1653,6 +1762,7 @@ const ProjectsShowContent = () => {
           discount: i.discount ?? 0,
           subQuantity: i.subQuantity ?? '',
           notes: i.notes ?? '',
+          quantityUnit: i.quantityUnit ?? '',
         }))) === JSON.stringify(draftInvoice.items)
 
         const sameMeta = (
@@ -1796,6 +1906,8 @@ const ProjectsShowContent = () => {
       discount: item.discount,
       subQuantity: item.subQuantity,
       notes: item.notes,
+      quantityUnit: item.quantityUnit,
+      discountInput: item.discountInput,
     }))
     if (isInvoiceDetailsEditable) {
       rows.push({ key: "adder", kind: "adder" })
@@ -1809,7 +1921,7 @@ const ProjectsShowContent = () => {
         key: "title",
         dataIndex: "title",
         title: <span className="items-heading">Item</span>,
-        onCell: (record) => (record.kind === "adder" ? { colSpan: 5 } : {}),
+        onCell: (record) => (record.kind === "adder" ? { colSpan: 4 } : {}),
         render: (_: unknown, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
             return (
@@ -1830,12 +1942,8 @@ const ProjectsShowContent = () => {
                   <div className="item-title-text">{title}</div>
                   {subQty ? <span className="item-subqty">{subQty}</span> : null}
                 </div>
-                {description ? (
-                  <div className="item-description">{description}</div>
-                ) : null}
-                {notes ? (
-                  <div className="item-notes" style={{ whiteSpace: 'pre-wrap' }}>{notes}</div>
-                ) : null}
+                {description ? <div className="item-description">{description}</div> : null}
+                {notes ? <div className="item-notes" style={{ whiteSpace: 'pre-wrap' }}>{notes}</div> : null}
               </div>
             )
           }
@@ -1848,7 +1956,7 @@ const ProjectsShowContent = () => {
                       value={record.title}
                       placeholder="Item title"
                       variant="borderless"
-                      style={{ minWidth: 0, width: '100%' }}
+                      style={{ minWidth: 0, flex: 1 }}
                       onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
                     />
                     <Input
@@ -1856,6 +1964,7 @@ const ProjectsShowContent = () => {
                       placeholder="Sub-Qty"
                       variant="borderless"
                       className="item-subqty-input"
+                      style={{ flex: '0 0 140px' }}
                       onChange={(event) => handleItemChange(record.key, "subQuantity", event.target.value)}
                     />
                   </div>
@@ -1865,12 +1974,12 @@ const ProjectsShowContent = () => {
                     variant="borderless"
                     autoSize={{ minRows: 1, maxRows: 3 }}
                     className="item-description-edit"
-                    style={{ fontStyle: 'italic', fontWeight: 300, fontFamily: 'Karla, sans-serif', color: '#374151' }}
+                    style={{ fontStyle: 'italic', fontWeight: 200, fontFamily: 'Karla, sans-serif', color: '#374151' }}
                     onFocus={(event) => {
                       try {
                         const el = event.target as HTMLTextAreaElement
                         el.style.fontStyle = 'italic'
-                        el.style.fontWeight = '300'
+                        el.style.fontWeight = '200'
                         el.style.fontFamily = 'Karla, sans-serif'
                         el.style.color = '#374151'
                       } catch {}
@@ -1902,23 +2011,42 @@ const ProjectsShowContent = () => {
         dataIndex: "unitPrice",
         title: <span className="items-heading">Unit Price</span>,
         width: 140,
-        align: "left",
+        align: "right",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
             return null
           }
           if (!isInvoiceDetailsEditable) {
-            return <span className="numeric-text">{amountText(value ?? 0)}</span>
+            const unit = record.quantityUnit?.trim()
+            return (
+              <div className="unit-price-cell">
+                <span className="numeric-text">{amountText(value ?? 0)}</span>
+                {unit ? <span className="unit-price-unit-text">/{unit}</span> : null}
+              </div>
+            )
           }
           return (
-            <InputNumber
-              value={value}
-              min={-1000000}
-              variant="borderless"
-              style={{ width: "100%" }}
-              onChange={(next) => handleItemChange(record.key, "unitPrice", next ?? 0)}
-            />
+            <div className="unit-price-edit">
+              <InputNumber
+                value={value}
+                min={-1000000}
+                variant="borderless"
+                className="numeric-input-right"
+                style={{ width: "100%" }}
+                onChange={(next) => handleItemChange(record.key, "unitPrice", next ?? 0)}
+              />
+              <div className="unit-price-unit-edit">
+                <span className="unit-prefix">/</span>
+                <Input
+                  value={record.quantityUnit ?? ""}
+                  placeholder="Unit (e.g., hour)"
+                  variant="borderless"
+                  className="unit-price-unit-input"
+                  onChange={(event) => handleItemChange(record.key, "quantityUnit", event.target.value)}
+                />
+              </div>
+            </div>
           )
         },
       },
@@ -1927,7 +2055,7 @@ const ProjectsShowContent = () => {
         dataIndex: "quantity",
         title: <span className="items-heading">Qty</span>,
         width: 100,
-        align: "left",
+        align: "right",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1941,32 +2069,9 @@ const ProjectsShowContent = () => {
               value={value}
               min={0}
               variant="borderless"
+              className="numeric-input-right quantity-input"
               style={{ width: "100%" }}
               onChange={(next) => handleItemChange(record.key, "quantity", next ?? 0)}
-            />
-          )
-        },
-      },
-      {
-        key: "discount",
-        dataIndex: "discount",
-        title: <span className="items-heading">Discount</span>,
-        width: 140,
-        align: "left",
-        onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
-        render: (value: number | undefined, record: InvoiceTableRow) => {
-          if (record.kind === "adder") {
-            return null
-          }
-          if (!isInvoiceDetailsEditable) {
-            return <span className="numeric-text">{amountText(value ?? 0)}</span>
-          }
-          return (
-            <InputNumber
-              value={value}
-              variant="borderless"
-              style={{ width: "100%" }}
-              onChange={(next) => handleItemChange(record.key, "discount", next ?? 0)}
             />
           )
         },
@@ -1975,7 +2080,7 @@ const ProjectsShowContent = () => {
         key: "total",
         dataIndex: "total",
         title: <span className="items-heading">Total</span>,
-        align: "left",
+        align: "right",
         onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (_: unknown, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
@@ -1986,11 +2091,48 @@ const ProjectsShowContent = () => {
             quantity: toNumberValue(record.quantity),
             discount: toNumberValue(record.discount),
           })
-          return <span className="numeric-text">{amountText(lineTotal)}</span>
+          const discountValue = toNumberValue(record.discount)
+          if (!isInvoiceDetailsEditable) {
+            const hasDiscount = discountValue > 0
+            let discountLabel: string | null = null
+            if (hasDiscount) {
+              const base = toNumberValue(record.unitPrice) * toNumberValue(record.quantity)
+              if (base > 0) {
+                const percent = (discountValue / base) * 100
+                const rounded = Math.round(percent * 10) / 10
+                discountLabel = `${rounded % 1 === 0 ? Math.round(rounded) : rounded}% OFF`
+              } else {
+                discountLabel = `${amountText(discountValue)} OFF`
+              }
+            }
+            return (
+              <div className="total-cell">
+                <span className="numeric-text">{amountText(lineTotal)}</span>
+                {discountValue > 0 && discountLabel ? (
+                  <span className="item-discount-chip">{discountLabel}</span>
+                ) : null}
+              </div>
+            )
+          }
+          return (
+            <div className="total-edit">
+              <span className="numeric-text">{amountText(lineTotal)}</span>
+              <Input
+                value={record.discountInput ?? ""}
+                placeholder="Discount (e.g., 20% or 150)"
+                variant="borderless"
+                className="item-discount-input"
+                style={{ width: "100%" }}
+                onChange={(event) =>
+                  handleDiscountInputChange(record.key, event.target.value)
+                }
+              />
+            </div>
+          )
         },
       },
     ],
-    [handleAddItem, handleItemChange, handleRemoveItem, isInvoiceDetailsEditable],
+    [handleAddItem, handleDiscountInputChange, handleItemChange, handleRemoveItem, isInvoiceDetailsEditable],
   )
 
   if (loading) {
@@ -3622,15 +3764,43 @@ const ProjectsShowContent = () => {
           align-items: flex-start;
         }
 
-        .item-title-row { width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; }
-        .item-title-row.editing { grid-template-columns: 1fr auto; }
+        .item-title-row {
+          width: 100%;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          column-gap: 12px;
+        }
 
         .item-title-text {
           font-family: ${KARLA_FONT};
-          font-weight: 600;
+          font-weight: 500;
           color: #0f172a;
           display: block;
-          min-width: 0; /* allow wrapping next to Sub-Qty */
+          min-width: 0;
+        }
+
+        .item-title-row.editing :global(.ant-input) {
+          font-weight: 500;
+          width: 100%;
+        }
+
+        .item-subqty {
+          font-family: ${KARLA_FONT};
+          font-weight: 500;
+          color: #475569;
+          white-space: nowrap;
+          text-align: right;
+        }
+
+        .item-subqty-input {
+          width: 140px !important;
+          max-width: 160px;
+          text-align: right;
+        }
+
+        .item-subqty-input :global(.ant-input) {
+          text-align: right;
         }
 
         .item-description {
@@ -3645,21 +3815,13 @@ const ProjectsShowContent = () => {
         .item-description-edit {
           font-style: italic;
           color: #374151;
-          font-weight: 700 !important;
+          font-weight: 200 !important;
         }
-
-        .item-subqty {
-          font-family: ${KARLA_FONT};
-          font-weight: 600;
-          color: #475569;
-          white-space: nowrap;
-        }
-
-        .item-subqty-input { width: 140px; max-width: 160px; text-align: right; }
 
         .item-notes {
           font-family: ${KARLA_FONT};
           color: #1f2937;
+          font-weight: 300;
           white-space: pre-wrap;
           font-size: 13px;
         }
@@ -3668,6 +3830,7 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           white-space: pre-wrap;
           font-size: 13px;
+          font-weight: 300;
         }
 
         .item-edit {
@@ -3687,13 +3850,111 @@ const ProjectsShowContent = () => {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #0f172a;
+          text-align: right;
+          display: block;
+        }
+
+        .unit-price-cell {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          align-items: flex-end;
+          text-align: right;
+        }
+
+        .unit-price-unit-text {
+          font-family: ${KARLA_FONT};
+          font-weight: 300;
+          color: #475569;
+          font-size: 12px;
+        }
+
+        .unit-price-edit {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          align-items: flex-end;
+        }
+
+        .unit-price-unit-edit {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .unit-prefix {
+          font-family: ${KARLA_FONT};
+          font-weight: 500;
+          color: #475569;
+        }
+
+        .unit-price-unit-input {
+          font-family: ${KARLA_FONT};
+          font-weight: 300;
+          color: #475569;
+          flex: 1 1 auto;
+        }
+
+        .unit-price-unit-input :global(.ant-input) {
+          font-family: ${KARLA_FONT};
+          font-weight: 300;
+          color: #475569;
+          width: 100%;
+          padding-left: 0;
+        }
+
+        .numeric-input-right :global(.ant-input-number) {
+          width: 100%;
+        }
+
+        .numeric-input-right :global(.ant-input-number-input) {
+          text-align: right;
+        }
+
+        .total-cell {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+          text-align: right;
+        }
+
+        .item-discount-chip {
+          display: inline-flex;
+          align-items: center;
+          padding: 2px 8px;
+          border-radius: 999px;
+          background: #fee2e2;
+          color: #b91c1c;
+          font-family: ${KARLA_FONT};
+          font-weight: 700;
+          font-style: italic;
+          font-size: 12px;
+          text-transform: uppercase;
+        }
+
+        .total-edit {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          align-items: flex-end;
+          text-align: right;
+        }
+
+        .item-discount-input {
+          font-family: ${KARLA_FONT};
+          width: 100%;
+        }
+
+        .item-discount-input :global(.ant-input) {
+          text-align: right;
         }
 
         .invoice-items :global(.ant-table) {
           font-family: ${KARLA_FONT};
         }
         .invoice-items :global(.ant-table-cell) {
-          text-align: left;
+          text-align: inherit;
         }
 
         .billing-header-actions-container {
@@ -3813,25 +4074,33 @@ const ProjectsShowContent = () => {
                     .items-table .ant-table-cell { white-space: normal; }
                     .ant-table-cell .item-description {
                       font-family: ${KARLA_FONT};
-                      font-weight: 300 !important;
+                      font-weight: 200 !important;
                       font-style: italic;
                       color: #374151;
-                  display: block;
-                  white-space: normal;
-                }
-      
-                .item-title-text {
-                  font-weight: 500 !important;
-                }
-                /* Make feeType edit textarea italic (robust selector) */
-                :global(.item-description-edit textarea),
-                :global(.item-description-edit .ant-input),
-                :global(.item-description-edit .ant-input-textarea-show-count > textarea) {
-                  font-style: italic !important;
-                  font-weight: 300 !important;
-                  font-family: ${KARLA_FONT} !important;
-                  color: #374151 !important;
-                }
+                      display: block;
+                      white-space: normal;
+                    }
+
+                    .item-title-text {
+                      font-weight: 500 !important;
+                    }
+                    /* Make feeType edit textarea italic (robust selector) */
+                    :global(.item-description-edit textarea),
+                    :global(.item-description-edit .ant-input),
+                    :global(.item-description-edit .ant-input-textarea-show-count > textarea) {
+                      font-style: italic !important;
+                      font-weight: 200 !important;
+                      font-family: ${KARLA_FONT} !important;
+                      color: #374151 !important;
+                    }
+
+                    :global(.item-notes-edit textarea),
+                    :global(.item-notes-edit .ant-input),
+                    :global(.item-notes-edit .ant-input-textarea-show-count > textarea) {
+                      font-family: ${KARLA_FONT} !important;
+                      font-weight: 300 !important;
+                      color: #1f2937 !important;
+                    }
               `}</style>
           </div>  )
 }

@@ -81,6 +81,7 @@ const normalizeItemsPayload = (value: unknown): InvoiceItemPayload[] => {
         discount: toNumberValue(record.discount) ?? 0,
         subQuantity: toStringValue(record.subQuantity ?? record.subQty) ?? "",
         notes: toStringValue(record.notes) ?? "",
+        quantityUnit: toStringValue(record.quantityUnit ?? record.unit ?? record.unitType) ?? "",
       }
     })
     .filter((item): item is InvoiceItemPayload => Boolean(item))
