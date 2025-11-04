@@ -4077,7 +4077,7 @@ const ProjectsShowContent = () => {
         .page-wrapper.flash-page::before { content: ""; position: fixed; inset: 0; background: rgba(255,255,255,1); pointer-events: none; animation: page-flash 900ms ease-in-out forwards; z-index: 9999; }
         @keyframes page-flash { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
                  `}</style>
-                  <style jsx global>{`
+                 <style jsx global>{`
                     @import url('https://fonts.googleapis.com/css2?family=Yuji+Mai&family=Federo&family=Iansui&family=Karla:wght@300&display=block');
                     /* Global keyframes so inline animation names resolve reliably */
                     @keyframes blink {
@@ -4095,9 +4095,14 @@ const ProjectsShowContent = () => {
                       white-space: normal;
                     }
 
-                    .item-title-text {
-                      font-weight: 500 !important;
-                    }
+                .item-title-text {
+                  font-weight: 500 !important;
+                }
+                /* Force Sub-Qty to stay on the first line across scopes */
+                .items-table .item-title-row { display: grid !important; grid-template-columns: minmax(0, 1fr) max-content !important; align-items: center; column-gap: 12px; }
+                .items-table .item-title-input .ant-input, .items-table .item-title-row .ant-input { width: 100% !important; }
+                .items-table .item-subqty-slot { justify-self: end; text-align: right; }
+                .items-table .item-subqty-input .ant-input { width: 140px !important; text-align: right; }
                     /* Make feeType edit textarea italic (robust selector) */
                     :global(.item-description-edit textarea),
                     :global(.item-description-edit .ant-input),
