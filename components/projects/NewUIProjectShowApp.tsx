@@ -3969,9 +3969,7 @@ const ProjectsShowContent = () => {
         .invoice-items :global(.ant-table) {
           font-family: ${KARLA_FONT};
         }
-        .invoice-items :global(.ant-table-cell) {
-          text-align: inherit;
-        }
+        .invoice-items :global(.ant-table-cell) { text-align: inherit; vertical-align: top; }
 
         .billing-header-actions-container {
           display: flex;
@@ -4110,7 +4108,7 @@ const ProjectsShowContent = () => {
                 .items-table .item-subqty-input .ant-input { width: 140px !important; }
                 .items-table .item-title-row.editing + .item-subqty-row .item-subqty-input .ant-input { text-align: left !important; }
                 /* Discount input right aligned in edit mode */
-                .items-table .item-discount-input .ant-input { text-align: right !important; }
+                .items-table .item-discount-input { text-align: right !important; }
                 .items-table .total-edit { text-align: right !important; }
                 /* Divider above total row */
                 .invoice-row.total { border-top: 1px solid #e5e7eb; margin-top: 8px; padding-top: 12px; }
