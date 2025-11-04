@@ -4106,8 +4106,14 @@ const ProjectsShowContent = () => {
                 .items-table .item-subqty-slot { flex: 0 0 auto; text-align: right; }
                 .items-table .item-subqty { font-style: italic !important; }
                 .items-table .item-subqty-row { margin-top: 4px; }
-                .items-table .item-subqty-input .ant-input { width: 140px !important; text-align: right; }
-                .items-table .item-discount-input input { text-align: right !important; }
+                /* View mode: inline sub-qty stays compact; Edit mode: sub-qty row aligns left */
+                .items-table .item-subqty-input .ant-input { width: 140px !important; }
+                .items-table .item-title-row.editing + .item-subqty-row .item-subqty-input .ant-input { text-align: left !important; }
+                /* Discount input right aligned in edit mode */
+                .items-table .item-discount-input .ant-input { text-align: right !important; }
+                .items-table .total-edit { text-align: right !important; }
+                /* Divider above total row */
+                .invoice-row.total { border-top: 1px solid #e5e7eb; margin-top: 8px; padding-top: 12px; }
                     /* Make feeType edit textarea italic (robust selector) */
                     :global(.item-description-edit textarea),
                     :global(.item-description-edit .ant-input),
