@@ -1962,6 +1962,8 @@ const ProjectsShowContent = () => {
                         onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
                       />
                     </div>
+                  </div>
+                  <div className="item-subqty-row">
                     <div className="item-subqty-input">
                       <Input
                         value={record.subQuantity ?? ""}
@@ -4098,11 +4100,12 @@ const ProjectsShowContent = () => {
                 .item-title-text {
                   font-weight: 500 !important;
                 }
-                /* Force Sub-Qty to stay on the first line across scopes */
+                /* Title + Sub-Qty behavior in both modes */
                 .items-table .item-title-row { display: flex !important; align-items: center; gap: 8px; flex-wrap: nowrap; }
                 .items-table .item-title-input .ant-input, .items-table .item-title-row .ant-input { width: 100% !important; min-width: 0; }
                 .items-table .item-subqty-slot { flex: 0 0 auto; text-align: right; }
                 .items-table .item-subqty { font-style: italic !important; }
+                .items-table .item-subqty-row { margin-top: 4px; }
                 .items-table .item-subqty-input .ant-input { width: 140px !important; text-align: right; }
                 .items-table .item-discount-input input { text-align: right !important; }
                     /* Make feeType edit textarea italic (robust selector) */
