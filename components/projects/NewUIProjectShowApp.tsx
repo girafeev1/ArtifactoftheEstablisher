@@ -3807,19 +3807,21 @@ const ProjectsShowContent = () => {
         :global(.bank-tooltip) { opacity: 1; }
         .page-wrapper.flash-page::before { content: ""; position: fixed; inset: 0; background: rgba(255,255,255,1); pointer-events: none; animation: page-flash 900ms ease-in-out forwards; z-index: 9999; }
         @keyframes page-flash { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
-              `}</style>
-               <style jsx global>{`
-                 @import url('https://fonts.googleapis.com/css2?family=Yuji+Mai&family=Federo&family=Iansui&family=Karla:wght@300&display=block');
-                 /* Global keyframes so inline animation names resolve reliably */
-                 @keyframes blink {
-                   0%, 100% { opacity: 1; }
-                   50% { opacity: 0.3; }
-                 }
-                .ant-table-cell .item-description {
-                  font-family: ${KARLA_FONT};
-                  font-weight: 300 !important;
-                  font-style: italic;
-                  color: #374151;
+                 `}</style>
+                  <style jsx global>{`
+                    @import url('https://fonts.googleapis.com/css2?family=Yuji+Mai&family=Federo&family=Iansui&family=Karla:wght@300&display=block');
+                    /* Global keyframes so inline animation names resolve reliably */
+                    @keyframes blink {
+                      0%, 100% { opacity: 1; }
+                      50% { opacity: 0.3; }
+                    }
+                    /* Ensure table cells can wrap content like Notes */
+                    .items-table .ant-table-cell { white-space: normal; }
+                    .ant-table-cell .item-description {
+                      font-family: ${KARLA_FONT};
+                      font-weight: 300 !important;
+                      font-style: italic;
+                      color: #374151;
                   display: block;
                   white-space: normal;
                 }
