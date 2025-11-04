@@ -1,0 +1,86 @@
+#!/usr/bin/env node
+/*
+ Registers Discord slash commands for the AOTE PMS app.
+ Usage:
+   node scripts/discord-register-commands.js --global
+   node scripts/discord-register-commands.js --guild <GUILD_ID>
+ Required env:
+   DISCORD_APPLICATION_ID, DISCORD_BOT_TOKEN
+*/
+
+const API = 'https://discord.com/api/v10'
+
+function parseArgs() {
+  const args = process.argv.slice(2)
+  const out = { global: false, guild: null }
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (a === '--global') out.global = true
+    else if (a === '--guild') out.guild = args[++i] || null
+  }
+  return out
+}
+
+async function main() {
+  const { global, guild } = parseArgs()
+  const appId = process.env.DISCORD_APPLICATION_ID
+  const token = process.env.DISCORD_BOT_TOKEN
+  if (!appId || !token) {
+    console.error('Missing DISCORD_APPLICATION_ID or DISCORD_BOT_TOKEN')
+    process.exit(1)
+  }
+
+  const commands = [
+    {
+      name: 'hello',
+      description: 'Say hello to AOTE PMS',
+      type: 1,
+    },
+    {
+      name: 'project',
+      description: 'Project commands',
+      type: 1,
+      options: [
+        {
+          name: 'open',
+          description: 'Open a project by id (e.g., 2024-016)',
+          type: 1, // SUB_COMMAND
+          options: [
+            {
+              name: 'id',
+              description: 'The project id (e.g., 2024-016)',
+              type: 3, // STRING
+              required: true,
+            },
+          ],
+        },
+      ],
+    },
+  ]
+
+  const route = guild
+    ? `${API}/applications/${appId}/guilds/${guild}/commands`
+    : `${API}/applications/${appId}/commands`
+
+  const r = await fetch(route, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bot ${token}`,
+    },
+    body: JSON.stringify(commands),
+  })
+  if (!r.ok) {
+    const text = await r.text()
+    console.error('Failed to register commands', r.status, text)
+    process.exit(1)
+  }
+  const json = await r.json()
+  console.log('Registered commands:', Array.isArray(json) ? json.map(c => c.name) : json)
+}
+
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})
+
