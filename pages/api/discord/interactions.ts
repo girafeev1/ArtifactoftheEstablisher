@@ -110,6 +110,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (name === 'hello') {
       return respond(res, 'Hello from AOTE PMS 👋')
     }
+    if (name === 'postmenu') {
+      const token = process.env.DISCORD_BOT_TOKEN
+      if (!token) return respond(res, 'Missing DISCORD_BOT_TOKEN on server')
+      const optChannel = json.data?.options?.find((o: any) => o.name === 'channel')?.value as string | undefined
+      const targetChannel = optChannel || (json.channel_id as Snowflake)
+      const messageBody = {
+        content: 'AOTE PMS — Main Menu',
+        components: mainMenu().components,
+      }
+      const r = await fetch(`${DISCORD_API}/channels/${targetChannel}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bot ${token}`,
+        },
+        body: JSON.stringify(messageBody),
+      })
+      if (!r.ok) {
+        const text = await r.text().catch(() => '')
+        return respond(res, `Failed to post menu: ${r.status} ${text}`)
+      }
+      const msg = await r.json()
+      // Try to pin (ignore failure if lacking permissions)
+      await fetch(`${DISCORD_API}/channels/${targetChannel}/pins/${msg.id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bot ${token}` },
+      }).catch(() => {})
+      return respond(res, `Menu posted in <#${targetChannel}>`)
+    }
     if (name === 'menu') {
       return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: mainMenu() })
     }

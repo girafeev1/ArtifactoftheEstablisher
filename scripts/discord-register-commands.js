@@ -32,6 +32,19 @@ async function main() {
 
   const commands = [
     {
+      name: 'postmenu',
+      description: 'Post the AOTE PMS main menu in a channel',
+      type: 1,
+      options: [
+        {
+          name: 'channel',
+          description: 'Channel to post in (defaults to current)',
+          type: 7, // CHANNEL
+          required: false,
+        },
+      ],
+    },
+    {
       name: 'menu',
       description: 'Open the AOTE PMS text UI menu',
       type: 1,
