@@ -1940,7 +1940,9 @@ const ProjectsShowContent = () => {
               <div className="item-display">
                 <div className="item-title-row">
                   <div className="item-title-text">{title}</div>
-                  {subQty ? <span className="item-subqty">{subQty}</span> : null}
+                  <div className="item-subqty-slot">
+                    {subQty ? <span className="item-subqty">{subQty}</span> : null}
+                  </div>
                 </div>
                 {description ? <div className="item-description">{description}</div> : null}
                 {notes ? <div className="item-notes" style={{ whiteSpace: 'pre-wrap' }}>{notes}</div> : null}
@@ -1952,21 +1954,22 @@ const ProjectsShowContent = () => {
               <div className="item-edit">
                 <div className="item-edit-fields">
                   <div className="item-title-row editing">
-                    <Input
-                      value={record.title}
-                      placeholder="Item title"
-                      variant="borderless"
-                      style={{ minWidth: 0, flex: 1 }}
-                      onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
-                    />
-                    <Input
-                      value={record.subQuantity ?? ""}
-                      placeholder="Sub-Qty"
-                      variant="borderless"
-                      className="item-subqty-input"
-                      style={{ flex: '0 0 140px' }}
-                      onChange={(event) => handleItemChange(record.key, "subQuantity", event.target.value)}
-                    />
+                    <div className="item-title-input">
+                      <Input
+                        value={record.title}
+                        placeholder="Item title"
+                        variant="borderless"
+                        onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
+                      />
+                    </div>
+                    <div className="item-subqty-input">
+                      <Input
+                        value={record.subQuantity ?? ""}
+                        placeholder="Sub-Qty"
+                        variant="borderless"
+                        onChange={(event) => handleItemChange(record.key, "subQuantity", event.target.value)}
+                      />
+                    </div>
                   </div>
                   <Input.TextArea
                     value={record.feeType}
@@ -3766,23 +3769,32 @@ const ProjectsShowContent = () => {
 
         .item-title-row {
           width: 100%;
-          display: grid !important;
-          grid-template-columns: minmax(0, 1fr) max-content !important;
+          display: flex;
           align-items: center;
-          column-gap: 12px;
+          gap: 12px;
         }
 
         .item-title-text {
           font-family: ${KARLA_FONT};
           font-weight: 500;
           color: #0f172a;
-          display: block;
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .item-title-input {
+          flex: 1 1 auto;
           min-width: 0;
         }
 
-        .item-title-row.editing :global(.ant-input) {
-          font-weight: 500;
+        .item-title-input :global(.ant-input) {
           width: 100% !important;
+          font-weight: 500;
+        }
+
+        .item-subqty-slot {
+          flex: 0 0 auto;
+          text-align: right;
         }
 
         .item-subqty {
@@ -3790,20 +3802,16 @@ const ProjectsShowContent = () => {
           font-weight: 500;
           color: #475569;
           white-space: nowrap;
-          text-align: right;
-          justify-self: end;
+          display: inline-block;
         }
 
         .item-subqty-input {
-          width: 140px !important;
-          max-width: 160px;
-          text-align: right;
-          justify-self: end;
+          flex: 0 0 auto;
         }
 
         .item-subqty-input :global(.ant-input) {
-          text-align: right;
           width: 140px !important;
+          text-align: right;
         }
 
         .item-description {
