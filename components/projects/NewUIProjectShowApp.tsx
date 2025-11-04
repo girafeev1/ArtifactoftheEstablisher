@@ -3371,7 +3371,7 @@ const ProjectsShowContent = () => {
             minmax(140px, max-content)  /* Invoice # */
             minmax(90px, max-content)   /* Amount */
             minmax(90px, max-content)   /* Status */
-            minmax(200px, 200px)        /* To (fixed to prevent overlap) */
+            minmax(160px, 180px)        /* To (narrowed) */
             minmax(110px, max-content); /* On */
           align-items: center;
           gap: 12px;

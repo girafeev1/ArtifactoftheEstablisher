@@ -5,15 +5,21 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 ## Current Focus
 
 ### In Progress
+
 ### T-107
 - Title: Invoice detail editing toggle & number editing parity (P-038)
 - Branch: main
 - PR: —
 - Status: ⏳ In Progress
 - Outcomes (planned):
-  - Add a dedicated “Edit Invoice Details” button beneath the invoice detail divider to control detail editability independent of Manage mode.
   - Allow invoice number edits regardless of invoice count; ensure toggling resets the working draft safely.
   - Relocate the header edit action beside Project Pickup Date and update styling per request.
+- Progress:
+  - Merged “Edit Invoice Details” into a single “Manage Invoices” control; entering Manage also enables detail editing.
+  - Pending (unsaved) invoice row uses a Close icon instead of trash; cancel exits detail-edit state.
+  - Removed legacy labels; show “Commit Changes” while editing, otherwise “Manage Invoices”.
+  - “No changes made” message surfaces when saving without edits; avoids PATCH.
+  - “Add additional invoice” row hides correctly after exiting manage mode.
 - Notes:
   - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
 
@@ -23,12 +29,18 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 - PR: —
 - Status: ⏳ In Progress
 - Outcomes (planned):
-  - Narrow the “To” column within invoice tables to free space for items.
-  - Add a “Sub-Qty” field inline with the item title and persist the value.
-  - Support multiline Notes beneath fee type and render stored line breaks in the UI.
+  - Ensure “Sub-Qty” is inline at the right-end of the Item Title row in both view and edit modes.
+  - Show bank name abbreviation only when it has 4+ tokens; otherwise show full name (e.g., “Dah Sing Bank” stays full).
+- Progress:
+  - Narrowed the “To” column in the invoice table to free space for items. ✅
+  - Notes render with preserved line breaks (pre-wrap); table cells allow wrapping. ✅
+  - “Sub-Qty” is inline, right-aligned with the Item Title in both view and edit modes. ✅
+  - Bank name abbreviation shows only for names with 4+ tokens; 3-token names (e.g., “Dah Sing Bank”) show in full. ✅
 - Notes:
   - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
- 
+
+
+### Planned / Backlog
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
 | T-301 | Sticky Back inside StudentDialog sticky footer | Won’t Do | Footer anchors Back; body is scroll container |
