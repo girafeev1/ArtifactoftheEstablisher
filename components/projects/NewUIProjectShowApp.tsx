@@ -27,7 +27,7 @@ import {
   AutoComplete,
   Tooltip,
 } from "antd"
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons"
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, CloseOutlined } from "@ant-design/icons"
 import { fetchClientsDirectory } from "../../lib/clientDirectory"
 
 import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
@@ -418,11 +418,11 @@ const ProjectsShowContent = () => {
   const [isManagingInvoices, setIsManagingInvoices] = useState(false)
   const [isEditingInvoiceDetails, setIsEditingInvoiceDetails] = useState(false)
   const manageButtonLabel = useMemo(() => {
-    if (isManagingInvoices) {
-      return draftInvoice ? "Commit Changes" : "Done Managing"
+    if (draftInvoice) {
+      return "Commit Changes"
     }
-    if (isEditingInvoiceDetails) {
-      return draftInvoice ? "Save Invoice" : "Done Editing"
+    if (isManagingInvoices || isEditingInvoiceDetails) {
+      return invoices.length > 0 ? "Manage Invoices" : "Manage Invoice"
     }
     return invoices.length > 0 ? "Manage Invoices" : "Manage Invoice"
   }, [draftInvoice, invoices.length, isEditingInvoiceDetails, isManagingInvoices])
@@ -1035,6 +1035,7 @@ const ProjectsShowContent = () => {
     activeInvoiceIndex,
     draftInvoice,
     invoiceMode,
+    isManagingInvoices,
     invoices,
     total,
     totalPaidOnText,
@@ -2482,13 +2483,14 @@ const ProjectsShowContent = () => {
                                         type="text"
                                         danger
                                         size="small"
-                                        icon={<DeleteOutlined />}
+                                        icon={isPending && invoiceMode === 'create' ? <CloseOutlined /> : <DeleteOutlined />}
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           if (isPending && invoiceMode === 'create') {
                                             // Treat delete on pending row as cancel creation
-                                                                              setInvoiceMode('idle')
+                                            setInvoiceMode('idle')
                                             setDraftInvoice(null)
+                                            setIsEditingInvoiceDetails(false)
                                           } else {
                                             handleDeleteInvoice(entry.collectionId, entry.invoiceNumber)
                                           }
