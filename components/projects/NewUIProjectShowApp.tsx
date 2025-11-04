@@ -2040,12 +2040,12 @@ const ProjectsShowContent = () => {
                 onChange={(next) => handleItemChange(record.key, "unitPrice", next ?? 0)}
               />
               <div className="unit-price-unit-edit">
-                <span className="unit-prefix">/</span>
                 <Input
                   value={record.quantityUnit ?? ""}
                   placeholder="Unit (e.g., hour)"
                   variant="borderless"
                   className="unit-price-unit-input"
+                  prefix={<span className="unit-prefix">/</span>}
                   onChange={(event) => handleItemChange(record.key, "quantityUnit", event.target.value)}
                 />
               </div>
@@ -4099,10 +4099,12 @@ const ProjectsShowContent = () => {
                   font-weight: 500 !important;
                 }
                 /* Force Sub-Qty to stay on the first line across scopes */
-                .items-table .item-title-row { display: grid !important; grid-template-columns: minmax(0, 1fr) max-content !important; align-items: center; column-gap: 12px; }
-                .items-table .item-title-input .ant-input, .items-table .item-title-row .ant-input { width: 100% !important; }
-                .items-table .item-subqty-slot { justify-self: end; text-align: right; }
+                .items-table .item-title-row { display: flex !important; align-items: center; gap: 8px; flex-wrap: nowrap; }
+                .items-table .item-title-input .ant-input, .items-table .item-title-row .ant-input { width: 100% !important; min-width: 0; }
+                .items-table .item-subqty-slot { flex: 0 0 auto; text-align: right; }
+                .items-table .item-subqty { font-style: italic !important; }
                 .items-table .item-subqty-input .ant-input { width: 140px !important; text-align: right; }
+                .items-table .item-discount-input input { text-align: right !important; }
                     /* Make feeType edit textarea italic (robust selector) */
                     :global(.item-description-edit textarea),
                     :global(.item-description-edit .ant-input),
