@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import nacl from 'tweetnacl'
 
+const DISCORD_API = 'https://discord.com/api/v10'
+type Snowflake = string
+
 export const config = {
   api: {
     bodyParser: false,
@@ -125,14 +128,87 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (type === MESSAGE_COMPONENT || type === MODAL_SUBMIT) {
     const customId = json.data?.custom_id as string | undefined
+    const channelId = json.channel_id as Snowflake
+    const user = json.member?.user
+    const username = user?.global_name || user?.username || user?.id || 'user'
+
+    // Helper to create a public thread that auto-archives in 24h
+    const createThread = async (label: string) => {
+      const token = process.env.DISCORD_BOT_TOKEN
+      if (!token) return { ok: false as const, error: 'Missing DISCORD_BOT_TOKEN' }
+      const body = {
+        name: `AOTE Session — ${label} — ${username}`.slice(0, 96),
+        auto_archive_duration: 1440, // 24 hours
+        type: 11, // GUILD_PUBLIC_THREAD
+      }
+      const r = await fetch(`${DISCORD_API}/channels/${channelId}/threads`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bot ${token}`,
+        },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) {
+        const text = await r.text().catch(() => '')
+        return { ok: false as const, error: `Failed to create thread: ${r.status} ${text}` }
+      }
+      const thread = (await r.json()) as { id: Snowflake }
+      return { ok: true as const, threadId: thread.id }
+    }
+
+    const postToThread = async (threadId: Snowflake, content: string, components?: any[]) => {
+      const token = process.env.DISCORD_BOT_TOKEN
+      if (!token) return false
+      const r = await fetch(`${DISCORD_API}/channels/${threadId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bot ${token}`,
+        },
+        body: JSON.stringify({ content, components }),
+      })
+      return r.ok
+    }
+
+    const startSession = async (label: string) => {
+      const created = await createThread(label)
+      if (!created.ok) return respond(res, created.error)
+      const threadId = created.threadId
+      // Seed the thread with a menu scaffold specific to the label
+      const components = [
+        {
+          type: 1,
+          components: [
+            { type: 2, style: 1, label: 'Back to Main Menu', custom_id: 'menu_root' },
+          ],
+        },
+      ]
+      await postToThread(
+        threadId,
+        `Welcome to ${label}. I will guide you here. This thread will auto-archive in 24h.`,
+        components,
+      )
+      // Acknowledge with a non-ephemeral link to the thread
+      return res.status(200).json({
+        type: CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: `Opened a new ${label} session: <#${threadId}>` ,
+        },
+      })
+    }
+
     if (customId === 'menu_projects') {
-      return respond(res, 'Projects menu coming soon…')
+      return await startSession('Projects')
     }
     if (customId === 'menu_invoices') {
-      return respond(res, 'Invoices menu coming soon…')
+      return await startSession('Invoices')
     }
     if (customId === 'menu_link') {
-      return respond(res, 'Account linking coming soon…')
+      return await startSession('Account Linking')
+    }
+    if (customId === 'menu_root') {
+      return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: mainMenu() })
     }
     return respond(res, 'Unsupported action')
   }
