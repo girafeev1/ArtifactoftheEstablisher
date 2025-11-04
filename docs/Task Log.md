@@ -28,103 +28,7 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
   - Support multiline Notes beneath fee type and render stored line breaks in the UI.
 - Notes:
   - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
-
-### Planned / Backlog
-| ID | Status | Title | Notes |
-| --- | --- | --- | --- |
-| T-080 | ✅ | Payment UI polish & data rules (P-024) | Legacy payment UI polish (superseded by invoices). |
-| T-081 | ✅ | Fix Payment Detail/History UX (P-025) | Inline editing + history adjustments (legacy). |
-| T-082 | ✅ | Finish Payment UX & Add Payment cascade (P-026) | Finalised payment screens before invoice migration. |
-| T-083 | ✅ | Complete P-026 follow-up | Sticky footer, session assignment, cascade polish (legacy). |
-| T-084 | ✅ | Finalize Payment UX enhancements (P-026-02r) | Bank dropdown fallbacks; archived after invoice rewrite. |
-| T-090 | ✅ | Invoice-centric project details (P-029) | Unified invoice model & UI refresh. |
-| T-091 | ✅ | Project create flow improvements (P-030) | Sorting, pickup date placement, auto-fill tweaks. |
-| T-092 | ✅ | Invoice creation UX polish (P-031) | CTA + header inputs + status width adjustments. |
-| T-093 | ✅ | Client/API logging & recursion fix (P-032) | Verbose logging + recursion guard. |
-| T-094 | ✅ | Duplicate Projects page to New UI (P-033) | Refine/Next 15 scaffolding. |
-| T-095 | ✅ | Refine client gallery & preview (P-034) | Gallery and preview styling. |
-| T-096 | ✅ | New UI scaffolding — AppShell & client accounts (P-035) | Providers, page wiring, tests. |
-| T-097 | 🗃 | Project header delete action (P-036a) | Superseded by current workflow; original requirement archived. |
-| T-098 | 🗃 | Invoice items header gating (P-036b) | Archived legacy request from previous layout. |
-| T-099 | 🗃 | Stacked dropdown sizing (~220px) (P-036c) | Archived; revisit if layout requires. |
-| T-100 | 🗃 | Company match clear-on-mismatch (P-036d) | Archived legacy auto-fill handling. |
-| T-101 | 🗃 | Flash-fill visibility polish (P-036e) | Archived legacy animation task. |
-| T-102 | 🗃 | Item description & TextArea styling (P-036f) | Archived legacy styling task. |
-| T-103 | 🗃 | Create Project — add `subsidiary` field (P-036g) | Archived legacy create-flow work. |
-| T-104 | 🗃 | Tooltip styling for bank info (P-036h) | Archived legacy tooltip polish. |
-| T-105 | 🗃 | Client header alignment & cleanup (P-036i) | Archived with legacy client header design. |
-| T-106 | 🗃 | Client Accounts payment status (P-037) | Superseded by new invoice-level implementation. |
-| T-300 | 🧭 | Three-dot settings button placement | Relocate the settings menu to the bottom-left of the white card footer on the new UI page. |
-| T-305 | 🧭 | Sessions tab sorting persistence | Add user-sort persistence and proper `aria-sort` support for the sessions list. |
-
-### T-107
-- Title: Invoice detail editing toggle & number editing parity (P-038)
-- Branch: main
-- PR: —
-- Status: ⏳ In Progress
-- Outcomes (planned):
-  - Add a dedicated “Edit Invoice Details” button beneath the invoice detail divider to control detail editability independent of Manage mode.
-  - Allow invoice number edits regardless of invoice count; ensure toggling resets the working draft safely.
-  - Relocate the header edit action beside Project Pickup Date and update styling per request.
-- Notes:
-  - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
-
-### T-108
-- Title: Invoice item layout polish (Sub-Qty, Notes, widths) (P-039)
-- Branch: main
-- PR: —
-- Status: ⏳ In Progress
-- Outcomes (planned):
-  - Narrow the “To” column within invoice tables to free space for items.
-  - Add a “Sub-Qty” field inline with the item title and persist the value.
-  - Support multiline Notes beneath fee type and render stored line breaks in the UI.
-- Notes:
-  - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
-
-### Archived (superseded by Refine/invoices)
-
-- T-301 — Sticky Back inside StudentDialog sticky footer
-  - Status: Won’t Do
-  - Rescoped for AntD/Invoices:
-    - Place Back/Cancel inside page or modal footer using AntD Layout.
-    - Avoid legacy dialog scroller; ensure sticky footer across viewport.
-
-- T-074 — Sticky dialog footer (window bottom, not scroller)
-  - Status: Won’t Do
-  - Rescoped for AntD/Invoices:
-    - Use AntD PageHeader/Footer and Affix for cross-page sticky actions.
-    - Back/Save aligned to footer row; body scrolls independently.
-
-- T-302 — Remaining blink = single element; Amount never blinks
-  - Status: Won’t Do
-  - Rescoped for AntD/Invoices:
-    - Replace blink with stable status tags/badges; no animation.
-    - Respect prefers-reduced-motion; color-only indicators.
-
-- T-303 — Payment Detail editing-on-empty (Entity/Bank/Account/Ref)
-  - Status: Won’t Do
-  - Rescoped for AntD/Invoices:
-    - Invoice detail supports Paid To/On and Ref # with zero-state.
-    - Persist editedBy/timestamp; typed fields; audit log.
-
-- T-304 — Add Payment cascade UI (Entity→Bank→Account) in dialog
-  - Status: Won’t Do
-  - Rescoped for AntD/Invoices:
-    - For invoices, cascade selectors for payee (entity→bank→account).
-    - Source from erlDirectory; reset dependent selects on change.
-
-- T-075 — Add Payment: Method/Entity/Bank/Account/RefNumber (+ writes)
-  - Status: Won’t Do
-  - Rescoped for AntD/Invoices:
-    - Invoice writes: paidTo, paidOn, ref #, editedBy, timestamp.
-    - Keep per-invoice audit trail; no legacy payment doc writes.
-
-- T-058 — Payment History blink (yellow/red thresholds)
-  - Status: Won’t Do
-  - Rescoped for AntD/Invoices:
-    - Replace blink thresholds with discrete status icons/colors.
-    - Ensure accessibility (contrast, no motion).
-
+ 
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
 | T-301 | Sticky Back inside StudentDialog sticky footer | Won’t Do | Footer anchors Back; body is scroll container |
@@ -236,6 +140,52 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 | T-106 | 🗃 | Client Accounts payment status (P-037) | Superseded by new invoice-level implementation. |
 | T-300 | 🧭 | Three-dot settings button placement | Relocate the settings menu to the bottom-left of the white card footer on the new UI page. |
 | T-305 | 🧭 | Sessions tab sorting persistence | Add user-sort persistence and proper `aria-sort` support for the sessions list. |
+
+---
+
+### Archived (superseded by Refine/invoices)
+
+- T-301 — Sticky Back inside StudentDialog sticky footer
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Place Back/Cancel inside page or modal footer using AntD Layout.
+    - Avoid legacy dialog scroller; ensure sticky footer across viewport.
+
+- T-074 — Sticky dialog footer (window bottom, not scroller)
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Use AntD PageHeader/Footer and Affix for cross-page sticky actions.
+    - Back/Save aligned to footer row; body scrolls independently.
+
+- T-302 — Remaining blink = single element; Amount never blinks
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Replace blink with stable status tags/badges; no animation.
+    - Respect prefers-reduced-motion; color-only indicators.
+
+- T-303 — Payment Detail editing-on-empty (Entity/Bank/Account/Ref)
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Invoice detail supports Paid To/On and Ref # with zero-state.
+    - Persist editedBy/timestamp; typed fields; audit log.
+
+- T-304 — Add Payment cascade UI (Entity→Bank→Account) in dialog
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - For invoices, cascade selectors for payee (entity→bank→account).
+    - Source from erlDirectory; reset dependent selects on change.
+
+- T-075 — Add Payment: Method/Entity/Bank/Account/RefNumber (+ writes)
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Invoice writes: paidTo, paidOn, ref #, editedBy, timestamp.
+    - Keep per-invoice audit trail; no legacy payment doc writes.
+
+- T-058 — Payment History blink (yellow/red thresholds)
+  - Status: Won’t Do
+  - Rescoped for AntD/Invoices:
+    - Replace blink thresholds with discrete status icons/colors.
+    - Ensure accessibility (contrast, no motion).
 
 ---
 
