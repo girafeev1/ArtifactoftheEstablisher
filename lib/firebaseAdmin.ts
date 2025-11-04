@@ -2,15 +2,42 @@
 import type { ServiceAccount } from 'firebase-admin'
 import admin from 'firebase-admin'
 
+// Normalize FIREBASE_ADMIN_PRIVATE_KEY which may be quoted and contain literal \n
+const stripWrappingQuotes = (value: string): string => {
+  if (!value) return value
+  if (value.length >= 2) {
+    const first = value[0]
+    const last = value[value.length - 1]
+    if (first === last && (first === '"' || first === "'")) {
+      return value.slice(1, -1)
+    }
+  }
+  return value
+}
+
+const envProjectId = process.env.FIREBASE_ADMIN_PROJECT_ID
+const envClientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
+const envPrivateKeyRaw = process.env.FIREBASE_ADMIN_PRIVATE_KEY
+const envPrivateKey = envPrivateKeyRaw
+  ? stripWrappingQuotes(envPrivateKeyRaw).replace(/\\n/g, '\n')
+  : undefined
+
+export const firebaseAdminConfigStatus = {
+  hasProjectId: Boolean(envProjectId),
+  hasClientEmail: Boolean(envClientEmail),
+  hasPrivateKey: Boolean(envPrivateKey),
+  credentialSource: envProjectId && envClientEmail && envPrivateKey ? 'service-account' as const : 'default' as const,
+}
+
 let appInitialized = false
 
 export const ensureAdminApp = () => {
   if (appInitialized) return admin.app()
   try {
     if (!admin.apps.length) {
-      const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID
-      const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
-      const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY
+      const projectId = envProjectId
+      const clientEmail = envClientEmail
+      const privateKey = envPrivateKey
       if (projectId && clientEmail && privateKey) {
         const creds: ServiceAccount = {
           projectId,
@@ -39,3 +66,4 @@ export const getAdminFirestore = (databaseId?: string) => {
   return fs
 }
 
+export const firebaseAdminAuth = admin.auth(ensureAdminApp())
