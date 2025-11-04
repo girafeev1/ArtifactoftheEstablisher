@@ -47,6 +47,23 @@ function respond(res: NextApiResponse, content: string, ephemeral = true) {
   })
 }
 
+function mainMenu() {
+  return {
+    content: 'Choose an option:',
+    flags: 64,
+    components: [
+      {
+        type: 1, // ACTION_ROW
+        components: [
+          { type: 2, style: 1, label: 'Projects', custom_id: 'menu_projects' },
+          { type: 2, style: 1, label: 'Invoices', custom_id: 'menu_invoices' },
+          { type: 2, style: 2, label: 'Link Account', custom_id: 'menu_link' },
+        ],
+      },
+    ],
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -90,6 +107,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (name === 'hello') {
       return respond(res, 'Hello from AOTE PMS 👋')
     }
+    if (name === 'menu') {
+      return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: mainMenu() })
+    }
     if (name === 'project') {
       const sub = json.data?.options?.[0]?.name as string | undefined
       if (sub === 'open') {
@@ -104,9 +124,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (type === MESSAGE_COMPONENT || type === MODAL_SUBMIT) {
-    return respond(res, 'Component actions coming soon…')
+    const customId = json.data?.custom_id as string | undefined
+    if (customId === 'menu_projects') {
+      return respond(res, 'Projects menu coming soon…')
+    }
+    if (customId === 'menu_invoices') {
+      return respond(res, 'Invoices menu coming soon…')
+    }
+    if (customId === 'menu_link') {
+      return respond(res, 'Account linking coming soon…')
+    }
+    return respond(res, 'Unsupported action')
   }
 
   return res.status(200).json({})
 }
-

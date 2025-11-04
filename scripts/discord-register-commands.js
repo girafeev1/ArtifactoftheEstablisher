@@ -32,6 +32,11 @@ async function main() {
 
   const commands = [
     {
+      name: 'menu',
+      description: 'Open the AOTE PMS text UI menu',
+      type: 1,
+    },
+    {
       name: 'hello',
       description: 'Say hello to AOTE PMS',
       type: 1,
@@ -83,4 +88,3 @@ main().catch((e) => {
   console.error(e)
   process.exit(1)
 })
-
