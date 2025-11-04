@@ -5,32 +5,23 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 ## Current Focus
 
 ### In Progress
-None at the moment. Update this section when new work starts.
+- ⏳ **T-107 – Invoice detail editing toggle & number editing parity:** Continue wiring the dedicated toggle, ensure invoice numbers stay editable for every invoice row, and keep the header edit control aligned with the pickup date.
+- ⏳ **T-108 – Invoice item layout polish:** Restore the persisted Sub-Qty and Notes for older invoices and make sure they render/save consistently in both view and edit modes.
 
 ### Planned / Backlog
 | ID | Status | Title | Notes |
 | --- | --- | --- | --- |
-| T-104 | 🧭 | Tooltip styling for bank info | Finalise AntD tooltip styling for bank selector (overlay class and immediate hide on blur). |
-| T-105 | 🧭 | Client header alignment & cleanup | Polish client header layout: right-align editable fields, collapse empty lines, remove duplicates. |
-| T-103 | 🧭 | Create Project — `subsidiary` field | Confirm create flow persists the selected subsidiary and pre-fills from the directory. |
-| T-099 | 🧭 | Stacked dropdown sizing | Normalise ~220 px width for stacked selects while keeping responsive containers. |
-| T-098 | 🧭 | Invoice items header gating | Only show the invoice items header/divider when editing or creating invoices. |
-| T-300 | 🧭 | Three-dot settings button placement | Relocate settings menu to the bottom-left of the white card footer on the new UI page. |
+| T-300 | 🧭 | Three-dot settings button placement | Relocate the settings menu to the bottom-left of the white card footer on the new UI page. |
 | T-305 | 🧭 | Sessions tab sorting persistence | Add user-sort persistence and proper `aria-sort` support for the sessions list. |
 
 ## Recently Completed (Q4 2025)
+See archived highlights below for the latest completed initiatives.
 
-- ✅ **T-108 – Invoice item layout polish:** Added Sub-Qty inline with titles, multiline Notes with preserved breaks, and narrowed the “To” column.
-- ✅ **T-107 – Invoice detail editing toggle:** Dedicated toggle beneath the billing header, invoice numbers always editable, project edit icon next to pickup date.
-- ✅ **T-106 – Client Accounts payment status:** Derive statuses from invoice-level dues and surface them in the client directory.
-- ✅ **T-097 – Project header delete action:** Inline delete control while editing, with confirmation and project refresh after removal.
-- ✅ **T-090 – T-096 – New Projects/Invoices UX rollout:** Unified invoice model, project create enhancements, invoice creation UX, logging improvements, and Refine/Next.js scaffolding.
+## Archived Highlights
+- 🗃 **T-080 – T-084:** Legacy payment UI polish and add-payment cascade (superseded by the invoice-centric workflow).
+- 🗃 **T-090 – T-097:** Original invoice-centric rollout (unified invoice model, project create flow updates, logging improvements, and project header delete action).
 
 ## Historical Log (detailed archive)
-
-
-> Single source of truth for prompts (P-###) and engineering tasks (T-###).  
-> Convention: ✅ done, ⏳ in progress, 🧭 next / planned.
 
 Latest change summary
 - Invoice-centric Project Details merged (PR #296): unified invoice collection, moved invoice logic out of project docs, added per-invoice audit logging, and improved project view layout.
@@ -171,90 +162,6 @@ Tasks T-xxx
   - Call existing DELETE API via `handleProjectDelete`; include confirm dialog and success/error feedback.
 - Notes:
   - Source: session 019a01e1-63f6-71a2-a3c5-327de95ffdd7
-
-### T-098
-- Title: Invoice items header gating (P-036b)
-- Branch: main
-- PR: —
-- Status: 🧭 Planned
-- Outcomes (planned):
-  - Hide invoice items header/divider until explicit action; conditionally render based on mode/state.
-- Notes:
-
-### T-099
-- Title: Stacked dropdown sizing (~220px) (P-036c)
-- Branch: main
-- PR: —
-- Status: 🧭 Planned
-- Outcomes (planned):
-  - Use ~220px widths for stacked selects while keeping their container at 100% width.
-- Notes:
-
-### T-100
-- Title: Company match clear-on-mismatch (P-036d)
-- Branch: main
-- PR: —
-- Status: 🧭 Planned
-- Outcomes (planned):
-  - Track `lastMatchedCompanyRef`; when the company name mismatches, clear dependent fields and reset reference.
-- Notes:
-
-### T-101
-- Title: Flash-fill visibility polish (P-036e)
-- Branch: main
-- PR: —
-- Status: 🧭 Planned
-- Outcomes (planned):
-  - Increase visibility of `flash-fill` (e.g., #fff8c2; ~800ms duration).
-- Notes:
-
-### T-102
-- Title: Item description & TextArea styling (P-036f)
-- Branch: main
-- PR: —
-- Status: 🧭 Planned
-- Outcomes (planned):
-  - Make `.item-description` italic, color #374151, weight 400; align TextArea styling accordingly.
-- Notes:
-
-### T-103
-- Title: Create Project — add `subsidiary` field (P-036g)
-- Branch: main
-- PR: —
-- Status: 🧭 Planned
-- Outcomes (planned):
-  - Add `subsidiary` to Create Project initial values and submission payload; persist on update.
-- Notes:
-
-### T-104
-- Title: Tooltip styling for bank info (P-036h)
-- Branch: main
-- PR: —
-- Status: 🧭 Planned
-- Outcomes (planned):
-  - Apply AntD overlay styles/class; set `mouseLeaveDelay: 0`; note follow-cursor not directly supported.
-- Notes:
-
-### T-105
-- Title: Client header alignment & cleanup (P-036i)
-- Branch: main
-- PR: —
-- Status: 🧭 Planned
-- Outcomes (planned):
-  - Right-align edited client inputs where appropriate; adjust column widths; hide empty sections; deduplicate elements.
-- Notes:
-
-### T-106
-- Title: Client Accounts payment status via invoice-level due detection (P-037)
-- Branch: main
-- PR: —
-- Status: ⏳ In Progress
-- Outcomes (planned):
-  - Derive client payment status by scanning project invoices for outstanding balances tied to each client record.
-  - Match invoices to Firestore client accounts (company/contact) and mark Payment Due when any invoice remains unpaid.
-  - Remove legacy project-level payment status heuristics to avoid conflicting indicators.
-- Notes:
-  - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
 
 ### T-107
 - Title: Invoice detail editing toggle & number editing parity (P-038)
@@ -397,25 +304,8 @@ Tasks table — add/update:
     - Replace blink thresholds with discrete status icons/colors.
     - Ensure accessibility (contrast, no motion).
 
-
 | ID    | Title                                                | State | Notes / Files |
 |-------|------------------------------------------------------|-------|---------------|
-| T-105 | Client header alignment & cleanup                    | 🧭    | Right-align inputs; widths; hide empty; dedupe |
-| T-104 | Tooltip styling for bank info                        | 🧭    | overlay class; zero mouseLeaveDelay |
-| T-103 | Create Project: add `subsidiary` field               | 🧭    | Initial values + payload; persist updates |
-| T-102 | Item description/textarea styling                    | 🧭    | Italic; #374151; weight 400 |
-| T-101 | Flash-fill visibility polish                         | 🧭    | #fff8c2; ~800ms |
-| T-100 | Company match clear-on-mismatch                      | 🧭    | lastMatchedCompanyRef; clear dependent fields |
-| T-099 | Stacked dropdown sizing (~220px)                     | 🧭    | Keep container 100% |
-| T-098 | Invoice items header gating                          | 🧭    | Conditional render until explicit action |
-| T-097 | Project header Delete action                         | ⏳    | Delete CTA; DELETE API; confirm + feedback |
-| T-096 | New UI scaffolding — AppShell + client-accounts + tests | ✅    | components/new-ui/AppShell.tsx; pages/dashboard/new-ui; __tests__/pages/dashboard/new-ui |
-| T-095 | Refine client gallery and preview                          | ✅    | pages/dashboard/new-ui/client-accounts.tsx; styles/antd-reset.css |
-| T-094 | Duplicate Projects page to New UI (Next 15 compile)        | ✅    | pages/dashboard/new-ui/projects/*; types/refinedev.d.ts |
-| T-093 | Client/API logging and recursion fix                        | ✅    | pages/api/client-log.ts; logging wrappers |
-| T-092 | Invoice creation UX — CTA & header inputs; status width     | ✅    | invoices UI changes |
-| T-091 | Project create flow — sort, pickup date, auto-fill          | ✅    | project list/create form |
-| T-090 | Invoice-centric project details — unify model               | ✅    | merge PR #296; rename/cleanup scripts |
 | T-300 | 3-dots settings button: sticky bottom-left inside white card | ⏳    | Position within card footer row; not sidebar |
 | T-301 | Sticky Back inside StudentDialog sticky footer | Won’t Do | Footer anchors Back; body is scroll container |
 | T-302 | Remaining blink = single element; Amount never blinks | Won’t Do | Remove duplicate render; a11y reduced-motion |
@@ -521,7 +411,6 @@ Prompts table — update:
 | P-026 | Finish Payment UX and Add Payment cascade | ⏳    | See prompts/p-026.md (revisions: p-026-01r, p-026-02r, p-026-03r) |
 | P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | ⏳    | See prompts/p-025.md |
 | P-024 | Payment UI polish & data rules | ✅    | See prompts/p-024.md |
-
 
 ### Changes — P-015
 
