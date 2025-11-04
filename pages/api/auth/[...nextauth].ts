@@ -12,13 +12,12 @@ import { loadSecrets } from '../../../lib/server/secretManager'
 async function buildAuthOptions(): Promise<NextAuthOptions> {
   const { secrets } = await loadSecrets()
 
-  return {
-    providers: [
-      // Discord OAuth — enables sign-in via Discord
-      DiscordProvider({
-        clientId: process.env.DISCORD_CLIENT_ID || '',
-        clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
-      }),
+  const enableDiscord =
+    process.env.ENABLE_DISCORD_WEB_AUTH === '1' &&
+    !!process.env.DISCORD_CLIENT_ID &&
+    !!process.env.DISCORD_CLIENT_SECRET
+
+  const providers = [
       CredentialsProvider({
         name: 'Firebase',
         credentials: {
@@ -87,7 +86,19 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
           }
         },
       }),
-    ],
+    ] as NextAuthOptions['providers']
+
+  if (enableDiscord) {
+    providers.unshift(
+      DiscordProvider({
+        clientId: process.env.DISCORD_CLIENT_ID || '',
+        clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
+      })
+    )
+  }
+
+  return {
+    providers,
     pages: {
       signIn: '/auth/signin',
     },
