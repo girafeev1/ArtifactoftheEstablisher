@@ -1833,7 +1833,7 @@ const ProjectsShowContent = () => {
                   <div className="item-description">{description}</div>
                 ) : null}
                 {notes ? (
-                  <div className="item-notes">{notes}</div>
+                  <div className="item-notes" style={{ whiteSpace: 'pre-wrap' }}>{notes}</div>
                 ) : null}
               </div>
             )
@@ -2248,8 +2248,9 @@ const ProjectsShowContent = () => {
                             }
                             return
                           }
-                          // Enter manage mode and start editing the current invoice if one exists; otherwise start create.
+                          // Enter manage mode and start editing details immediately (merged controls)
                           setIsManagingInvoices(true)
+                          setIsEditingInvoiceDetails(true)
                           if (invoices.length > 0) {
                             prepareDraft('edit')
                           } else {
@@ -2393,18 +2394,7 @@ const ProjectsShowContent = () => {
                         <div className="billing-header-actions-container">
                           <span className="summary-label client-label">Invoice</span>
                         </div>
-                        {invoiceMode !== "create" ? (
-                          <div className="invoice-detail-toggle">
-                            <Button
-                              className="btn-outline toggle-invoice-details"
-                              size="small"
-                              disabled={invoices.length === 0 || savingInvoice}
-                              onClick={handleToggleInvoiceDetails}
-                            >
-                              {isInvoiceDetailsEditable ? "Lock Invoice Details" : "Edit Invoice Details"}
-                            </Button>
-                          </div>
-                        ) : null}
+                        {/* Edit Invoice Details merged into Manage button */}
                         <div className="invoice-table">
                           {/* ... invoice table content ... */}
                           {invoiceEntries.length > 0 ? (
