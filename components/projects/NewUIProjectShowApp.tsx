@@ -946,9 +946,9 @@ const ProjectsShowContent = () => {
       const payToInfo = paidToIdentifier ? bankInfoMap[paidToIdentifier] ?? null : null
       const displayBankName = payToInfo?.bankName
         ? (() => {
-            // Build acronym for long names (>=3 tokens), ignoring lower-case words (e.g., "and").
+            // Build acronym for long names (>=4 tokens), ignoring lower-case words.
             const tokens = payToInfo.bankName.replace(/-/g, ' ').split(/\s+/).filter(Boolean)
-            if (tokens.length >= 3) {
+            if (tokens.length >= 4) {
               const letters = tokens
                 .filter((t) => /^[A-Z]/.test(t[0] || ''))
                 .map((t) => (t[0] || '').toUpperCase())
@@ -1004,7 +1004,7 @@ const ProjectsShowContent = () => {
       const pendingDisplayBankName = pendingInfo?.bankName
         ? (() => {
             const tokens = pendingInfo.bankName.replace(/-/g, ' ').split(/\s+/).filter(Boolean)
-            if (tokens.length >= 3) {
+            if (tokens.length >= 4) {
               const letters = tokens
                 .filter((t) => /^[A-Z]/.test(t[0] || ''))
                 .map((t) => (t[0] || '').toUpperCase())
@@ -1848,7 +1848,7 @@ const ProjectsShowContent = () => {
                       value={record.title}
                       placeholder="Item title"
                       variant="borderless"
-                      style={{ flex: 1 }}
+                      style={{ minWidth: 0, width: '100%' }}
                       onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
                     />
                     <Input
@@ -3622,19 +3622,15 @@ const ProjectsShowContent = () => {
           align-items: flex-start;
         }
 
-        .item-title-row {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-        }
+        .item-title-row { width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; }
+        .item-title-row.editing { grid-template-columns: 1fr auto; }
 
         .item-title-text {
           font-family: ${KARLA_FONT};
           font-weight: 600;
           color: #0f172a;
           display: block;
+          min-width: 0; /* allow wrapping next to Sub-Qty */
         }
 
         .item-description {
@@ -3659,11 +3655,7 @@ const ProjectsShowContent = () => {
           white-space: nowrap;
         }
 
-        .item-subqty-input {
-          max-width: 140px;
-          flex: 0 0 120px;
-          text-align: right;
-        }
+        .item-subqty-input { width: 140px; max-width: 160px; text-align: right; }
 
         .item-notes {
           font-family: ${KARLA_FONT};
