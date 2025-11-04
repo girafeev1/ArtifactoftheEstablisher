@@ -3766,8 +3766,8 @@ const ProjectsShowContent = () => {
 
         .item-title-row {
           width: 100%;
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
+          display: grid !important;
+          grid-template-columns: minmax(0, 1fr) max-content !important;
           align-items: center;
           column-gap: 12px;
         }
@@ -3782,7 +3782,7 @@ const ProjectsShowContent = () => {
 
         .item-title-row.editing :global(.ant-input) {
           font-weight: 500;
-          width: 100%;
+          width: 100% !important;
         }
 
         .item-subqty {
@@ -3791,16 +3791,19 @@ const ProjectsShowContent = () => {
           color: #475569;
           white-space: nowrap;
           text-align: right;
+          justify-self: end;
         }
 
         .item-subqty-input {
           width: 140px !important;
           max-width: 160px;
           text-align: right;
+          justify-self: end;
         }
 
         .item-subqty-input :global(.ant-input) {
           text-align: right;
+          width: 140px !important;
         }
 
         .item-description {
@@ -3880,6 +3883,8 @@ const ProjectsShowContent = () => {
           display: flex;
           align-items: center;
           gap: 4px;
+          width: 100%;
+          justify-content: flex-end;
         }
 
         .unit-prefix {
@@ -3901,6 +3906,7 @@ const ProjectsShowContent = () => {
           color: #475569;
           width: 100%;
           padding-left: 0;
+          text-align: right;
         }
 
         .numeric-input-right :global(.ant-input-number) {
