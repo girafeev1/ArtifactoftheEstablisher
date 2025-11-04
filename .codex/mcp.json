@@ -1,0 +1,11 @@
+{
+  "servers": [
+    {
+      "name": "chrome-devtools",
+      "command": "npx",
+      "args": ["chrome-devtools-mcp@latest", "--url", "http://localhost:3000"],
+      "env": {},
+      "cwd": null
+    }
+  ]
+}
