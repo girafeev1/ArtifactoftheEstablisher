@@ -11,15 +11,30 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 ### Planned / Backlog
 | ID | Status | Title | Notes |
 | --- | --- | --- | --- |
+| T-080 | ✅ | Payment UI polish & data rules (P-024) | Legacy payment UI polish (superseded by invoices). |
+| T-081 | ✅ | Fix Payment Detail/History UX (P-025) | Inline editing + history adjustments (legacy). |
+| T-082 | ✅ | Finish Payment UX & Add Payment cascade (P-026) | Finalised payment screens before invoice migration. |
+| T-083 | ✅ | Complete P-026 follow-up | Sticky footer, session assignment, cascade polish (legacy). |
+| T-084 | ✅ | Finalize Payment UX enhancements (P-026-02r) | Bank dropdown fallbacks; archived after invoice rewrite. |
+| T-090 | ✅ | Invoice-centric project details (P-029) | Unified invoice model & UI refresh. |
+| T-091 | ✅ | Project create flow improvements (P-030) | Sorting, pickup date placement, auto-fill tweaks. |
+| T-092 | ✅ | Invoice creation UX polish (P-031) | CTA + header inputs + status width adjustments. |
+| T-093 | ✅ | Client/API logging & recursion fix (P-032) | Verbose logging + recursion guard. |
+| T-094 | ✅ | Duplicate Projects page to New UI (P-033) | Refine/Next 15 scaffolding. |
+| T-095 | ✅ | Refine client gallery & preview (P-034) | Gallery and preview styling. |
+| T-096 | ✅ | New UI scaffolding — AppShell & client accounts (P-035) | Providers, page wiring, tests. |
+| T-097 | 🗃 | Project header delete action (P-036a) | Superseded by current workflow; original requirement archived. |
+| T-098 | 🗃 | Invoice items header gating (P-036b) | Archived legacy request from previous layout. |
+| T-099 | 🗃 | Stacked dropdown sizing (~220px) (P-036c) | Archived; revisit if layout requires. |
+| T-100 | 🗃 | Company match clear-on-mismatch (P-036d) | Archived legacy auto-fill handling. |
+| T-101 | 🗃 | Flash-fill visibility polish (P-036e) | Archived legacy animation task. |
+| T-102 | 🗃 | Item description & TextArea styling (P-036f) | Archived legacy styling task. |
+| T-103 | 🗃 | Create Project — add `subsidiary` field (P-036g) | Archived legacy create-flow work. |
+| T-104 | 🗃 | Tooltip styling for bank info (P-036h) | Archived legacy tooltip polish. |
+| T-105 | 🗃 | Client header alignment & cleanup (P-036i) | Archived with legacy client header design. |
+| T-106 | 🗃 | Client Accounts payment status (P-037) | Superseded by new invoice-level implementation. |
 | T-300 | 🧭 | Three-dot settings button placement | Relocate the settings menu to the bottom-left of the white card footer on the new UI page. |
 | T-305 | 🧭 | Sessions tab sorting persistence | Add user-sort persistence and proper `aria-sort` support for the sessions list. |
-
-## Recently Completed (Q4 2025)
-See archived highlights below for the latest completed initiatives.
-
-## Archived Highlights
-- 🗃 **T-080 – T-084:** Legacy payment UI polish and add-payment cascade (superseded by the invoice-centric workflow).
-- 🗃 **T-090 – T-097:** Original invoice-centric rollout (unified invoice model, project create flow updates, logging improvements, and project header delete action).
 
 ## Historical Log (detailed archive)
 
@@ -37,131 +52,6 @@ Latest change summary
 - Deploy noise reduced; investigating occasional builds after “archive PR ###” context commits.
 
 Tasks T-xxx
-### T-090
-- Title: Invoice-centric project details — unify invoice model and polish UI (P-029)
-- Branch: codex/invoice-centric-project-details
-- PR: #296
-- Status: Completed
-- Outcomes:
-  - Unified invoice documents under collection `invoice`; removed invoice/payment/client write-through on project docs.
-  - Project detail layout polished; per-invoice audit logging added; refreshed billing UI.
-  - Firestore rename/cleanup scripts added (rename IDs; remove legacy subcollections).
-– Commits:
-  - 7c45b71 — 2025-10-19 04:38 +0800
-  - 6a62b61 — 2025-10-18 22:39 +0800
-  - 57a8ccf — 2025-10-18 21:58 +0800
-  - 8bac9c2 — 2025-10-12 19:39 +0800
-  - dd8e554 — 2025-10-12 19:28 +0800
-  - 584d8c5 — 2025-10-12 18:10 +0800
-  - e1e9777 — 2025-10-12 18:07 +0800
-  - 5a0a8c3 — 2025-10-12 17:22 +0800
-  - 2b0e5c0 — 2025-10-12 17:08 +0800
-- Notes:
-
-### T-091
-- Title: Project create flow — sort, pickup date placement, auto-fill client details (P-030)
-- Branch: main
-- PR: —
-- Status: Completed
-- Outcomes:
-  - Default list sort by project number DESC; write pickup date; moved pickup date above client company in create form.
-  - Auto-fill client details by name; align header/rows.
-  - AntD Modal deprecation fix: replaced `destroyOnClose` with `destroyOnHidden` in create modal.
-  - Pickup Date rendered as labeled Form.Item (“Project Pickup Date”) with full-width DatePicker (replaces inline header row control).
-  - Next.js compliance: moved Google Fonts from next/head into `pages/_document.tsx` to resolve stylesheet warning.
-- Commits:
-  - 471a590 — 2025-10-19 15:56 +0800
-  - 8f8099e — 2025-10-19 15:52 +0800
-  - bb04abd — 2025-10-19 04:42 +0800
-  - 032d59d — 2025-10-18 22:55 +0800
-  - d2eb085 — 2025-10-18 22:49 +0800
-- Notes:
-
-### T-092
-- Title: Invoice creation UX — CTA & header inputs; status width (P-031)
-- Branch: main
-- PR: —
-- Status: Completed
-- Outcomes:
-  - Show "Create Invoice" CTA when no invoices; restore filled header inputs on create dialog.
-  - Refine status select width; align invoice rows to headers; polish list aggregation.
-  - Do not auto-enter create mode when no invoices; remain idle and surface the explicit CTA.
-  - Status select min-width tightened (110px → 90px) to fit header layout.
-  - Bank name abbreviation policy: show first three tokens then ellipsis for long names.
-  - Client header polish: flash-fill animation on edited fields; add Title select (Mr./Ms./Mrs.) to prefix representative; format label as “Attn: <name>”.
-- Commits:
-  - 86cdebd — 2025-10-20 21:09 +0800
-  - 4c31afd — 2025-10-20 20:08 +0800
-  - 7ed5157 — 2025-10-19 07:00 +0800
-  - 435f81c — 2025-10-19 06:46 +0800
-- Notes:
-
-### T-093
-- Title: Client/API logging and client-log recursion fix (P-032)
-- Branch: main
-- PR: —
-- Status: Completed
-- Outcomes:
-  - Added dev fetch wrapper; verbose client/API logs for create/patch; payload key logs.
-  - Prevented recursive client-log loops; preserved original console; throttled 403 list warnings.
-– Commits:
-  - f12c54c — 2025-10-20 19:38 +0800
-  - c5511b7 — 2025-10-20 19:19 +0800
-  - 8c2e43f — 2025-10-20 17:52 +0800
-  - d341596 — 2025-10-20 10:31 +0800
-- Notes:
-
-### T-094
-- Title: Duplicate Projects page to New UI (Refine/AntD) and compile under Next 15 (P-033)
-- Branch: codex/duplicate-projects-page-to-new-ui
-- PR: #295
-- Status: Completed
-- Outcomes:
-  - New UI routes under `/dashboard/new-ui/projects` incl. list and show pages; wired basic data provider.
-  - Ensured compile against Next.js 15; added antd reset and minimal Refine scaffolding.
-– Commits:
-  - b03543e — 2025-10-12 03:40 +0800
-  - b42a8c6 — 2025-10-11 20:38 +0800
-  - pages/new-ui files, styles/antd-reset.css, types/refinedev.d.ts
-- Notes:
-
-### T-095
-- Title: Refine client gallery and preview (P-034)
-- Branch: codex/refine-client-gallery
-- PR: #254
-- Status: Completed
-- Outcomes:
-  - Added client accounts preview page; stabilized search/gallery hooks; styling passes.
-- Commits:
-  - 43741b2 — 2025-10-05 05:11 +0800
-  - ca186aa — 2025-10-04 20:48 +0800
-  - f23e62e — 2025-10-04 20:31 +0800
-  - 524d399 — 2025-10-04 19:15 +0800
-- Notes:
-
-### T-096
-- Title: New UI scaffolding — AppShell, client-accounts page, tests (P-035)
-- Branch: main
-- PR: —
-- Status: Completed
-- Outcomes:
-  - Added `components/new-ui/AppShell.tsx` with Refine providers; created `pages/dashboard/new-ui/client-accounts.tsx` and tests.
-– Commits:
-  - b03543e — 2025-10-12 03:40 +0800
-  - 5fa7f58 — 2025-10-04 18:54 +0800
-  - f58b212 — 2025-10-04 18:03 +0800
-- Notes:
-
-### T-097
-- Title: Project header Delete action (P-036a)
-- Branch: main
-- PR: —
-- Status: ⏳ In Progress
-- Outcomes (planned):
-  - Add a red Delete button to the left of Cancel in the project header when editing.
-  - Call existing DELETE API via `handleProjectDelete`; include confirm dialog and success/error feedback.
-- Notes:
-  - Source: session 019a01e1-63f6-71a2-a3c5-327de95ffdd7
 
 ### T-107
 - Title: Invoice detail editing toggle & number editing parity (P-038)
@@ -186,79 +76,6 @@ Tasks T-xxx
   - Support multiline Notes beneath fee type and render stored line breaks in the UI.
 - Notes:
   - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
-
-### T-080
-- Title: Payment UI polish & data rules (P-024)
-- Branch: codex/feat-payment-ui-polish-p024
-- PR: <link to PR #213>
-- Status: Completed
-- Outcomes:
-  - A) History headers: PASS — headers updated.
-  - B) Sessions truncation: PASS — implemented in detail view (list view pending separately).
-  - C) Sticky footer: PARTIAL — footer scaffolding present; “Back” not anchored yet (follow-up).
-  - D) Identifier rule: PASS — normalized and displayed.
-  - E) Tests: PASS — unit tests added; Cypress spec present (CI lacks Xvfb).
-- Notes:
-
-### T-081
-- Title: Fix Payment Detail/History UX, restore assignment, inline editing (P-025)
-- Branch: codex/fix-payment-ui-and-inline-editing-p025
-- PR: <link to PR #214>
-- Status: Partially Completed
-- Outcomes:
-  - Sticky Back button: FAIL — still attached to scroller (needs move into sticky footer).
-  - Blinking logic: PARTIAL — Payment Amount static; Remaining still double-rendering in places.
-  - Session assignment: FAIL — list can disappear; needs zero-state & stable render.
-  - Inline editing (Payment Detail): PASS — edit-on-empty then read-only works.
-  - Inline editing (Base Rate History): PASS — effectiveDate inline when empty then read-only.
-  - Tests: PASS — unit tests present; Cypress spec present (skipped in CI).
-- Notes:
-
-### T-082
-- Title: Finish Payment UX, Add Payment cascade, and list-view session truncation (P-026)
-- Branch: codex/finish-payment-ux-and-add-payment-cascade-p026
-- PR: <link to this PR>
-- Status: Completed
-- Outcomes:
-  - Sticky footer: PASS – Back control inside footer with padding.
-  - Remaining blink: PASS – single span; amount static.
-  - Session assignment: PASS – table persists with zero-state.
-  - Add Payment cascade: PASS – writes method, entity, identifier, ref #, timestamp, editedBy.
-  - Payment History sessions: PASS – column added with 5-item ellipsis.
-  - Header ellipsis: PASS – headers truncate independently.
-  - Tests: PASS – unit tests pass; Cypress spec present (skipped in CI).
-- Notes:
-
-### T-083
-- Title: Complete P-026 — sticky Back, single Remaining blink, stable assignment, Add Payment cascade, list “For Session(s)” truncation
-- Branch: codex/finish-p026-followup
-- PR: <link to this PR>
-- Status: Completed
-- Outcomes:
-  - Sticky footer: PASS – Back control inside footer with padding.
-  - Remaining blink: PASS – Payment Amount static; single Remaining span.
-  - Session assignment: PASS – table persists with zero-state and updates Remaining.
-  - Add Payment cascade: PASS – writes method, entity, identifier, ref #, timestamp, editedBy.
-  - Payment History sessions: PASS – column truncates at five ordinals with ellipsis.
-  - Header ellipsis: PASS – headers truncate independently.
-  - Tests: PASS – unit tests pass; Cypress spec present (skipped in CI).
-- Notes:
-
----
-### T-084
-- Title: Finalize Payment UX and Add Payment cascade (P-026-02r)
-- Branch: codex/finalize-payment-ux-and-functionality-enhancements-02r
-- PR: <link to this PR>
-- Status: Completed
-- Outcomes:
-  - Bank dropdown labels fall back when name/code missing.
-  - Saved P-026-02r prompt.
-- Notes:
-
----
----
-
-Tasks table — add/update:
 
 ### Archived (superseded by Refine/invoices)
 
@@ -392,11 +209,6 @@ Tasks table — add/update:
 | T-022 | Surface scan results/log in UI | 🗓️    | Optional log panel |
 | T-023 | Replace slow-blink placeholders with Skeletons | 🧭    | Card metrics |
 | T-024 | Make scrollbar-in-footer consistent across all tables | 🧪    | Quick sweep |
-| T-080 | StudentDialog Back button inside sticky footer                | ⏳    | Move Back into footer bar; ensure body has bottom padding; UI not visible yet |
-| T-081 | Payment Detail blink logic: only Remaining blinks             | ⏳    | Remove duplicate span; Payment Amount static; UI not visible yet |
-| T-082 | Payment History “For Session(s)” ≤5 + “…” (list) | ✅    | Shipped earlier; keep green |
-| T-083 | Add Payment dialog cascade (Method/Entity/Bank/Account/Ref)   | ⏳    | ERL banks→accounts; identifier build; audit fields; UI not visible yet |
-| T-084 | Payment History: For Session(s) shows ≤5 then … (list view)   | ✅    | Detail already truncates; list column to match |
 | T-085 | Column header width decouple (narrow even when header long)   | ⏳    | th ellipsis; table-layout fixed; cell widths OK |
 
 ---

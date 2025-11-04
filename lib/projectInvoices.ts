@@ -47,6 +47,9 @@ const toStringValue = (value: unknown): string | null => {
     const trimmed = value.toString().trim()
     return trimmed || null
   }
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return `${value}`.trim() || null
+  }
   return null
 }
 

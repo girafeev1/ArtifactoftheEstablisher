@@ -417,6 +417,15 @@ const ProjectsShowContent = () => {
   })
   const [isManagingInvoices, setIsManagingInvoices] = useState(false)
   const [isEditingInvoiceDetails, setIsEditingInvoiceDetails] = useState(false)
+  const manageButtonLabel = useMemo(() => {
+    if (isManagingInvoices) {
+      return draftInvoice ? "Commit Changes" : "Done Managing"
+    }
+    if (isEditingInvoiceDetails) {
+      return draftInvoice ? "Save Invoice" : "Done Editing"
+    }
+    return invoices.length > 0 ? "Manage Invoices" : "Manage Invoice"
+  }, [draftInvoice, invoices.length, isEditingInvoiceDetails, isManagingInvoices])
   // Equalize status button widths to the longest label
   const statusButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [statusButtonWidth, setStatusButtonWidth] = useState<number | undefined>(undefined)
@@ -702,36 +711,24 @@ const ProjectsShowContent = () => {
 
   const editingClient = draftInvoice?.client ?? resolvedClient
   const handleToggleInvoiceDetails = useCallback(() => {
-    const willEnable = !isEditingInvoiceDetails
-    setIsEditingInvoiceDetails(willEnable)
-    if (willEnable) {
-      setDraftInvoice((current) => {
-        if (current) {
-          return current
+    if (invoices.length === 0) {
+      return
+    }
+    if (!isEditingInvoiceDetails) {
+      const reference = invoices[activeInvoiceIndex] ?? null
+      if (reference && project) {
+        setDraftInvoice(buildDraftFromInvoice(reference, client, project))
+        if (invoiceMode === "idle") {
+          setInvoiceMode("edit")
         }
-        const reference = invoices[activeInvoiceIndex] ?? null
-        if (reference && project) {
-          return buildDraftFromInvoice(reference, client, project)
-        }
-        return current
-      })
-      if (invoiceMode === "idle") {
-        setInvoiceMode("edit")
+        setIsEditingInvoiceDetails(true)
       }
-    } else {
-      setDraftInvoice((current) => {
-        if (invoiceMode === "create") {
-          return current
-        }
-        const reference = invoices[activeInvoiceIndex] ?? null
-        if (reference && project) {
-          return buildDraftFromInvoice(reference, client, project)
-        }
-        return null
-      })
-      if (!isManagingInvoices && invoiceMode === "edit") {
-        setInvoiceMode("idle")
-      }
+      return
+    }
+    setIsEditingInvoiceDetails(false)
+    setDraftInvoice(null)
+    if (!isManagingInvoices && invoiceMode !== "create") {
+      setInvoiceMode("idle")
     }
   }, [activeInvoiceIndex, client, invoiceMode, invoices, isEditingInvoiceDetails, isManagingInvoices, project])
 
@@ -2228,6 +2225,7 @@ const ProjectsShowContent = () => {
                     <div className="billing-header-actions">
                       <Button
                         className="btn-outline manage-invoices"
+                        disabled={savingInvoice}
                         onClick={async () => {
                           try { console.log('[ui] manage-toggle', { isManagingInvoices, invoiceMode, hasDraft: !!draftInvoice, invoiceCount: invoices.length }); } catch {}
                           if (isManagingInvoices) {
@@ -2239,6 +2237,17 @@ const ProjectsShowContent = () => {
                             setInvoiceMode('idle')
                             return
                           }
+                          if (isEditingInvoiceDetails) {
+                            if (draftInvoice) {
+                              await handleSaveInvoice()
+                            }
+                            setIsEditingInvoiceDetails(false)
+                            setDraftInvoice(null)
+                            if (invoiceMode !== "create") {
+                              setInvoiceMode("idle")
+                            }
+                            return
+                          }
                           // Enter manage mode and start editing the current invoice if one exists; otherwise start create.
                           setIsManagingInvoices(true)
                           if (invoices.length > 0) {
@@ -2248,7 +2257,7 @@ const ProjectsShowContent = () => {
                           }
                         }}
                       >
-                        {isManagingInvoices ? (draftInvoice ? "Commit Changes" : "Done Managing") : (invoices.length > 0 ? "Manage Invoices" : "Manage Invoice")}
+                        {manageButtonLabel}
                       </Button>
                     </div>
                   ) : null}
@@ -2389,6 +2398,7 @@ const ProjectsShowContent = () => {
                             <Button
                               className="btn-outline toggle-invoice-details"
                               size="small"
+                              disabled={invoices.length === 0 || savingInvoice}
                               onClick={handleToggleInvoiceDetails}
                             >
                               {isInvoiceDetailsEditable ? "Lock Invoice Details" : "Edit Invoice Details"}
