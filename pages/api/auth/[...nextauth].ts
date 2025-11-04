@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
+import DiscordProvider from 'next-auth/providers/discord'
 
 import {
   firebaseAdminAuth,
@@ -13,6 +14,11 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
 
   return {
     providers: [
+      // Discord OAuth — enables sign-in via Discord
+      DiscordProvider({
+        clientId: process.env.DISCORD_CLIENT_ID || '',
+        clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
+      }),
       CredentialsProvider({
         name: 'Firebase',
         credentials: {

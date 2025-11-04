@@ -287,6 +287,22 @@ export default function SignInPage() {
     }
   }
 
+  const handleDiscordSignIn = async () => {
+    setError(null)
+    setSubmitting(true)
+    try {
+      // Delegate to NextAuth OAuth — Discord provider
+      const res = await signIn('discord', { redirect: true, callbackUrl: '/' })
+      if (res?.error) {
+        throw new Error(res.error)
+      }
+    } catch (err: any) {
+      console.error('[auth] Discord sign-in failed', err)
+      setError(err.message ?? 'Discord sign-in failed')
+      setSubmitting(false)
+    }
+  }
+
   const handleEmailAuth = async (mode: 'signIn' | 'signUp') => {
     setError(null)
     setSubmitting(true)
@@ -337,6 +353,16 @@ export default function SignInPage() {
           )}
 
           <Stack spacing={2}>
+            <Button
+              onClick={handleDiscordSignIn}
+              variant='contained'
+              color='secondary'
+              disabled={submitting}
+              sx={buttonStyles}
+            >
+              Continue with Discord
+            </Button>
+
             <Button
               onClick={handleGoogleSignIn}
               variant='contained'
