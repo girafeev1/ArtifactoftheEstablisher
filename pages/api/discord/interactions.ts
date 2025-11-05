@@ -313,22 +313,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const username = user?.global_name || user?.username || user?.id || 'user'
 
     // Helper to create a public thread that auto-archives in 24h
+    const getChannel = async (id: string) => {
+      const token = process.env.DISCORD_BOT_TOKEN
+      if (!token) return null
+      const r = await fetch(`${DISCORD_API}/channels/${id}`, {
+        headers: { Authorization: `Bot ${token}` },
+      })
+      if (!r.ok) return null
+      return (await r.json()) as any
+    }
+
     const createThread = async (label: string) => {
       const token = process.env.DISCORD_BOT_TOKEN
       if (!token) return { ok: false as const, error: 'Missing DISCORD_BOT_TOKEN' }
       const code = Math.random().toString(36).slice(2, 8).toUpperCase()
-      const body = {
-        name: `AOTE Session — ${label} — ${username} — #${code}`.slice(0, 96),
-        auto_archive_duration: 1440, // 24 hours
-        type: 11, // GUILD_PUBLIC_THREAD
-      }
-      const r = await fetch(`${DISCORD_API}/channels/${channelId}/threads`, {
+      const current = await getChannel(channelId)
+      const type = current?.type
+      const baseId: string = (type === 10 || type === 11 || type === 12) && current?.parent_id
+        ? current.parent_id
+        : channelId
+
+      // Forum/media channels require a different payload (must include a message)
+      const isForum = current?.type === 15 || current?.type === 16
+      const url = `${DISCORD_API}/channels/${baseId}/threads`
+      const payload = isForum
+        ? {
+            name: `AOTE Session — ${label} — ${username} — #${code}`.slice(0, 96),
+            auto_archive_duration: 1440,
+            message: { content: `Session started — ${label}. This thread will auto-archive in 24h.` },
+          }
+        : {
+            name: `AOTE Session — ${label} — ${username} — #${code}`.slice(0, 96),
+            auto_archive_duration: 1440,
+            type: 11, // GUILD_PUBLIC_THREAD
+          }
+
+      const r = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bot ${token}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       })
       if (!r.ok) {
         const text = await r.text().catch(() => '')
