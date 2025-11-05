@@ -378,11 +378,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return r.ok
     }
 
-    const startSession = async (label: string) => {
-      const created = await createThread(label)
-      if (!created.ok) return respond(res, created.error)
-      const threadId = created.threadId
-      // Build initial components
+    const startOrContinueSession = async (label: string) => {
+      const current = await getChannel(channelId)
+      const isThread = current && (current.type === 10 || current.type === 11 || current.type === 12)
+
+      // Build initial components (shared)
       let initialComponents: any[] = [
         { type: 1, components: [{ type: 2, style: 1, label: 'Back to Main Menu', custom_id: 'menu_root' }] },
       ]
@@ -391,25 +391,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const { years } = await fetchProjectsFromDatabase()
           initialComponents.push(yearSelectComponent(years))
           initialComponents.push(subsidiarySelectComponent())
-        } catch {
-          // ignore; still post
-        }
+        } catch {}
       }
+
+      if (isThread) {
+        // Continue in current thread instead of spawning a new one
+        await postToThread(channelId, `Continuing ${label} in this session.`, initialComponents)
+        return res.status(200).json({
+          type: CHANNEL_MESSAGE_WITH_SOURCE,
+          data: { content: `Continuing ${label} in this thread.`, flags: 64 },
+        })
+      }
+
+      // Otherwise, create a new thread under the parent channel
+      const created = await createThread(label)
+      if (!created.ok) return respond(res, created.error)
+      const threadId = created.threadId
       await postToThread(threadId, `Welcome to ${label}. This session will auto-archive in 24h.`, initialComponents)
-      // Acknowledge with a non-ephemeral link to the thread
       return res.status(200).json({
         type: CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          content: `Opened a new ${label} session: <#${threadId}>` ,
-        },
+        data: { content: `Opened a new ${label} session: <#${threadId}>` },
       })
     }
 
     if (customId === 'menu_projects') {
-      return await startSession('Projects')
+      return await startOrContinueSession('Projects')
     }
     if (customId === 'menu_invoices') {
-      return await startSession('Invoices')
+      return await startOrContinueSession('Invoices')
     }
     if (customId === 'menu_link') {
       return await startSession('Account Linking')
