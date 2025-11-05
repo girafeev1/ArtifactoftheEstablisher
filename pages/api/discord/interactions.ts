@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import nacl from 'tweetnacl'
+import { fetchProjectsFromDatabase, type ProjectRecord } from '../../../lib/projectsDatabase'
 
 const DISCORD_API = 'https://discord.com/api/v10'
 type Snowflake = string
@@ -63,6 +64,82 @@ function mainMenu() {
           { type: 2, style: 2, label: 'Link Account', custom_id: 'menu_link' },
         ],
       },
+    ],
+  }
+}
+
+function yearSelectComponent(years: string[]) {
+  return {
+    type: 1,
+    components: [
+      {
+        type: 3, // STRING_SELECT
+        custom_id: 'sel_year',
+        placeholder: 'Select year',
+        min_values: 1,
+        max_values: 1,
+        options: years.slice(0, 25).map((y) => ({ label: y, value: y })),
+      },
+    ],
+  }
+}
+
+function subsidiarySelectComponent() {
+  return {
+    type: 1,
+    components: [
+      {
+        type: 3,
+        custom_id: 'sel_subsidiary',
+        placeholder: 'Select subsidiary',
+        min_values: 1,
+        max_values: 1,
+        options: [
+          { label: 'Establish Records Limited', value: 'tebs-erl' },
+        ],
+      },
+    ],
+  }
+}
+
+function buildProjectOptions(projects: ProjectRecord[]) {
+  return projects.slice(0, 25).map((p) => ({
+    label: `${p.projectNumber} — ${p.presenterWorkType ?? p.projectTitle ?? ''}`.slice(0, 100),
+    value: `${p.year}::${p.id}`,
+    description: (p.projectTitle ?? p.projectNature ?? '')?.slice(0, 100) || undefined,
+  }))
+}
+
+function projectSelectComponent(projects: ProjectRecord[], year: string, page = 0) {
+  const options = buildProjectOptions(projects)
+  return {
+    type: 1,
+    components: [
+      {
+        type: 3,
+        custom_id: `sel_project:${year}:page:${page}`,
+        placeholder: `Select a project in ${year}`,
+        min_values: 1,
+        max_values: 1,
+        options,
+      },
+    ],
+  }
+}
+
+function projectDetailsEmbed(p: ProjectRecord) {
+  return {
+    title: `${p.projectNumber} ${p.projectDateDisplay ? `· ${p.projectDateDisplay}` : ''}`.trim(),
+    color: 0x22577A,
+    fields: [
+      { name: 'Presenter / Work Type', value: p.presenterWorkType || '—', inline: true },
+      { name: 'Project Title', value: p.projectTitle || '—', inline: true },
+      { name: 'Project Nature', value: p.projectNature || '—', inline: false },
+      { name: 'Client', value: p.clientCompany || '—', inline: true },
+      { name: 'Invoice', value: p.invoice || '—', inline: true },
+      { name: 'Status', value: p.paymentStatus || '—', inline: true },
+      { name: 'Bank', value: p.paidTo || '—', inline: true },
+      { name: 'Amount', value: p.amount != null ? `${p.amount}` : '—', inline: true },
     ],
   }
 }
@@ -165,8 +242,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const createThread = async (label: string) => {
       const token = process.env.DISCORD_BOT_TOKEN
       if (!token) return { ok: false as const, error: 'Missing DISCORD_BOT_TOKEN' }
+      const code = Math.random().toString(36).slice(2, 8).toUpperCase()
       const body = {
-        name: `AOTE Session — ${label} — ${username}`.slice(0, 96),
+        name: `AOTE Session — ${label} — ${username} — #${code}`.slice(0, 96),
         auto_archive_duration: 1440, // 24 hours
         type: 11, // GUILD_PUBLIC_THREAD
       }
@@ -204,20 +282,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const created = await createThread(label)
       if (!created.ok) return respond(res, created.error)
       const threadId = created.threadId
-      // Seed the thread with a menu scaffold specific to the label
-      const components = [
-        {
-          type: 1,
-          components: [
-            { type: 2, style: 1, label: 'Back to Main Menu', custom_id: 'menu_root' },
-          ],
-        },
+      // Build initial components
+      let initialComponents: any[] = [
+        { type: 1, components: [{ type: 2, style: 1, label: 'Back to Main Menu', custom_id: 'menu_root' }] },
       ]
-      await postToThread(
-        threadId,
-        `Welcome to ${label}. I will guide you here. This thread will auto-archive in 24h.`,
-        components,
-      )
+      if (label === 'Projects') {
+        try {
+          const { years } = await fetchProjectsFromDatabase()
+          initialComponents.push(yearSelectComponent(years))
+          initialComponents.push(subsidiarySelectComponent())
+        } catch {
+          // ignore; still post
+        }
+      }
+      await postToThread(threadId, `Welcome to ${label}. This session will auto-archive in 24h.`, initialComponents)
       // Acknowledge with a non-ephemeral link to the thread
       return res.status(200).json({
         type: CHANNEL_MESSAGE_WITH_SOURCE,
@@ -238,6 +316,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (customId === 'menu_root') {
       return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: mainMenu() })
+    }
+    // Year selection -> show first page of projects for that year
+    if (customId === 'sel_year') {
+      const values = (json.data?.values || []) as string[]
+      const year = values[0]
+      if (!year) return respond(res, 'Please select a year')
+      try {
+        const { projects } = await fetchProjectsFromDatabase()
+        const inYear = projects.filter((p) => p.year === year)
+        const component = projectSelectComponent(inYear, year, 0)
+        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Projects in ${year}:`, components: [component] } })
+      } catch (e) {
+        return respond(res, 'Failed to load projects. Please try again.')
+      }
+    }
+    // Project selection -> show details
+    if (typeof customId === 'string' && customId.startsWith('sel_project:')) {
+      const values = (json.data?.values || []) as string[]
+      const [year, projectId] = (values[0] || '').split('::')
+      if (!year || !projectId) return respond(res, 'Invalid project selection')
+      try {
+        const { projects } = await fetchProjectsFromDatabase()
+        const match = projects.find((p) => p.year === year && p.id === projectId)
+        if (!match) return respond(res, 'Project not found')
+        const embed = projectDetailsEmbed(match)
+        const actions = [
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 1, label: 'Edit Client Name', custom_id: `edit_client:${year}:${projectId}` },
+              { type: 2, style: 1, label: 'Open Invoices', custom_id: `open_invoices:${year}:${projectId}` },
+            ],
+          },
+        ]
+        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { embeds: [embed], components: actions } })
+      } catch {
+        return respond(res, 'Failed to load project details')
+      }
     }
     return respond(res, 'Unsupported action')
   }
