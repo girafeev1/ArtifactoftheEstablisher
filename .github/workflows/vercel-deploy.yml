@@ -22,20 +22,14 @@ jobs:
         run: npm i -g vercel@latest
         working-directory: dev/ArtifactoftheEstablisher
 
-      - name: Read Vercel project metadata
-        id: meta
-        run: |
-          echo "ORG_ID=$(jq -r .orgId .vercel/project.json)" >> $GITHUB_ENV
-          echo "PROJECT_ID=$(jq -r .projectId .vercel/project.json)" >> $GITHUB_ENV
-          echo "VERCEL_ENV_URL=$(jq -r .settings.framework .vercel/project.json || echo '')" >> $GITHUB_ENV
-        working-directory: dev/ArtifactoftheEstablisher
+      # ORG/PROJECT IDs come from repo secrets to avoid relying on .vercel/project.json
 
       - name: Pull Vercel env (Preview)
         if: ${{ github.event_name == 'pull_request' }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ env.ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ env.PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
         working-directory: dev/ArtifactoftheEstablisher
 
@@ -57,8 +51,8 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ env.ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ env.PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
         working-directory: dev/ArtifactoftheEstablisher
 
