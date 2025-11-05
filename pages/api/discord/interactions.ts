@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import nacl from 'tweetnacl'
-import { fetchProjectsFromDatabase, type ProjectRecord } from '../../../lib/projectsDatabase'
+import { fetchProjectsFromDatabase, type ProjectRecord, updateProjectInDatabase } from '../../../lib/projectsDatabase'
+import { fetchInvoicesForProject, type ProjectInvoiceRecord } from '../../../lib/projectInvoices'
 import { fetchInvoicesForProject, type ProjectInvoiceRecord } from '../../../lib/projectInvoices'
 
 const DISCORD_API = 'https://discord.com/api/v10'
@@ -41,6 +42,8 @@ const MODAL_SUBMIT = 5
 // Discord Response Types
 const PONG = 1
 const CHANNEL_MESSAGE_WITH_SOURCE = 4
+const DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE = 5
+const MODAL = 9
 
 function respond(res: NextApiResponse, content: string, ephemeral = true) {
   return res.status(200).json({
@@ -215,6 +218,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const type = json?.type
+  const interactionToken: string | undefined = json?.token
+  const applicationId: string | undefined = process.env.DISCORD_APPLICATION_ID
   if (type === PING) {
     return res.status(200).json({ type: PONG })
   }
@@ -415,6 +420,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return r.ok
     }
 
+    const followUp = async (payload: { content?: string; components?: any[]; embeds?: any[]; ephemeral?: boolean }) => {
+      if (!interactionToken || !applicationId) return false
+      const r = await fetch(`${DISCORD_API}/webhooks/${applicationId}/${interactionToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: payload.content,
+          components: payload.components,
+          embeds: payload.embeds,
+          flags: payload.ephemeral ? 64 : 0,
+        }),
+      })
+      return r.ok
+    }
+
     const startOrContinueSession = async (label: string) => {
       const current = await getChannel(channelId)
       const isThread = current && (current.type === 10 || current.type === 11 || current.type === 12)
@@ -438,10 +458,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             ? 'Step 1: Select a year. Step 2: Pick a project. Step 3: Select an invoice.'
             : 'Step 1: Select a year. Step 2: Pick a project.'
         await postToThread(channelId, `Continuing ${label} in this session. ${help}`, initialComponents)
-        return res.status(200).json({
-          type: CHANNEL_MESSAGE_WITH_SOURCE,
-          data: { content: `Continuing ${label} in this thread.`, flags: 64 },
-        })
+        return res.status(200).json({ type: DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE })
       }
 
       // Otherwise, create a new thread under the parent channel
@@ -453,10 +470,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? 'Step 1: Select a year. Step 2: Pick a project. Step 3: Select an invoice.'
           : 'Step 1: Select a year. Step 2: Pick a project.'
       await postToThread(threadId, `Welcome to ${label}. This session will auto-archive in 24h. ${help}`, initialComponents)
-      return res.status(200).json({
-        type: CHANNEL_MESSAGE_WITH_SOURCE,
-        data: { content: `Opened a new ${label} session: <#${threadId}>` },
-      })
+      // Acknowledge quickly; send a follow-up note with the link
+      await followUp({ content: `Opened a new ${label} session: <#${threadId}>`, ephemeral: true })
+      return res.status(200).json({ type: DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE })
     }
 
     if (customId === 'menu_projects') {
@@ -480,7 +496,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const { projects } = await fetchProjectsFromDatabase()
         const inYear = projects.filter((p) => p.year === year)
         const component = projectSelectComponent(inYear, year, 0)
-        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Projects in ${year}:`, components: [component] } })
+        const embed = {
+          title: `Projects in ${year}`,
+          color: 0x28527A,
+          fields: inYear.slice(0, 10).map((p) => ({
+            name: `${p.projectNumber}`,
+            value: `Presenter/Work Type: ${p.presenterWorkType || '—'}\nTitle: ${p.projectTitle || '—'}\nNature: ${p.projectNature || '—'}`,
+            inline: false,
+          })),
+        }
+        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { embeds: [embed], components: [component] } })
       } catch (e) {
         return respond(res, 'Failed to load projects. Please try again.')
       }
@@ -496,24 +521,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const values = (json.data?.values || []) as string[]
       const [year, projectId] = (values[0] || '').split('::')
       if (!year || !projectId) return respond(res, 'Invalid project selection')
-      try {
-        const { projects } = await fetchProjectsFromDatabase()
-        const match = projects.find((p) => p.year === year && p.id === projectId)
-        if (!match) return respond(res, 'Project not found')
-        const embed = projectDetailsEmbed(match)
-        const actions = [
-          {
-            type: 1,
-            components: [
-              { type: 2, style: 1, label: 'Edit Client Name', custom_id: `edit_client:${year}:${projectId}` },
-              { type: 2, style: 1, label: 'Open Invoices', custom_id: `open_invoices:${year}:${projectId}` },
-            ],
-          },
-        ]
-        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { embeds: [embed], components: actions } })
-      } catch {
-        return respond(res, 'Failed to load project details')
-      }
+      ;(async () => {
+        try {
+          const { projects } = await fetchProjectsFromDatabase()
+          const p = projects.find((x) => x.year === year && x.id === projectId)
+          if (!p) {
+            await followUp({ content: 'Project not found', ephemeral: true })
+            return
+          }
+          // Multi-message details in thread
+          const header = `Project ${p.projectNumber}${p.projectDateDisplay ? ` · ${p.projectDateDisplay}` : ''}\nPresenter/Work Type: ${p.presenterWorkType || '—'}\nTitle: ${p.projectTitle || '—'}\nNature: ${p.projectNature || '—'}`
+          await postToThread(channelId, header)
+          const client = `Client: ${p.clientCompany || '—'}`
+          await postToThread(channelId, client)
+          const billing = `Invoice: ${p.invoice || '—'}\nStatus: ${p.paymentStatus || '—'}\nAmount: ${p.amount != null ? String(p.amount) : '—'}\nBank: ${p.paidTo || '—'}`
+          const actions = [
+            {
+              type: 1,
+              components: [
+                { type: 2, style: 1, label: 'Edit Client Name', custom_id: `edit_client:${year}:${projectId}` },
+                { type: 2, style: 1, label: 'Open Invoices', custom_id: `open_invoices:${year}:${projectId}` },
+              ],
+            },
+          ]
+          await postToThread(channelId, billing, actions)
+          await followUp({ content: 'Posted project details in the thread.', ephemeral: true })
+        } catch (e) {
+          await followUp({ content: 'Failed to load project details', ephemeral: true })
+        }
+      })()
+      return res.status(200).json({ type: DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE })
     }
     // Open invoices for selected project
     if (typeof customId === 'string' && customId.startsWith('open_invoices:')) {
@@ -550,6 +587,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { embeds: [embed], components: actions } })
       } catch {
         return respond(res, 'Failed to load invoice details')
+      }
+    }
+
+    // Edit client name — open modal
+    if (typeof customId === 'string' && customId.startsWith('edit_client:')) {
+      const [, year, projectId] = customId.split(':')
+      return res.status(200).json({
+        type: MODAL,
+        data: {
+          custom_id: `modal_edit_client:${year}:${projectId}`,
+          title: 'Edit Client Name',
+          components: [
+            {
+              type: 1,
+              components: [
+                {
+                  type: 4, // TEXT_INPUT
+                  custom_id: 'client_name',
+                  style: 1, // SHORT
+                  label: 'Client Name',
+                  min_length: 1,
+                  max_length: 100,
+                  required: true,
+                },
+              ],
+            },
+          ],
+        },
+      })
+    }
+
+    // Modal submit handler
+    if (type === MODAL_SUBMIT && typeof customId === 'string' && customId.startsWith('modal_edit_client:')) {
+      const [, year, projectId] = customId.split(':')
+      try {
+        const rows = json.data?.components || []
+        let newName = ''
+        for (const row of rows) {
+          for (const comp of row.components || []) {
+            if (comp.custom_id === 'client_name') {
+              newName = comp.value || ''
+            }
+          }
+        }
+        if (!newName) return respond(res, 'Client name is required.')
+        const editedBy = (json.member?.user?.id && `discord:${json.member.user.id}`) || 'discord:unknown'
+        await updateProjectInDatabase({ year, projectId, updates: { clientCompany: newName }, editedBy })
+        await postToThread(channelId, `Client name updated to: ${newName}`)
+        return respond(res, 'Client name updated.', true)
+      } catch (e) {
+        return respond(res, 'Failed to update client name.')
       }
     }
     return respond(res, 'Unsupported action')
