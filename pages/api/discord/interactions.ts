@@ -421,7 +421,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return await startOrContinueSession('Invoices')
     }
     if (customId === 'menu_link') {
-      return await startSession('Account Linking')
+      return await startOrContinueSession('Account Linking')
     }
     if (customId === 'menu_root') {
       return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: mainMenu() })
