@@ -126,13 +126,19 @@ function buildProjectOptions(projects: ProjectRecord[]) {
 }
 
 function projectSelectComponent(projects: ProjectRecord[], year: string, page = 0) {
-  const options = buildProjectOptions(projects)
-  return {
+  const pageSize = 25
+  const total = projects.length
+  const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1)
+  const safePage = Math.min(Math.max(0, page), maxPage)
+  const slice = projects.slice(safePage * pageSize, safePage * pageSize + pageSize)
+  const options = buildProjectOptions(slice)
+
+  const selectRow = {
     type: 1,
     components: [
       {
         type: 3,
-        custom_id: `sel_project:${year}:page:${page}`,
+        custom_id: `sel_project:${year}:page:${safePage}`,
         placeholder: `Select a project in ${year}`,
         min_values: 1,
         max_values: 1,
@@ -140,6 +146,17 @@ function projectSelectComponent(projects: ProjectRecord[], year: string, page = 
       },
     ],
   }
+
+  const navRow = {
+    type: 1,
+    components: [
+      { type: 2, style: 2, label: 'Prev', custom_id: `page_projects:${year}:page:${Math.max(0, safePage - 1)}`, disabled: safePage <= 0 },
+      { type: 2, style: 2, label: 'Next', custom_id: `page_projects:${year}:page:${Math.min(maxPage, safePage + 1)}`, disabled: safePage >= maxPage },
+      { type: 2, style: 1, label: 'Search', custom_id: `search_projects:${year}` },
+    ],
+  }
+
+  return [selectRow, navRow]
 }
 
 function projectDetailsEmbed(p: ProjectRecord) {
@@ -506,11 +523,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const { projects } = await fetchProjectsFromDatabase()
         const inYear = projects.filter((p) => p.year === year)
-        const component = projectSelectComponent(inYear, year, 0)
-        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Pick a project in ${year}:`, components: [component] } })
+        const components = projectSelectComponent(inYear, year, 0)
+        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Pick a project in ${year}:`, components } })
       } catch (e) {
         return respond(res, 'Failed to load projects. Please try again.')
       }
+    }
+
+    // Page projects list
+    if (typeof customId === 'string' && customId.startsWith('page_projects:')) {
+      const parts = customId.split(':')
+      const year = parts[1]
+      const page = Number(parts[3] || '0') || 0
+      try {
+        const { projects } = await fetchProjectsFromDatabase()
+        const inYear = projects.filter((p) => p.year === year)
+        const components = projectSelectComponent(inYear, year, page)
+        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Pick a project in ${year}:`, components } })
+      } catch {
+        return respond(res, 'Failed to paginate projects.')
+      }
+    }
+
+    // Search projects by number (modal)
+    if (typeof customId === 'string' && customId.startsWith('search_projects:')) {
+      const parts = customId.split(':')
+      const year = parts[1]
+      return res.status(200).json({
+        type: MODAL,
+        data: {
+          custom_id: `modal_search_project:${year}`,
+          title: 'Search Project by Number',
+          components: [
+            {
+              type: 1,
+              components: [
+                { type: 4, style: 1, custom_id: 'query', label: 'Project Number', min_length: 1, max_length: 50, required: true },
+              ],
+            },
+          ],
+        },
+      })
     }
     // Subsidiary selection (placeholder; currently only ERL)
     if (customId === 'sel_subsidiary') {
@@ -538,6 +591,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             type: 1,
             components: [
               { type: 2, style: 1, label: 'Edit Client Name', custom_id: `edit_client:${year}:${projectId}` },
+              { type: 2, style: 1, label: 'Edit Status', custom_id: `edit_status:${year}:${projectId}` },
+              { type: 2, style: 1, label: 'Edit Bank', custom_id: `edit_bank:${year}:${projectId}` },
               { type: 2, style: 1, label: 'Open Invoices', custom_id: `open_invoices:${year}:${projectId}` },
             ],
           },
@@ -634,6 +689,109 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return respond(res, 'Client name updated.', true)
       } catch (e) {
         return respond(res, 'Failed to update client name.')
+      }
+    }
+
+    // Edit payment status — open modal
+    if (typeof customId === 'string' && customId.startsWith('edit_status:')) {
+      const [, year, projectId] = customId.split(':')
+      return res.status(200).json({
+        type: MODAL,
+        data: {
+          custom_id: `modal_edit_status:${year}:${projectId}`,
+          title: 'Edit Payment Status',
+          components: [
+            { type: 1, components: [ { type: 4, style: 1, custom_id: 'status', label: 'Payment Status', min_length: 1, max_length: 60, required: true } ] },
+          ],
+        },
+      })
+    }
+    if (type === MODAL_SUBMIT && typeof customId === 'string' && customId.startsWith('modal_edit_status:')) {
+      const [, year, projectId] = customId.split(':')
+      try {
+        const rows = json.data?.components || []
+        let status = ''
+        for (const row of rows) for (const comp of row.components || []) if (comp.custom_id === 'status') status = comp.value || ''
+        if (!status) return respond(res, 'Status is required.')
+        const editedBy = (json.member?.user?.id && `discord:${json.member.user.id}`) || 'discord:unknown'
+        await updateProjectInDatabase({ year, projectId, updates: { paymentStatus: status }, editedBy })
+        await postToThread(channelId, `Payment Status updated to: ${status}`)
+        return respond(res, 'Payment Status updated.', true)
+      } catch {
+        return respond(res, 'Failed to update status.')
+      }
+    }
+
+    // Edit bank (paidTo) — open modal
+    if (typeof customId === 'string' && customId.startsWith('edit_bank:')) {
+      const [, year, projectId] = customId.split(':')
+      return res.status(200).json({
+        type: MODAL,
+        data: {
+          custom_id: `modal_edit_bank:${year}:${projectId}`,
+          title: 'Edit Bank (paidTo)',
+          components: [
+            { type: 1, components: [ { type: 4, style: 1, custom_id: 'bank', label: 'Bank / Account Identifier', min_length: 1, max_length: 80, required: true } ] },
+          ],
+        },
+      })
+    }
+    if (type === MODAL_SUBMIT && typeof customId === 'string' && customId.startsWith('modal_edit_bank:')) {
+      const [, year, projectId] = customId.split(':')
+      try {
+        const rows = json.data?.components || []
+        let bank = ''
+        for (const row of rows) for (const comp of row.components || []) if (comp.custom_id === 'bank') bank = comp.value || ''
+        if (!bank) return respond(res, 'Bank is required.')
+        const editedBy = (json.member?.user?.id && `discord:${json.member.user.id}`) || 'discord:unknown'
+        await updateProjectInDatabase({ year, projectId, updates: { paidTo: bank }, editedBy })
+        await postToThread(channelId, `Bank updated to: ${bank}`)
+        return respond(res, 'Bank updated.', true)
+      } catch {
+        return respond(res, 'Failed to update bank.')
+      }
+    }
+
+    // Modal submit: project search
+    if (type === MODAL_SUBMIT && typeof customId === 'string' && customId.startsWith('modal_search_project:')) {
+      const [, year] = customId.split(':')
+      try {
+        const rows = json.data?.components || []
+        let query = ''
+        for (const row of rows) for (const comp of row.components || []) if (comp.custom_id === 'query') query = comp.value || ''
+        if (!query) return respond(res, 'Enter a project number.')
+        const q = query.toLowerCase().trim()
+        const { projects } = await fetchProjectsFromDatabase()
+        const inYear = projects.filter((p) => p.year === year)
+        const matches = inYear.filter((p) => (p.projectNumber || '').toLowerCase().includes(q))
+        if (matches.length === 0) return respond(res, `No projects match "${query}" in ${year}.`)
+        if (matches.length === 1) {
+          const p = matches[0]
+          const header = `Project ${p.projectNumber}${p.projectDateDisplay ? ` · ${p.projectDateDisplay}` : ''}\nPresenter/Work Type: ${p.presenterWorkType || '—'}\nTitle: ${p.projectTitle || '—'}\nNature: ${p.projectNature || '—'}`
+          await postToThread(channelId, header)
+          const client = `Client: ${p.clientCompany || '—'}`
+          await postToThread(channelId, client)
+          const billing = `Invoice: ${p.invoice || '—'}\nStatus: ${p.paymentStatus || '—'}\nAmount: ${p.amount != null ? String(p.amount) : '—'}\nBank: ${p.paidTo || '—'}`
+          await postToThread(channelId, billing)
+          return respond(res, 'Found and posted project.', true)
+        }
+        // multiple matches - show a select of matches
+        const optionsRow = {
+          type: 1,
+          components: [
+            {
+              type: 3,
+              custom_id: `sel_project:${year}:page:0`,
+              placeholder: `Select a project in ${year}`,
+              min_values: 1,
+              max_values: 1,
+              options: buildProjectOptions(matches.slice(0, 25)),
+            },
+          ],
+        }
+        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Multiple matches for "${query}":`, components: [optionsRow] } })
+      } catch {
+        return respond(res, 'Search failed.')
       }
     }
     return respond(res, 'Unsupported action')
