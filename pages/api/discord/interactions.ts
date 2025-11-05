@@ -427,7 +427,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try {
           const { years } = await fetchProjectsFromDatabase()
           initialComponents.push(yearSelectComponent(years))
-          initialComponents.push(subsidiarySelectComponent())
+          // Subsidiary selection is omitted for now since only ERL is available
         } catch {}
       }
 
@@ -484,6 +484,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (e) {
         return respond(res, 'Failed to load projects. Please try again.')
       }
+    }
+    // Subsidiary selection (placeholder; currently only ERL)
+    if (customId === 'sel_subsidiary') {
+      const values = (json.data?.values || []) as string[]
+      const sub = values[0]
+      return respond(res, `Subsidiary set to ${sub || 'ERL'}. Now select a year.`, true)
     }
     // Project selection -> show details
     if (typeof customId === 'string' && customId.startsWith('sel_project:')) {
