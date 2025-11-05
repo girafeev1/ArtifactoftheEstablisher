@@ -520,13 +520,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const values = (json.data?.values || []) as string[]
       const year = values[0]
       if (!year) return respond(res, 'Please select a year')
-      try {
-        const inYear = await fetchProjectsForYear(year)
-        const components = projectSelectComponent(inYear, year, 0)
-        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Pick a project in ${year}:`, components } })
-      } catch (e) {
-        return respond(res, 'Failed to load projects. Please try again.')
-      }
+      ;(async () => {
+        try {
+          const inYear = await fetchProjectsForYear(year)
+          const components = projectSelectComponent(inYear, year, 0)
+          await followUp({ content: `Pick a project in ${year}:`, components, ephemeral: false })
+        } catch (e) {
+          await followUp({ content: 'Failed to load projects. Please try again.', ephemeral: true })
+        }
+      })()
+      return res.status(200).json({ type: DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE })
     }
 
     // Page projects list
@@ -534,13 +537,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const parts = customId.split(':')
       const year = parts[1]
       const page = Number(parts[3] || '0') || 0
-      try {
-        const inYear = await fetchProjectsForYear(year)
-        const components = projectSelectComponent(inYear, year, page)
-        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Pick a project in ${year}:`, components } })
-      } catch {
-        return respond(res, 'Failed to paginate projects.')
-      }
+      ;(async () => {
+        try {
+          const inYear = await fetchProjectsForYear(year)
+          const components = projectSelectComponent(inYear, year, page)
+          await followUp({ content: `Pick a project in ${year}:`, components, ephemeral: false })
+        } catch {
+          await followUp({ content: 'Failed to paginate projects.', ephemeral: true })
+        }
+      })()
+      return res.status(200).json({ type: DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE })
     }
 
     // Search projects by number (modal)
