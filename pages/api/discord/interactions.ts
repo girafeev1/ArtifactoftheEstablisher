@@ -2,7 +2,6 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import nacl from 'tweetnacl'
 import { fetchProjectsFromDatabase, type ProjectRecord, updateProjectInDatabase } from '../../../lib/projectsDatabase'
 import { fetchInvoicesForProject, type ProjectInvoiceRecord } from '../../../lib/projectInvoices'
-import { fetchInvoicesForProject, type ProjectInvoiceRecord } from '../../../lib/projectInvoices'
 
 const DISCORD_API = 'https://discord.com/api/v10'
 type Snowflake = string
