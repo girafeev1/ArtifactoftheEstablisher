@@ -55,3 +55,4 @@ Commands included:
 - Web OAuth via Discord is disabled by default. To enable on web, set `ENABLE_DISCORD_WEB_AUTH=1` and redeploy.
 - Keep secrets out of source control. Use Vercel Env for production.
 
+Last updated: 2025-11-05
