@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import nacl from 'tweetnacl'
 import { fetchProjectsFromDatabase, type ProjectRecord } from '../../../lib/projectsDatabase'
+import { fetchInvoicesForProject, type ProjectInvoiceRecord } from '../../../lib/projectInvoices'
 
 const DISCORD_API = 'https://discord.com/api/v10'
 type Snowflake = string
@@ -140,6 +141,42 @@ function projectDetailsEmbed(p: ProjectRecord) {
       { name: 'Status', value: p.paymentStatus || '—', inline: true },
       { name: 'Bank', value: p.paidTo || '—', inline: true },
       { name: 'Amount', value: p.amount != null ? `${p.amount}` : '—', inline: true },
+    ],
+  }
+}
+
+function invoiceSelectComponent(invoices: ProjectInvoiceRecord[], year: string, projectId: string) {
+  const opts = invoices.slice(0, 25).map((inv) => ({
+    label: `${inv.invoiceNumber}${inv.paymentStatus ? ` · ${inv.paymentStatus}` : ''}`.slice(0, 100),
+    value: inv.invoiceNumber,
+    description: inv.total != null ? `Total: ${inv.total}` : undefined,
+  }))
+  return {
+    type: 1,
+    components: [
+      {
+        type: 3,
+        custom_id: `sel_invoice:${year}:${projectId}`,
+        placeholder: 'Select an invoice',
+        min_values: 1,
+        max_values: 1,
+        options: opts,
+      },
+    ],
+  }
+}
+
+function invoiceDetailsEmbed(inv: ProjectInvoiceRecord) {
+  return {
+    title: `${inv.invoiceNumber}`,
+    color: 0xA27B5C,
+    fields: [
+      { name: 'Company', value: inv.companyName || '—', inline: true },
+      { name: 'Status', value: inv.paymentStatus || '—', inline: true },
+      { name: 'Paid', value: inv.paid === true ? 'Yes' : inv.paid === false ? 'No' : '—', inline: true },
+      { name: 'Total', value: inv.total != null ? String(inv.total) : inv.amount != null ? String(inv.amount) : '—', inline: true },
+      { name: 'Bank', value: inv.paidTo || '—', inline: true },
+      { name: 'Paid On', value: inv.paidOnDisplay || '—', inline: true },
     ],
   }
 }
@@ -386,7 +423,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let initialComponents: any[] = [
         { type: 1, components: [{ type: 2, style: 1, label: 'Back to Main Menu', custom_id: 'menu_root' }] },
       ]
-      if (label === 'Projects') {
+      if (label === 'Projects' || label === 'Invoices') {
         try {
           const { years } = await fetchProjectsFromDatabase()
           initialComponents.push(yearSelectComponent(years))
@@ -396,7 +433,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (isThread) {
         // Continue in current thread instead of spawning a new one
-        await postToThread(channelId, `Continuing ${label} in this session.`, initialComponents)
+        const help =
+          label === 'Invoices'
+            ? 'Step 1: Select a year. Step 2: Pick a project. Step 3: Select an invoice.'
+            : 'Step 1: Select a year. Step 2: Pick a project.'
+        await postToThread(channelId, `Continuing ${label} in this session. ${help}`, initialComponents)
         return res.status(200).json({
           type: CHANNEL_MESSAGE_WITH_SOURCE,
           data: { content: `Continuing ${label} in this thread.`, flags: 64 },
@@ -407,7 +448,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const created = await createThread(label)
       if (!created.ok) return respond(res, created.error)
       const threadId = created.threadId
-      await postToThread(threadId, `Welcome to ${label}. This session will auto-archive in 24h.`, initialComponents)
+      const help =
+        label === 'Invoices'
+          ? 'Step 1: Select a year. Step 2: Pick a project. Step 3: Select an invoice.'
+          : 'Step 1: Select a year. Step 2: Pick a project.'
+      await postToThread(threadId, `Welcome to ${label}. This session will auto-archive in 24h. ${help}`, initialComponents)
       return res.status(200).json({
         type: CHANNEL_MESSAGE_WITH_SOURCE,
         data: { content: `Opened a new ${label} session: <#${threadId}>` },
@@ -462,6 +507,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { embeds: [embed], components: actions } })
       } catch {
         return respond(res, 'Failed to load project details')
+      }
+    }
+    // Open invoices for selected project
+    if (typeof customId === 'string' && customId.startsWith('open_invoices:')) {
+      const [, year, projectId] = customId.split(':')
+      if (!year || !projectId) return respond(res, 'Invalid project context for invoices')
+      try {
+        const invoices = await fetchInvoicesForProject(year, projectId)
+        if (!invoices.length) return respond(res, 'No invoices found for this project.')
+        const component = invoiceSelectComponent(invoices, year, projectId)
+        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: 'Select an invoice:', components: [component] } })
+      } catch {
+        return respond(res, 'Failed to load invoices.')
+      }
+    }
+    // Invoice selection -> show invoice details
+    if (typeof customId === 'string' && customId.startsWith('sel_invoice:')) {
+      const values = (json.data?.values || []) as string[]
+      const invoiceNumber = values[0]
+      const [, year, projectId] = customId.split(':')
+      if (!invoiceNumber || !year || !projectId) return respond(res, 'Invalid invoice selection')
+      try {
+        const invoices = await fetchInvoicesForProject(year, projectId)
+        const inv = invoices.find((i) => i.invoiceNumber === invoiceNumber)
+        if (!inv) return respond(res, 'Invoice not found')
+        const embed = invoiceDetailsEmbed(inv)
+        const actions = [
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 2, label: 'Back to Main Menu', custom_id: 'menu_root' },
+            ],
+          },
+        ]
+        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { embeds: [embed], components: actions } })
+      } catch {
+        return respond(res, 'Failed to load invoice details')
       }
     }
     return respond(res, 'Unsupported action')
