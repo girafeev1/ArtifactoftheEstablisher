@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import nacl from 'tweetnacl'
-import { fetchProjectsFromDatabase, type ProjectRecord, updateProjectInDatabase } from '../../../lib/projectsDatabase'
+import { fetchProjectsFromDatabase, fetchProjectsForYear, type ProjectRecord, updateProjectInDatabase } from '../../../lib/projectsDatabase'
 import { fetchInvoicesForProject, type ProjectInvoiceRecord } from '../../../lib/projectInvoices'
 
 const DISCORD_API = 'https://discord.com/api/v10'
@@ -521,8 +521,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const year = values[0]
       if (!year) return respond(res, 'Please select a year')
       try {
-        const { projects } = await fetchProjectsFromDatabase()
-        const inYear = projects.filter((p) => p.year === year)
+        const inYear = await fetchProjectsForYear(year)
         const components = projectSelectComponent(inYear, year, 0)
         return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Pick a project in ${year}:`, components } })
       } catch (e) {
@@ -536,8 +535,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const year = parts[1]
       const page = Number(parts[3] || '0') || 0
       try {
-        const { projects } = await fetchProjectsFromDatabase()
-        const inYear = projects.filter((p) => p.year === year)
+        const inYear = await fetchProjectsForYear(year)
         const components = projectSelectComponent(inYear, year, page)
         return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Pick a project in ${year}:`, components } })
       } catch {
@@ -577,8 +575,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const [year, projectId] = (values[0] || '').split('::')
       if (!year || !projectId) return respond(res, 'Invalid project selection')
       try {
-        const { projects } = await fetchProjectsFromDatabase()
-        const p = projects.find((x) => x.year === year && x.id === projectId)
+        const inYear = await fetchProjectsForYear(year)
+        const p = inYear.find((x) => x.id === projectId)
         if (!p) return respond(res, 'Project not found')
         // Multi-message details in thread
         const header = `Project ${p.projectNumber}${p.projectDateDisplay ? ` · ${p.projectDateDisplay}` : ''}\nPresenter/Work Type: ${p.presenterWorkType || '—'}\nTitle: ${p.projectTitle || '—'}\nNature: ${p.projectNature || '—'}`
@@ -761,8 +759,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         for (const row of rows) for (const comp of row.components || []) if (comp.custom_id === 'query') query = comp.value || ''
         if (!query) return respond(res, 'Enter a project number.')
         const q = query.toLowerCase().trim()
-        const { projects } = await fetchProjectsFromDatabase()
-        const inYear = projects.filter((p) => p.year === year)
+        const inYear = await fetchProjectsForYear(year)
         const matches = inYear.filter((p) => (p.projectNumber || '').toLowerCase().includes(q))
         if (matches.length === 0) return respond(res, `No projects match "${query}" in ${year}.`)
         if (matches.length === 1) {

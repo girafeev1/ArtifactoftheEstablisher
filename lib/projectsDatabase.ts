@@ -415,6 +415,34 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
   }
 }
 
+export const fetchProjectsForYear = async (year: string): Promise<ProjectRecord[]> => {
+  const trimmed = year.trim()
+  if (!YEAR_ID_PATTERN.test(trimmed)) {
+    return []
+  }
+  const list: ProjectRecord[] = []
+  // Prefer nested layout
+  try {
+    const snap = await getDocs(collection(projectsDb, PROJECTS_ROOT, trimmed, PROJECTS_SUBCOLLECTION))
+    if (!snap.empty) {
+      snap.forEach((doc) => {
+        const data = doc.data() as Record<string, unknown>
+        list.push(buildProjectRecord(trimmed, doc.id, data))
+      })
+    } else {
+      const legacy = await getDocs(collection(projectsDb, trimmed))
+      legacy.forEach((doc) => {
+        const data = doc.data() as Record<string, unknown>
+        list.push(buildProjectRecord(trimmed, doc.id, data))
+      })
+    }
+  } catch {
+    // ignore and return empty
+  }
+  list.sort((a, b) => a.projectNumber.localeCompare(b.projectNumber, undefined, { numeric: true }))
+  return list
+}
+
 const UPDATE_LOG_COLLECTION = 'updateLogs'
 
 const READ_ONLY_FIELDS = new Set(['id', 'year'])
