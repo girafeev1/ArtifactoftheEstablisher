@@ -524,7 +524,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try {
           const inYear = await fetchProjectsForYear(year)
           const components = projectSelectComponent(inYear, year, 0)
-          await followUp({ content: `Pick a project in ${year}:`, components, ephemeral: false })
+          const ok = await followUp({ content: `Pick a project in ${year}:`, components, ephemeral: false })
+          if (!ok) {
+            await postToThread(channelId, `Pick a project in ${year}:`, Array.isArray(components) ? components as any[] : [components as any])
+          }
         } catch (e) {
           await followUp({ content: 'Failed to load projects. Please try again.', ephemeral: true })
         }
@@ -541,7 +544,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try {
           const inYear = await fetchProjectsForYear(year)
           const components = projectSelectComponent(inYear, year, page)
-          await followUp({ content: `Pick a project in ${year}:`, components, ephemeral: false })
+          const ok = await followUp({ content: `Pick a project in ${year}:`, components, ephemeral: false })
+          if (!ok) {
+            await postToThread(channelId, `Pick a project in ${year}:`, Array.isArray(components) ? components as any[] : [components as any])
+          }
         } catch {
           await followUp({ content: 'Failed to paginate projects.', ephemeral: true })
         }
