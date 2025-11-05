@@ -187,6 +187,80 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (name === 'hello') {
       return respond(res, 'Hello from AOTE PMS 👋')
     }
+    if (name === 'threads') {
+      const token = process.env.DISCORD_BOT_TOKEN
+      if (!token) return respond(res, 'Missing DISCORD_BOT_TOKEN on server')
+      const scope = json.data?.options?.find((o: any) => o.name === 'type')?.value || 'active'
+      const limit = Math.max(1, Math.min(50, Number(json.data?.options?.find((o: any) => o.name === 'limit')?.value || 10)))
+      const guildId = json.guild_id as string
+      const channelId = json.channel_id as string
+
+      try {
+        if (scope === 'active') {
+          const r = await fetch(`${DISCORD_API}/guilds/${guildId}/threads/active`, {
+            headers: { Authorization: `Bot ${token}` },
+          })
+          if (!r.ok) {
+            const t = await r.text().catch(() => '')
+            return respond(res, `Failed to list active threads: ${r.status} ${t}`)
+          }
+          const data = await r.json() as any
+          const threads = (data.threads || []).filter((th: any) => th.parent_id === channelId).slice(0, limit)
+          if (!threads.length) return respond(res, 'No active threads found in this channel')
+          const lines = threads.map((th: any) => `• <#${th.id}> — ${th.name || '(no name)'} — by <@${th.owner_id || th.creator_id || 'unknown'}>`)
+          return respond(res, `Active threads (showing ${threads.length}):\n${lines.join('\n')}`, false)
+        } else {
+          const r = await fetch(`${DISCORD_API}/channels/${channelId}/threads/archived/public?limit=${limit}`, {
+            headers: { Authorization: `Bot ${token}` },
+          })
+          if (!r.ok) {
+            const t = await r.text().catch(() => '')
+            return respond(res, `Failed to list archived threads: ${r.status} ${t}`)
+          }
+          const data = await r.json() as any
+          const threads = (data.threads || []).slice(0, limit)
+          if (!threads.length) return respond(res, 'No archived threads found for this channel')
+          const lines = threads.map((th: any) => `• <#${th.id}> — ${th.name || '(no name)'} — archived at ${th.thread_metadata?.archive_timestamp || ''}`)
+          return respond(res, `Archived threads (showing ${threads.length}):\n${lines.join('\n')}`, false)
+        }
+      } catch (e: any) {
+        return respond(res, `Error listing threads: ${e?.message || 'unknown error'}`)
+      }
+    }
+    if (name === 'transcript') {
+      const token = process.env.DISCORD_BOT_TOKEN
+      if (!token) return respond(res, 'Missing DISCORD_BOT_TOKEN on server')
+      const count = Math.max(1, Math.min(50, Number(json.data?.options?.find((o: any) => o.name === 'count')?.value || 25)))
+      const optThread = json.data?.options?.find((o: any) => o.name === 'thread')?.value as string | undefined
+      const targetChannelId = optThread || (json.channel_id as string)
+
+      try {
+        const r = await fetch(`${DISCORD_API}/channels/${targetChannelId}/messages?limit=${count}`, {
+          headers: { Authorization: `Bot ${token}` },
+        })
+        if (!r.ok) {
+          const t = await r.text().catch(() => '')
+          return respond(res, `Failed to fetch messages: ${r.status} ${t}`)
+        }
+        const messages = await r.json() as any[]
+        // Format newest→oldest to oldest→newest
+        const ordered = messages.slice().reverse()
+        const rows = ordered.map((m) => {
+          const ts = new Date(m.timestamp).toLocaleString('en-US')
+          const author = m.author?.global_name || m.author?.username || m.author?.id || 'unknown'
+          const content = (m.content || '').replace(/\n/g, ' ')
+          return `[${ts}] ${author}: ${content}`.slice(0, 1800)
+        })
+        const body = rows.join('\n')
+        if (body.length < 1800) {
+          return respond(res, '```\n' + body + '\n```', true)
+        }
+        // For larger results, send as a truncated code block
+        return respond(res, '```\n' + body.slice(0, 1800) + '\n```\n(Truncated. Increase count in smaller increments.)', true)
+      } catch (e: any) {
+        return respond(res, `Error exporting transcript: ${e?.message || 'unknown error'}`)
+      }
+    }
     if (name === 'postmenu') {
       const token = process.env.DISCORD_BOT_TOKEN
       if (!token) return respond(res, 'Missing DISCORD_BOT_TOKEN on server')

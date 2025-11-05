@@ -74,6 +74,48 @@ async function main() {
         },
       ],
     },
+    {
+      name: 'threads',
+      description: 'List threads in this channel',
+      type: 1,
+      options: [
+        {
+          name: 'type',
+          description: 'active or archived',
+          type: 3, // STRING
+          required: false,
+          choices: [
+            { name: 'active', value: 'active' },
+            { name: 'archived', value: 'archived' },
+          ],
+        },
+        {
+          name: 'limit',
+          description: 'How many to show (max 50)',
+          type: 4, // INTEGER
+          required: false,
+        },
+      ],
+    },
+    {
+      name: 'transcript',
+      description: 'Export recent messages from this thread',
+      type: 1,
+      options: [
+        {
+          name: 'count',
+          description: 'How many messages (max 50)',
+          type: 4,
+          required: false,
+        },
+        {
+          name: 'thread',
+          description: 'Specific thread (defaults to current)',
+          type: 7, // CHANNEL
+          required: false,
+        },
+      ],
+    },
   ]
 
   const route = guild
