@@ -106,11 +106,23 @@ function subsidiarySelectComponent() {
 }
 
 function buildProjectOptions(projects: ProjectRecord[]) {
-  return projects.slice(0, 25).map((p) => ({
-    label: `${p.projectNumber} — ${p.presenterWorkType ?? p.projectTitle ?? ''}`.slice(0, 100),
-    value: `${p.year}::${p.id}`,
-    description: (p.projectTitle ?? p.projectNature ?? '')?.slice(0, 100) || undefined,
-  }))
+  return projects.slice(0, 25).map((p) => {
+    const line1Left = p.projectNumber
+    const presenter = p.presenterWorkType || ''
+    const title = p.projectTitle || ''
+    const line1Right = presenter && title ? `${presenter} - ${title}` : presenter || title
+    const label = line1Right ? `${line1Left} | ${line1Right}` : `${line1Left}`
+
+    const nature = p.projectNature || ''
+    const pickup = p.projectDateDisplay || ''
+    const desc = nature && pickup ? `${nature} / ${pickup}` : nature || pickup || undefined
+
+    return {
+      label: label.slice(0, 100),
+      value: `${p.year}::${p.id}`,
+      description: desc ? desc.slice(0, 100) : undefined,
+    }
+  })
 }
 
 function projectSelectComponent(projects: ProjectRecord[], year: string, page = 0) {
@@ -495,16 +507,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const { projects } = await fetchProjectsFromDatabase()
         const inYear = projects.filter((p) => p.year === year)
         const component = projectSelectComponent(inYear, year, 0)
-        const embed = {
-          title: `Projects in ${year}`,
-          color: 0x28527A,
-          fields: inYear.slice(0, 10).map((p) => ({
-            name: `${p.projectNumber}`,
-            value: `Presenter/Work Type: ${p.presenterWorkType || '—'}\nTitle: ${p.projectTitle || '—'}\nNature: ${p.projectNature || '—'}`,
-            inline: false,
-          })),
-        }
-        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { embeds: [embed], components: [component] } })
+        return res.status(200).json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: `Pick a project in ${year}:`, components: [component] } })
       } catch (e) {
         return respond(res, 'Failed to load projects. Please try again.')
       }
@@ -520,36 +523,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const values = (json.data?.values || []) as string[]
       const [year, projectId] = (values[0] || '').split('::')
       if (!year || !projectId) return respond(res, 'Invalid project selection')
-      ;(async () => {
-        try {
-          const { projects } = await fetchProjectsFromDatabase()
-          const p = projects.find((x) => x.year === year && x.id === projectId)
-          if (!p) {
-            await followUp({ content: 'Project not found', ephemeral: true })
-            return
-          }
-          // Multi-message details in thread
-          const header = `Project ${p.projectNumber}${p.projectDateDisplay ? ` · ${p.projectDateDisplay}` : ''}\nPresenter/Work Type: ${p.presenterWorkType || '—'}\nTitle: ${p.projectTitle || '—'}\nNature: ${p.projectNature || '—'}`
-          await postToThread(channelId, header)
-          const client = `Client: ${p.clientCompany || '—'}`
-          await postToThread(channelId, client)
-          const billing = `Invoice: ${p.invoice || '—'}\nStatus: ${p.paymentStatus || '—'}\nAmount: ${p.amount != null ? String(p.amount) : '—'}\nBank: ${p.paidTo || '—'}`
-          const actions = [
-            {
-              type: 1,
-              components: [
-                { type: 2, style: 1, label: 'Edit Client Name', custom_id: `edit_client:${year}:${projectId}` },
-                { type: 2, style: 1, label: 'Open Invoices', custom_id: `open_invoices:${year}:${projectId}` },
-              ],
-            },
-          ]
-          await postToThread(channelId, billing, actions)
-          await followUp({ content: 'Posted project details in the thread.', ephemeral: true })
-        } catch (e) {
-          await followUp({ content: 'Failed to load project details', ephemeral: true })
-        }
-      })()
-      return res.status(200).json({ type: DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE })
+      try {
+        const { projects } = await fetchProjectsFromDatabase()
+        const p = projects.find((x) => x.year === year && x.id === projectId)
+        if (!p) return respond(res, 'Project not found')
+        // Multi-message details in thread
+        const header = `Project ${p.projectNumber}${p.projectDateDisplay ? ` · ${p.projectDateDisplay}` : ''}\nPresenter/Work Type: ${p.presenterWorkType || '—'}\nTitle: ${p.projectTitle || '—'}\nNature: ${p.projectNature || '—'}`
+        await postToThread(channelId, header)
+        const client = `Client: ${p.clientCompany || '—'}`
+        await postToThread(channelId, client)
+        const billing = `Invoice: ${p.invoice || '—'}\nStatus: ${p.paymentStatus || '—'}\nAmount: ${p.amount != null ? String(p.amount) : '—'}\nBank: ${p.paidTo || '—'}`
+        const actions = [
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 1, label: 'Edit Client Name', custom_id: `edit_client:${year}:${projectId}` },
+              { type: 2, style: 1, label: 'Open Invoices', custom_id: `open_invoices:${year}:${projectId}` },
+            ],
+          },
+        ]
+        await postToThread(channelId, billing, actions)
+        return res.status(200).json({ type: DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE })
+      } catch (e) {
+        return respond(res, 'Failed to load project details')
+      }
     }
     // Open invoices for selected project
     if (typeof customId === 'string' && customId.startsWith('open_invoices:')) {
