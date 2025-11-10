@@ -78,9 +78,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
       if (!year) {
-        // Fallback: prompt
         return res.status(200).json({ response_type: 'ephemeral', text: 'Please select a year first.' })
       }
+      // Ack immediately to avoid timeouts, then send projects via response_url
+      res.status(200).json({ response_type: 'ephemeral', text: `Loading projects for ${year}…` })
       try {
         const projects = await fetchProjectsForYear(year)
         const options = buildProjectOptions(projects)
@@ -98,10 +99,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             ],
           },
         ]
-        return res.status(200).json({ response_type: 'ephemeral', replace_original: false, blocks })
-      } catch {
-        return res.status(200).json({ response_type: 'ephemeral', text: 'Failed to load projects.' })
-      }
+        if (responseUrl) {
+          await fetch(responseUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ response_type: 'ephemeral', replace_original: true, blocks }),
+          })
+        }
+      } catch {}
+      return
     }
 
     if (action.action_id === 'year_select') {
@@ -129,4 +135,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(200).end()
 }
-

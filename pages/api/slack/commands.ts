@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import crypto from 'crypto'
-import { fetchProjectsFromDatabase } from '../../../lib/projectsDatabase'
 
 export const config = {
   api: { bodyParser: false },
@@ -58,12 +57,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 
-  // Preload years list quickly to render menu
-  let yearOptions: any[] = []
-  try {
-    const { years } = await fetchProjectsFromDatabase()
-    yearOptions = years.map((y) => ({ text: { type: 'plain_text', text: y }, value: y })).slice(0, 100)
-  } catch {}
+  // Return instantly with a small static years list to avoid timeouts
+  const staticYears = ['2025', '2024', '2023', '2022', '2021']
+  const yearOptions = staticYears.map((y) => ({ text: { type: 'plain_text', text: y }, value: y }))
 
   const blocks = [
     { type: 'section', text: { type: 'mrkdwn', text: `Welcome to AOTE PMS <@${userId}>` } },
@@ -83,4 +79,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(200).json({ response_type: 'ephemeral', blocks })
 }
-
