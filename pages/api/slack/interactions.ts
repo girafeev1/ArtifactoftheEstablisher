@@ -48,12 +48,13 @@ function buildProjectOptions(projects: ProjectRecord[]) {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end('Method Not Allowed')
   const raw = await readRawBody(req)
-  if (!verifySlack(req, raw)) return res.status(401).end('Bad signature')
-
   const form = raw.toString('utf8')
   const payloadStr = decodeURIComponent((form.split('payload=')[1] || '').replace(/\+/g, ' '))
   let payload: any
   try { payload = JSON.parse(payloadStr) } catch { return res.status(200).end() }
+  const legacyToken = payload?.token
+  const tokenOk = legacyToken && legacyToken === (process.env.SLACK_VERIFICATION_TOKEN || '')
+  if (!verifySlack(req, raw) && !tokenOk) return res.status(401).end('Bad signature')
 
   // Handle block actions
   if (payload.type === 'block_actions') {

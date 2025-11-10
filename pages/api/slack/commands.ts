@@ -44,9 +44,11 @@ function parseForm(body: string): Record<string, string> {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end('Method Not Allowed')
   const raw = await readRawBody(req)
-  if (!verifySlack(req, raw)) return res.status(401).end('Bad signature')
-
-  const form = parseForm(raw.toString('utf8'))
+  const formStr = raw.toString('utf8')
+  const form = parseForm(formStr)
+  const legacyToken = form.token
+  const tokenOk = legacyToken && legacyToken === (process.env.SLACK_VERIFICATION_TOKEN || '')
+  if (!verifySlack(req, raw) && !tokenOk) return res.status(401).end('Bad signature')
   const command = form.command
   const userId = form.user_id
   const responseUrl = form.response_url
@@ -79,7 +81,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   ]
 
   // Ack immediately to avoid dispatch_failed, then post via response_url
-  res.status(200).send('')
+  res.setHeader('Content-Type', 'text/plain')
+  res.status(200).send('OK')
   try {
     if (responseUrl) {
       await fetch(responseUrl, {
