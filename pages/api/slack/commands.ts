@@ -49,6 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const form = parseForm(raw.toString('utf8'))
   const command = form.command
   const userId = form.user_id
+  const responseUrl = form.response_url
 
   if (command !== '/menu') {
     return res.status(200).json({
@@ -77,5 +78,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   ]
 
-  return res.status(200).json({ response_type: 'ephemeral', blocks })
+  // Ack immediately to avoid dispatch_failed, then post via response_url
+  res.status(200).send('')
+  try {
+    if (responseUrl) {
+      await fetch(responseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response_type: 'ephemeral', blocks }),
+      })
+    }
+  } catch {}
+  return
 }
