@@ -68,10 +68,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const staticYears = ['2025', '2024', '2023', '2022', '2021']
   const yearOptions = staticYears.map((y) => ({ text: { type: 'plain_text', text: y }, value: y }))
 
-  const blocks = [
-    { type: 'section', text: { type: 'mrkdwn', text: `Welcome to AOTE PMS <@${userId}>` } },
+  const menuBlocks = [
+    { type: 'section', block_id: 'menu_header', text: { type: 'mrkdwn', text: `Welcome to AOTE PMS <@${userId}>` } },
     {
       type: 'actions',
+      block_id: 'menu_actions',
       elements: [
         {
           type: 'static_select',
@@ -84,7 +85,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   ]
 
-  // Return the full menu immediately as JSON (ephemeral) to satisfy the client
+  // 1) Return a minimal-safe ephemeral message immediately to avoid dispatch_failed
   res.setHeader('Content-Type', 'application/json')
-  return res.status(200).json({ response_type: 'ephemeral', blocks })
+  res.status(200).json({
+    response_type: 'ephemeral',
+    text: 'Menu loaded.',
+    blocks: [ { type: 'section', block_id: 'menu_ack', text: { type: 'mrkdwn', text: 'Menu loaded.' } } ],
+  })
+
+  // 2) Then post the full menu via response_url
+  try {
+    if (responseUrl) {
+      await fetch(responseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response_type: 'ephemeral', replace_original: true, blocks: menuBlocks }),
+      })
+    }
+  } catch {}
+  return
 }
