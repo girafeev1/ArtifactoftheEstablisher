@@ -84,17 +84,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   ]
 
-  // Ack immediately to avoid dispatch_failed, then post via response_url
-  res.setHeader('Content-Type', 'text/plain')
-  res.status(200).send('OK')
-  try {
-    if (responseUrl) {
-      await fetch(responseUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ response_type: 'ephemeral', blocks }),
-      })
-    }
-  } catch {}
-  return
+  // Return the full menu immediately as JSON (ephemeral) to satisfy the client
+  res.setHeader('Content-Type', 'application/json')
+  return res.status(200).json({ response_type: 'ephemeral', blocks })
 }
