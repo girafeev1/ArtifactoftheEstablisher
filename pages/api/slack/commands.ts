@@ -46,8 +46,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const raw = await readRawBody(req)
   const formStr = raw.toString('utf8')
   const form = parseForm(formStr)
-  const legacyToken = form.token
-  const tokenOk = legacyToken && legacyToken === (process.env.SLACK_VERIFICATION_TOKEN || '')
+  const legacyToken = (form.token || '').trim()
+  const envToken = (process.env.SLACK_VERIFICATION_TOKEN || '').trim()
+  const tokenOk = !!legacyToken && !!envToken && legacyToken === envToken
   if (!verifySlack(req, raw) && !tokenOk) return res.status(401).end('Bad signature')
   const command = form.command
   const userId = form.user_id
