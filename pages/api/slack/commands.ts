@@ -87,11 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // 1) Return a minimal-safe ephemeral message immediately to avoid dispatch_failed
   res.setHeader('Content-Type', 'application/json')
-  res.status(200).json({
-    response_type: 'ephemeral',
-    text: 'Menu loaded.',
-    blocks: [ { type: 'section', block_id: 'menu_ack', text: { type: 'mrkdwn', text: 'Menu loaded.' } } ],
-  })
+  res.status(200).json({ response_type: 'ephemeral', text: 'Menu loaded…' })
 
   // 2) Then post the full menu via response_url
   try {
