@@ -45,3 +45,4 @@ The legacy files `.env.preview` and `.env.production` were removed to avoid ambi
 
 If any code path needs an additional variable, add it to `.env.example` under the appropriate section.
 Deployer ping: 2025-11-05T12:42:16Z
+Slack allowUnverified flip: 2025-11-11T13:49:06Z
