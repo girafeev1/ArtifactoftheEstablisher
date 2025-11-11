@@ -87,11 +87,12 @@ async function handleProjectDetails(token: string, chatId: number, year: string,
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const token = process.env.TELEGRAM_BOT_TOKEN || ''
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET || ''
+  const allowUnverified = (process.env.TELEGRAM_ALLOW_UNVERIFIED || '') === '1'
   if (!token) return res.status(200).end('ok')
 
-  // Verify optional webhook secret header
+  // Verify optional webhook secret header (allow bypass when explicitly enabled)
   const hdr = (req.headers['x-telegram-bot-api-secret-token'] || '') as string
-  if (secret && hdr !== secret) return res.status(200).end('ok')
+  if (secret && hdr !== secret && !allowUnverified) return res.status(200).end('ok')
 
   const raw = await readRawBody(req)
   let update: any
@@ -143,4 +144,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 }
-
