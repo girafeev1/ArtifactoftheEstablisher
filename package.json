@@ -38,7 +38,6 @@
     "react-sortablejs": "^6.1.4",
     "sortablejs": "^1.15.6",
     "stream-browserify": "^3.0.0",
-    "tweetnacl": "^1.0.3",
     "url": "^0.11.4",
     "whatwg-url": "^14.0.0"
   },
@@ -61,8 +60,7 @@
     "strip:cache-fields": "node scripts/strip-cache-fields.js",
     "migrate:clients:address5to4": "node scripts/migrate-clients-address-line5-to-4.js",
     "cleanup:clients:remove-address4-5": "node scripts/cleanup-clients-remove-address4-5.js",
-    "capture:page": "node scripts/puppeteer-capture.js",
-    "discord:register": "node scripts/discord-register-commands.js"
+    "capture:page": "node scripts/puppeteer-capture.js"
   },
   "author": "",
   "license": "ISC",

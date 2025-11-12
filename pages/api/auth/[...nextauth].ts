@@ -1,7 +1,6 @@
 import type { NextAuthOptions } from 'next-auth'
 import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import DiscordProvider from 'next-auth/providers/discord'
 
 import {
   firebaseAdminAuth,
@@ -12,10 +11,6 @@ import { loadSecrets } from '../../../lib/server/secretManager'
 async function buildAuthOptions(): Promise<NextAuthOptions> {
   const { secrets } = await loadSecrets()
 
-  const enableDiscord =
-    process.env.ENABLE_DISCORD_WEB_AUTH === '1' &&
-    !!process.env.DISCORD_CLIENT_ID &&
-    !!process.env.DISCORD_CLIENT_SECRET
 
   const providers = [
       CredentialsProvider({
@@ -88,14 +83,7 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
       }),
     ] as NextAuthOptions['providers']
 
-  if (enableDiscord) {
-    providers.unshift(
-      DiscordProvider({
-        clientId: process.env.DISCORD_CLIENT_ID || '',
-        clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
-      })
-    )
-  }
+  // Discord web OAuth removed
 
   return {
     providers,
