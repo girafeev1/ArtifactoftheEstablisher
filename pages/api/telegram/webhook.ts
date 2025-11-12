@@ -31,6 +31,18 @@ async function tgSendMessage(
   }
 }
 
+async function tgAnswerCallback(token: string, callbackQueryId: string, text?: string) {
+  try {
+    await fetch(`${TELEGRAM_API(token)}/answerCallbackQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: callbackQueryId, text: text || '', show_alert: false }),
+    })
+  } catch {
+    // ignore
+  }
+}
+
 function formatProjectButtonText(p: ProjectRecord): string {
   const parts: string[] = []
   const head = p.projectNumber || p.id
@@ -58,30 +70,42 @@ function buildProjectsKeyboard(year: string, projects: ProjectRecord[], page = 1
 }
 
 async function handleYearSelected(token: string, chatId: number, year: string) {
-  const projects = await fetchProjectsForYear(year)
-  if (!projects.length) {
-    await tgSendMessage(token, chatId, `No projects found for ${year}.`)
-    return
+  try {
+    console.info('[tg] year selected', { year })
+    const projects = await fetchProjectsForYear(year)
+    console.info('[tg] projects fetched', { year, count: projects.length })
+    if (!projects.length) {
+      await tgSendMessage(token, chatId, `No projects found for ${year}.`)
+      return
+    }
+    const kb = buildProjectsKeyboard(year, projects, 1)
+    await tgSendMessage(token, chatId, `Projects in ${year}:`, kb)
+  } catch (e: any) {
+    console.error('[tg] failed to list projects', { year, error: e?.message || String(e) })
+    await tgSendMessage(token, chatId, `Sorry, failed to load projects for ${year}. Please try again.`)
   }
-  const kb = buildProjectsKeyboard(year, projects, 1)
-  await tgSendMessage(token, chatId, `Projects in ${year}:`, kb)
 }
 
 async function handleProjectDetails(token: string, chatId: number, year: string, projectId: string) {
-  const list = await fetchProjectsForYear(year)
-  const p = list.find((x) => x.id === projectId)
-  if (!p) {
-    await tgSendMessage(token, chatId, 'Project not found. Please go back and pick another.')
-    return
+  try {
+    const list = await fetchProjectsForYear(year)
+    const p = list.find((x) => x.id === projectId)
+    if (!p) {
+      await tgSendMessage(token, chatId, 'Project not found. Please go back and pick another.')
+      return
+    }
+    const lines = [
+      `${p.projectNumber} ${p.projectDateDisplay ? '/ ' + p.projectDateDisplay : ''}`.trim(),
+      [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' — '),
+      p.projectNature || '',
+      p.clientCompany ? `Client: ${p.clientCompany}` : '',
+      p.paymentStatus ? `Status: ${p.paymentStatus}` : '',
+    ].filter(Boolean)
+    await tgSendMessage(token, chatId, lines.join('\n'))
+  } catch (e: any) {
+    console.error('[tg] failed to load project details', { year, projectId, error: e?.message || String(e) })
+    await tgSendMessage(token, chatId, 'Sorry, failed to load that project. Please try again.')
   }
-  const lines = [
-    `${p.projectNumber} ${p.projectDateDisplay ? '/ ' + p.projectDateDisplay : ''}`.trim(),
-    [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' — '),
-    p.projectNature || '',
-    p.clientCompany ? `Client: ${p.clientCompany}` : '',
-    p.paymentStatus ? `Status: ${p.paymentStatus}` : '',
-  ].filter(Boolean)
-  await tgSendMessage(token, chatId, lines.join('\n'))
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -152,6 +176,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (cq && cq.data) {
     const data: string = cq.data
     const chatId = cq.message?.chat?.id as number
+    const cqid = cq.id as string
+    // Always acknowledge the callback to stop Telegram's loading spinner
+    if (cqid) {
+      tgAnswerCallback(token, cqid).catch(() => {})
+    }
     if (data.startsWith('Y:')) {
       const year = data.split(':')[1]
       await handleYearSelected(token, chatId, year)
