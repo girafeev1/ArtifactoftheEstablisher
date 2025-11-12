@@ -224,8 +224,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).end('ok')
   }
 
-  // Always ACK immediately
-  res.status(200).end('ok')
+  // IMPORTANT: Do not end the response yet. Vercel may freeze the
+  // function after res.end(), preventing follow-up async work.
+  // We'll end with 200 at the very end of processing.
 
   const msg = update.message
   const cq = update.callback_query
@@ -252,7 +253,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const years = ['2025', '2024', '2023', '2022', '2021']
       const keyboard = years.map((y) => [{ text: y, callback_data: `Y:${y}` }])
       await tgSendMessage(token, chatId, 'Select a year:', { inline_keyboard: keyboard })
-      return
+      return res.status(200).end('ok')
     }
   }
 
@@ -266,8 +267,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.startsWith('Y:')) {
       const year = data.split(':')[1]
+      // Optionally send a quick loading hint; comment out if not desired
+      try { await tgSendMessage(token, chatId, `Loading projects for ${year}…`) } catch {}
       await handleYearSelected(token, chatId, year)
-      return
+      return res.status(200).end('ok')
     }
     if (data.startsWith('PG:')) {
       // Pagination: PG:<year>:<page>
@@ -276,12 +279,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const projects = await adminFetchProjectsForYear(year)
       const kb = buildProjectsKeyboard(year, projects, page)
       await tgSendMessage(token, chatId, `Projects in ${year}:`, kb)
-      return
+      return res.status(200).end('ok')
     }
     if (data.startsWith('P:')) {
       const [, year, projectId] = data.split(':')
       await handleProjectDetails(token, chatId, year, projectId)
-      return
+      return res.status(200).end('ok')
     }
   }
+
+  // Default ack
+  return res.status(200).end('ok')
 }
