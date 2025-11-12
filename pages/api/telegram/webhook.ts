@@ -92,12 +92,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Telegram may probe with GET/HEAD; always 200 to avoid 405s
   if (req.method && req.method !== 'POST') {
+    console.info('[tg] webhook probe', {
+      method: req.method,
+      hasSecretHeader: !!req.headers['x-telegram-bot-api-secret-token'],
+    })
     return res.status(200).end('ok')
   }
 
   // Verify optional webhook secret header (allow bypass when explicitly enabled)
   const hdr = (req.headers['x-telegram-bot-api-secret-token'] || '') as string
-  if (secret && hdr !== secret && !allowUnverified) return res.status(200).end('ok')
+  if (secret && hdr !== secret && !allowUnverified) {
+    console.warn('[tg] webhook drop: secret mismatch', {
+      hasHeader: !!hdr,
+      matches: hdr === secret,
+    })
+    return res.status(200).end('ok')
+  }
 
   const raw = await readRawBody(req)
   let update: any
@@ -112,6 +122,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const msg = update.message
   const cq = update.callback_query
+
+  try {
+    const meta = {
+      update_id: update.update_id,
+      kind: msg ? 'message' : cq ? 'callback_query' : 'other',
+      from: msg?.from?.id || cq?.from?.id || null,
+      chat: msg?.chat?.id || cq?.message?.chat?.id || null,
+      text: msg?.text || null,
+      data: cq?.data || null,
+    }
+    console.info('[tg] update', meta)
+  } catch {
+    // ignore logging failures
+  }
 
   if (msg && msg.text) {
     const chatId = msg.chat?.id as number
