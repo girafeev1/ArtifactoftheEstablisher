@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { type ProjectRecord } from '../../../lib/projectsDatabase'
+import { fetchInvoicesForProject, type ProjectInvoiceRecord } from '../../../lib/projectInvoices'
 import { getAdminFirestore } from '../../../lib/firebaseAdmin'
 import { PROJECTS_FIRESTORE_DATABASE_ID } from '../../../lib/firebase'
 
@@ -60,19 +61,6 @@ async function tgAnswerCallback(token: string, callbackQueryId: string, text?: s
   }
 }
 
-async function tgSendChatAction(token: string, chatId: number | string, action: string = 'typing') {
-  try {
-    const resp = await fetch(`${TELEGRAM_API(token)}/sendChatAction`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, action }),
-    })
-    if (!resp.ok) {
-      console.warn('[tg] sendChatAction failed', { status: resp.status, statusText: resp.statusText })
-    }
-  } catch {}
-}
-
 async function tgEditMessage(
   token: string,
   chatId: number | string,
@@ -120,6 +108,17 @@ function buildProjectsKeyboard(year: string, projects: ProjectRecord[], page = 1
   }
   if (nav.length) rows.push(nav)
   return { inline_keyboard: rows }
+}
+
+function buildYearsKeyboard(years: string[]) {
+  const rows = years.map((y) => [{ text: y, callback_data: `Y:${y}` }])
+  return { inline_keyboard: rows }
+}
+
+function welcomeText(): string {
+  return (
+    'Welcome to the Artificat of the Establishers.  To locate the project you\'re looking for, please select the year the project was picked up:'
+  )
 }
 
 async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]> {
@@ -207,9 +206,74 @@ async function buildProjectDetailsText(year: string, projectId: string): Promise
     `${p.projectNumber} ${p.projectDateDisplay ? '/ ' + p.projectDateDisplay : ''}`.trim(),
     [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' — '),
     p.projectNature || '',
+    p.subsidiary ? `${p.subsidiary}` : '',
     p.clientCompany ? `Client: ${p.clientCompany}` : '',
     p.paymentStatus ? `Status: ${p.paymentStatus}` : '',
   ].filter(Boolean)
+  return lines.join('\n')
+}
+
+async function buildInvoicesKeyboard(year: string, projectId: string) {
+  try {
+    const invoices: ProjectInvoiceRecord[] = await fetchInvoicesForProject(year, projectId)
+    if (!invoices || invoices.length === 0) {
+      return { inline_keyboard: [[{ text: 'No invoices', callback_data: 'NOP' }], [{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }]] }
+    }
+    const rows = invoices.map((inv) => [
+      { text: inv.invoiceNumber, callback_data: `INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` },
+    ])
+    rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }])
+    return { inline_keyboard: rows }
+  } catch (e: any) {
+    console.error('[tg] failed to fetch invoices', { year, projectId, error: e?.message || String(e) })
+    return { inline_keyboard: [[{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }]] }
+  }
+}
+
+function formatMoney(n: number | null | undefined): string {
+  if (typeof n !== 'number' || Number.isNaN(n)) return '-'
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+}
+
+async function buildInvoiceDetailsText(year: string, projectId: string, invoiceNumber: string): Promise<string> {
+  const list: ProjectInvoiceRecord[] = await fetchInvoicesForProject(year, projectId)
+  const inv = list.find((i) => i.invoiceNumber === decodeURIComponent(invoiceNumber))
+  if (!inv) return 'Invoice not found.'
+  const lines: string[] = []
+  lines.push(`${inv.invoiceNumber}`)
+  lines.push(`Amount: ${formatMoney(inv.amount)}${inv.paymentStatus ? ` [${inv.paymentStatus}]` : ''}`)
+  if (inv.paidTo) lines.push(`To: ${inv.paidTo}`)
+  if (inv.companyName) {
+    lines.push('')
+    lines.push(inv.companyName)
+    if (inv.addressLine1) lines.push(inv.addressLine1)
+    if (inv.addressLine2) lines.push(inv.addressLine2)
+    if (inv.addressLine3 || inv.region) {
+      const addr3 = inv.addressLine3 ? inv.addressLine3 : ''
+      const reg = inv.region ? inv.region : ''
+      lines.push([addr3, reg].filter(Boolean).join(', '))
+    }
+    if (inv.representative) lines.push(`ATTN: ${inv.representative}`)
+  }
+  if (inv.items && inv.items.length > 0) {
+    lines.push('')
+    lines.push('Item *:')
+    inv.items.forEach((it) => {
+      const title = [it.title].filter(Boolean).join(' ')
+      const qtyLine = `${title}${it.subQuantity ? ` x${it.subQuantity}` : ''}`
+      if (qtyLine.trim()) lines.push(qtyLine)
+      const ft = it.feeType ? `${it.feeType}` : ''
+      if (ft) lines.push(ft)
+      const notes = it.notes ? `${it.notes}` : ''
+      if (notes) lines.push(notes)
+      const unit = typeof it.unitPrice === 'number' ? formatMoney(it.unitPrice) : '-'
+      const qty = typeof it.quantity === 'number' ? it.quantity : 0
+      const lineTotal = typeof it.unitPrice === 'number' && typeof it.quantity === 'number' ? formatMoney(it.unitPrice * it.quantity) : '-'
+      lines.push(`${unit} x ${qty}`)
+      lines.push(`${lineTotal}`)
+      lines.push('')
+    })
+  }
   return lines.join('\n')
 }
 
@@ -271,10 +335,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const chatId = msg.chat?.id as number
     const text = (msg.text as string).trim()
     if (text === '/start' || text === '/menu') {
-      // Static year list (fast) — can later fetch from DB if needed
       const years = ['2025', '2024', '2023', '2022', '2021']
-      const keyboard = years.map((y) => [{ text: y, callback_data: `Y:${y}` }])
-      await tgSendMessage(token, chatId, 'Select a year:', { inline_keyboard: keyboard })
+      await tgSendMessage(token, chatId, welcomeText(), buildYearsKeyboard(years))
       return res.status(200).end('ok')
     }
   }
@@ -290,15 +352,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.startsWith('Y:')) {
       const year = data.split(':')[1]
-      // Show typing indicator instead of sending a loading text message
-      await tgSendChatAction(token, chatId, 'typing')
       // Replace the controller message in-place
       try {
         const { kb, count } = await buildProjectsKeyboardForYear(year)
         if (!kb) {
           await tgEditMessage(token, chatId, msgId, `No projects found for ${year}.`)
         } else {
-          await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, kb)
+          // Add back to years button
+          const rows = (kb.inline_keyboard as any[])
+          rows.push([{ text: '⬅ Back', callback_data: 'BK:YEARS' }])
+          await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: rows })
         }
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, `Sorry, failed to load projects for ${year}.`)
@@ -309,21 +372,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Pagination: PG:<year>:<page>
       const [, year, pageStr] = data.split(':')
       const page = parseInt(pageStr || '1', 10) || 1
-      await tgSendChatAction(token, chatId, 'typing')
       const projects = await adminFetchProjectsForYear(year)
       const kb = buildProjectsKeyboard(year, projects, page)
-      await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, kb)
+      const rows = (kb.inline_keyboard as any[])
+      rows.push([{ text: '⬅ Back', callback_data: `BK:YEARS` }])
+      await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: rows })
       return res.status(200).end('ok')
     }
     if (data.startsWith('P:')) {
       const [, year, projectId] = data.split(':')
-      await tgSendChatAction(token, chatId, 'typing')
       try {
         const text = await buildProjectDetailsText(year, projectId)
-        await tgEditMessage(token, chatId, msgId, text)
+        const invKb = await buildInvoicesKeyboard(year, projectId)
+        // Add back button to projects
+        const rows = (invKb.inline_keyboard as any[])
+        rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }])
+        await tgEditMessage(token, chatId, msgId, text, { inline_keyboard: rows })
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load that project. Please try again.')
       }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('INV:')) {
+      const [, year, projectId, encInvoice] = data.split(':')
+      try {
+        const text = await buildInvoiceDetailsText(year, projectId, encInvoice)
+        // Back to invoice list and project
+        const rows = [[{ text: '⬅ Back', callback_data: `P:${year}:${projectId}` }]]
+        await tgEditMessage(token, chatId, msgId, text, { inline_keyboard: rows })
+      } catch (e: any) {
+        await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load invoice.')
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('BK:YEARS')) {
+      const years = ['2025', '2024', '2023', '2022', '2021']
+      await tgEditMessage(token, chatId, msgId, welcomeText(), buildYearsKeyboard(years))
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('BK:PROJ:')) {
+      const [, , year, pageStr] = data.split(':')
+      const page = parseInt(pageStr || '1', 10) || 1
+      const projects = await adminFetchProjectsForYear(year)
+      const kb = buildProjectsKeyboard(year, projects, page)
+      const rows = (kb.inline_keyboard as any[])
+      rows.push([{ text: '⬅ Back', callback_data: 'BK:YEARS' }])
+      await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: rows })
       return res.status(200).end('ok')
     }
   }
