@@ -258,7 +258,7 @@ async function buildInvoiceDetailsText(year: string, projectId: string, invoiceN
   const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   const lines: string[] = []
   // Title
-  lines.push(`<b>Invoice #:</b> #${esc(inv.invoiceNumber)}`)
+  lines.push(`<b>Invoice:</b> #${esc(inv.invoiceNumber)}`)
   // Client block
   if (inv.companyName) {
     lines.push('')
@@ -282,16 +282,18 @@ async function buildInvoiceDetailsText(year: string, projectId: string, invoiceN
       const subq = it.subQuantity ? ` x<i>${esc(it.subQuantity)}</i>` : ''
       const first = `${title}${subq}`.trim()
       if (first) lines.push(first)
-      if (it.feeType) lines.push(esc(it.feeType))
+      if (it.feeType) lines.push(`<i>${esc(it.feeType)}</i>`) // fee type italic
       if (it.notes) lines.push(esc(it.notes))
       const unit = typeof it.unitPrice === 'number' ? formatMoney(it.unitPrice) : '-'
       const qty = typeof it.quantity === 'number' ? it.quantity : 0
       const unitSuffix = it.quantityUnit ? `/${esc(it.quantityUnit)}` : ''
-      lines.push(`${unit} x ${qty}${unitSuffix}`)
-      // blank line then line total in bold+italic
-      const lineTotal = typeof it.unitPrice === 'number' && typeof it.quantity === 'number' ? formatMoney(it.unitPrice * it.quantity) : '-'
+      // blank line, then italic calc = bold total
+      const lineTotal =
+        typeof it.unitPrice === 'number' && typeof it.quantity === 'number'
+          ? formatMoney(it.unitPrice * it.quantity)
+          : '-'
       lines.push('')
-      lines.push(`<b><i>${lineTotal}</i></b>`)
+      lines.push(`<i>${unit} x ${qty}${unitSuffix}</i> = <b>${lineTotal}</b>`) // calc line per spec
       lines.push('')
     })
   }
