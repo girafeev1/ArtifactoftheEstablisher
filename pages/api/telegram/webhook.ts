@@ -187,44 +187,30 @@ async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]>
   return out
 }
 
-async function handleYearSelected(token: string, chatId: number, year: string) {
-  try {
-    console.info('[tg] year selected', { year })
-    // Use Admin SDK to avoid client SDK/network issues on serverless
-    const projects = await adminFetchProjectsForYear(year)
-    console.info('[tg] projects fetched', { year, count: projects.length })
-    if (!projects.length) {
-      await tgSendMessage(token, chatId, `No projects found for ${year}.`)
-      return
-    }
-    const kb = buildProjectsKeyboard(year, projects, 1)
-    await tgSendMessage(token, chatId, `Projects in ${year}:`, kb)
-  } catch (e: any) {
-    console.error('[tg] failed to list projects', { year, error: e?.message || String(e) })
-    await tgSendMessage(token, chatId, `Sorry, failed to load projects for ${year}. Please try again.`)
+// build helper only; do not send messages here to avoid duplication
+async function buildProjectsKeyboardForYear(year: string) {
+  console.info('[tg] year selected', { year })
+  const projects = await adminFetchProjectsForYear(year)
+  console.info('[tg] projects fetched', { year, count: projects.length })
+  if (!projects.length) {
+    return { kb: null as any, count: 0 }
   }
+  const kb = buildProjectsKeyboard(year, projects, 1)
+  return { kb, count: projects.length }
 }
 
-async function handleProjectDetails(token: string, chatId: number, year: string, projectId: string) {
-  try {
-    const list = await adminFetchProjectsForYear(year)
-    const p = list.find((x) => x.id === projectId)
-    if (!p) {
-      await tgSendMessage(token, chatId, 'Project not found. Please go back and pick another.')
-      return
-    }
-    const lines = [
-      `${p.projectNumber} ${p.projectDateDisplay ? '/ ' + p.projectDateDisplay : ''}`.trim(),
-      [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' — '),
-      p.projectNature || '',
-      p.clientCompany ? `Client: ${p.clientCompany}` : '',
-      p.paymentStatus ? `Status: ${p.paymentStatus}` : '',
-    ].filter(Boolean)
-    await tgSendMessage(token, chatId, lines.join('\n'))
-  } catch (e: any) {
-    console.error('[tg] failed to load project details', { year, projectId, error: e?.message || String(e) })
-    await tgSendMessage(token, chatId, 'Sorry, failed to load that project. Please try again.')
-  }
+async function buildProjectDetailsText(year: string, projectId: string): Promise<string> {
+  const list = await adminFetchProjectsForYear(year)
+  const p = list.find((x) => x.id === projectId)
+  if (!p) return 'Project not found. Please go back and pick another.'
+  const lines = [
+    `${p.projectNumber} ${p.projectDateDisplay ? '/ ' + p.projectDateDisplay : ''}`.trim(),
+    [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' — '),
+    p.projectNature || '',
+    p.clientCompany ? `Client: ${p.clientCompany}` : '',
+    p.paymentStatus ? `Status: ${p.paymentStatus}` : '',
+  ].filter(Boolean)
+  return lines.join('\n')
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -306,12 +292,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const year = data.split(':')[1]
       // Show typing indicator instead of sending a loading text message
       await tgSendChatAction(token, chatId, 'typing')
-      await handleYearSelected(token, chatId, year)
       // Replace the controller message in-place
       try {
-        const projects = await adminFetchProjectsForYear(year)
-        const kb = buildProjectsKeyboard(year, projects, 1)
-        await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, kb)
+        const { kb, count } = await buildProjectsKeyboardForYear(year)
+        if (!kb) {
+          await tgEditMessage(token, chatId, msgId, `No projects found for ${year}.`)
+        } else {
+          await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, kb)
+        }
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, `Sorry, failed to load projects for ${year}.`)
       }
@@ -331,22 +319,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const [, year, projectId] = data.split(':')
       await tgSendChatAction(token, chatId, 'typing')
       try {
-        await handleProjectDetails(token, chatId, year, projectId)
-        // For now, replace content with details (no extra buttons)
-        const list = await adminFetchProjectsForYear(year)
-        const p = list.find((x) => x.id === projectId)
-        if (p) {
-          const lines = [
-            `${p.projectNumber} ${p.projectDateDisplay ? '/ ' + p.projectDateDisplay : ''}`.trim(),
-            [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' — '),
-            p.projectNature || '',
-            p.clientCompany ? `Client: ${p.clientCompany}` : '',
-            p.paymentStatus ? `Status: ${p.paymentStatus}` : '',
-          ].filter(Boolean)
-          await tgEditMessage(token, chatId, msgId, lines.join('\n'))
-        } else {
-          await tgEditMessage(token, chatId, msgId, 'Project not found. Please go back and pick another.')
-        }
+        const text = await buildProjectDetailsText(year, projectId)
+        await tgEditMessage(token, chatId, msgId, text)
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load that project. Please try again.')
       }
