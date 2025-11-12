@@ -60,6 +60,42 @@ async function tgAnswerCallback(token: string, callbackQueryId: string, text?: s
   }
 }
 
+async function tgSendChatAction(token: string, chatId: number | string, action: string = 'typing') {
+  try {
+    const resp = await fetch(`${TELEGRAM_API(token)}/sendChatAction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, action }),
+    })
+    if (!resp.ok) {
+      console.warn('[tg] sendChatAction failed', { status: resp.status, statusText: resp.statusText })
+    }
+  } catch {}
+}
+
+async function tgEditMessage(
+  token: string,
+  chatId: number | string,
+  messageId: number,
+  text: string,
+  replyMarkup?: any
+) {
+  try {
+    const resp = await fetch(`${TELEGRAM_API(token)}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, reply_markup: replyMarkup }),
+    })
+    let data: any = null
+    try { data = await resp.json() } catch {}
+    if (!resp.ok || (data && data.ok === false)) {
+      console.error('[tg] editMessageText failed', { status: resp.status, statusText: resp.statusText, response: data })
+    } else {
+      console.info('[tg] editMessage ok', { chatId, messageId, hasMarkup: !!replyMarkup })
+    }
+  } catch {}
+}
+
 function formatProjectButtonText(p: ProjectRecord): string {
   const parts: string[] = []
   const head = p.projectNumber || p.id
@@ -260,30 +296,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (cq && cq.data) {
     const data: string = cq.data
     const chatId = cq.message?.chat?.id as number
+    const msgId = cq.message?.message_id as number
     const cqid = cq.id as string
     // Always acknowledge the callback to stop Telegram's loading spinner
     if (cqid) {
-      tgAnswerCallback(token, cqid).catch(() => {})
+      tgAnswerCallback(token, cqid, 'Loading…').catch(() => {})
     }
     if (data.startsWith('Y:')) {
       const year = data.split(':')[1]
-      // Optionally send a quick loading hint; comment out if not desired
-      try { await tgSendMessage(token, chatId, `Loading projects for ${year}…`) } catch {}
+      // Show typing indicator instead of sending a loading text message
+      await tgSendChatAction(token, chatId, 'typing')
       await handleYearSelected(token, chatId, year)
+      // Replace the controller message in-place
+      try {
+        const projects = await adminFetchProjectsForYear(year)
+        const kb = buildProjectsKeyboard(year, projects, 1)
+        await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, kb)
+      } catch (e: any) {
+        await tgEditMessage(token, chatId, msgId, `Sorry, failed to load projects for ${year}.`)
+      }
       return res.status(200).end('ok')
     }
     if (data.startsWith('PG:')) {
       // Pagination: PG:<year>:<page>
       const [, year, pageStr] = data.split(':')
       const page = parseInt(pageStr || '1', 10) || 1
+      await tgSendChatAction(token, chatId, 'typing')
       const projects = await adminFetchProjectsForYear(year)
       const kb = buildProjectsKeyboard(year, projects, page)
-      await tgSendMessage(token, chatId, `Projects in ${year}:`, kb)
+      await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, kb)
       return res.status(200).end('ok')
     }
     if (data.startsWith('P:')) {
       const [, year, projectId] = data.split(':')
-      await handleProjectDetails(token, chatId, year, projectId)
+      await tgSendChatAction(token, chatId, 'typing')
+      try {
+        await handleProjectDetails(token, chatId, year, projectId)
+        // For now, replace content with details (no extra buttons)
+        const list = await adminFetchProjectsForYear(year)
+        const p = list.find((x) => x.id === projectId)
+        if (p) {
+          const lines = [
+            `${p.projectNumber} ${p.projectDateDisplay ? '/ ' + p.projectDateDisplay : ''}`.trim(),
+            [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' — '),
+            p.projectNature || '',
+            p.clientCompany ? `Client: ${p.clientCompany}` : '',
+            p.paymentStatus ? `Status: ${p.paymentStatus}` : '',
+          ].filter(Boolean)
+          await tgEditMessage(token, chatId, msgId, lines.join('\n'))
+        } else {
+          await tgEditMessage(token, chatId, msgId, 'Project not found. Please go back and pick another.')
+        }
+      } catch (e: any) {
+        await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load that project. Please try again.')
+      }
       return res.status(200).end('ok')
     }
   }
