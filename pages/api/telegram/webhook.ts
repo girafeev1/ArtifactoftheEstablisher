@@ -214,6 +214,8 @@ async function buildProjectDetailsText(year: string, projectId: string): Promise
   if (!p) return 'Project not found. Please go back and pick another.'
   const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   const parts: string[] = []
+  // Heading
+  parts.push('<b><u>Project Detail</u></b>')
   // presenter/worktype
   if (p.presenterWorkType) parts.push(esc(p.presenterWorkType))
   // project title in bold
@@ -232,16 +234,15 @@ async function buildInvoicesKeyboard(year: string, projectId: string) {
   try {
     const invoices: ProjectInvoiceRecord[] = await fetchInvoicesForProject(year, projectId)
     if (!invoices || invoices.length === 0) {
-      return { inline_keyboard: [[{ text: 'No invoices', callback_data: 'NOP' }], [{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }]] }
+      return { inline_keyboard: [[{ text: 'No invoices', callback_data: 'NOP' }]] }
     }
     const rows = invoices.map((inv) => [
       { text: inv.invoiceNumber, callback_data: `INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` },
     ])
-    rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }])
     return { inline_keyboard: rows }
   } catch (e: any) {
     console.error('[tg] failed to fetch invoices', { year, projectId, error: e?.message || String(e) })
-    return { inline_keyboard: [[{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }]] }
+    return { inline_keyboard: [] }
   }
 }
 
@@ -272,10 +273,14 @@ async function buildInvoiceDetailsText(year: string, projectId: string, invoiceN
   if (!inv) return 'Invoice not found.'
   const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   const lines: string[] = []
+  // Heading
+  lines.push('<b><u>Invoice Detail</u></b>')
   // Title
   lines.push(`<b>Invoice:</b> #${esc(inv.invoiceNumber)}`)
   // Client block
   if (inv.companyName) {
+    lines.push('')
+    lines.push('<b><u>Client Detail</u></b>')
     lines.push('')
     lines.push(`<b>${esc(inv.companyName)}</b>`) // bold company name
     if (inv.addressLine1) lines.push(esc(inv.addressLine1))
@@ -292,7 +297,7 @@ async function buildInvoiceDetailsText(year: string, projectId: string, invoiceN
   if (inv.items && inv.items.length > 0) {
     lines.push('')
     inv.items.forEach((it, idx) => {
-      lines.push(`<b>Item ${idx + 1}:</b>`) // item heading
+      lines.push(`<b><u>Item ${idx + 1}:</u></b>`) // item heading with underline
       const title = it.title ? `<b>${esc(it.title)}</b>` : ''
       const subq = it.subQuantity ? ` x<i>${esc(it.subQuantity)}</i>` : ''
       const first = `${title}${subq}`.trim()
