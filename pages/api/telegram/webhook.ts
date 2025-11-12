@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { type ProjectRecord } from '../../../lib/projectsDatabase'
-import { fetchInvoicesForProject, type ProjectInvoiceRecord } from '../../../lib/projectInvoices'
+import { fetchInvoicesForProject, type ProjectInvoiceRecord, updateInvoiceForProject } from '../../../lib/projectInvoices'
+import { updateProjectInDatabase } from '../../../lib/projectsDatabase'
 import { getAdminFirestore } from '../../../lib/firebaseAdmin'
 import { PROJECTS_FIRESTORE_DATABASE_ID } from '../../../lib/firebase'
 
@@ -121,6 +122,15 @@ function welcomeText(): string {
   )
 }
 
+function formatSubsidiaryName(id?: string | null): string | null {
+  if (!id) return null
+  const map: Record<string, string> = {
+    'tebs-erl': 'Establish Records Limited',
+    'erl': 'Establish Records Limited',
+  }
+  return map[id] || id
+}
+
 async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]> {
   const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
   const out: ProjectRecord[] = []
@@ -204,12 +214,17 @@ async function buildProjectDetailsText(year: string, projectId: string): Promise
   if (!p) return 'Project not found. Please go back and pick another.'
   const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   const parts: string[] = []
-  parts.push(`${esc(p.projectNumber)}${p.projectDateDisplay ? ' / ' + esc(p.projectDateDisplay) : ''}`)
-  const line2 = [p.presenterWorkType, p.projectTitle].filter(Boolean).map((t)=>esc(String(t))).join(' - ')
-  if (line2) parts.push(line2)
-  if (p.projectNature) parts.push(esc(p.projectNature))
-  if (p.subsidiary) parts.push(esc(p.subsidiary))
-  if (p.clientCompany) parts.push(`<b>${esc(p.clientCompany)}</b>`) // bold company name
+  // presenter/worktype
+  if (p.presenterWorkType) parts.push(esc(p.presenterWorkType))
+  // project title in bold
+  if (p.projectTitle) parts.push(`<b>${esc(p.projectTitle)}</b>`)
+  // project nature italic
+  if (p.projectNature) parts.push(`<i>${esc(p.projectNature)}</i>`)
+  // empty line
+  parts.push('')
+  // subsidiary (name)
+  const sub = formatSubsidiaryName(p.subsidiary)
+  if (sub) parts.push(esc(sub))
   return parts.join('\n')
 }
 
@@ -307,6 +322,86 @@ async function buildInvoiceDetailsText(year: string, projectId: string, invoiceN
   return lines.join('\n')
 }
 
+function extractBaseFromInvoice(inv: string): string {
+  try {
+    const v = decodeURIComponent(inv)
+    const m = v.match(/^(#?\d{4}-\d{3}-\d{4})/)
+    return m ? m[1] : v
+  } catch {
+    return inv
+  }
+}
+
+// Pending edit storage (Firestore)
+type PendingEdit = {
+  chatId: number
+  userId: number
+  kind: 'PROJ' | 'INV'
+  year: string
+  projectId: string
+  invoiceNumber?: string
+  field?: string
+  controllerMessageId: number
+  step: 'await_field' | 'await_value' | 'preview'
+  proposedValue?: string
+}
+
+const PENDING_EDITS_COLLECTION = 'tgEdits'
+
+async function getPendingEditDocId(chatId: number, userId: number) {
+  return `${chatId}_${userId}`
+}
+
+async function putPendingEdit(edit: PendingEdit) {
+  const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+  const id = await getPendingEditDocId(edit.chatId, edit.userId)
+  await fs.collection(PENDING_EDITS_COLLECTION).doc(id).set(edit, { merge: true })
+}
+
+async function readPendingEdit(chatId: number, userId: number): Promise<PendingEdit | null> {
+  const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+  const id = await getPendingEditDocId(chatId, userId)
+  const snap = await fs.collection(PENDING_EDITS_COLLECTION).doc(id).get()
+  return snap.exists ? (snap.data() as PendingEdit) : null
+}
+
+async function clearPendingEdit(chatId: number, userId: number) {
+  const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+  const id = await getPendingEditDocId(chatId, userId)
+  await fs.collection(PENDING_EDITS_COLLECTION).doc(id).delete().catch(() => {})
+}
+
+const PROJECT_FIELD_LABELS: Record<string, string> = {
+  projectTitle: 'Project Title',
+  presenterWorkType: 'Presenter / Worktype',
+  projectNature: 'Project Nature',
+  subsidiary: 'Subsidiary',
+}
+
+const INVOICE_FIELD_LABELS: Record<string, string> = {
+  paymentStatus: 'Payment Status',
+  paidTo: 'Paid To (bank identifier)',
+  representative: 'Representative',
+  addressLine1: 'Address Line 1',
+  addressLine2: 'Address Line 2',
+  addressLine3: 'Address Line 3',
+  region: 'Region',
+}
+
+function buildProjectEditFieldsKeyboard(year: string, projectId: string) {
+  const keys = Object.keys(PROJECT_FIELD_LABELS)
+  const rows = keys.map((k) => [{ text: PROJECT_FIELD_LABELS[k], callback_data: `EPF:PROJ:${year}:${projectId}:${k}` }])
+  rows.push([{ text: '⬅ Back', callback_data: `P:${year}:${projectId}` }])
+  return { inline_keyboard: rows }
+}
+
+function buildInvoiceEditFieldsKeyboard(year: string, projectId: string, invoiceNumber: string) {
+  const keys = Object.keys(INVOICE_FIELD_LABELS)
+  const rows = keys.map((k) => [{ text: INVOICE_FIELD_LABELS[k], callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:${k}` }])
+  rows.push([{ text: '⬅ Back', callback_data: `INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }])
+  return { inline_keyboard: rows }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const token = process.env.TELEGRAM_BOT_TOKEN || ''
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET || ''
@@ -363,10 +458,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (msg && msg.text) {
     const chatId = msg.chat?.id as number
+    const userId = msg.from?.id as number
     const text = (msg.text as string).trim()
     if (text === '/start' || text === '/menu') {
       const years = ['2025', '2024', '2023', '2022', '2021']
       await tgSendMessage(token, chatId, welcomeText(), buildYearsKeyboard(years))
+      return res.status(200).end('ok')
+    }
+    // Handle pending edit value input
+    const pending = await readPendingEdit(chatId, userId)
+    if (pending && pending.step === 'await_value' && pending.field) {
+      const proposed = text
+      pending.proposedValue = proposed
+      pending.step = 'preview'
+      await putPendingEdit(pending)
+      const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      const label = pending.kind === 'PROJ' ? PROJECT_FIELD_LABELS[pending.field] : INVOICE_FIELD_LABELS[pending.field]
+      const preview = `Update <b>${esc(label)}</b> to:\n${esc(proposed)}\n\nConfirm?`
+      const kb = {
+        inline_keyboard: [
+          [ { text: 'Confirm', callback_data: `EPCONFIRM:${pending.kind}` } ],
+          [ { text: 'Revise', callback_data: `EPREVISE:${pending.kind}` }, { text: 'Cancel', callback_data: `EPCANCEL:${pending.kind}` } ],
+        ]
+      }
+      // Show preview in the controller message
+      await tgEditMessage(token, chatId, pending.controllerMessageId, preview, kb)
       return res.status(200).end('ok')
     }
   }
@@ -390,6 +506,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } else {
           // Add back to years button
           const rows = (kb.inline_keyboard as any[])
+          rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${year}:_` }])
           rows.push([{ text: '⬅ Back', callback_data: 'BK:YEARS' }])
           await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: rows })
         }
@@ -405,6 +522,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const projects = await adminFetchProjectsForYear(year)
       const kb = buildProjectsKeyboard(year, projects, page)
       const rows = (kb.inline_keyboard as any[])
+      rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${year}:_` }])
       rows.push([{ text: '⬅ Back', callback_data: `BK:YEARS` }])
       await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: rows })
       return res.status(200).end('ok')
@@ -414,7 +532,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const text = await buildProjectDetailsText(year, projectId)
         const invKb = await buildInvoicesKeyboard(year, projectId)
-        await tgEditMessage(token, chatId, msgId, text, invKb)
+        const rows = (invKb.inline_keyboard as any[])
+        rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${year}:${projectId}` }])
+        rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }])
+        await tgEditMessage(token, chatId, msgId, text, { inline_keyboard: rows })
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load that project. Please try again.')
       }
@@ -424,11 +545,181 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const [, year, projectId, encInvoice] = data.split(':')
       try {
         const text = await buildInvoiceDetailsText(year, projectId, encInvoice)
-        // Back to invoice list and project
-        const rows = [[{ text: '⬅ Back', callback_data: `P:${year}:${projectId}` }]]
+        // Edit + Back
+        const rows = [
+          [{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encInvoice}` }],
+          [{ text: '⬅ Back', callback_data: `P:${year}:${projectId}` }],
+        ]
         await tgEditMessage(token, chatId, msgId, text, { inline_keyboard: rows })
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load invoice.')
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('EDIT:PROJ:')) {
+      const parts = data.split(':')
+      const year = parts[2]
+      const projectId = parts[3] === '_' ? '' : parts[3]
+      await putPendingEdit({
+        chatId,
+        userId: cq.from?.id as number,
+        kind: 'PROJ',
+        year,
+        projectId,
+        controllerMessageId: msgId,
+        step: 'await_field',
+      })
+      await tgEditMessage(token, chatId, msgId, 'Select a field to edit:', buildProjectEditFieldsKeyboard(year, projectId))
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('EDIT:INV:')) {
+      const [, , year, projectId, encInvoice] = data.split(':')
+      await putPendingEdit({
+        chatId,
+        userId: cq.from?.id as number,
+        kind: 'INV',
+        year,
+        projectId,
+        invoiceNumber: encInvoice,
+        controllerMessageId: msgId,
+        step: 'await_field',
+      })
+      await tgEditMessage(token, chatId, msgId, 'Select an invoice field to edit:', buildInvoiceEditFieldsKeyboard(year, projectId, decodeURIComponent(encInvoice)))
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('EPF:')) {
+      // Choose field to edit
+      const parts = data.split(':')
+      const scope = parts[1] // PROJ | INV
+      if (scope === 'PROJ') {
+        const year = parts[2]; const projectId = parts[3]; const field = parts[4]
+        await putPendingEdit({
+          chatId,
+          userId: cq.from?.id as number,
+          kind: 'PROJ', year, projectId, controllerMessageId: msgId,
+          step: 'await_value', field,
+        })
+        await tgEditMessage(token, chatId, msgId, `Send new value for <b>${PROJECT_FIELD_LABELS[field]}</b>`, { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: `P:${year}:${projectId}` }]] })
+      } else if (scope === 'INV') {
+        const year = parts[2]; const projectId = parts[3]; const encInvoice = parts[4]; const field = parts[5]
+        await putPendingEdit({
+          chatId,
+          userId: cq.from?.id as number,
+          kind: 'INV', year, projectId, invoiceNumber: encInvoice, controllerMessageId: msgId,
+          step: 'await_value', field,
+        })
+        await tgEditMessage(token, chatId, msgId, `Send new value for <b>${INVOICE_FIELD_LABELS[field]}</b>`, { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] })
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('EPCONFIRM:')) {
+      const parts = data.split(':')
+      const scope = parts[1] // PROJ | INV
+      const userId = cq.from?.id as number
+      const edit = await readPendingEdit(chatId, userId)
+      if (!edit || edit.step !== 'preview' || !edit.field || !edit.proposedValue) {
+        await tgAnswerCallback(token, cqid, 'No pending edit to confirm.')
+        return res.status(200).end('ok')
+      }
+      try {
+        if (scope === 'PROJ') {
+          const updates: any = { [edit.field]: edit.proposedValue }
+          await updateProjectInDatabase({ year: edit.year, projectId: edit.projectId, updates, editedBy: `tg:${userId}` })
+          const text = await buildProjectDetailsText(edit.year, edit.projectId)
+          const invKb = await buildInvoicesKeyboard(edit.year, edit.projectId)
+          const rows = (invKb.inline_keyboard as any[])
+          rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${edit.year}:${edit.projectId}` }])
+          rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${edit.year}:1` }])
+          await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
+        } else {
+          const invNum = decodeURIComponent(edit.invoiceNumber || '')
+          const invoices = await fetchInvoicesForProject(edit.year, edit.projectId)
+          const current = invoices.find((i) => i.invoiceNumber === invNum)
+          if (!current) throw new Error('Invoice not found')
+          // Prepare input preserving existing fields
+          const items = (current.items || []).map((it) => ({
+            title: it.title || '', feeType: it.feeType || '', unitPrice: Number(it.unitPrice || 0), quantity: Number(it.quantity || 0), discount: Number(it.discount || 0), subQuantity: it.subQuantity || '', notes: it.notes || '', quantityUnit: it.quantityUnit || '',
+          }))
+          const client = {
+            companyName: current.companyName || null,
+            addressLine1: current.addressLine1 || null,
+            addressLine2: current.addressLine2 || null,
+            addressLine3: current.addressLine3 || null,
+            region: current.region || null,
+            representative: current.representative || null,
+          }
+          // Apply proposed
+          const f = edit.field
+          if (f && f in INVOICE_FIELD_LABELS) {
+            if (f === 'representative') (client as any).representative = edit.proposedValue
+            else if (f.startsWith('addressLine')) (client as any)[f] = edit.proposedValue
+            else if (f === 'region') (client as any).region = edit.proposedValue
+            else if (f === 'paymentStatus') (current as any).paymentStatus = edit.proposedValue
+            else if (f === 'paidTo') (current as any).paidTo = edit.proposedValue
+          }
+          await updateInvoiceForProject({
+            year: edit.year,
+            projectId: edit.projectId,
+            collectionId: 'invoice',
+            invoiceNumber: invNum,
+            baseInvoiceNumber: extractBaseFromInvoice(invNum),
+            editedBy: `tg:${userId}`,
+            items,
+            client,
+            taxOrDiscountPercent: current.taxOrDiscountPercent ?? null,
+            paymentStatus: (current as any).paymentStatus || null,
+            paidTo: (current as any).paidTo || null,
+            paidOn: current.paidOnIso || null,
+            onDate: current.paidOnIso || null,
+          })
+          const text = await buildInvoiceDetailsText(edit.year, edit.projectId, encodeURIComponent(invNum))
+          const rows = [
+            [{ text: 'Edit', callback_data: `EDIT:INV:${edit.year}:${edit.projectId}:${encodeURIComponent(invNum)}` }],
+            [{ text: '⬅ Back', callback_data: `P:${edit.year}:${edit.projectId}` }],
+          ]
+          await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
+        }
+        await clearPendingEdit(chatId, userId)
+      } catch (e: any) {
+        await tgAnswerCallback(token, cqid, 'Failed to update.');
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('EPCANCEL:')) {
+      const parts = data.split(':')
+      const scope = parts[1]
+      const userId = cq.from?.id as number
+      const edit = await readPendingEdit(chatId, userId)
+      await clearPendingEdit(chatId, userId)
+      // Navigate back
+      if (edit) {
+        if (scope === 'PROJ') {
+          const text = await buildProjectDetailsText(edit.year, edit.projectId)
+          const invKb = await buildInvoicesKeyboard(edit.year, edit.projectId)
+          const rows = (invKb.inline_keyboard as any[])
+          rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${edit.year}:${edit.projectId}` }])
+          rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${edit.year}:1` }])
+          await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
+        } else {
+          const inv = edit.invoiceNumber || ''
+          const text = await buildInvoiceDetailsText(edit.year, edit.projectId, inv)
+          const rows = [
+            [{ text: 'Edit', callback_data: `EDIT:INV:${edit.year}:${edit.projectId}:${inv}` }],
+            [{ text: '⬅ Back', callback_data: `P:${edit.year}:${edit.projectId}` }],
+          ]
+          await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
+        }
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('EPREVISE:')) {
+      const userId = cq.from?.id as number
+      const edit = await readPendingEdit(chatId, userId)
+      if (edit) {
+        edit.step = 'await_value'
+        await putPendingEdit(edit)
+        const label = edit.kind === 'PROJ' ? PROJECT_FIELD_LABELS[edit.field || ''] : INVOICE_FIELD_LABELS[edit.field || '']
+        await tgEditMessage(token, chatId, edit.controllerMessageId, `Send new value for <b>${label}</b>`, { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: edit.kind==='PROJ'?`P:${edit.year}:${edit.projectId}`:`INV:${edit.year}:${edit.projectId}:${edit.invoiceNumber}` }]] })
       }
       return res.status(200).end('ok')
     }
