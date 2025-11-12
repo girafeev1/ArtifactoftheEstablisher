@@ -90,6 +90,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const allowUnverified = (process.env.TELEGRAM_ALLOW_UNVERIFIED || '') === '1'
   if (!token) return res.status(200).end('ok')
 
+  // Telegram may probe with GET/HEAD; always 200 to avoid 405s
+  if (req.method && req.method !== 'POST') {
+    return res.status(200).end('ok')
+  }
+
   // Verify optional webhook secret header (allow bypass when explicitly enabled)
   const hdr = (req.headers['x-telegram-bot-api-secret-token'] || '') as string
   if (secret && hdr !== secret && !allowUnverified) return res.status(200).end('ok')
