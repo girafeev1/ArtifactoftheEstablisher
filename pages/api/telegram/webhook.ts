@@ -171,7 +171,7 @@ async function handleYearSelected(token: string, chatId: number, year: string) {
 
 async function handleProjectDetails(token: string, chatId: number, year: string, projectId: string) {
   try {
-    const list = await fetchProjectsForYear(year)
+    const list = await adminFetchProjectsForYear(year)
     const p = list.find((x) => x.id === projectId)
     if (!p) {
       await tgSendMessage(token, chatId, 'Project not found. Please go back and pick another.')
@@ -273,7 +273,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Pagination: PG:<year>:<page>
       const [, year, pageStr] = data.split(':')
       const page = parseInt(pageStr || '1', 10) || 1
-      const projects = await fetchProjectsForYear(year)
+      const projects = await adminFetchProjectsForYear(year)
       const kb = buildProjectsKeyboard(year, projects, page)
       await tgSendMessage(token, chatId, `Projects in ${year}:`, kb)
       return
