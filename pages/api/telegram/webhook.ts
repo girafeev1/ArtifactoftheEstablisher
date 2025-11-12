@@ -27,7 +27,7 @@ async function tgSendMessage(
     const resp = await fetch(`${TELEGRAM_API(token)}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, reply_markup: replyMarkup }),
+      body: JSON.stringify({ chat_id: chatId, text, reply_markup: replyMarkup, parse_mode: 'HTML' }),
     })
     let data: any = null
     try {
@@ -72,7 +72,7 @@ async function tgEditMessage(
     const resp = await fetch(`${TELEGRAM_API(token)}/editMessageText`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, reply_markup: replyMarkup }),
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, reply_markup: replyMarkup, parse_mode: 'HTML' }),
     })
     let data: any = null
     try { data = await resp.json() } catch {}
@@ -202,15 +202,15 @@ async function buildProjectDetailsText(year: string, projectId: string): Promise
   const list = await adminFetchProjectsForYear(year)
   const p = list.find((x) => x.id === projectId)
   if (!p) return 'Project not found. Please go back and pick another.'
-  const lines = [
-    `${p.projectNumber} ${p.projectDateDisplay ? '/ ' + p.projectDateDisplay : ''}`.trim(),
-    [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' — '),
-    p.projectNature || '',
-    p.subsidiary ? `${p.subsidiary}` : '',
-    p.clientCompany ? `Client: ${p.clientCompany}` : '',
-    p.paymentStatus ? `Status: ${p.paymentStatus}` : '',
-  ].filter(Boolean)
-  return lines.join('\n')
+  const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  const parts: string[] = []
+  parts.push(`${esc(p.projectNumber)}${p.projectDateDisplay ? ' / ' + esc(p.projectDateDisplay) : ''}`)
+  const line2 = [p.presenterWorkType, p.projectTitle].filter(Boolean).map((t)=>esc(String(t))).join(' - ')
+  if (line2) parts.push(line2)
+  if (p.projectNature) parts.push(esc(p.projectNature))
+  if (p.subsidiary) parts.push(esc(p.subsidiary))
+  if (p.clientCompany) parts.push(`<b>${esc(p.clientCompany)}</b>`) // bold company name
+  return parts.join('\n')
 }
 
 async function buildInvoicesKeyboard(year: string, projectId: string) {
@@ -235,45 +235,73 @@ function formatMoney(n: number | null | undefined): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 }
 
+import { DIRECTORY_FIRESTORE_DATABASE_ID } from '../../../lib/firebase'
+async function adminResolveBank(identifier: string | null | undefined): Promise<{ bankName?: string; bankCode?: string; accountType?: string } | null> {
+  if (!identifier) return null
+  try {
+    const fs = getAdminFirestore(DIRECTORY_FIRESTORE_DATABASE_ID)
+    const docRef = fs.collection('bankAccount').doc(String(identifier))
+    const snap = await docRef.get()
+    if (!snap.exists) return null
+    const data = snap.data() as any
+    const bankName = typeof data.bankName === 'string' ? data.bankName : undefined
+    const bankCode = typeof data.bankCode === 'string' ? data.bankCode.replace(/[^0-9]/g,'').padStart(3,'0') : undefined
+    const accountType = typeof data.accountType === 'string' ? data.accountType : undefined
+    return { bankName, bankCode, accountType }
+  } catch { return null }
+}
+
 async function buildInvoiceDetailsText(year: string, projectId: string, invoiceNumber: string): Promise<string> {
   const list: ProjectInvoiceRecord[] = await fetchInvoicesForProject(year, projectId)
   const inv = list.find((i) => i.invoiceNumber === decodeURIComponent(invoiceNumber))
   if (!inv) return 'Invoice not found.'
+  const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   const lines: string[] = []
-  lines.push(`${inv.invoiceNumber}`)
-  lines.push(`Amount: ${formatMoney(inv.amount)}${inv.paymentStatus ? ` [${inv.paymentStatus}]` : ''}`)
-  if (inv.paidTo) lines.push(`To: ${inv.paidTo}`)
+  // Title
+  lines.push(`<b>Invoice #:</b> #${esc(inv.invoiceNumber)}`)
+  // Client block
   if (inv.companyName) {
     lines.push('')
-    lines.push(inv.companyName)
-    if (inv.addressLine1) lines.push(inv.addressLine1)
-    if (inv.addressLine2) lines.push(inv.addressLine2)
+    lines.push(`<b>${esc(inv.companyName)}</b>`) // bold company name
+    if (inv.addressLine1) lines.push(esc(inv.addressLine1))
+    if (inv.addressLine2) lines.push(esc(inv.addressLine2))
     if (inv.addressLine3 || inv.region) {
-      const addr3 = inv.addressLine3 ? inv.addressLine3 : ''
-      const reg = inv.region ? inv.region : ''
-      lines.push([addr3, reg].filter(Boolean).join(', '))
+      const addr3 = inv.addressLine3 ? esc(inv.addressLine3) : ''
+      const reg = inv.region ? esc(inv.region) : ''
+      const mix = [addr3, reg].filter(Boolean).join(', ')
+      if (mix) lines.push(mix)
     }
-    if (inv.representative) lines.push(`ATTN: ${inv.representative}`)
+    if (inv.representative) lines.push(`ATTN: <b><i>${esc(inv.representative)}</i></b>`) // bold+italic rep
   }
+  // Items
   if (inv.items && inv.items.length > 0) {
     lines.push('')
-    lines.push('Item *:')
-    inv.items.forEach((it) => {
-      const title = [it.title].filter(Boolean).join(' ')
-      const qtyLine = `${title}${it.subQuantity ? ` x${it.subQuantity}` : ''}`
-      if (qtyLine.trim()) lines.push(qtyLine)
-      const ft = it.feeType ? `${it.feeType}` : ''
-      if (ft) lines.push(ft)
-      const notes = it.notes ? `${it.notes}` : ''
-      if (notes) lines.push(notes)
+    inv.items.forEach((it, idx) => {
+      lines.push(`<b>Item ${idx + 1}:</b>`) // item heading
+      const title = it.title ? `<b>${esc(it.title)}</b>` : ''
+      const subq = it.subQuantity ? ` x<i>${esc(it.subQuantity)}</i>` : ''
+      const first = `${title}${subq}`.trim()
+      if (first) lines.push(first)
+      if (it.feeType) lines.push(esc(it.feeType))
+      if (it.notes) lines.push(esc(it.notes))
       const unit = typeof it.unitPrice === 'number' ? formatMoney(it.unitPrice) : '-'
       const qty = typeof it.quantity === 'number' ? it.quantity : 0
+      const unitSuffix = it.quantityUnit ? `/${esc(it.quantityUnit)}` : ''
+      lines.push(`${unit} x ${qty}${unitSuffix}`)
+      // blank line then line total in bold+italic
       const lineTotal = typeof it.unitPrice === 'number' && typeof it.quantity === 'number' ? formatMoney(it.unitPrice * it.quantity) : '-'
-      lines.push(`${unit} x ${qty}`)
-      lines.push(`${lineTotal}`)
+      lines.push('')
+      lines.push(`<b><i>${lineTotal}</i></b>`)
       lines.push('')
     })
   }
+  // Bottom total + To
+  const bank = await adminResolveBank(inv.paidTo || null)
+  const bankLabel = bank && (bank.bankName || bank.bankCode || bank.accountType)
+    ? `${bank.bankName ? esc(bank.bankName) : ''}${bank.bankCode ? ` (${esc(bank.bankCode)})` : ''}${bank.accountType ? ` - ${esc(bank.accountType)}` : ''}`
+    : (inv.paidTo ? esc(inv.paidTo) : '')
+  const status = inv.paymentStatus ? ` — <i>${esc(inv.paymentStatus)}</i>` : ''
+  lines.push(`<b>Total:</b> ${formatMoney(inv.amount)}${bankLabel ? ` — <b>To:</b> ${bankLabel}` : ''}${status}`)
   return lines.join('\n')
 }
 
@@ -384,10 +412,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const text = await buildProjectDetailsText(year, projectId)
         const invKb = await buildInvoicesKeyboard(year, projectId)
-        // Add back button to projects
-        const rows = (invKb.inline_keyboard as any[])
-        rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }])
-        await tgEditMessage(token, chatId, msgId, text, { inline_keyboard: rows })
+        await tgEditMessage(token, chatId, msgId, text, invKb)
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load that project. Please try again.')
       }
