@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { fetchProjectsForYear, type ProjectRecord } from '../../../lib/projectsDatabase'
+import { type ProjectRecord } from '../../../lib/projectsDatabase'
+import { getAdminFirestore } from '../../../lib/firebaseAdmin'
+import { PROJECTS_FIRESTORE_DATABASE_ID } from '../../../lib/firebase'
 
 export const config = { api: { bodyParser: false } }
 
@@ -84,10 +86,76 @@ function buildProjectsKeyboard(year: string, projects: ProjectRecord[], page = 1
   return { inline_keyboard: rows }
 }
 
+async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]> {
+  const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+  const out: ProjectRecord[] = []
+  try {
+    const nested = await fs.collection('projects').doc(year).collection('projects').get()
+    if (!nested.empty) {
+      nested.forEach((doc: any) => {
+        const d = doc.data() || {}
+        out.push({
+          id: doc.id,
+          year,
+          amount: typeof d.amount === 'number' ? d.amount : null,
+          clientCompany: typeof d.clientCompany === 'string' ? d.clientCompany : null,
+          invoice: typeof d.invoice === 'string' ? d.invoice : null,
+          onDateDisplay: null,
+          onDateIso: null,
+          paid: typeof d.paid === 'boolean' ? d.paid : null,
+          paidTo: typeof d.paidTo === 'string' ? d.paidTo : null,
+          paymentStatus: typeof d.paymentStatus === 'string' ? d.paymentStatus : null,
+          presenterWorkType: typeof d.presenterWorkType === 'string' ? d.presenterWorkType : null,
+          projectDateDisplay: typeof d.projectDateDisplay === 'string' ? d.projectDateDisplay : null,
+          projectDateIso: typeof d.projectDateIso === 'string' ? d.projectDateIso : null,
+          projectNature: typeof d.projectNature === 'string' ? d.projectNature : null,
+          projectNumber: typeof d.projectNumber === 'string' ? d.projectNumber : doc.id,
+          projectTitle: typeof d.projectTitle === 'string' ? d.projectTitle : null,
+          subsidiary: typeof d.subsidiary === 'string' ? d.subsidiary : null,
+        })
+      })
+      out.sort((a, b) => a.projectNumber.localeCompare(b.projectNumber, undefined, { numeric: true }))
+      return out
+    }
+  } catch (e: any) {
+    console.warn('[tg] adminFetch nested failed; will try legacy', { year, error: e?.message || String(e) })
+  }
+  try {
+    const legacy = await fs.collection(year).get()
+    legacy.forEach((doc: any) => {
+      const d = doc.data() || {}
+      out.push({
+        id: doc.id,
+        year,
+        amount: typeof d.amount === 'number' ? d.amount : null,
+        clientCompany: typeof d.clientCompany === 'string' ? d.clientCompany : null,
+        invoice: typeof d.invoice === 'string' ? d.invoice : null,
+        onDateDisplay: null,
+        onDateIso: null,
+        paid: typeof d.paid === 'boolean' ? d.paid : null,
+        paidTo: typeof d.paidTo === 'string' ? d.paidTo : null,
+        paymentStatus: typeof d.paymentStatus === 'string' ? d.paymentStatus : null,
+        presenterWorkType: typeof d.presenterWorkType === 'string' ? d.presenterWorkType : null,
+        projectDateDisplay: typeof d.projectDateDisplay === 'string' ? d.projectDateDisplay : null,
+        projectDateIso: typeof d.projectDateIso === 'string' ? d.projectDateIso : null,
+        projectNature: typeof d.projectNature === 'string' ? d.projectNature : null,
+        projectNumber: typeof d.projectNumber === 'string' ? d.projectNumber : doc.id,
+        projectTitle: typeof d.projectTitle === 'string' ? d.projectTitle : null,
+        subsidiary: typeof d.subsidiary === 'string' ? d.subsidiary : null,
+      })
+    })
+    out.sort((a, b) => a.projectNumber.localeCompare(b.projectNumber, undefined, { numeric: true }))
+  } catch (e: any) {
+    console.error('[tg] adminFetch legacy failed', { year, error: e?.message || String(e) })
+  }
+  return out
+}
+
 async function handleYearSelected(token: string, chatId: number, year: string) {
   try {
     console.info('[tg] year selected', { year })
-    const projects = await fetchProjectsForYear(year)
+    // Use Admin SDK to avoid client SDK/network issues on serverless
+    const projects = await adminFetchProjectsForYear(year)
     console.info('[tg] projects fetched', { year, count: projects.length })
     if (!projects.length) {
       await tgSendMessage(token, chatId, `No projects found for ${year}.`)
