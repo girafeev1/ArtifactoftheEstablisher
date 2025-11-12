@@ -21,11 +21,26 @@ async function tgSendMessage(
   replyMarkup?: any
 ) {
   try {
-    await fetch(`${TELEGRAM_API(token)}/sendMessage`, {
+    const resp = await fetch(`${TELEGRAM_API(token)}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text, reply_markup: replyMarkup }),
     })
+    let data: any = null
+    try {
+      data = await resp.json()
+    } catch {
+      // no-op
+    }
+    if (!resp.ok || (data && data.ok === false)) {
+      console.error('[tg] sendMessage failed', {
+        status: resp.status,
+        statusText: resp.statusText,
+        response: data,
+      })
+    } else {
+      console.info('[tg] sendMessage ok', { chatId, hasMarkup: !!replyMarkup })
+    }
   } catch {
     // ignore network errors
   }
