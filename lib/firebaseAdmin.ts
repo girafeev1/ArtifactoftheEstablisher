@@ -1,6 +1,9 @@
 // lib/firebaseAdmin.ts
 import type { ServiceAccount } from 'firebase-admin'
 import admin from 'firebase-admin'
+// Prefer direct Firestore client to reliably target non-default databases
+// without relying on private _settings mutation.
+import { Firestore } from '@google-cloud/firestore'
 
 // Normalize FIREBASE_ADMIN_PRIVATE_KEY which may be quoted and contain literal \n
 const stripWrappingQuotes = (value: string): string => {
@@ -57,13 +60,23 @@ export const ensureAdminApp = () => {
 }
 
 export const getAdminFirestore = (databaseId?: string) => {
-  const app = ensureAdminApp()
-  const fs = admin.firestore(app)
-  if (databaseId && databaseId !== '(default)') {
-    // @ts-ignore access internal settings to set databaseId
-    fs._settings = { ...fs._settings, databaseId }
+  // Use explicit Firestore client with databaseId support
+  const projectId = envProjectId
+  const clientEmail = envClientEmail
+  const privateKey = envPrivateKey
+
+  if (projectId && clientEmail && privateKey) {
+    return new Firestore({
+      projectId,
+      credentials: { client_email: clientEmail, private_key: privateKey },
+      databaseId: databaseId && databaseId.length > 0 ? databaseId : '(default)',
+    })
   }
-  return fs
+
+  // Fallback to admin app default (may only hit default database)
+  const app = ensureAdminApp()
+  // @ts-ignore Firestore from admin fallback (no custom databaseId)
+  return admin.firestore(app)
 }
 
 export const firebaseAdminAuth = admin.auth(ensureAdminApp())
