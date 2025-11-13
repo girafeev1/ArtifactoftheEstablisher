@@ -637,8 +637,8 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   const totResp = await sendBubble(token, chatId, totals.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
   if (totResp?.message_id) sentIds.push(totResp.message_id)
 
-  // 6) Final Back bubble
-  const back = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back', callback_data: `P:${year}:${projectId}` }]] })
+  // 6) Final Back bubble — back to projects list of the year
+  const back = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` }]] })
   if (back?.message_id) sentIds.push(back.message_id)
   await saveInvoiceBubbles(chatId, sentIds)
 }
@@ -993,7 +993,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (resp?.message_id) sentIds.push(resp.message_id)
         }
         // Footer: Add new project + Back to Years after the list
-        const footer = await sendBubble(token, chatId, ' ', {
+        const footer = await sendBubble(token, chatId, 'Use the actions below', {
           inline_keyboard: [
             [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
             [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
@@ -1377,7 +1377,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
           if (resp?.message_id) ids.push(resp.message_id)
         }
-        const footer = await sendBubble(token, chatId, ' ', {
+        const footer = await sendBubble(token, chatId, 'Use the actions below', {
           inline_keyboard: [
             [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
             [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
