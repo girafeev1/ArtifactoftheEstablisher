@@ -85,6 +85,16 @@ async function tgEditMessage(
   } catch {}
 }
 
+async function tgDeleteMessage(token: string, chatId: number | string, messageId: number) {
+  try {
+    await fetch(`${TELEGRAM_API(token)}/deleteMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+    })
+  } catch {}
+}
+
 function formatProjectButtonText(p: ProjectRecord): string {
   const parts: string[] = []
   const head = p.projectNumber || p.id
@@ -117,9 +127,7 @@ function buildYearsKeyboard(years: string[]) {
 }
 
 function welcomeText(): string {
-  return (
-    'Welcome to the Artificat of the Establishers.  To locate the project you\'re looking for, please select the year the project was picked up:'
-  )
+  return 'Welcome to the Telegram portal of the Artifact of the Establishers'
 }
 
 function formatSubsidiaryName(id?: string | null): string | null {
@@ -510,7 +518,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (text === '/start' || text === '/menu') {
       const years = ['2025', '2024', '2023', '2022', '2021']
       // Split welcome into two messages
-      await tgSendMessage(token, chatId, 'Welcome to the Artifact of the Establishers.')
+      await tgSendMessage(token, chatId, welcomeText())
       await tgSendMessage(token, chatId, 'To locate the project you\'re looking for, please select the year the project was picked up below:', buildYearsKeyboard(years))
       return res.status(200).end('ok')
     }
@@ -552,7 +560,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Delete any previously listed project bubbles
         await clearProjectBubbles(chatId)
         const { projects } = await adminFetchAllProjectsForYear(year)
-        await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: [[{ text: '⬅ Back', callback_data: 'BK:YEARS' }]] })
         // Send one message per project with [Select] [Edit]
         const sentIds: number[] = []
         for (const p of projects) {
@@ -567,6 +574,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
           if (resp?.message_id) sentIds.push(resp.message_id)
         }
+        // Footer back button after the list
+        const footer = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back', callback_data: 'BK:YEARS' }]] })
+        if (footer?.message_id) sentIds.push(footer.message_id)
         await saveProjectBubbles(chatId, sentIds)
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, `Sorry, failed to load projects for ${year}.`)
@@ -587,7 +597,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.startsWith('P:')) {
       const [, year, projectId] = data.split(':')
-      await clearProjectBubbles(chatId)
       try {
         const text = await buildProjectDetailsText(year, projectId)
         const invKb = await buildInvoicesKeyboard(year, projectId)
@@ -595,6 +604,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${year}:${projectId}` }])
         rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }])
         await tgEditMessage(token, chatId, msgId, text, { inline_keyboard: rows })
+        await clearProjectBubbles(chatId)
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load that project. Please try again.')
       }
@@ -785,14 +795,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (data.startsWith('BK:YEARS')) {
       const years = ['2025', '2024', '2023', '2022', '2021']
       await clearProjectBubbles(chatId)
-      await tgEditMessage(token, chatId, msgId, welcomeText(), buildYearsKeyboard(years))
+      // Remove the footer message where Back was pressed
+      await tgDeleteMessage(token, chatId, msgId)
+      // Send split welcome messages again
+      await tgSendMessage(token, chatId, welcomeText())
+      await tgSendMessage(
+        token,
+        chatId,
+        'To locate the project you\'re looking for, please select the year the project was picked up below:',
+        buildYearsKeyboard(years)
+      )
       return res.status(200).end('ok')
     }
     if (data.startsWith('BK:PROJ:')) {
       const [, , year, pageStr] = data.split(':')
       await clearProjectBubbles(chatId)
       const { projects } = await adminFetchAllProjectsForYear(year)
-      await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: [[{ text: '⬅ Back', callback_data: 'BK:YEARS' }]] })
       const sentIds: number[] = []
       for (const p of projects) {
         const p1 = `${p.projectNumber}`
@@ -806,6 +824,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
         if (resp?.message_id) sentIds.push(resp.message_id)
       }
+      const footer = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back', callback_data: 'BK:YEARS' }]] })
+      if (footer?.message_id) sentIds.push(footer.message_id)
       await saveProjectBubbles(chatId, sentIds)
       return res.status(200).end('ok')
     }
