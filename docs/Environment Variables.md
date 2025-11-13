@@ -23,15 +23,14 @@ The legacy files `.env.preview` and `.env.production` were removed to avoid ambi
   - `FIREBASE_ADMIN_*` (service account)
   - `NEXTAUTH_URL`, `NEXTAUTH_SECRET`
   - `GOOGLE_*` (service account used by server‑side utilities)
-  - `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` (NextAuth Discord provider)
+  
   - Optional: `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` (for additional OAuth providers)
   - App‑specific: `SCAN_SECRET`, etc.
 
-## Discord OAuth
+## Telegram Bot
 
-- Discord Developer Portal → OAuth2:
-  - Add Redirects: `http://localhost:3000/api/auth/callback/discord`, `https://YOUR_DOMAIN/api/auth/callback/discord`
-  - Set `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` accordingly
+- Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` (both in Vercel & optionally in `.env.local`).
+- Configure webhook via `/api/telegram/ensure?key=TELEGRAM_WEBHOOK_SECRET`.
 
 ## CI/CD (Vercel)
 
@@ -45,4 +44,3 @@ The legacy files `.env.preview` and `.env.production` were removed to avoid ambi
 
 If any code path needs an additional variable, add it to `.env.example` under the appropriate section.
 Deployer ping: 2025-11-05T12:42:16Z
-Slack allowUnverified flip: 2025-11-11T13:49:06Z
