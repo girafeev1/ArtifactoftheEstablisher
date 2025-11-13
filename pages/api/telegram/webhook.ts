@@ -1225,7 +1225,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const text = await buildProjectDetailsText(edit.year, edit.projectId)
           const invKb = await buildInvoicesKeyboard(edit.year, edit.projectId)
           const rows = (invKb.inline_keyboard as any[])
-          rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${edit.year}:${edit.projectId}` }])
+          rows.push([{ text: 'Edit Project Detail', callback_data: `EDIT:PROJ:${edit.year}:${edit.projectId}` }])
           rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${edit.year}:${edit.projectId}` }])
          await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
         } else {
@@ -1294,12 +1294,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             paidOn: current.paidOnIso || null,
             onDate: current.paidOnIso || null,
           })
-          const text = await buildInvoiceDetailsText(edit.year, edit.projectId, encodeURIComponent(invNum))
-          const rows = [
-            [{ text: 'Edit', callback_data: `EDIT:INV:${edit.year}:${edit.projectId}:${encodeURIComponent(invNum)}` }],
-            [{ text: '⬅ Back', callback_data: `P:${edit.year}:${edit.projectId}` }],
-          ]
-          await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
+          await clearInvoiceBubbles(chatId)
+          await sendInvoiceDetailBubbles(token, chatId, edit.controllerMessageId, edit.year, edit.projectId, encodeURIComponent(invNum))
         }
         await clearPendingEdit(chatId, userId)
       } catch (e: any) {
@@ -1319,17 +1315,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const text = await buildProjectDetailsText(edit.year, edit.projectId)
           const invKb = await buildInvoicesKeyboard(edit.year, edit.projectId)
           const rows = (invKb.inline_keyboard as any[])
-          rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${edit.year}:${edit.projectId}` }])
-          rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${edit.year}:1` }])
+          rows.push([{ text: 'Edit Project Detail', callback_data: `EDIT:PROJ:${edit.year}:${edit.projectId}` }])
+          rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${edit.year}:${edit.projectId}` }])
           await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
         } else {
           const inv = edit.invoiceNumber || ''
-          const text = await buildInvoiceDetailsText(edit.year, edit.projectId, inv)
-          const rows = [
-            [{ text: 'Edit', callback_data: `EDIT:INV:${edit.year}:${edit.projectId}:${inv}` }],
-            [{ text: '⬅ Back', callback_data: `P:${edit.year}:${edit.projectId}` }],
-          ]
-          await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
+          await clearInvoiceBubbles(chatId)
+          await sendInvoiceDetailBubbles(token, chatId, edit.controllerMessageId, edit.year, edit.projectId, inv)
         }
       }
       return res.status(200).end('ok')
