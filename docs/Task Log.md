@@ -156,19 +156,61 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 - PR: —
 - Status: ✅ Done
 - Outcomes:
-- When selecting a year, the year list (welcome + year keyboard) is removed to keep the chat focused on the project list.
-- A visible footer bubble with [⬅ Back to Years] is appended after projects; selecting it removes all project bubbles and re‑shows the year list.
+  - When selecting a year, the year list (welcome + year keyboard) is removed to keep the chat focused on the project list.
+  - Project listing footer includes [➕ Add New Project] and [⬅ Back to Years].
+  - Selecting a project prunes other project bubbles so only the selected project remains visible.
+  - Selecting [⬅ Back to Years] removes all project bubbles and re‑shows the year list.
 
 ### T-117
 - Title: Telegram — Expand invoice editing coverage
 - Branch: main
 - PR: —
-- Status: ⏳ In Progress
-- Outcomes (delivered):
-  - Added Client Company Name to editable invoice fields (updates reflected in Client block).
-- Planned next:
-  - Support invoice number change (requires safe rekey: create new doc, migrate, delete old) with logging.
-  - Add item-level edits: Title, Sub‑Qty, FeeType, Notes, Unit Price, Quantity, Quantity Unit, Discount with preview/confirm.
+- Status: ✅ Done
+- Outcomes:
+  - Added Client Company Name to editable invoice fields.
+  - Added invoice number rename (safe rekey) with immediate refresh.
+  - Added item-level edits (Title, Sub‑Qty, FeeType, Notes, Unit Price, Quantity, Quantity Unit, Discount) with preview/confirm.
+
+### T-123
+- Title: Telegram — Create New Invoice (suggested number + guided fields)
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Suggest base invoice number derived from project number + pickup date; user can accept or enter a custom number.
+  - Guided capture of client fields; preview and Confirm/Cancel; writes via createInvoiceForProject.
+  - After creation, shows Invoice Detail as multi-bubble view.
+
+### T-124
+- Title: Telegram — Create New Project (suggested number + guided fields)
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Suggest next sequential project number for the chosen year (same rules as web app UI).
+  - Guided capture of key project fields; preview and Confirm/Cancel; writes via createProjectInDatabase.
+  - Navigates to the new Project Detail on success.
+
+### T-125
+- Title: Telegram — Invoice Detail as multi-bubble sections
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Controller message shows “Invoice: #…”.
+  - Client bubble headed “Client Detail”.
+  - “Invoice Detail” heading bubble above the first item, then one bubble per item.
+  - Totals/To/Status as a dedicated bubble; Back appears after this bubble.
+
+### T-126
+- Title: Telegram — Project Detail UI polish for invoices
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Invoices sorted earliest → latest.
+  - “➕ Create New Invoice” placed below the invoice list.
+  - Renamed “Edit” to “Edit Project Detail”.
 
 ### Changes — P-015
 
