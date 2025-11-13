@@ -9,7 +9,7 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 - Title: Invoice detail editing toggle & number editing parity (P-038)
 - Branch: main
 - PR: —
-- Status: ⏳ In Progress
+- Status: ✅ Done
 - Outcomes (planned):
   - Allow invoice number edits regardless of invoice count; ensure toggling resets the working draft safely.
   - Relocate the header edit action beside Project Pickup Date and update styling per request.
@@ -26,7 +26,7 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 - Title: Invoice item layout polish (Sub-Qty, Notes, widths) (P-039)
 - Branch: main
 - PR: —
-- Status: ⏳ In Progress
+- Status: ✅ Done
 - Outcomes (planned):
   - Ensure “Sub-Qty” is inline at the right-end of the Item Title row in both view and edit modes.
   - Show bank name abbreviation only when it has 4+ tokens; otherwise show full name (e.g., “Dah Sing Bank” stays full).
@@ -60,6 +60,53 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 | P-026 | Finish Payment UX and Add Payment cascade | ⏳    | See prompts/p-026.md (revisions: p-026-01r, p-026-02r, p-026-03r) |
 | P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | ⏳    | See prompts/p-025.md |
 | P-024 | Payment UI polish & data rules | ✅    | See prompts/p-024.md |
+
+### T-109
+- Title: Telegram Bot integration (webhook, ensure endpoint, secret verification)
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Added Telegram webhook at `pages/api/telegram/webhook` with secret header verification and non-POST 200 responses to avoid 405s.
+  - Added `/api/telegram/ensure` and `/api/telegram/setup` to programmatically set webhook with `TELEGRAM_WEBHOOK_SECRET`.
+  - Added `/api/telegram/debug` to confirm env presence.
+  - Fixed early response issue (no `res.end()` before async work) to ensure reliable replies on Vercel.
+- Notes:
+  - Env: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` (Vercel).
+
+### T-110
+- Title: Telegram Text UI — Projects/Invoices UX, formatting, and inline editing
+- Branch: main
+- PR: —
+- Status: ⏳ In Progress
+- Outcomes (delivered):
+  - Edit-in-place flow using `editMessageText` with Back buttons at every step (Years → Projects → Project → Invoice → back).
+  - Headings: <b><u>Project Detail</u></b>, <b><u>Invoice Detail</u></b>, <b><u>Client Detail</u></b>; Item headings underlined.
+  - Invoice formatting per spec: feeType italic; item calc line "<i>unit x qty/unit</i> = <b>Total</b>" two lines below notes; bottom "<b>Total</b> — <b>To</b> — <i>Status</i>" with bank lookup.
+  - Project detail formatting: presenter/worktype, <b>title</b>, <i>nature</i>, blank line, subsidiary (name mapped).
+  - Added Edit flows for Project and Invoice fields: field selection → value message → preview → Confirm/Revise/Cancel; writes via Firestore helpers.
+- Planned:
+  - List projects as individual message bubbles (Open/Edit per project) with paginated footer and Back to Years.
+
+### T-111
+- Title: Remove Slack/Discord integrations and secrets
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Removed Slack routes (`pages/api/slack/*`) and Discord route (`pages/api/discord/interactions.ts`).
+  - Removed CLI script `scripts/discord-register-commands.js` and DiscordProvider from NextAuth.
+  - Dropped `tweetnacl` and its type stub; cleaned package.json.
+  - Ensured `.env.local` contains no Slack/Discord secrets.
+
+### T-112
+- Title: Firestore Admin — non-default database fix
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Switched server-side reads to explicit `@google-cloud/firestore` client with `databaseId` (e.g., `tebs-erl`) instead of mutating private `_settings`.
+  - Resolved hanging/non-returning queries during Telegram callbacks.
 
 ### Changes — P-015
 
