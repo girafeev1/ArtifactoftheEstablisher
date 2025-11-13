@@ -108,6 +108,48 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
   - Switched server-side reads to explicit `@google-cloud/firestore` client with `databaseId` (e.g., `tebs-erl`) instead of mutating private `_settings`.
   - Resolved hanging/non-returning queries during Telegram callbacks.
 
+### T-115
+- Title: Telegram — list projects as individual bubbles, no deletion, footer Back
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - After selecting a year, post one message per project as a two-line summary bubble with [Select] and [Edit] buttons.
+  - Do not delete prior bubbles; retain history for responsiveness. Edit the selected bubble in place for details.
+  - Remove the "Projects in YYYY:" header message; add a footer Back-to-Years bubble after listing.
+
+### T-118
+- Title: Telegram — show subsidiary full name (not identifier)
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Resolve `project.subsidiary` via admin Firestore (`aote-ref/Subsidiaries`) and display the English name in Project Detail.
+
+### T-119
+- Title: Telegram — bank name abbreviation logic for invoice “To” line
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - For long bank names (≥ 4 tokens), show an acronym of capitalized tokens; otherwise show full name. Mirrors web app behavior.
+
+### T-120
+- Title: Telegram — Back button dedupe guard and layout sanity
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Ensure exactly one Back row per screen. Removed legacy branches that produced duplicate Back rows.
+
+### T-121
+- Title: Docs — Task Log maintenance for Telegram phases
+- Branch: main
+- PR: —
+- Status: ⏳ In Progress
+- Outcomes:
+  - Append T-115/T-118/T-119/T-120 and keep Task Log synchronized as Telegram UI evolves.
+
 ### Changes — P-015
 
 - `lib/useColumnWidths.ts`

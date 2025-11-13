@@ -130,13 +130,22 @@ function welcomeText(): string {
   return 'Welcome to the Telegram portal of the Artifact of the Establishers'
 }
 
-function formatSubsidiaryName(id?: string | null): string | null {
+// Resolve subsidiary identifier -> English name using admin Firestore (aote-ref)
+async function adminResolveSubsidiaryName(id?: string | null): Promise<string | null> {
   if (!id) return null
-  const map: Record<string, string> = {
-    'tebs-erl': 'Establish Records Limited',
-    'erl': 'Establish Records Limited',
+  try {
+    const fs = getAdminFirestore('aote-ref')
+    // @ts-ignore Firestore from @google-cloud/firestore has the same API surface used here
+    const snap = await fs.collection('Subsidiaries').doc(String(id)).get()
+    if (!snap.exists) return id
+    const data = snap.data() as any
+    const name = typeof data?.englishName === 'string' && data.englishName.trim().length > 0
+      ? data.englishName.trim()
+      : null
+    return name || id
+  } catch {
+    return id
   }
-  return map[id] || id
 }
 
 async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]> {
@@ -275,9 +284,19 @@ async function buildProjectDetailsText(year: string, projectId: string): Promise
   // empty line
   parts.push('')
   // subsidiary (name)
-  const sub = formatSubsidiaryName(p.subsidiary)
+  const sub = await adminResolveSubsidiaryName(p.subsidiary)
   if (sub) parts.push(esc(sub))
   return parts.join('\n')
+}
+
+// Summarize a project into two lines for the list view
+function projectSummaryText(p: ProjectRecord): string {
+  const safe = (s: string | null | undefined) => (typeof s === 'string' ? s : '')
+  const head = safe(p.projectNumber) || safe(p.id)
+  const line2Left = safe(p.presenterWorkType)
+  const line2Right = safe(p.projectTitle)
+  const line2 = [line2Left, line2Right].filter(Boolean).join(' - ')
+  return [head, line2].filter(Boolean).join('\n')
 }
 
 async function buildInvoicesKeyboard(year: string, projectId: string) {
@@ -302,6 +321,19 @@ function formatMoney(n: number | null | undefined): string {
 }
 
 import { DIRECTORY_FIRESTORE_DATABASE_ID } from '../../../lib/firebase'
+// Abbreviate long bank names (>= 4 tokens, take initials of Capitalized tokens)
+function abbreviateBankName(name: string): string {
+  const tokens = name.replace(/-/g, ' ').split(/\s+/).filter(Boolean)
+  if (tokens.length >= 4) {
+    const letters = tokens
+      .filter((t) => /^[A-Z]/.test(t[0] || ''))
+      .map((t) => (t[0] || '').toUpperCase())
+      .join('')
+    if (letters.length >= 2) return letters
+  }
+  return name
+}
+
 async function adminResolveBank(identifier: string | null | undefined): Promise<{ bankName?: string; bankCode?: string; accountType?: string } | null> {
   if (!identifier) return null
   try {
@@ -310,7 +342,8 @@ async function adminResolveBank(identifier: string | null | undefined): Promise<
     const snap = await docRef.get()
     if (!snap.exists) return null
     const data = snap.data() as any
-    const bankName = typeof data.bankName === 'string' ? data.bankName : undefined
+    const bankNameRaw = typeof data.bankName === 'string' ? data.bankName : undefined
+    const bankName = bankNameRaw ? abbreviateBankName(bankNameRaw) : undefined
     const bankCode = typeof data.bankCode === 'string' ? data.bankCode.replace(/[^0-9]/g,'').padStart(3,'0') : undefined
     const accountType = typeof data.accountType === 'string' ? data.accountType : undefined
     return { bankName, bankCode, accountType }
@@ -557,15 +590,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const year = data.split(':')[1]
       // Replace the controller message in-place
       try {
-        // Delete any previously listed project bubbles
-        await clearProjectBubbles(chatId)
         const { projects } = await adminFetchAllProjectsForYear(year)
         // Send one message per project with [Select] [Edit]
-        const sentIds: number[] = []
+        const sentIds: number[] = [] // collected but not persisted (no deletion model)
         for (const p of projects) {
-          const p1 = `${p.projectNumber}`
-          const p2 = [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' - ')
-          const text = [p1, p2].filter(Boolean).join('\n')
+          const text = projectSummaryText(p)
           const resp = await sendBubble(token, chatId, text, {
             inline_keyboard: [[
               { text: 'Select', callback_data: `P:${year}:${p.id}` },
@@ -577,7 +606,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Footer back button after the list
         const footer = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back', callback_data: 'BK:YEARS' }]] })
         if (footer?.message_id) sentIds.push(footer.message_id)
-        await saveProjectBubbles(chatId, sentIds)
+        // no tracking/deletion; leave bubbles as history
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, `Sorry, failed to load projects for ${year}.`)
       }
@@ -602,9 +631,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const invKb = await buildInvoicesKeyboard(year, projectId)
         const rows = (invKb.inline_keyboard as any[])
         rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${year}:${projectId}` }])
-        rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:1` }])
+        rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:${projectId}` }])
         await tgEditMessage(token, chatId, msgId, text, { inline_keyboard: rows })
-        await clearProjectBubbles(chatId)
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load that project. Please try again.')
       }
@@ -698,8 +726,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const invKb = await buildInvoicesKeyboard(edit.year, edit.projectId)
           const rows = (invKb.inline_keyboard as any[])
           rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${edit.year}:${edit.projectId}` }])
-          rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${edit.year}:1` }])
-          await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
+          rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${edit.year}:${edit.projectId}` }])
+         await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
         } else {
           const invNum = decodeURIComponent(edit.invoiceNumber || '')
           const invoices = await fetchInvoicesForProject(edit.year, edit.projectId)
@@ -794,10 +822,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.startsWith('BK:YEARS')) {
       const years = ['2025', '2024', '2023', '2022', '2021']
-      await clearProjectBubbles(chatId)
-      // Remove the footer message where Back was pressed
-      await tgDeleteMessage(token, chatId, msgId)
-      // Send split welcome messages again
+      // Send split welcome messages again (do not delete existing bubbles)
       await tgSendMessage(token, chatId, welcomeText())
       await tgSendMessage(
         token,
@@ -808,25 +833,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).end('ok')
     }
     if (data.startsWith('BK:PROJ:')) {
-      const [, , year, pageStr] = data.split(':')
-      await clearProjectBubbles(chatId)
-      const { projects } = await adminFetchAllProjectsForYear(year)
-      const sentIds: number[] = []
-      for (const p of projects) {
-        const p1 = `${p.projectNumber}`
-        const p2 = [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' - ')
-        const text = [p1, p2].filter(Boolean).join('\n')
-        const resp = await sendBubble(token, chatId, text, {
-          inline_keyboard: [[
-            { text: 'Select', callback_data: `P:${year}:${p.id}` },
-            { text: 'Edit', callback_data: `EDIT:PROJ:${year}:${p.id}` }
-          ]]
-        })
-        if (resp?.message_id) sentIds.push(resp.message_id)
+      const [, , year, projectId] = data.split(':')
+      try {
+        const projects = await adminFetchProjectsForYear(year)
+        const found = projects.find((p) => p.id === projectId)
+        if (found) {
+          const summary = projectSummaryText(found)
+          await tgEditMessage(token, chatId, msgId, summary, {
+            inline_keyboard: [[
+              { text: 'Select', callback_data: `P:${year}:${found.id}` },
+              { text: 'Edit', callback_data: `EDIT:PROJ:${year}:${found.id}` }
+            ]]
+          })
+        } else {
+          await tgEditMessage(token, chatId, msgId, 'Back to projects. Select another above.', { inline_keyboard: [[{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }]] })
+        }
+      } catch {
+        await tgEditMessage(token, chatId, msgId, 'Back to projects. Select another above.', { inline_keyboard: [[{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }]] })
       }
-      const footer = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back', callback_data: 'BK:YEARS' }]] })
-      if (footer?.message_id) sentIds.push(footer.message_id)
-      await saveProjectBubbles(chatId, sentIds)
       return res.status(200).end('ok')
     }
   }
