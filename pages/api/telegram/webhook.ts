@@ -224,7 +224,7 @@ const TG_PAGES_COLLECTION = 'tgPages'
 async function saveProjectBubbles(chatId: number, messageIds: number[]) {
   try {
     const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
-    await fs.collection(TG_PAGES_COLLECTION).doc(String(chatId)).set({ chatId, messageIds }, { merge: true })
+    await fs.collection(TG_PAGES_COLLECTION).doc(String(chatId)).set({ chatId, projectMessageIds: messageIds }, { merge: true })
   } catch {}
 }
 
@@ -233,12 +233,12 @@ async function clearProjectBubbles(chatId: number) {
     const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
     const snap = await fs.collection(TG_PAGES_COLLECTION).doc(String(chatId)).get()
     if (!snap.exists) return
-    const data = snap.data() as BubblePage
-    const ids = Array.isArray(data?.messageIds) ? data.messageIds : []
+    const data = snap.data() as any
+    const ids = Array.isArray(data?.projectMessageIds) ? data.projectMessageIds : []
     for (const id of ids) {
       try { await fetch(`${TELEGRAM_API(process.env.TELEGRAM_BOT_TOKEN || '')}/deleteMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, message_id: id }) }) } catch {}
     }
-    await fs.collection(TG_PAGES_COLLECTION).doc(String(chatId)).delete().catch(() => {})
+    await fs.collection(TG_PAGES_COLLECTION).doc(String(chatId)).set({ projectMessageIds: [] }, { merge: true })
   } catch {}
 }
 
@@ -252,6 +252,37 @@ async function sendBubble(token: string, chatId: number, text: string, replyMark
     const data = await resp.json().catch(() => null)
     return data?.result || null
   } catch { return null }
+}
+
+// Track the year list (welcome + year menu) messages
+async function saveYearMenu(chatId: number, welcomeMessageId?: number, yearMenuMessageId?: number) {
+  try {
+    const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+    await fs
+      .collection(TG_PAGES_COLLECTION)
+      .doc(String(chatId))
+      .set({ chatId, welcomeMessageId: welcomeMessageId || null, yearMenuMessageId: yearMenuMessageId || null }, { merge: true })
+  } catch {}
+}
+
+async function clearYearMenu(chatId: number) {
+  try {
+    const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+    const snap = await fs.collection(TG_PAGES_COLLECTION).doc(String(chatId)).get()
+    if (!snap.exists) return
+    const data = snap.data() as any
+    const ids = [data?.welcomeMessageId, data?.yearMenuMessageId].filter((v) => typeof v === 'number') as number[]
+    for (const id of ids) {
+      try {
+        await fetch(`${TELEGRAM_API(process.env.TELEGRAM_BOT_TOKEN || '')}/deleteMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, message_id: id }),
+        })
+      } catch {}
+    }
+    await fs.collection(TG_PAGES_COLLECTION).doc(String(chatId)).set({ welcomeMessageId: null, yearMenuMessageId: null }, { merge: true })
+  } catch {}
 }
 
 // build helper only; do not send messages here to avoid duplication
@@ -467,6 +498,7 @@ const PROJECT_FIELD_LABELS: Record<string, string> = {
 }
 
 const INVOICE_FIELD_LABELS: Record<string, string> = {
+  companyName: 'Client Company Name',
   paymentStatus: 'Payment Status',
   paidTo: 'Paid To (bank identifier)',
   representative: 'Representative',
@@ -550,9 +582,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const text = (msg.text as string).trim()
     if (text === '/start' || text === '/menu') {
       const years = ['2025', '2024', '2023', '2022', '2021']
-      // Split welcome into two messages
-      await tgSendMessage(token, chatId, welcomeText())
-      await tgSendMessage(token, chatId, 'To locate the project you\'re looking for, please select the year the project was picked up below:', buildYearsKeyboard(years))
+      // Clear any lingering project bubbles from previous navigation
+      await clearProjectBubbles(chatId)
+      // Split welcome into two messages and record their IDs so we can hide them later
+      const m1 = await sendBubble(token, chatId, welcomeText())
+      const m2 = await sendBubble(
+        token,
+        chatId,
+        'To locate the project you\'re looking for, please select the year the project was picked up below:',
+        buildYearsKeyboard(years),
+      )
+      await saveYearMenu(chatId, m1?.message_id, m2?.message_id)
       return res.status(200).end('ok')
     }
     // Handle pending edit value input
@@ -590,6 +630,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const year = data.split(':')[1]
       // Replace the controller message in-place
       try {
+        // Hide the year list (and welcome) when a year is selected
+        await clearYearMenu(chatId)
         const { projects } = await adminFetchAllProjectsForYear(year)
         // Send one message per project with [Select] [Edit]
         const sentIds: number[] = [] // collected but not persisted (no deletion model)
@@ -603,10 +645,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
           if (resp?.message_id) sentIds.push(resp.message_id)
         }
-        // Footer back button after the list
-        const footer = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back', callback_data: 'BK:YEARS' }]] })
+        // Footer: Back to Years after the list
+        const footer = await sendBubble(token, chatId, 'Back to Years', { inline_keyboard: [[{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }]] })
         if (footer?.message_id) sentIds.push(footer.message_id)
-        // no tracking/deletion; leave bubbles as history
+        // Track these so we can clear on back to years
+        await saveProjectBubbles(chatId, sentIds)
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, `Sorry, failed to load projects for ${year}.`)
       }
@@ -751,6 +794,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             if (f === 'representative') (client as any).representative = edit.proposedValue
             else if (f.startsWith('addressLine')) (client as any)[f] = edit.proposedValue
             else if (f === 'region') (client as any).region = edit.proposedValue
+            else if (f === 'companyName') (client as any).companyName = edit.proposedValue
             else if (f === 'paymentStatus') (current as any).paymentStatus = edit.proposedValue
             else if (f === 'paidTo') (current as any).paidTo = edit.proposedValue
           }
@@ -822,14 +866,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.startsWith('BK:YEARS')) {
       const years = ['2025', '2024', '2023', '2022', '2021']
-      // Send split welcome messages again (do not delete existing bubbles)
-      await tgSendMessage(token, chatId, welcomeText())
-      await tgSendMessage(
+      // Clear existing project bubbles from the screen
+      await clearProjectBubbles(chatId)
+      // Re-post the split welcome/year list and save their IDs
+      const m1 = await sendBubble(token, chatId, welcomeText())
+      const m2 = await sendBubble(
         token,
         chatId,
         'To locate the project you\'re looking for, please select the year the project was picked up below:',
-        buildYearsKeyboard(years)
+        buildYearsKeyboard(years),
       )
+      await saveYearMenu(chatId, m1?.message_id, m2?.message_id)
       return res.status(200).end('ok')
     }
     if (data.startsWith('BK:PROJ:')) {

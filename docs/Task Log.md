@@ -150,6 +150,26 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 - Outcomes:
   - Append T-115/T-118/T-119/T-120 and keep Task Log synchronized as Telegram UI evolves.
 
+### T-122
+- Title: Telegram — Year/Projects navigation cleanup (vanish year list; Back clears project bubbles)
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+- When selecting a year, the year list (welcome + year keyboard) is removed to keep the chat focused on the project list.
+- A visible footer bubble with [⬅ Back to Years] is appended after projects; selecting it removes all project bubbles and re‑shows the year list.
+
+### T-117
+- Title: Telegram — Expand invoice editing coverage
+- Branch: main
+- PR: —
+- Status: ⏳ In Progress
+- Outcomes (delivered):
+  - Added Client Company Name to editable invoice fields (updates reflected in Client block).
+- Planned next:
+  - Support invoice number change (requires safe rekey: create new doc, migrate, delete old) with logging.
+  - Add item-level edits: Title, Sub‑Qty, FeeType, Notes, Unit Price, Quantity, Quantity Unit, Discount with preview/confirm.
+
 ### Changes — P-015
 
 - `lib/useColumnWidths.ts`
