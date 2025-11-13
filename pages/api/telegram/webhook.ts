@@ -257,6 +257,7 @@ async function buildProjectDetailsText(year: string, projectId: string): Promise
   const parts: string[] = []
   // Heading
   parts.push('<b><u>Project Detail</u></b>')
+  parts.push('')
   // presenter/worktype
   if (p.presenterWorkType) parts.push(esc(p.presenterWorkType))
   // project title in bold
@@ -316,12 +317,11 @@ async function buildInvoiceDetailsText(year: string, projectId: string, invoiceN
   const lines: string[] = []
   // Heading
   lines.push('<b><u>Invoice Detail</u></b>')
+  lines.push('')
   // Title
   lines.push(`<b>Invoice:</b> #${esc(inv.invoiceNumber)}`)
   // Client block
   if (inv.companyName) {
-    lines.push('')
-    lines.push('<b><u>Client Detail</u></b>')
     lines.push('')
     lines.push(`<b>${esc(inv.companyName)}</b>`) // bold company name
     if (inv.addressLine1) lines.push(esc(inv.addressLine1))
@@ -363,8 +363,9 @@ async function buildInvoiceDetailsText(year: string, projectId: string, invoiceN
   const bankLabel = bank && (bank.bankName || bank.bankCode || bank.accountType)
     ? `${bank.bankName ? esc(bank.bankName) : ''}${bank.bankCode ? ` (${esc(bank.bankCode)})` : ''}${bank.accountType ? ` - ${esc(bank.accountType)}` : ''}`
     : (inv.paidTo ? esc(inv.paidTo) : '')
-  const status = inv.paymentStatus ? ` — <i>${esc(inv.paymentStatus)}</i>` : ''
-  lines.push(`<b>Total:</b> ${formatMoney(inv.amount)}${bankLabel ? ` — <b>To:</b> ${bankLabel}` : ''}${status}`)
+  lines.push(`<b>Total:</b> ${formatMoney(inv.amount)}`)
+  if (bankLabel) lines.push(`<b>To:</b> ${bankLabel}`)
+  if (inv.paymentStatus) lines.push(`<i>${esc(inv.paymentStatus)}</i>`)
   return lines.join('\n')
 }
 
@@ -586,6 +587,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.startsWith('P:')) {
       const [, year, projectId] = data.split(':')
+      await clearProjectBubbles(chatId)
       try {
         const text = await buildProjectDetailsText(year, projectId)
         const invKb = await buildInvoicesKeyboard(year, projectId)
@@ -788,12 +790,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.startsWith('BK:PROJ:')) {
       const [, , year, pageStr] = data.split(':')
-      const page = parseInt(pageStr || '1', 10) || 1
-      const projects = await adminFetchProjectsForYear(year)
-      const kb = buildProjectsKeyboard(year, projects, page)
-      const rows = (kb.inline_keyboard as any[])
-      rows.push([{ text: '⬅ Back', callback_data: 'BK:YEARS' }])
-      await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: rows })
+      await clearProjectBubbles(chatId)
+      const { projects } = await adminFetchAllProjectsForYear(year)
+      await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: [[{ text: '⬅ Back', callback_data: 'BK:YEARS' }]] })
+      const sentIds: number[] = []
+      for (const p of projects) {
+        const p1 = `${p.projectNumber}`
+        const p2 = [p.presenterWorkType, p.projectTitle].filter(Boolean).join(' - ')
+        const text = [p1, p2].filter(Boolean).join('\n')
+        const resp = await sendBubble(token, chatId, text, {
+          inline_keyboard: [[
+            { text: 'Select', callback_data: `P:${year}:${p.id}` },
+            { text: 'Edit', callback_data: `EDIT:PROJ:${year}:${p.id}` }
+          ]]
+        })
+        if (resp?.message_id) sentIds.push(resp.message_id)
+      }
+      await saveProjectBubbles(chatId, sentIds)
       return res.status(200).end('ok')
     }
   }
