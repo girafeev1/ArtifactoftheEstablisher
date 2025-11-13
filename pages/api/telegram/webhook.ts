@@ -152,6 +152,27 @@ async function adminResolveSubsidiaryName(id?: string | null): Promise<string | 
 async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]> {
   const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
   const out: ProjectRecord[] = []
+  const toIso = (v: any): string | null => {
+    try {
+      if (!v) return null
+      if (typeof v === 'string') {
+        const d = new Date(v)
+        return Number.isNaN(d.getTime()) ? null : d.toISOString()
+      }
+      if (typeof v === 'object') {
+        if (v.toDate && typeof v.toDate === 'function') {
+          const d = v.toDate()
+          return Number.isNaN(d.getTime()) ? null : d.toISOString()
+        }
+        if (typeof v.seconds === 'number' && typeof v.nanoseconds === 'number') {
+          const ms = v.seconds * 1000 + Math.floor(v.nanoseconds / 1e6)
+          const d = new Date(ms)
+          return Number.isNaN(d.getTime()) ? null : d.toISOString()
+        }
+      }
+    } catch {}
+    return null
+  }
   try {
     const nested = await fs.collection('projects').doc(year).collection('projects').get()
     if (!nested.empty) {
@@ -164,13 +185,13 @@ async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]>
           clientCompany: typeof d.clientCompany === 'string' ? d.clientCompany : null,
           invoice: typeof d.invoice === 'string' ? d.invoice : null,
           onDateDisplay: null,
-          onDateIso: null,
+          onDateIso: toIso(d.onDate) || null,
           paid: typeof d.paid === 'boolean' ? d.paid : null,
           paidTo: typeof d.paidTo === 'string' ? d.paidTo : null,
           paymentStatus: typeof d.paymentStatus === 'string' ? d.paymentStatus : null,
           presenterWorkType: typeof d.presenterWorkType === 'string' ? d.presenterWorkType : null,
           projectDateDisplay: typeof d.projectDateDisplay === 'string' ? d.projectDateDisplay : null,
-          projectDateIso: typeof d.projectDateIso === 'string' ? d.projectDateIso : null,
+          projectDateIso: typeof d.projectDateIso === 'string' ? d.projectDateIso : (toIso(d.projectDate) || null),
           projectNature: typeof d.projectNature === 'string' ? d.projectNature : null,
           projectNumber: typeof d.projectNumber === 'string' ? d.projectNumber : doc.id,
           projectTitle: typeof d.projectTitle === 'string' ? d.projectTitle : null,
@@ -194,13 +215,13 @@ async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]>
         clientCompany: typeof d.clientCompany === 'string' ? d.clientCompany : null,
         invoice: typeof d.invoice === 'string' ? d.invoice : null,
         onDateDisplay: null,
-        onDateIso: null,
+        onDateIso: toIso(d.onDate) || null,
         paid: typeof d.paid === 'boolean' ? d.paid : null,
         paidTo: typeof d.paidTo === 'string' ? d.paidTo : null,
         paymentStatus: typeof d.paymentStatus === 'string' ? d.paymentStatus : null,
         presenterWorkType: typeof d.presenterWorkType === 'string' ? d.presenterWorkType : null,
         projectDateDisplay: typeof d.projectDateDisplay === 'string' ? d.projectDateDisplay : null,
-        projectDateIso: typeof d.projectDateIso === 'string' ? d.projectDateIso : null,
+        projectDateIso: typeof d.projectDateIso === 'string' ? d.projectDateIso : (toIso(d.projectDate) || null),
         projectNature: typeof d.projectNature === 'string' ? d.projectNature : null,
         projectNumber: typeof d.projectNumber === 'string' ? d.projectNumber : doc.id,
         projectTitle: typeof d.projectTitle === 'string' ? d.projectTitle : null,
@@ -380,7 +401,17 @@ async function buildInvoicesKeyboard(year: string, projectId: string) {
     if (!invoices || invoices.length === 0) {
       return { inline_keyboard: [[{ text: 'No invoices', callback_data: 'NOP' }]] }
     }
-    const rows = invoices.map((inv) => [
+    const rows = invoices
+      .slice()
+      .sort((a, b) => {
+        const ta = a.createdAt ? Date.parse(a.createdAt) : NaN
+        const tb = b.createdAt ? Date.parse(b.createdAt) : NaN
+        if (!Number.isNaN(ta) && !Number.isNaN(tb)) return ta - tb
+        if (!Number.isNaN(ta)) return -1
+        if (!Number.isNaN(tb)) return 1
+        return a.invoiceNumber.localeCompare(b.invoiceNumber)
+      })
+      .map((inv) => [
       { text: inv.invoiceNumber, callback_data: `INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` },
     ])
     return { inline_keyboard: rows }
@@ -542,15 +573,17 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   }
   const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 
-  // 1) Controller message: Invoice number heading + edit
-  const title = `<b><u>Invoice Detail</u></b>\n\n<b>Invoice:</b> #${esc(inv.invoiceNumber)}`
+  // 1) Controller message: Invoice number only + edit
+  const title = `<b>Invoice:</b> #${esc(inv.invoiceNumber)}`
   await tgEditMessage(token, chatId, controllerMessageId, title, {
-    inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }], [{ text: '⬅ Back', callback_data: `P:${year}:${projectId}` }]],
+    inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]],
   })
 
   const sentIds: number[] = []
-  // 2) Client details bubble
+  // 2) Client details bubble with heading
   const clientLines: string[] = []
+  clientLines.push('<b><u>Client Detail</u></b>')
+  clientLines.push('')
   if (inv.companyName) {
     clientLines.push(`<b>${esc(inv.companyName)}</b>`) 
     if (inv.addressLine1) clientLines.push(esc(inv.addressLine1))
@@ -568,7 +601,11 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   const clientResp = await sendBubble(token, chatId, clientLines.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
   if (clientResp?.message_id) sentIds.push(clientResp.message_id)
 
-  // 3) Items — one bubble per item
+  // 3) Invoice Detail heading bubble above first item
+  const invDetailHead = await sendBubble(token, chatId, '<b><u>Invoice Detail</u></b>')
+  if (invDetailHead?.message_id) sentIds.push(invDetailHead.message_id)
+
+  // 4) Items — one bubble per item
   if (inv.items && inv.items.length > 0) {
     for (let i = 0; i < inv.items.length; i += 1) {
       const it = inv.items[i]
@@ -588,7 +625,7 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
     }
   }
 
-  // 4) Totals + To + Status
+  // 5) Totals + To + Status
   const bank = await adminResolveBank(inv.paidTo || null)
   const bankLabel = bank && (bank.bankName || bank.bankCode || bank.accountType)
     ? `${bank.bankName ? esc(bank.bankName) : ''}${bank.bankCode ? ` (${esc(bank.bankCode)})` : ''}${bank.accountType ? ` - ${esc(bank.accountType)}` : ''}`
@@ -600,7 +637,7 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   const totResp = await sendBubble(token, chatId, totals.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
   if (totResp?.message_id) sentIds.push(totResp.message_id)
 
-  // 5) Final Back bubble
+  // 6) Final Back bubble
   const back = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back', callback_data: `P:${year}:${projectId}` }]] })
   if (back?.message_id) sentIds.push(back.message_id)
   await saveInvoiceBubbles(chatId, sentIds)
@@ -980,9 +1017,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const text = await buildProjectDetailsText(year, projectId)
         const invKb = await buildInvoicesKeyboard(year, projectId)
         const rows = (invKb.inline_keyboard as any[])
-        // Create new invoice at top
-        rows.unshift([{ text: '➕ Create New Invoice', callback_data: `NEW:INV:${year}:${projectId}` }])
-        rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${year}:${projectId}` }])
+        // Put Create New Invoice at the bottom after invoices
+        rows.push([{ text: '➕ Create New Invoice', callback_data: `NEW:INV:${year}:${projectId}` }])
+        rows.push([{ text: 'Edit Project Detail', callback_data: `EDIT:PROJ:${year}:${projectId}` }])
         rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:${projectId}` }])
         await tgEditMessage(token, chatId, msgId, text, { inline_keyboard: rows })
       } catch (e: any) {
