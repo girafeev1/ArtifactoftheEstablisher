@@ -994,6 +994,63 @@ export const deleteInvoiceForProject = async (
   await deleteDoc(documentRef)
 }
 
+export interface RenameInvoiceInput {
+  year: string
+  projectId: string
+  fromInvoiceNumber: string
+  toInvoiceNumber: string
+  editedBy: string
+}
+
+// Rename (rekey) an invoice document within the unified 'invoice' collection.
+// Copies data to the new doc id and deletes the old doc.
+export const renameInvoiceForProject = async (
+  input: RenameInvoiceInput,
+): Promise<ProjectInvoiceRecord> => {
+  // Prefer nested; fallback to legacy path
+  let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
+  try {
+    const exists = await getDoc(projectRef)
+    if (!exists.exists()) {
+      projectRef = doc(projectsDb, input.year, input.projectId)
+    }
+  } catch {
+    projectRef = doc(projectsDb, input.year, input.projectId)
+  }
+
+  const collectionRef = collection(projectRef, SINGLE_INVOICE_COLLECTION_ID)
+  const fromRef = doc(collectionRef, input.fromInvoiceNumber)
+  const fromSnap = await getDoc(fromRef)
+  if (!fromSnap.exists()) {
+    throw new Error('Invoice not found')
+  }
+
+  const toRef = doc(collectionRef, input.toInvoiceNumber)
+  const toSnap = await getDoc(toRef)
+  if (toSnap.exists()) {
+    throw new Error('Target invoice number already exists')
+  }
+
+  const data = fromSnap.data() || {}
+  const baseInvoiceNumber = extractBaseInvoiceNumber(input.toInvoiceNumber)
+  const payload: Record<string, unknown> = {
+    ...data,
+    invoiceNumber: input.toInvoiceNumber,
+    baseInvoiceNumber,
+    updatedAt: serverTimestamp(),
+    updatedBy: input.editedBy,
+  }
+
+  await setDoc(toRef, payload)
+  await deleteDoc(fromRef)
+
+  const newSnap = await getDoc(toRef)
+  if (!newSnap.exists()) {
+    throw new Error('Failed to read renamed invoice')
+  }
+  return buildInvoiceRecord(SINGLE_INVOICE_COLLECTION_ID, newSnap.id, newSnap.data() || {})
+}
+
 export interface InvoiceSummaryResult {
   invoiceNumber: string | null
   amount: number | null

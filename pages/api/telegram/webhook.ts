@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { type ProjectRecord } from '../../../lib/projectsDatabase'
-import { fetchInvoicesForProject, type ProjectInvoiceRecord, updateInvoiceForProject } from '../../../lib/projectInvoices'
+import { fetchInvoicesForProject, type ProjectInvoiceRecord, updateInvoiceForProject, renameInvoiceForProject } from '../../../lib/projectInvoices'
 import { updateProjectInDatabase } from '../../../lib/projectsDatabase'
 import { getAdminFirestore } from '../../../lib/firebaseAdmin'
 import { PROJECTS_FIRESTORE_DATABASE_ID } from '../../../lib/firebase'
@@ -460,6 +460,7 @@ type PendingEdit = {
   projectId: string
   invoiceNumber?: string
   field?: string
+  itemIndex?: number
   controllerMessageId: number
   step: 'await_field' | 'await_value' | 'preview'
   proposedValue?: string
@@ -498,6 +499,7 @@ const PROJECT_FIELD_LABELS: Record<string, string> = {
 }
 
 const INVOICE_FIELD_LABELS: Record<string, string> = {
+  invoiceNumber: 'Invoice Number',
   companyName: 'Client Company Name',
   paymentStatus: 'Payment Status',
   paidTo: 'Paid To (bank identifier)',
@@ -506,6 +508,17 @@ const INVOICE_FIELD_LABELS: Record<string, string> = {
   addressLine2: 'Address Line 2',
   addressLine3: 'Address Line 3',
   region: 'Region',
+}
+
+const INVOICE_ITEM_FIELD_LABELS: Record<string, string> = {
+  title: 'Title',
+  subQuantity: 'Sub-Quantity',
+  feeType: 'Fee Type',
+  notes: 'Notes',
+  unitPrice: 'Unit Price',
+  quantity: 'Quantity',
+  quantityUnit: 'Quantity Unit',
+  discount: 'Discount',
 }
 
 function buildProjectEditFieldsKeyboard(year: string, projectId: string) {
@@ -518,7 +531,29 @@ function buildProjectEditFieldsKeyboard(year: string, projectId: string) {
 function buildInvoiceEditFieldsKeyboard(year: string, projectId: string, invoiceNumber: string) {
   const keys = Object.keys(INVOICE_FIELD_LABELS)
   const rows = keys.map((k) => [{ text: INVOICE_FIELD_LABELS[k], callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:${k}` }])
+  // Items editor entry
+  rows.unshift([{ text: 'Items…', callback_data: `EPI:LIST:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }])
   rows.push([{ text: '⬅ Back', callback_data: `INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }])
+  return { inline_keyboard: rows }
+}
+
+function buildInvoiceItemsListKeyboard(year: string, projectId: string, invoiceNumber: string, count: number) {
+  const rows: any[] = []
+  for (let i = 0; i < count; i += 1) {
+    rows.push([{ text: `Item ${i + 1}`, callback_data: `EPI:SEL:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:${i}` }])
+  }
+  if (count === 0) {
+    rows.push([{ text: 'No items', callback_data: 'NOP' }])
+  }
+  rows.push([{ text: '⬅ Back', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }])
+  return { inline_keyboard: rows }
+}
+
+function buildInvoiceItemFieldsKeyboard(year: string, projectId: string, invoiceNumber: string, idx: number) {
+  const rows = Object.keys(INVOICE_ITEM_FIELD_LABELS).map((f) => [
+    { text: `${INVOICE_ITEM_FIELD_LABELS[f]}`, callback_data: `EPI:FLD:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:${idx}:${f}` },
+  ])
+  rows.push([{ text: '⬅ Back', callback_data: `EPI:LIST:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }])
   return { inline_keyboard: rows }
 }
 
@@ -655,18 +690,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       return res.status(200).end('ok')
     }
-    if (data.startsWith('PG:')) {
-      // Pagination: PG:<year>:<page>
-      const [, year, pageStr] = data.split(':')
-      const page = parseInt(pageStr || '1', 10) || 1
-      const projects = await adminFetchProjectsForYear(year)
-      const kb = buildProjectsKeyboard(year, projects, page)
-      const rows = (kb.inline_keyboard as any[])
-      rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${year}:_` }])
-      rows.push([{ text: '⬅ Back', callback_data: `BK:YEARS` }])
-      await tgEditMessage(token, chatId, msgId, `Projects in ${year}:`, { inline_keyboard: rows })
-      return res.status(200).end('ok')
-    }
+    // Remove legacy pagination path (PG) — not used in bubbles view
     if (data.startsWith('P:')) {
       const [, year, projectId] = data.split(':')
       try {
@@ -727,6 +751,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await tgEditMessage(token, chatId, msgId, 'Select an invoice field to edit:', buildInvoiceEditFieldsKeyboard(year, projectId, decodeURIComponent(encInvoice)))
       return res.status(200).end('ok')
     }
+    if (data.startsWith('EPI:LIST:')) {
+      const [, , year, projectId, encInvoice] = data.split(':')
+      const invs = await fetchInvoicesForProject(year, projectId)
+      const inv = invs.find(i => i.invoiceNumber === decodeURIComponent(encInvoice))
+      const count = inv?.items?.length || 0
+      await tgEditMessage(token, chatId, msgId, 'Select an item to edit:', buildInvoiceItemsListKeyboard(year, projectId, decodeURIComponent(encInvoice), count))
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('EPI:SEL:')) {
+      const parts = data.split(':')
+      const year = parts[2]; const projectId = parts[3]; const encInvoice = parts[4]; const idx = parseInt(parts[5] || '0', 10) || 0
+      await tgEditMessage(token, chatId, msgId, `Edit fields for Item ${idx + 1}:`, buildInvoiceItemFieldsKeyboard(year, projectId, decodeURIComponent(encInvoice), idx))
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('EPI:FLD:')) {
+      const parts = data.split(':')
+      const year = parts[2]; const projectId = parts[3]; const encInvoice = parts[4]; const idx = parseInt(parts[5] || '0', 10) || 0; const field = parts[6]
+      await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV', year, projectId, invoiceNumber: encInvoice, controllerMessageId: msgId, step: 'await_value', field, itemIndex: idx })
+      await tgEditMessage(token, chatId, msgId, `Send new value for <b>Item ${idx + 1} ${INVOICE_ITEM_FIELD_LABELS[field] || field}</b>`, { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] })
+      return res.status(200).end('ok')
+    }
     if (data.startsWith('EPF:')) {
       // Choose field to edit
       const parts = data.split(':')
@@ -757,7 +802,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const scope = parts[1] // PROJ | INV
       const userId = cq.from?.id as number
       const edit = await readPendingEdit(chatId, userId)
-      if (!edit || edit.step !== 'preview' || !edit.field || !edit.proposedValue) {
+      if (!edit || edit.step !== 'preview' || !edit.field || (!edit.proposedValue && edit.proposedValue !== '')) {
         await tgAnswerCallback(token, cqid, 'No pending edit to confirm.')
         return res.status(200).end('ok')
       }
@@ -790,6 +835,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
           // Apply proposed
           const f = edit.field
+          if (f === 'invoiceNumber') {
+            const newNumber = String(edit.proposedValue).replace(/^#/, '')
+            const renamed = await renameInvoiceForProject({ year: edit.year, projectId: edit.projectId, fromInvoiceNumber: invNum, toInvoiceNumber: newNumber, editedBy: `tg:${userId}` })
+            const text = await buildInvoiceDetailsText(edit.year, edit.projectId, encodeURIComponent(renamed.invoiceNumber))
+            const rows = [
+              [{ text: 'Edit', callback_data: `EDIT:INV:${edit.year}:${edit.projectId}:${encodeURIComponent(renamed.invoiceNumber)}` }],
+              [{ text: '⬅ Back', callback_data: `P:${edit.year}:${edit.projectId}` }],
+            ]
+            await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
+            await clearPendingEdit(chatId, userId)
+            return res.status(200).end('ok')
+          }
           if (f && f in INVOICE_FIELD_LABELS) {
             if (f === 'representative') (client as any).representative = edit.proposedValue
             else if (f.startsWith('addressLine')) (client as any)[f] = edit.proposedValue
@@ -797,6 +854,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             else if (f === 'companyName') (client as any).companyName = edit.proposedValue
             else if (f === 'paymentStatus') (current as any).paymentStatus = edit.proposedValue
             else if (f === 'paidTo') (current as any).paidTo = edit.proposedValue
+          }
+          // Item-level edits
+          if (edit.itemIndex !== undefined && edit.itemIndex !== null && edit.itemIndex >= 0 && edit.itemIndex < items.length) {
+            const idx = edit.itemIndex as number
+            if (edit.field === 'unitPrice') items[idx].unitPrice = Number(edit.proposedValue || 0)
+            else if (edit.field === 'quantity') items[idx].quantity = Number(edit.proposedValue || 0)
+            else if (edit.field === 'discount') items[idx].discount = Number(edit.proposedValue || 0)
+            else if (edit.field === 'title') items[idx].title = String(edit.proposedValue || '')
+            else if (edit.field === 'feeType') items[idx].feeType = String(edit.proposedValue || '')
+            else if (edit.field === 'subQuantity') items[idx].subQuantity = String(edit.proposedValue || '')
+            else if (edit.field === 'notes') items[idx].notes = String(edit.proposedValue || '')
+            else if (edit.field === 'quantityUnit') items[idx].quantityUnit = String(edit.proposedValue || '')
           }
           await updateInvoiceForProject({
             year: edit.year,
