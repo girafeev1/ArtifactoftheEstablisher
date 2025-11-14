@@ -431,9 +431,10 @@ async function buildProjectDetailsText(year: string, projectId: string): Promise
   if (combo) parts.push(combo)
   // blank line
   parts.push('')
-  // Billed to label (italic) then subsidiary identifier/manual value (no mapping)
+  // Billed to label (italic) then subsidiary: resolve to full name if recognized
   parts.push('<i>Billed to:</i>')
-  parts.push(p.subsidiary ? esc(p.subsidiary) : '-')
+  const resolved = await adminResolveSubsidiaryName(p.subsidiary)
+  parts.push(resolved ? esc(resolved) : (p.subsidiary ? esc(p.subsidiary) : '-'))
   return parts.join('\n')
 }
 
@@ -1058,7 +1059,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const { projects } = await adminFetchAllProjectsForYear(year)
         // Send heading + one message per project with [Select] [Edit]
         const sentIds: number[] = [] // collected but not persisted (no deletion model)
-        const head = await sendBubble(token, chatId, `Projects of ${year}`)
+        const head = await sendBubble(token, chatId, `Projects of ${year}`, {
+          inline_keyboard: [
+            [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
+            [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
+          ],
+        })
         if (head?.message_id) sentIds.push(head.message_id)
         for (const p of projects) {
           const text = projectSummaryText(p)
@@ -1070,14 +1076,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
           if (resp?.message_id) sentIds.push(resp.message_id)
         }
-        // Footer: Add new project + Back to Years after the list
-        const footer = await sendBubble(token, chatId, 'Use the actions below', {
-          inline_keyboard: [
-            [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
-            [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
-          ],
-        })
-        if (footer?.message_id) sentIds.push(footer.message_id)
+        // Footer no longer needed; actions attached to heading
         // Track these so we can clear on back to years
         await saveProjectBubbles(chatId, sentIds)
       } catch (e: any) {
@@ -1466,9 +1465,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         // Delete the current detail bubble and re-list all projects
         try { await tgDeleteMessage(token, chatId, msgId) } catch {}
+        await clearInvoiceBubbles(chatId)
         const { projects } = await adminFetchAllProjectsForYear(year)
         const ids: number[] = []
-        const head = await sendBubble(token, chatId, `Projects of ${year}`)
+        const head = await sendBubble(token, chatId, `Projects of ${year}`, {
+          inline_keyboard: [
+            [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
+            [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
+          ],
+        })
         if (head?.message_id) ids.push(head.message_id)
         for (const p of projects) {
           const resp = await sendBubble(token, chatId, projectSummaryText(p), {
@@ -1479,13 +1484,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
           if (resp?.message_id) ids.push(resp.message_id)
         }
-        const footer = await sendBubble(token, chatId, 'Use the actions below', {
-          inline_keyboard: [
-            [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
-            [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
-          ],
-        })
-        if (footer?.message_id) ids.push(footer.message_id)
+        // Footer no longer needed; actions attached to heading
         await saveProjectBubbles(chatId, ids)
       } catch {
         await tgSendMessage(token, chatId, 'Back to projects. Select another above.', { inline_keyboard: [[{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }]] })
