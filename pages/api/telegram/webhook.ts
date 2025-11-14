@@ -382,6 +382,26 @@ async function clearCreationBubbles(chatId: number) {
   } catch {}
 }
 
+async function clearCreationBubblesExcept(chatId: number, keepMessageId: number) {
+  try {
+    const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+    const ref = fs.collection(TG_PAGES_COLLECTION).doc(String(chatId))
+    const snap = await ref.get()
+    if (!snap.exists) return
+    const data = snap.data() as any
+    const ids = Array.isArray(data?.creationMessageIds) ? data.creationMessageIds : []
+    for (const id of ids) {
+      if (id === keepMessageId) continue
+      try {
+        await fetch(`${TELEGRAM_API(process.env.TELEGRAM_BOT_TOKEN || '')}/deleteMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, message_id: id }),
+        })
+      } catch {}
+    }
+    await ref.set({ creationMessageIds: [keepMessageId] }, { merge: true })
+  } catch {}
+}
+
 // build helper only; do not send messages here to avoid duplication
 async function buildProjectsKeyboardForYear(year: string) {
   console.info('[tg] year selected', { year })
@@ -669,8 +689,8 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   const totResp = await sendBubble(token, chatId, totals.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
   if (totResp?.message_id) sentIds.push(totResp.message_id)
 
-  // 6) Final Back bubble — back to projects list of the year
-  const back = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` }]] })
+  // 6) Final Back bubble — back to previous page (Project Detail)
+  const back = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back', callback_data: `P:${year}:${projectId}` }]] })
   if (back?.message_id) sentIds.push(back.message_id)
   await saveInvoiceBubbles(chatId, sentIds)
 }
@@ -952,9 +972,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (pending.field === 'projectTitle') { draft.projectTitle = norm(text) }
       if (pending.field === 'presenterWorkType') { draft.presenterWorkType = norm(text) }
       if (pending.field === 'projectNature') { draft.projectNature = norm(text) }
+      if (pending.field === 'projectDate') {
+        const t = (text || '').trim()
+        if (t && t !== '-' && t.toLowerCase() !== 'skip') {
+          const d = new Date(t)
+          draft.projectDate = Number.isNaN(d.getTime()) ? null : d.toISOString()
+        } else {
+          draft.projectDate = null
+        }
+      }
       if (pending.field === 'subsidiary') { draft.subsidiary = norm(text) }
       // Next field order
-      const order = ['projectNumber','projectTitle','presenterWorkType','projectNature','subsidiary']
+      const order = ['projectNumber','projectTitle','presenterWorkType','projectNature','projectDate','subsidiary']
       const idx = order.indexOf(pending.field || '')
       const nextField = idx >= 0 && idx + 1 < order.length ? order[idx + 1] : null
       if (nextField) {
@@ -965,6 +994,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           projectTitle: 'Project Title',
           presenterWorkType: 'Presenter / Worktype',
           projectNature: 'Project Nature',
+          projectDate: 'Project Pickup Date (YYYY-MM-DD)',
           subsidiary: 'Subsidiary',
         }
         const m1 = await sendBubble(token, chatId, `Send ${labels[nextField]} (or "-" to skip):`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
@@ -1122,27 +1152,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         projectTitle: edit.draft.projectTitle ?? null,
         presenterWorkType: edit.draft.presenterWorkType ?? null,
         projectNature: edit.draft.projectNature ?? null,
+        projectDate: edit.draft.projectDate ?? null,
         subsidiary: edit.draft.subsidiary ?? null,
       }
       try {
+        const keepMsgId = edit.controllerMessageId
         const result = await createProjectInDatabase({ year, data: payload, createdBy: `tg:${userId}` })
         await clearPendingEdit(chatId, userId)
-        // Begin fresh chat after confirm create: remove our creation and listing bubbles
-        await clearCreationBubbles(chatId)
+        // Transform confirmation preview into the next page
+        await clearCreationBubblesExcept(chatId, keepMsgId)
         await clearProjectBubbles(chatId)
         await clearInvoiceBubbles(chatId)
         const p = result.project
-        // Show fresh Project Detail as a single bubble
         const detail = await buildProjectDetailsText(year, p.id)
         const invKb = await buildInvoicesKeyboard(year, p.id)
         const rows = (invKb.inline_keyboard as any[])
         rows.push([{ text: '➕ Create New Invoice', callback_data: `NEW:INV:${year}:${p.id}` }])
         rows.push([{ text: 'Edit Project Detail', callback_data: `EDIT:PROJ:${year}:${p.id}` }])
         rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:${p.id}` }])
-        const fresh = await sendBubble(token, chatId, detail, { inline_keyboard: rows })
-        if (fresh?.message_id) {
-          await saveProjectBubbles(chatId, [fresh.message_id])
-        }
+        await tgEditMessage(token, chatId, keepMsgId, detail, { inline_keyboard: rows })
+        await saveProjectBubbles(chatId, [keepMsgId])
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, e?.message || 'Failed to create project.')
       }
