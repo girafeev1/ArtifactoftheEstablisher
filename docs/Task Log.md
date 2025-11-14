@@ -2,9 +2,55 @@
 
 _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 
+## How to Use This Log
+
+- Single source of truth for work items across the repo.
+- Add a task row in the Tasks Table when work begins; keep the row updated.
+- Use the In Progress (active) section only for tasks currently being worked on.
+- When a task completes, mark it ✅ in the table and remove it from In Progress.
+- Include brief outcomes and link PR/branch when helpful.
+- Avoid duplicating tasks; prefer updating the existing row/status.
+
+## Tasks Table — consolidated
+
+| ID | Title | State | Notes |
+|----|-------|-------|-------|
+| T-090 | Column autosize on double-click | 🧭 | Planned |
+| T-091 | Total Sessions includes cancelled/proceeded | 🧭 | Planned |
+| T-092 | Balance Due single source of truth | 🧭 | Planned |
+| T-093 | Modal stacking audit/fixes | 🧭 | Planned |
+| T-094 | Base Rate history (view/add with editedBy) | 🧭 | Planned |
+| T-095 | GAS timezone + shared secret; doc .env.local | 🧭 | Planned |
+| T-107 | Invoice detail editing toggle & number parity (P-038) | ✅ | Completed |
+| T-108 | Invoice item layout polish (P-039) | ✅ | Completed |
+| T-109 | Telegram Bot integration (webhook, ensure, secret) | ✅ | Completed |
+| T-110 | Telegram Text UI — Projects/Invoices UX, formatting, inline editing | ⏳ | Active |
+| T-111 | Remove Slack/Discord integrations and secrets | ✅ | Completed |
+| T-112 | Firestore Admin — non-default database fix | ✅ | Completed |
+| T-115 | Telegram — list projects as individual bubbles, no deletion, footer Back | ✅ | Completed |
+| T-117 | Telegram — Expand invoice editing coverage | ✅ | Completed |
+| T-118 | Telegram — show subsidiary full name | ✅ | Completed |
+| T-119 | Telegram — bank name abbreviation for invoice “To” | ✅ | Completed |
+| T-120 | Telegram — Back button dedupe guard | ✅ | Completed |
+| T-121 | Docs — Task Log maintenance | ⏳ | Active |
+| T-122 | Telegram — Year/Projects navigation cleanup | ✅ | Completed |
+| T-123 | Telegram — Create New Invoice (suggested number + guided fields) | ✅ | Completed |
+| T-124 | Telegram — Create New Project (suggested number + guided fields) | ✅ | Completed |
+| T-125 | Telegram — Invoice Detail as multi-bubble sections | ✅ | Completed |
+| T-126 | Telegram — Project Detail UI polish for invoices | ✅ | Completed |
+| T-127 | Telegram — Project listing UX polish (heading + footer) | ✅ | Completed |
+| T-128 | Telegram — Creation flows robustness | ✅ | Completed |
+| T-129 | Telegram — Transform confirmation into next page | ✅ | Completed |
+| T-130 | Telegram — Capture Project Pickup Date in creation | ✅ | Completed |
+
 ## Current Focus
 
-### In Progress
+### In Progress (active)
+
+- T-110 — Telegram Text UI — Projects/Invoices UX, formatting, inline editing
+- T-121 — Docs — Task Log maintenance for Telegram phases
+
+## Completed Task Details
 ### T-107
 - Title: Invoice detail editing toggle & number editing parity (P-038)
 - Branch: main
@@ -52,14 +98,7 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
   - Source: Desktop log “Terminal Saved Output 000.txt” & current session follow-up (2025-10-27).
 
 
-| ID    | Title                                                | State | Notes |
-|-------|------------------------------------------------------|-------|-------|
-| P-027-04r | Finish cascade UI (detail), sticky Back, 3-dots placement, single Remaining blink, sessions sorting, badge in card view. | 🧭    | See prompts/p-027-04r.md |
-| P-027-03r | Finish Add Payment cascade UI; sticky Back; single Remaining blink; stable assignment; badge; 3-dots placement. | ✅    | See prompts/p-027-03r.md |
-| P-027-02r | Ship the actual Add Payment cascade UI + sticky Back + single Remaining blink + stable assignment | ✅    | See prompts/p-027-02r.md |
-| P-026 | Finish Payment UX and Add Payment cascade | ⏳    | See prompts/p-026.md (revisions: p-026-01r, p-026-02r, p-026-03r) |
-| P-025 | Fix Payment Detail/History UX, restore assignment, inline editing | ⏳    | See prompts/p-025.md |
-| P-024 | Payment UI polish & data rules | ✅    | See prompts/p-024.md |
+<!-- Retired legacy P-02x table (moved to consolidated Tasks Table above) -->
 
 ### T-109
 - Title: Telegram Bot integration (webhook, ensure endpoint, secret verification)
