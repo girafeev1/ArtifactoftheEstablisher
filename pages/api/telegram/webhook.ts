@@ -848,7 +848,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pending.field = 'companyName'
         pending.draft = draft
         await putPendingEdit(pending)
-        await tgEditMessage(token, chatId, pending.controllerMessageId, 'Send Client Company Name (or "-" to skip):', { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] })
+        const m1 = await sendBubble(token, chatId, 'Send Client Company Name (or "-" to skip):', { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] })
+        if (m1?.message_id) { pending.controllerMessageId = m1.message_id; await putPendingEdit(pending) }
         return res.status(200).end('ok')
       }
       if (pending.field === 'companyName') { draft.companyName = norm(text) }
@@ -873,7 +874,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           region: 'Region',
           representative: 'Representative',
         }
-        await tgEditMessage(token, chatId, pending.controllerMessageId, `Send ${labels[nextField]} (or "-" to skip):`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] })
+        const m2 = await sendBubble(token, chatId, `Send ${labels[nextField]} (or "-" to skip):`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] })
+        if (m2?.message_id) { pending.controllerMessageId = m2.message_id; await putPendingEdit(pending) }
         return res.status(200).end('ok')
       }
 
@@ -898,7 +900,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (draft.representative) lines.push(`ATTN: <b><i>${esc(draft.representative)}</i></b>`)
       }
       const kb = { inline_keyboard: [[{ text: 'Confirm Create', callback_data: `NIC:CONFIRM:${pending.year}:${pending.projectId}` }], [{ text: 'Revise', callback_data: `NEW:INV:${pending.year}:${pending.projectId}` }], [{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] }
-      await tgEditMessage(token, chatId, pending.controllerMessageId, lines.join('\n'), kb)
+      const m3 = await sendBubble(token, chatId, lines.join('\n'), kb)
+      if (m3?.message_id) { pending.controllerMessageId = m3.message_id; await putPendingEdit(pending) }
       return res.status(200).end('ok')
     }
     // Creation flows — Project
@@ -910,7 +913,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pending.field = 'projectTitle'
         pending.draft = draft
         await putPendingEdit(pending)
-        await tgEditMessage(token, chatId, pending.controllerMessageId, 'Send Project Title:', { inline_keyboard: [[{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
+        const m0 = await sendBubble(token, chatId, 'Send Project Title:', { inline_keyboard: [[{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
+        if (m0?.message_id) { pending.controllerMessageId = m0.message_id; await putPendingEdit(pending) }
         return res.status(200).end('ok')
       }
       if (pending.field === 'projectTitle') { draft.projectTitle = norm(text) }
@@ -931,7 +935,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           projectNature: 'Project Nature',
           subsidiary: 'Subsidiary',
         }
-        await tgEditMessage(token, chatId, pending.controllerMessageId, `Send ${labels[nextField]} (or "-" to skip):`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
+        const m1 = await sendBubble(token, chatId, `Send ${labels[nextField]} (or "-" to skip):`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
+        if (m1?.message_id) { pending.controllerMessageId = m1.message_id; await putPendingEdit(pending) }
         return res.status(200).end('ok')
       }
       // Preview create project
@@ -939,9 +944,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       pending.draft = draft
       await putPendingEdit(pending)
       const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      const lines = ['<b>Create Project</b>', '', `#${esc(draft.projectNumber || '')}`, draft.presenterWorkType ? esc(draft.presenterWorkType) : '', draft.projectTitle ? `<b>${esc(draft.projectTitle)}</b>` : '', draft.projectNature ? `<i>${esc(draft.projectNature)}</i>` : '', '', draft.subsidiary ? esc(draft.subsidiary) : ''].filter(Boolean)
+      // Resolve subsidiary identifier to English name for preview if possible
+      let subPreview = draft.subsidiary || null
+      try { const resolved = await adminResolveSubsidiaryName(draft.subsidiary); if (resolved) subPreview = resolved } catch {}
+      const lines = ['<b>Create Project</b>', '', `#${esc(draft.projectNumber || '')}`, draft.presenterWorkType ? esc(draft.presenterWorkType) : '', draft.projectTitle ? `<b>${esc(draft.projectTitle)}</b>` : '', draft.projectNature ? `<i>${esc(draft.projectNature)}</i>` : '', '', subPreview ? esc(subPreview) : ''].filter(Boolean)
       const kb = { inline_keyboard: [[{ text: 'Confirm Create', callback_data: `NPC:CONFIRM:${pending.year}` }], [{ text: 'Revise', callback_data: `NEW:PROJ:${pending.year}` }], [{ text: 'Cancel', callback_data: `BK:YEARS` }]] }
-      await tgEditMessage(token, chatId, pending.controllerMessageId, lines.join('\n'), kb)
+      const m2 = await sendBubble(token, chatId, lines.join('\n'), kb)
+      if (m2?.message_id) { pending.controllerMessageId = m2.message_id; await putPendingEdit(pending) }
       return res.status(200).end('ok')
     }
     if (pending && pending.step === 'await_value' && pending.field) {
@@ -980,8 +989,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Hide the year list (and welcome) when a year is selected
         await clearYearMenu(chatId)
         const { projects } = await adminFetchAllProjectsForYear(year)
-        // Send one message per project with [Select] [Edit]
+        // Send heading + one message per project with [Select] [Edit]
         const sentIds: number[] = [] // collected but not persisted (no deletion model)
+        const head = await sendBubble(token, chatId, `Projects of ${year}`)
+        if (head?.message_id) sentIds.push(head.message_id)
         for (const p of projects) {
           const text = projectSummaryText(p)
           const resp = await sendBubble(token, chatId, text, {
@@ -1084,17 +1095,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const result = await createProjectInDatabase({ year, data: payload, createdBy: `tg:${userId}` })
         await clearPendingEdit(chatId, userId)
-        // After creation, show the project detail in the same controller message, and remove other bubbles
         const p = result.project
-        await clearProjectBubbles(chatId)
-        await clearInvoiceBubbles(chatId)
-        const text = await buildProjectDetailsText(year, p.id)
-        const invKb = await buildInvoicesKeyboard(year, p.id)
-        const rows = (invKb.inline_keyboard as any[])
-        rows.unshift([{ text: '➕ Create New Invoice', callback_data: `NEW:INV:${year}:${p.id}` }])
-        rows.push([{ text: 'Edit', callback_data: `EDIT:PROJ:${year}:${p.id}` }])
-        rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:${p.id}` }])
-        await tgEditMessage(token, chatId, msgId, text, { inline_keyboard: rows })
+        // Do not delete earlier messages — user typed input. Send next-step choice as a new bubble.
+        const choices = {
+          inline_keyboard: [
+            [{ text: '➕ Create New Invoice', callback_data: `NEW:INV:${year}:${p.id}` }],
+            [{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${p.id}` }],
+          ],
+        }
+        await sendBubble(token, chatId, `Project created: #${p.projectNumber}\nWhat would you like to do next?`, choices)
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, e?.message || 'Failed to create project.')
       }
@@ -1142,7 +1151,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const suggested = buildBaseInvoiceNumberFromProject(p)
       await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV_CREATE', year, projectId, controllerMessageId: msgId, step: 'await_value', field: 'invoiceNumber', draft: { baseInvoiceNumber: suggested } })
-      await tgEditMessage(token, chatId, msgId, `Suggested invoice number:\n<b>#${suggested}</b>\n\nUse this or enter a different number.`, { inline_keyboard: [[{ text: 'Use suggested', callback_data: `NIC:NUMOK:${year}:${projectId}:${encodeURIComponent(suggested)}` }], [{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] })
+      const m = await sendBubble(token, chatId, `Suggested invoice number:\n<b>#${suggested}</b>\n\nUse this or enter a different number.`, { inline_keyboard: [[{ text: 'Use suggested', callback_data: `NIC:NUMOK:${year}:${projectId}:${encodeURIComponent(suggested)}` }], [{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] })
+      if (m?.message_id) {
+        const edit = await readPendingEdit(chatId, cq.from?.id as number)
+        if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit) }
+      }
       return res.status(200).end('ok')
     }
     if (data.startsWith('NIC:NUMOK:')) {
@@ -1150,7 +1163,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const invoiceNumber = decodeURIComponent(encNum)
       // Proceed to ask client company
       await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV_CREATE', year, projectId, controllerMessageId: msgId, step: 'await_value', field: 'companyName', draft: { invoiceNumber } })
-      await tgEditMessage(token, chatId, msgId, 'Send Client Company Name (or type "-" to skip/use project default):', { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] })
+      const m = await sendBubble(token, chatId, 'Send Client Company Name (or type "-" to skip/use project default):', { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] })
+      if (m?.message_id) {
+        const edit = await readPendingEdit(chatId, cq.from?.id as number)
+        if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit) }
+      }
       return res.status(200).end('ok')
     }
     // Create New Project — start
@@ -1160,7 +1177,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const existing = projects.map((p) => p.projectNumber).filter(Boolean)
       const suggested = generateSequentialProjectNumber(year, existing)
       await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'PROJ_CREATE', year, projectId: '', controllerMessageId: msgId, step: 'await_value', field: 'projectNumber', draft: { projectNumber: suggested } })
-      await tgEditMessage(token, chatId, msgId, `Suggested project number:\n<b>#${suggested}</b>\n\nUse this or enter a different number.`, { inline_keyboard: [[{ text: 'Use suggested', callback_data: `NPC:NUMOK:${year}:${encodeURIComponent(suggested)}` }], [{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
+      const m = await sendBubble(token, chatId, `Suggested project number:\n<b>#${suggested}</b>\n\nUse this or enter a different number.`, { inline_keyboard: [[{ text: 'Use suggested', callback_data: `NPC:NUMOK:${year}:${encodeURIComponent(suggested)}` }], [{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
+      if (m?.message_id) {
+        const edit = await readPendingEdit(chatId, cq.from?.id as number)
+        if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit) }
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('NPC:NUMOK:')) {
+      const [, , year, encSuggested] = data.split(':')
+      const projectNumber = decodeURIComponent(encSuggested)
+      // Move to projectTitle prompt using a new message
+      await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'PROJ_CREATE', year, projectId: '', controllerMessageId: msgId, step: 'await_value', field: 'projectTitle', draft: { projectNumber } })
+      const m = await sendBubble(token, chatId, 'Send Project Title:', { inline_keyboard: [[{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
+      if (m?.message_id) {
+        const edit = await readPendingEdit(chatId, cq.from?.id as number)
+        if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit) }
+      }
       return res.status(200).end('ok')
     }
     if (data.startsWith('EPI:LIST:')) {
@@ -1360,6 +1393,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try { await tgDeleteMessage(token, chatId, msgId) } catch {}
         const { projects } = await adminFetchAllProjectsForYear(year)
         const ids: number[] = []
+        const head = await sendBubble(token, chatId, `Projects of ${year}`)
+        if (head?.message_id) ids.push(head.message_id)
         for (const p of projects) {
           const resp = await sendBubble(token, chatId, projectSummaryText(p), {
             inline_keyboard: [[
