@@ -423,17 +423,17 @@ async function buildProjectDetailsText(year: string, projectId: string): Promise
   // Heading
   parts.push('<b><u>Project Detail</u></b>')
   parts.push('')
-  // presenter/worktype
-  if (p.presenterWorkType) parts.push(esc(p.presenterWorkType))
-  // project title in bold
-  if (p.projectTitle) parts.push(`<b>${esc(p.projectTitle)}</b>`)
-  // project nature italic
-  if (p.projectNature) parts.push(`<i>${esc(p.projectNature)}</i>`)
-  // empty line
+  // Project Title label (italic) then combined line "<presenter/worktype> - <Project Title>"
+  parts.push('<i>Project Title:</i>')
+  const left = p.presenterWorkType ? esc(p.presenterWorkType) : ''
+  const right = p.projectTitle ? esc(p.projectTitle) : ''
+  const combo = [left, right].filter(Boolean).join(' - ')
+  if (combo) parts.push(combo)
+  // blank line
   parts.push('')
-  // subsidiary (name)
-  const sub = await adminResolveSubsidiaryName(p.subsidiary)
-  if (sub) parts.push(esc(sub))
+  // Billed to label (italic) then subsidiary identifier/manual value (no mapping)
+  parts.push('<i>Billed to:</i>')
+  parts.push(p.subsidiary ? esc(p.subsidiary) : '-')
   return parts.join('\n')
 }
 
@@ -464,7 +464,7 @@ async function buildInvoicesKeyboard(year: string, projectId: string) {
         return a.invoiceNumber.localeCompare(b.invoiceNumber)
       })
       .map((inv) => [
-      { text: inv.invoiceNumber, callback_data: `INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` },
+      { text: `#${inv.invoiceNumber}`, callback_data: `INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` },
     ])
     return { inline_keyboard: rows }
   } catch (e: any) {
@@ -689,8 +689,13 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   const totResp = await sendBubble(token, chatId, totals.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
   if (totResp?.message_id) sentIds.push(totResp.message_id)
 
-  // 6) Final Back bubble — back to previous page (Project Detail)
-  const back = await sendBubble(token, chatId, ' ', { inline_keyboard: [[{ text: '⬅ Back', callback_data: `P:${year}:${projectId}` }]] })
+  // 6) Final Back bubble — back to Project Detail or Projects list
+  const back = await sendBubble(token, chatId, 'Use the actions below', {
+    inline_keyboard: [
+      [{ text: '⬅ Back to Project', callback_data: `P:${year}:${projectId}` }],
+      [{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` }],
+    ],
+  })
   if (back?.message_id) sentIds.push(back.message_id)
   await saveInvoiceBubbles(chatId, sentIds)
 }
