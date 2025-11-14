@@ -160,6 +160,7 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
   - Project listing footer includes [➕ Add New Project] and [⬅ Back to Years].
   - Selecting a project prunes other project bubbles so only the selected project remains visible.
   - Selecting [⬅ Back to Years] removes all project bubbles and re‑shows the year list.
+  - Added a heading bubble at the top of the list: “Projects of <year>”.
 
 ### T-117
 - Title: Telegram — Expand invoice editing coverage
@@ -189,7 +190,26 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 - Outcomes:
   - Suggest next sequential project number for the chosen year (same rules as web app UI).
   - Guided capture of key project fields; preview and Confirm/Cancel; writes via createProjectInDatabase.
-  - Navigates to the new Project Detail on success.
+  - After creation, post a choice bubble to continue (Create New Invoice / Back to Projects) without erasing prior chat history.
+
+### T-127
+- Title: Telegram — Project listing UX polish (top heading + footer back)
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Add “Projects of <year>” heading bubble at the top of the project list.
+  - Ensure footer with [➕ Add New Project] and [⬅ Back to Years] is always present and visible.
+
+### T-128
+- Title: Telegram — Creation flows robustness (suggested buttons + fresh-chat safety)
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Fixed “Use suggested” for Project Number (NPC:NUMOK) to advance the flow.
+  - Switched invoice/project creation prompts to new messages while user is typing to avoid fresh-chat deletions.
+  - Subsidiary preview resolves identifiers to full English name; falls back to user input if unrecognized.
 
 ### T-125
 - Title: Telegram — Invoice Detail as multi-bubble sections
