@@ -181,6 +181,7 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
   - Suggest base invoice number derived from project number + pickup date; user can accept or enter a custom number.
   - Guided capture of client fields; preview and Confirm/Cancel; writes via createInvoiceForProject.
   - After creation, shows Invoice Detail as multi-bubble view.
+  - Align base/suffix rules with web app (MMDD + unique suffix when needed).
 
 ### T-124
 - Title: Telegram — Create New Project (suggested number + guided fields)
@@ -190,7 +191,7 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 - Outcomes:
   - Suggest next sequential project number for the chosen year (same rules as web app UI).
   - Guided capture of key project fields; preview and Confirm/Cancel; writes via createProjectInDatabase.
-  - After creation, post a choice bubble to continue (Create New Invoice / Back to Projects) without erasing prior chat history.
+  - On Confirm Create, transform the preview bubble into the Project Detail page (no hanging); clear prior creation/listing bubbles to start fresh.
 
 ### T-127
 - Title: Telegram — Project listing UX polish (top heading + footer back)
@@ -220,7 +221,24 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
   - Controller message shows “Invoice: #…”.
   - Client bubble headed “Client Detail”.
   - “Invoice Detail” heading bubble above the first item, then one bubble per item.
-  - Totals/To/Status as a dedicated bubble; Back appears after this bubble.
+  - Totals/To/Status as a dedicated bubble; Back appears after this bubble and returns to Project Detail.
+
+### T-129
+- Title: Telegram — Transform confirmation into next page (no hanging)
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Project creation preview is edited into Project Detail on confirm; prior creation/listing bubbles are cleared.
+  - Helpers track creation message IDs to support selective cleanup.
+
+### T-130
+- Title: Telegram — Capture Project Pickup Date during project creation
+- Branch: main
+- PR: —
+- Status: ✅ Done
+- Outcomes:
+  - Added “Project Pickup Date (YYYY-MM-DD)” input step in the new project flow; persisted as ISO for database writes.
 
 ### T-126
 - Title: Telegram — Project Detail UI polish for invoices
