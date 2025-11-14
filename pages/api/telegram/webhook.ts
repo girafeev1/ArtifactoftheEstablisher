@@ -350,6 +350,38 @@ async function clearInvoiceBubbles(chatId: number) {
   } catch {}
 }
 
+// Track creation flow bot messages (for fresh-chat cleanup after confirm)
+async function appendCreationBubble(chatId: number, messageId: number) {
+  try {
+    const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+    const ref = fs.collection(TG_PAGES_COLLECTION).doc(String(chatId))
+    const snap = await ref.get()
+    const data = (snap.exists ? snap.data() : {}) as any
+    const list = Array.isArray(data?.creationMessageIds) ? data.creationMessageIds : []
+    const next = Array.from(new Set([...list, messageId]))
+    await ref.set({ creationMessageIds: next }, { merge: true })
+  } catch {}
+}
+
+async function clearCreationBubbles(chatId: number) {
+  try {
+    const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+    const ref = fs.collection(TG_PAGES_COLLECTION).doc(String(chatId))
+    const snap = await ref.get()
+    if (!snap.exists) return
+    const data = snap.data() as any
+    const ids = Array.isArray(data?.creationMessageIds) ? data.creationMessageIds : []
+    for (const id of ids) {
+      try {
+        await fetch(`${TELEGRAM_API(process.env.TELEGRAM_BOT_TOKEN || '')}/deleteMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, message_id: id }),
+        })
+      } catch {}
+    }
+    await ref.set({ creationMessageIds: [] }, { merge: true })
+  } catch {}
+}
+
 // build helper only; do not send messages here to avoid duplication
 async function buildProjectsKeyboardForYear(year: string) {
   console.info('[tg] year selected', { year })
@@ -914,7 +946,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pending.draft = draft
         await putPendingEdit(pending)
         const m0 = await sendBubble(token, chatId, 'Send Project Title:', { inline_keyboard: [[{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
-        if (m0?.message_id) { pending.controllerMessageId = m0.message_id; await putPendingEdit(pending) }
+        if (m0?.message_id) { pending.controllerMessageId = m0.message_id; await putPendingEdit(pending); await appendCreationBubble(chatId, m0.message_id) }
         return res.status(200).end('ok')
       }
       if (pending.field === 'projectTitle') { draft.projectTitle = norm(text) }
@@ -936,7 +968,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           subsidiary: 'Subsidiary',
         }
         const m1 = await sendBubble(token, chatId, `Send ${labels[nextField]} (or "-" to skip):`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `BK:YEARS` }]] })
-        if (m1?.message_id) { pending.controllerMessageId = m1.message_id; await putPendingEdit(pending) }
+        if (m1?.message_id) { pending.controllerMessageId = m1.message_id; await putPendingEdit(pending); await appendCreationBubble(chatId, m1.message_id) }
         return res.status(200).end('ok')
       }
       // Preview create project
@@ -950,7 +982,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const lines = ['<b>Create Project</b>', '', `#${esc(draft.projectNumber || '')}`, draft.presenterWorkType ? esc(draft.presenterWorkType) : '', draft.projectTitle ? `<b>${esc(draft.projectTitle)}</b>` : '', draft.projectNature ? `<i>${esc(draft.projectNature)}</i>` : '', '', subPreview ? esc(subPreview) : ''].filter(Boolean)
       const kb = { inline_keyboard: [[{ text: 'Confirm Create', callback_data: `NPC:CONFIRM:${pending.year}` }], [{ text: 'Revise', callback_data: `NEW:PROJ:${pending.year}` }], [{ text: 'Cancel', callback_data: `BK:YEARS` }]] }
       const m2 = await sendBubble(token, chatId, lines.join('\n'), kb)
-      if (m2?.message_id) { pending.controllerMessageId = m2.message_id; await putPendingEdit(pending) }
+      if (m2?.message_id) { pending.controllerMessageId = m2.message_id; await putPendingEdit(pending); await appendCreationBubble(chatId, m2.message_id) }
       return res.status(200).end('ok')
     }
     if (pending && pending.step === 'await_value' && pending.field) {
@@ -1095,15 +1127,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const result = await createProjectInDatabase({ year, data: payload, createdBy: `tg:${userId}` })
         await clearPendingEdit(chatId, userId)
+        // Begin fresh chat after confirm create: remove our creation and listing bubbles
+        await clearCreationBubbles(chatId)
+        await clearProjectBubbles(chatId)
+        await clearInvoiceBubbles(chatId)
         const p = result.project
-        // Do not delete earlier messages — user typed input. Send next-step choice as a new bubble.
-        const choices = {
-          inline_keyboard: [
-            [{ text: '➕ Create New Invoice', callback_data: `NEW:INV:${year}:${p.id}` }],
-            [{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${p.id}` }],
-          ],
+        // Show fresh Project Detail as a single bubble
+        const detail = await buildProjectDetailsText(year, p.id)
+        const invKb = await buildInvoicesKeyboard(year, p.id)
+        const rows = (invKb.inline_keyboard as any[])
+        rows.push([{ text: '➕ Create New Invoice', callback_data: `NEW:INV:${year}:${p.id}` }])
+        rows.push([{ text: 'Edit Project Detail', callback_data: `EDIT:PROJ:${year}:${p.id}` }])
+        rows.push([{ text: '⬅ Back', callback_data: `BK:PROJ:${year}:${p.id}` }])
+        const fresh = await sendBubble(token, chatId, detail, { inline_keyboard: rows })
+        if (fresh?.message_id) {
+          await saveProjectBubbles(chatId, [fresh.message_id])
         }
-        await sendBubble(token, chatId, `Project created: #${p.projectNumber}\nWhat would you like to do next?`, choices)
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, e?.message || 'Failed to create project.')
       }
@@ -1181,6 +1220,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (m?.message_id) {
         const edit = await readPendingEdit(chatId, cq.from?.id as number)
         if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit) }
+        await appendCreationBubble(chatId, m.message_id)
       }
       return res.status(200).end('ok')
     }
@@ -1193,6 +1233,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (m?.message_id) {
         const edit = await readPendingEdit(chatId, cq.from?.id as number)
         if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit) }
+        await appendCreationBubble(chatId, m.message_id)
       }
       return res.status(200).end('ok')
     }
