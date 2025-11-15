@@ -680,7 +680,15 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   if (clientResp?.message_id) sentIds.push(clientResp.message_id)
 
   // 4) Invoice Detail heading bubble above first item
-  const invDetailHead = await sendBubble(token, chatId, '<b><u>Invoice Detail</u></b>')
+  let invDetailHead
+  if (!inv.items || inv.items.length === 0) {
+    // If no items, offer an Add Item action here
+    invDetailHead = await sendBubble(token, chatId, '<b><u>Invoice Detail</u></b>', {
+      inline_keyboard: [[{ text: 'Add Item', callback_data: `NEW:ITEM:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]],
+    })
+  } else {
+    invDetailHead = await sendBubble(token, chatId, '<b><u>Invoice Detail</u></b>')
+  }
   if (invDetailHead?.message_id) sentIds.push(invDetailHead.message_id)
 
   // 5) Items — one bubble per item
@@ -703,17 +711,19 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
     }
   }
 
-  // 5) Totals + To + Status
-  const bank = await adminResolveBank(inv.paidTo || null)
-  const bankLabel = bank && (bank.bankName || bank.bankCode || bank.accountType)
-    ? `${bank.bankName ? esc(bank.bankName) : ''}${bank.bankCode ? ` (${esc(bank.bankCode)})` : ''}${bank.accountType ? ` - ${esc(bank.accountType)}` : ''}`
-    : (inv.paidTo ? esc(inv.paidTo) : '')
-  const totals: string[] = []
-  totals.push(`<b>Total:</b> ${formatMoney(inv.amount)}`)
-  if (bankLabel) totals.push(`<b>To:</b> ${bankLabel}`)
-  if (inv.paymentStatus) totals.push(`<i>${esc(inv.paymentStatus)}</i>`)
-  const totResp = await sendBubble(token, chatId, totals.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `ET:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
-  if (totResp?.message_id) sentIds.push(totResp.message_id)
+  // 5) Totals + To + Status — only when there are items
+  if (inv.items && inv.items.length > 0) {
+    const bank = await adminResolveBank(inv.paidTo || null)
+    const bankLabel = bank && (bank.bankName || bank.bankCode || bank.accountType)
+      ? `${bank.bankName ? esc(bank.bankName) : ''}${bank.bankCode ? ` (${esc(bank.bankCode)})` : ''}${bank.accountType ? ` - ${esc(bank.accountType)}` : ''}`
+      : (inv.paidTo ? esc(inv.paidTo) : '')
+    const totals: string[] = []
+    totals.push(`<b>Total:</b> ${formatMoney(inv.amount)}`)
+    if (bankLabel) totals.push(`<b>To:</b> ${bankLabel}`)
+    if (inv.paymentStatus) totals.push(`<i>${esc(inv.paymentStatus)}</i>`)
+    const totResp = await sendBubble(token, chatId, totals.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `ET:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
+    if (totResp?.message_id) sentIds.push(totResp.message_id)
+  }
 
   // No final back bubble — actions attached to controller
   await saveInvoiceBubbles(chatId, sentIds)
@@ -733,7 +743,7 @@ function extractBaseFromInvoice(inv: string): string {
 type PendingEdit = {
   chatId: number
   userId: number
-  kind: 'PROJ' | 'INV' | 'INV_CREATE' | 'PROJ_CREATE'
+  kind: 'PROJ' | 'INV' | 'INV_CREATE' | 'PROJ_CREATE' | 'INV_ITEM_CREATE'
   year: string
   projectId: string
   invoiceNumber?: string
@@ -994,6 +1004,80 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (m3?.message_id) { pending.controllerMessageId = m3.message_id; await putPendingEdit(pending) }
       return res.status(200).end('ok')
     }
+    // Creation flows — Invoice Item (when no items yet, or adding first one)
+    if (pending && pending.kind === 'INV_ITEM_CREATE' && pending.step === 'await_value') {
+      const draft = { ...(pending.draft || {}) }
+      const norm = (v: string) => (v === '-' || v.toLowerCase() === 'skip') ? null : v
+      // Apply current field
+      switch (pending.field) {
+        case 'title': draft.title = String(msg.text || '').trim(); break
+        case 'subQuantity': draft.subQuantity = norm(msg.text || ''); break
+        case 'feeType': draft.feeType = norm(msg.text || ''); break
+        case 'notes': draft.notes = norm(msg.text || ''); break
+        case 'unitPrice': {
+          const n = Number(String(msg.text || '').trim())
+          draft.unitPrice = Number.isFinite(n) ? n : 0
+          break
+        }
+        case 'quantity': {
+          const n = Number(String(msg.text || '').trim())
+          draft.quantity = Number.isFinite(n) ? n : 0
+          break
+        }
+        case 'quantityUnit': draft.quantityUnit = norm(msg.text || ''); break
+        case 'discount': {
+          const n = Number(String(msg.text || '').trim())
+          draft.discount = Number.isFinite(n) ? n : 0
+          break
+        }
+      }
+      // Next field order
+      const order = ['title','subQuantity','feeType','notes','unitPrice','quantity','quantityUnit','discount']
+      const idx = order.indexOf(pending.field || '')
+      const nextField = idx >= 0 && idx + 1 < order.length ? order[idx + 1] : null
+      if (nextField) {
+        pending.field = nextField
+        pending.draft = draft
+        await putPendingEdit(pending)
+        const labels: any = {
+          title: 'Item Title',
+          subQuantity: 'Item Sub-Quantity (optional)',
+          feeType: 'Item Fee Type (optional)',
+          notes: 'Item Notes (optional)',
+          unitPrice: 'Unit Price (number)',
+          quantity: 'Quantity (number)',
+          quantityUnit: 'Quantity Unit (optional)',
+          discount: 'Discount (number, optional)',
+        }
+        const m = await sendBubble(token, pending.chatId, `Send ${labels[nextField]}:`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `INV:${pending.year}:${pending.projectId}:${pending.invoiceNumber}` }]] })
+        if (m?.message_id) { pending.controllerMessageId = m.message_id; await putPendingEdit(pending); await appendCreationBubble(pending.chatId, m.message_id) }
+        return res.status(200).end('ok')
+      }
+      // Preview new item
+      pending.step = 'preview'
+      pending.draft = draft
+      await putPendingEdit(pending)
+      const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      const unit = typeof draft.unitPrice === 'number' ? formatMoney(draft.unitPrice) : '-'
+      const qty = typeof draft.quantity === 'number' ? draft.quantity : 0
+      const unitSuffix = draft.quantityUnit ? `/${esc(draft.quantityUnit)}` : ''
+      const lineTotal = (typeof draft.unitPrice === 'number' && typeof draft.quantity === 'number') ? formatMoney(draft.unitPrice * draft.quantity) : '-'
+      const lines: string[] = []
+      lines.push('<b>Create Item</b>','<b><u>Item 1:</u></b>')
+      if (draft.title) lines.push(`<b>${esc(draft.title)}</b>${draft.subQuantity ? ` x<i>${esc(draft.subQuantity)}</i>` : ''}`)
+      if (draft.feeType) lines.push(`<i>${esc(draft.feeType)}</i>`)
+      if (draft.notes) lines.push(esc(draft.notes))
+      lines.push('')
+      lines.push(`<i>${unit} x ${qty}${unitSuffix}</i> = <b>${lineTotal}</b>`)
+      const kb = { inline_keyboard: [
+        [{ text: 'Confirm Create', callback_data: `NIT:CONFIRM:${pending.year}:${pending.projectId}:${pending.invoiceNumber}` }],
+        [{ text: 'Revise', callback_data: `NEW:ITEM:${pending.year}:${pending.projectId}:${pending.invoiceNumber}` }],
+        [{ text: 'Cancel', callback_data: `INV:${pending.year}:${pending.projectId}:${pending.invoiceNumber}` }],
+      ] }
+      const m = await sendBubble(token, pending.chatId, lines.join('\n'), kb)
+      if (m?.message_id) { pending.controllerMessageId = m.message_id; await putPendingEdit(pending); await appendCreationBubble(pending.chatId, m.message_id) }
+      return res.status(200).end('ok')
+    }
     // Creation flows — Project
     if (pending && pending.kind === 'PROJ_CREATE' && pending.step === 'await_value') {
       const norm = (v: string) => (v === '-' || v.toLowerCase() === 'skip') ? null : v
@@ -1148,6 +1232,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (data.startsWith('INV:')) {
       const [, year, projectId, encInvoice] = data.split(':')
       try {
+        // If we were in a creation flow, clean those messages too
+        await clearCreationBubbles(chatId)
         // Clear previous invoice bubbles for a clean display, but keep current message so we can edit it into the controller
         await clearInvoiceBubblesExcept(chatId, msgId)
         await sendInvoiceDetailBubbles(token, chatId, msgId, year, projectId, encInvoice)
@@ -1359,6 +1445,63 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         [{ text: 'Subsidiary', callback_data: `EPF:PROJ:${year}:_:subsidiary` }],
       ] }
       await tgEditMessage(token, chatId, msgId, 'Select a field to revise:', menu)
+      return res.status(200).end('ok')
+    }
+    // Create New Item — start
+    if (data.startsWith('NEW:ITEM:')) {
+      const [, , year, projectId, encInvoice] = data.split(':')
+      // Fresh page as this leads to user input
+      await clearInvoiceBubbles(chatId)
+      await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV_ITEM_CREATE', year, projectId, invoiceNumber: encInvoice, controllerMessageId: msgId, step: 'await_value', field: 'title', draft: {} })
+      const m = await sendBubble(token, chatId, 'Send Item Title:', { inline_keyboard: [[{ text: 'Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] })
+      if (m?.message_id) {
+        const edit = await readPendingEdit(chatId, cq.from?.id as number)
+        if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit); await appendCreationBubble(chatId, m.message_id) }
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('NIT:CONFIRM:')) {
+      const [, , year, projectId, encInvoice] = data.split(':')
+      const userId = cq.from?.id as number
+      const edit = await readPendingEdit(chatId, userId)
+      if (!edit || edit.kind !== 'INV_ITEM_CREATE' || !edit.draft) {
+        await tgAnswerCallback(token, cqid, 'Nothing to add')
+        return res.status(200).end('ok')
+      }
+      try {
+        const invNum = decodeURIComponent(encInvoice)
+        const invoices = await fetchInvoicesForProject(year, projectId)
+        const current = invoices.find((i) => i.invoiceNumber === invNum)
+        if (!current) throw new Error('Invoice not found')
+        const items = (current.items || []).map((it) => ({
+          title: it.title || '', feeType: it.feeType || '', unitPrice: Number(it.unitPrice || 0), quantity: Number(it.quantity || 0), discount: Number(it.discount || 0), subQuantity: it.subQuantity || '', notes: it.notes || '', quantityUnit: it.quantityUnit || '',
+        }))
+        // Append new item
+        const d: any = edit.draft || {}
+        items.push({
+          title: d.title || '', feeType: d.feeType || '', unitPrice: Number(d.unitPrice || 0), quantity: Number(d.quantity || 0), discount: Number(d.discount || 0), subQuantity: d.subQuantity || '', notes: d.notes || '', quantityUnit: d.quantityUnit || '',
+        })
+        const client = {
+          companyName: current.companyName || null,
+          addressLine1: current.addressLine1 || null,
+          addressLine2: current.addressLine2 || null,
+          addressLine3: current.addressLine3 || null,
+          region: current.region || null,
+          representative: current.representative || null,
+        }
+        await updateInvoiceForProject({
+          year, projectId, collectionId: 'invoice', invoiceNumber: invNum, baseInvoiceNumber: extractBaseFromInvoice(invNum), editedBy: `tg:${userId}`,
+          items, client, taxOrDiscountPercent: current.taxOrDiscountPercent ?? null, paymentStatus: current.paymentStatus ?? null, paidTo: current.paidTo ?? null, paidOn: current.paidOnIso ?? null, onDate: current.paidOnIso ?? null,
+        })
+        // Transform preview into controller
+        const keepMsgId = edit.controllerMessageId
+        await clearPendingEdit(chatId, userId)
+        await clearCreationBubblesExcept(chatId, keepMsgId)
+        await clearInvoiceBubblesExcept(chatId, keepMsgId)
+        await sendInvoiceDetailBubbles(token, chatId, keepMsgId, year, projectId, encInvoice)
+      } catch (e: any) {
+        await tgEditMessage(token, chatId, msgId, e?.message || 'Failed to add item.')
+      }
       return res.status(200).end('ok')
     }
     // Create New Project — start
