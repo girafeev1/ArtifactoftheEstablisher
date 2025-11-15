@@ -916,24 +916,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (pending.field === 'region') { draft.region = norm(text) }
       if (pending.field === 'representative') { draft.representative = norm(text) }
 
-      const order = ['invoiceNumber','companyName','addressLine1','addressLine2','addressLine3','region','representative']
+      const order = ['invoiceNumber','companyName','addressLine1','addressLine2','addressLine3','region','repTitle','representative']
       const idx = order.indexOf(pending.field || '')
       const nextField = idx >= 0 && idx + 1 < order.length ? order[idx + 1] : null
       if (nextField) {
-        pending.field = nextField
         pending.draft = draft
-        await putPendingEdit(pending)
-        const labels: any = {
-          companyName: 'Client Company Name',
-          addressLine1: 'Address Line 1',
-          addressLine2: 'Address Line 2',
-          addressLine3: 'Address Line 3',
-          region: 'Region',
-          representative: 'Representative',
+        if (nextField === 'repTitle') {
+          pending.field = 'repTitle'
+          await putPendingEdit(pending)
+          const titleKb = { inline_keyboard: [[
+            { text: 'Mr.', callback_data: `NIC:TITLE:${pending.year}:${pending.projectId}:Mr.` },
+            { text: 'Mrs.', callback_data: `NIC:TITLE:${pending.year}:${pending.projectId}:Mrs.` },
+            { text: 'Ms.', callback_data: `NIC:TITLE:${pending.year}:${pending.projectId}:Ms.` },
+            { text: 'Skip', callback_data: `NIC:TITLE:${pending.year}:${pending.projectId}:_` },
+          ]] }
+          const mT = await sendBubble(token, chatId, 'Select Representative Title:', titleKb)
+          if (mT?.message_id) { pending.controllerMessageId = mT.message_id; await putPendingEdit(pending) }
+          return res.status(200).end('ok')
+        } else {
+          pending.field = nextField
+          await putPendingEdit(pending)
+          const labels: any = {
+            companyName: 'Client Company Name',
+            addressLine1: 'Address Line 1',
+            addressLine2: 'Address Line 2',
+            addressLine3: 'Address Line 3',
+            region: 'Region',
+            representative: 'Representative',
+          }
+          const m2 = await sendBubble(token, chatId, `Send ${labels[nextField]} (or "-" to skip):`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] })
+          if (m2?.message_id) { pending.controllerMessageId = m2.message_id; await putPendingEdit(pending) }
+          return res.status(200).end('ok')
         }
-        const m2 = await sendBubble(token, chatId, `Send ${labels[nextField]} (or "-" to skip):`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] })
-        if (m2?.message_id) { pending.controllerMessageId = m2.message_id; await putPendingEdit(pending) }
-        return res.status(200).end('ok')
       }
 
       // Preview before create
@@ -954,7 +968,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const mix = [draft.addressLine3 ? esc(draft.addressLine3) : '', draft.region ? esc(draft.region) : ''].filter(Boolean).join(', ')
           if (mix) lines.push(mix)
         }
-        if (draft.representative) lines.push(`ATTN: <b><i>${esc(draft.representative)}</i></b>`)
+        if (draft.representative) lines.push(`ATTN: <b><i>${esc((draft.repTitle ? draft.repTitle + ' ' : '') + draft.representative)}</i></b>`)
       }
       const kb = { inline_keyboard: [[{ text: 'Confirm Create', callback_data: `NIC:CONFIRM:${pending.year}:${pending.projectId}` }], [{ text: 'Revise', callback_data: `NEW:INV:${pending.year}:${pending.projectId}` }], [{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] }
       const m3 = await sendBubble(token, chatId, lines.join('\n'), kb)
@@ -1248,6 +1262,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const edit = await readPendingEdit(chatId, cq.from?.id as number)
         if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit) }
       }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('NIC:TITLE:')) {
+      const parts = data.split(':')
+      const year = parts[2]; const projectId = parts[3]; const val = decodeURIComponent(parts[4])
+      const userId = cq.from?.id as number
+      const edit = await readPendingEdit(chatId, userId)
+      if (edit && edit.kind === 'INV_CREATE') {
+        const draft = { ...(edit.draft || {}) }
+        draft.repTitle = (val === '_' ? null : val)
+        edit.draft = draft
+        edit.field = 'representative'
+        edit.step = 'await_value'
+        await putPendingEdit(edit)
+        await tgEditMessage(token, chatId, edit.controllerMessageId, 'Send Representative Name:', { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] })
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('NIC:REVISE:')) {
+      const [, , year, projectId] = data.split(':')
+      const menu = { inline_keyboard: [
+        [{ text: 'Invoice Number', callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent('')}:invoiceNumber` }],
+        [{ text: 'Client Company', callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent('')}:companyName` }],
+        [{ text: 'Address Line 1', callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent('')}:addressLine1` }],
+        [{ text: 'Address Line 2', callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent('')}:addressLine2` }],
+        [{ text: 'Address Line 3', callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent('')}:addressLine3` }],
+        [{ text: 'Region', callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent('')}:region` }],
+        [{ text: 'Representative Title', callback_data: `NIC:TITLE:${year}:${projectId}:_` }],
+        [{ text: 'Representative Name', callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent('')}:representative` }],
+      ] }
+      await tgEditMessage(token, chatId, msgId, 'Select a field to revise:', menu)
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('NPC:REVISE:')) {
+      const [, , year] = data.split(':')
+      const menu = { inline_keyboard: [
+        [{ text: 'Project Number', callback_data: `EPF:PROJ:${year}:_:projectNumber` }],
+        [{ text: 'Project Title', callback_data: `EPF:PROJ:${year}:_:projectTitle` }],
+        [{ text: 'Presenter / Worktype', callback_data: `EPF:PROJ:${year}:_:presenterWorkType` }],
+        [{ text: 'Project Nature', callback_data: `EPF:PROJ:${year}:_:projectNature` }],
+        [{ text: 'Project Pickup Date', callback_data: `EPF:PROJ:${year}:_:projectDate` }],
+        [{ text: 'Subsidiary', callback_data: `EPF:PROJ:${year}:_:subsidiary` }],
+      ] }
+      await tgEditMessage(token, chatId, msgId, 'Select a field to revise:', menu)
       return res.status(200).end('ok')
     }
     // Create New Project — start
