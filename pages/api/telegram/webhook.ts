@@ -1026,8 +1026,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         case 'quantityUnit': draft.quantityUnit = norm(msg.text || ''); break
         case 'discount': {
-          const n = Number(String(msg.text || '').trim())
-          draft.discount = Number.isFinite(n) ? n : 0
+          const raw = String(msg.text || '').trim()
+          if (raw === '-' || raw.toLowerCase() === 'skip' || raw === '') {
+            draft.discount = 0
+          } else {
+            const n = Number(raw)
+            draft.discount = Number.isFinite(n) ? n : 0
+          }
           break
         }
       }
@@ -1263,7 +1268,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const created = await createInvoiceForProject({ year, projectId, baseInvoiceNumber, client, items: [], taxOrDiscountPercent: null, paymentStatus: null, paidTo: null, paidOn: null, editedBy: `tg:${userId}` })
         await clearPendingEdit(chatId, userId)
         // Show the newly created invoice details
-        await clearInvoiceBubbles(chatId)
+        await clearInvoiceBubblesExcept(chatId, msgId)
         await sendInvoiceDetailBubbles(token, chatId, msgId, year, projectId, encodeURIComponent(created.invoiceNumber))
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, e?.message || 'Failed to create invoice.')
@@ -1285,6 +1290,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         projectNature: edit.draft.projectNature ?? null,
         projectDate: edit.draft.projectDate ?? null,
         subsidiary: edit.draft.subsidiary ?? null,
+        paymentStatus: 'Due',
       }
       try {
         const keepMsgId = edit.controllerMessageId
@@ -1665,7 +1671,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             paidOn: current.paidOnIso || null,
             onDate: current.paidOnIso || null,
           })
-          await clearInvoiceBubbles(chatId)
+          await clearInvoiceBubblesExcept(chatId, edit.controllerMessageId)
           await sendInvoiceDetailBubbles(token, chatId, edit.controllerMessageId, edit.year, edit.projectId, encodeURIComponent(invNum))
         }
         await clearPendingEdit(chatId, userId)
@@ -1691,7 +1697,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           await tgEditMessage(token, chatId, edit.controllerMessageId, text, { inline_keyboard: rows })
         } else {
           const inv = edit.invoiceNumber || ''
-          await clearInvoiceBubbles(chatId)
+          await clearInvoiceBubblesExcept(chatId, edit.controllerMessageId)
           await sendInvoiceDetailBubbles(token, chatId, edit.controllerMessageId, edit.year, edit.projectId, inv)
         }
       }
