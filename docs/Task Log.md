@@ -42,6 +42,9 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 | T-128 | Telegram — Creation flows robustness | ✅ | Completed |
 | T-129 | Telegram — Transform confirmation into next page | ✅ | Completed |
 | T-130 | Telegram — Capture Project Pickup Date in creation | ✅ | Completed |
+| T-131 | Telegram — Back/cleanup polish (rename back target after invoice rename, hide year menu on select) | ✅ | Completed |
+| T-132 | Telegram — Per-section Edit actions (client, items, totals) | ✅ | Completed |
+| T-133 | Telegram — Clear project listing on “+ Add New Project” start | ✅ | Completed |
 
 ## Current Focus
 
