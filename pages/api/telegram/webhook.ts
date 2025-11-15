@@ -658,7 +658,7 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   } else {
     clientLines.push('No client details')
   }
-  const clientResp = await sendBubble(token, chatId, clientLines.join('\\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EC:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
+  const clientResp = await sendBubble(token, chatId, clientLines.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EC:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
   if (clientResp?.message_id) sentIds.push(clientResp.message_id)
 
   // 4) Invoice Detail heading bubble above first item
@@ -680,7 +680,7 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
       if (it.notes) parts.push(esc(it.notes))
       parts.push('')
       parts.push(`<i>${unit} x ${qty}${unitSuffix}</i> = <b>${lineTotal}</b>`)
-      const itemResp = await sendBubble(token, chatId, parts.join('\\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EI:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}:${i}` }]] })
+      const itemResp = await sendBubble(token, chatId, parts.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EI:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}:${i}` }]] })
       if (itemResp?.message_id) sentIds.push(itemResp.message_id)
     }
   }
@@ -694,7 +694,7 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   totals.push(`<b>Total:</b> ${formatMoney(inv.amount)}`)
   if (bankLabel) totals.push(`<b>To:</b> ${bankLabel}`)
   if (inv.paymentStatus) totals.push(`<i>${esc(inv.paymentStatus)}</i>`)
-  const totResp = await sendBubble(token, chatId, totals.join('\\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `ET:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
+  const totResp = await sendBubble(token, chatId, totals.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `ET:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
   if (totResp?.message_id) sentIds.push(totResp.message_id)
 
   // No final back bubble — actions attached to controller
@@ -1233,6 +1233,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         step: 'await_field',
       })
       await tgEditMessage(token, chatId, msgId, 'Select an invoice field to edit:', buildInvoiceEditFieldsKeyboard(year, projectId, decodeURIComponent(encInvoice)))
+      return res.status(200).end('ok')
+    }
+    // Section-scoped edit triggers from invoice detail bubbles
+    if (data.startsWith('EC:INV:')) {
+      const [, , year, projectId, encInvoice] = data.split(':')
+      const invoiceNumber = decodeURIComponent(encInvoice)
+      const kb = { inline_keyboard: [
+        [{ text: INVOICE_FIELD_LABELS.companyName, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:companyName` }],
+        [{ text: INVOICE_FIELD_LABELS.addressLine1, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:addressLine1` }],
+        [{ text: INVOICE_FIELD_LABELS.addressLine2, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:addressLine2` }],
+        [{ text: INVOICE_FIELD_LABELS.addressLine3, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:addressLine3` }],
+        [{ text: INVOICE_FIELD_LABELS.region, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:region` }],
+        [{ text: 'Representative Title', callback_data: `NIC:TITLE:${year}:${projectId}:_` }],
+        [{ text: INVOICE_FIELD_LABELS.representative, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:representative` }],
+        [{ text: '⬅ Back', callback_data: `INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }],
+      ] }
+      await tgEditMessage(token, chatId, msgId, 'Select a client field to edit:', kb)
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('EI:INV:')) {
+      const parts = data.split(':')
+      const year = parts[2]; const projectId = parts[3]; const encInvoice = parts[4]; const idx = parseInt(parts[5] || '0', 10) || 0
+      await tgEditMessage(token, chatId, msgId, `Edit fields for Item ${idx + 1}:`, buildInvoiceItemFieldsKeyboard(year, projectId, decodeURIComponent(encInvoice), idx))
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('ET:INV:')) {
+      const [, , year, projectId, encInvoice] = data.split(':')
+      const invoiceNumber = decodeURIComponent(encInvoice)
+      const kb = { inline_keyboard: [
+        [{ text: INVOICE_FIELD_LABELS.paymentStatus, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:paymentStatus` }],
+        [{ text: INVOICE_FIELD_LABELS.paidTo, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:paidTo` }],
+        [{ text: '⬅ Back', callback_data: `INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }],
+      ] }
+      await tgEditMessage(token, chatId, msgId, 'Select a totals field to edit:', kb)
       return res.status(200).end('ok')
     }
     // Create New Invoice — start
