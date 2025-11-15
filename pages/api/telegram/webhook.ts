@@ -626,23 +626,21 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   }
   const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 
-  // 1) Controller message: Invoice number + actions
+  // 1) Controller message: Invoice number + actions (Edit, Back to Projects)
   const title = `<b>Invoice:</b> #${esc(inv.invoiceNumber)}`
   await tgEditMessage(token, chatId, controllerMessageId, title, {
     inline_keyboard: [
       [{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }],
-      [
-        { text: '⬅ Back to Project', callback_data: `P:${year}:${projectId}` },
-        { text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` },
-      ],
+      [{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` }],
     ],
   })
 
   const sentIds: number[] = [controllerMessageId]
-  // 2) Client details bubble with heading
+  // 2) Client detail heading (own bubble)
+  const clientHead = await sendBubble(token, chatId, '<b><u>Client Detail</u></b>')
+  if (clientHead?.message_id) sentIds.push(clientHead.message_id)
+  // 3) Client detail content bubble
   const clientLines: string[] = []
-  clientLines.push('<b><u>Client Detail</u></b>')
-  clientLines.push('')
   if (inv.companyName) {
     clientLines.push(`<b>${esc(inv.companyName)}</b>`) 
     if (inv.addressLine1) clientLines.push(esc(inv.addressLine1))
@@ -653,6 +651,8 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
       const mix = [addr3, reg].filter(Boolean).join(', ')
       if (mix) clientLines.push(mix)
     }
+    // extra empty line before ATTN
+    if (inv.representative) clientLines.push('')
     if (inv.representative) clientLines.push(`ATTN: <b><i>${esc(inv.representative)}</i></b>`)
   } else {
     clientLines.push('No client details')
@@ -660,11 +660,11 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   const clientResp = await sendBubble(token, chatId, clientLines.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
   if (clientResp?.message_id) sentIds.push(clientResp.message_id)
 
-  // 3) Invoice Detail heading bubble above first item
+  // 4) Invoice Detail heading bubble above first item
   const invDetailHead = await sendBubble(token, chatId, '<b><u>Invoice Detail</u></b>')
   if (invDetailHead?.message_id) sentIds.push(invDetailHead.message_id)
 
-  // 4) Items — one bubble per item
+  // 5) Items — one bubble per item
   if (inv.items && inv.items.length > 0) {
     for (let i = 0; i < inv.items.length; i += 1) {
       const it = inv.items[i]
@@ -1060,7 +1060,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const { projects } = await adminFetchAllProjectsForYear(year)
         // Send heading + one message per project with [Select] [Edit]
         const sentIds: number[] = [] // collected but not persisted (no deletion model)
-        const head = await sendBubble(token, chatId, `Projects of ${year}`, {
+        const head = await sendBubble(token, chatId, `Projects of ${year} ⬇️`, {
           inline_keyboard: [
             [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
             [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
@@ -1077,7 +1077,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
           if (resp?.message_id) sentIds.push(resp.message_id)
         }
-        // Footer no longer needed; actions attached to heading
+        // Add a tail marker with the same actions for convenience
+        const tail = await sendBubble(token, chatId, `Projects of ${year} ⬆️`, {
+          inline_keyboard: [
+            [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
+            [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
+          ],
+        })
+        if (tail?.message_id) sentIds.push(tail.message_id)
         // Track these so we can clear on back to years
         await saveProjectBubbles(chatId, sentIds)
       } catch (e: any) {
@@ -1469,7 +1476,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await clearInvoiceBubbles(chatId)
         const { projects } = await adminFetchAllProjectsForYear(year)
         const ids: number[] = []
-        const head = await sendBubble(token, chatId, `Projects of ${year}`, {
+        const head = await sendBubble(token, chatId, `Projects of ${year} ⬇️`, {
           inline_keyboard: [
             [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
             [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
@@ -1485,7 +1492,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
           if (resp?.message_id) ids.push(resp.message_id)
         }
-        // Footer no longer needed; actions attached to heading
+        // Add a tail marker with the same actions for convenience
+        const tail = await sendBubble(token, chatId, `Projects of ${year} ⬆️`, {
+          inline_keyboard: [
+            [{ text: '➕ Add New Project', callback_data: `NEW:PROJ:${year}` }],
+            [{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }],
+          ],
+        })
+        if (tail?.message_id) ids.push(tail.message_id)
         await saveProjectBubbles(chatId, ids)
       } catch {
         await tgSendMessage(token, chatId, 'Back to projects. Select another above.', { inline_keyboard: [[{ text: '⬅ Back to Years', callback_data: 'BK:YEARS' }]] })
