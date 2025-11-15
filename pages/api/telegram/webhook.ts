@@ -350,6 +350,24 @@ async function clearInvoiceBubbles(chatId: number) {
   } catch {}
 }
 
+// Clear invoice bubbles but keep one message (e.g., the current menu bubble)
+async function clearInvoiceBubblesExcept(chatId: number, keepMessageId: number) {
+  try {
+    const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+    const ref = fs.collection(TG_PAGES_COLLECTION).doc(String(chatId))
+    const snap = await ref.get()
+    if (!snap.exists) return
+    const data = snap.data() as any
+    const ids = Array.isArray(data?.invoiceMessageIds) ? data.invoiceMessageIds : []
+    for (const id of ids) {
+      if (id === keepMessageId) continue
+      try { await fetch(`${TELEGRAM_API(process.env.TELEGRAM_BOT_TOKEN || '')}/deleteMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, message_id: id }) }) } catch {}
+    }
+    const next = ids.includes(keepMessageId) ? [keepMessageId] : []
+    await ref.set({ invoiceMessageIds: next }, { merge: true })
+  } catch {}
+}
+
 // Track creation flow bot messages (for fresh-chat cleanup after confirm)
 async function appendCreationBubble(chatId: number, messageId: number) {
   try {
@@ -1130,8 +1148,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (data.startsWith('INV:')) {
       const [, year, projectId, encInvoice] = data.split(':')
       try {
-        // Clear previous invoice bubbles for a clean display
-        await clearInvoiceBubbles(chatId)
+        // Clear previous invoice bubbles for a clean display, but keep current message so we can edit it into the controller
+        await clearInvoiceBubblesExcept(chatId, msgId)
         await sendInvoiceDetailBubbles(token, chatId, msgId, year, projectId, encInvoice)
       } catch (e: any) {
         await tgEditMessage(token, chatId, msgId, 'Sorry, failed to load invoice.')
