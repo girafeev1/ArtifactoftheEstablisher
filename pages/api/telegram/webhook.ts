@@ -934,7 +934,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pending.field = 'companyName'
         pending.draft = draft
         await putPendingEdit(pending)
-        const m1 = await sendBubble(token, chatId, 'Send Client Company Name (or "-" to skip):', { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] })
+        // Present company input with quick-pick list and a Skip option
+        let clientsKb: any = { inline_keyboard: [] as any[] }
+        try {
+          const { fetchClientsDirectory } = await import('../../../lib/clientDirectory')
+          const clients = await fetchClientsDirectory()
+          const top = clients.slice(0, 12)
+          clientsKb.inline_keyboard = top.map((c: any) => [
+            { text: c.companyName, callback_data: `NIC:CLI:SEL:${pending.year}:${pending.projectId}:${encodeURIComponent(c.documentId)}` },
+          ])
+        } catch {}
+        // Add Skip/Cancel row
+        clientsKb.inline_keyboard.push([{ text: 'Skip', callback_data: `NIC:CLI:SKIP:${pending.year}:${pending.projectId}` }])
+        clientsKb.inline_keyboard.push([{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }])
+        const m1 = await sendBubble(token, chatId, 'Please provide the name of the Client Company:', clientsKb)
         if (m1?.message_id) { pending.controllerMessageId = m1.message_id; await putPendingEdit(pending) }
         return res.status(200).end('ok')
       }
@@ -965,15 +978,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } else {
           pending.field = nextField
           await putPendingEdit(pending)
+          if (nextField === 'region') {
+            // Region must be selected via buttons
+            const kb = { inline_keyboard: [
+              [{ text: 'Kowloon', callback_data: `NIC:REGION:${pending.year}:${pending.projectId}:${encodeURIComponent('Kowloon')}` }],
+              [{ text: 'Hong Kong', callback_data: `NIC:REGION:${pending.year}:${pending.projectId}:${encodeURIComponent('Hong Kong')}` }],
+              [{ text: 'New Territories', callback_data: `NIC:REGION:${pending.year}:${pending.projectId}:${encodeURIComponent('New Territories')}` }],
+              [{ text: 'Skip', callback_data: `NIC:REGION:${pending.year}:${pending.projectId}:_` }],
+              [{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }],
+            ] }
+            const m2 = await sendBubble(token, chatId, 'Please select the Region:', kb)
+            if (m2?.message_id) { pending.controllerMessageId = m2.message_id; await putPendingEdit(pending) }
+            return res.status(200).end('ok')
+          }
           const labels: any = {
-            companyName: 'Client Company Name',
+            companyName: 'name of the Client Company',
             addressLine1: 'Address Line 1',
             addressLine2: 'Address Line 2',
             addressLine3: 'Address Line 3',
-            region: 'Region',
-            representative: 'Representative',
+            representative: 'name of the Representative',
           }
-          const m2 = await sendBubble(token, chatId, `Send ${labels[nextField]} (or "-" to skip):`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }]] })
+          const promptText =
+            nextField === 'companyName'
+              ? 'Please provide the name of the Client Company:'
+              : nextField === 'representative'
+              ? 'Please provide the name of the Representative'
+              : `Please provide ${labels[nextField]}:`
+          const kb = { inline_keyboard: [] as any[] }
+          if (nextField === 'addressLine1' || nextField === 'addressLine2' || nextField === 'addressLine3') {
+            kb.inline_keyboard.push([{ text: 'Skip', callback_data: `NIC:SKIP:${pending.year}:${pending.projectId}:${nextField}` }])
+          }
+          kb.inline_keyboard.push([{ text: 'Cancel', callback_data: `P:${pending.year}:${pending.projectId}` }])
+          const m2 = await sendBubble(token, chatId, promptText, kb)
           if (m2?.message_id) { pending.controllerMessageId = m2.message_id; await putPendingEdit(pending) }
           return res.status(200).end('ok')
         }
@@ -1045,16 +1081,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pending.draft = draft
         await putPendingEdit(pending)
         const labels: any = {
-          title: 'Item Title',
-          subQuantity: 'Item Sub-Quantity (optional)',
-          feeType: 'Item Fee Type (optional)',
-          notes: 'Item Notes (optional)',
-          unitPrice: 'Unit Price (number)',
-          quantity: 'Quantity (number)',
-          quantityUnit: 'Quantity Unit (optional)',
+          title: 'Please provide the Title of Item *',
+          subQuantity: 'Please provide the Sub-Quantity of Item *',
+          feeType: 'What would be the fee type for Item *?',
+          notes: 'Any notes for Item *?',
+          unitPrice: 'Please provide the unit price for Item *',
+          quantity: `How many <Quantity Unit> for Item *?`,
+          quantityUnit: 'What would be the unit for Item *?',
           discount: 'Discount (number, optional)',
         }
-        const m = await sendBubble(token, pending.chatId, `Send ${labels[nextField]}:`, { inline_keyboard: [[{ text: 'Cancel', callback_data: `INV:${pending.year}:${pending.projectId}:${pending.invoiceNumber}` }]] })
+        const kb = { inline_keyboard: [] as any[] }
+        if (nextField === 'subQuantity' || nextField === 'notes') {
+          kb.inline_keyboard.push([{ text: 'Skip', callback_data: `NIC:SKIP:ITEM:${pending.year}:${pending.projectId}:${pending.invoiceNumber}:${nextField}` }])
+        }
+        kb.inline_keyboard.push([{ text: 'Cancel', callback_data: `INV:${pending.year}:${pending.projectId}:${pending.invoiceNumber}` }])
+        const m = await sendBubble(token, pending.chatId, labels[nextField], kb)
         if (m?.message_id) { pending.controllerMessageId = m.message_id; await putPendingEdit(pending); await appendCreationBubble(pending.chatId, m.message_id) }
         return res.status(200).end('ok')
       }
@@ -1143,7 +1184,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).end('ok')
     }
     if (pending && pending.step === 'await_value' && pending.field) {
-      const proposed = text
+      let proposed = text
+      // Combine representative title + name when editing existing invoice
+      if (pending.kind === 'INV' && pending.field === 'representative' && pending.draft && pending.draft.repTitle) {
+        const title = String(pending.draft.repTitle || '').trim()
+        const name = String(text || '').trim()
+        proposed = `${title ? title + ' ' : ''}${name}`.trim()
+      }
       pending.proposedValue = proposed
       pending.step = 'preview'
       await putPendingEdit(pending)
@@ -1262,10 +1309,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         addressLine2: edit.draft.addressLine2 ?? null,
         addressLine3: edit.draft.addressLine3 ?? null,
         region: edit.draft.region ?? null,
-        representative: edit.draft.representative ?? null,
+        representative: (edit.draft.repTitle ? `${edit.draft.repTitle} ` : '') + (edit.draft.representative ?? ''),
       }
       try {
-        const created = await createInvoiceForProject({ year, projectId, baseInvoiceNumber, client, items: [], taxOrDiscountPercent: null, paymentStatus: null, paidTo: null, paidOn: null, editedBy: `tg:${userId}` })
+        const created = await createInvoiceForProject({ year, projectId, baseInvoiceNumber, client, items: [], taxOrDiscountPercent: null, paymentStatus: 'Due', paidTo: null, paidOn: null, editedBy: `tg:${userId}` })
         await clearPendingEdit(chatId, userId)
         // Show the newly created invoice details
         await clearInvoiceBubblesExcept(chatId, msgId)
@@ -1376,7 +1423,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         [{ text: INVOICE_FIELD_LABELS.paidTo, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:paidTo` }],
         [{ text: '⬅ Back', callback_data: `INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }],
       ] }
-      await tgEditMessage(token, chatId, msgId, 'Select a totals field to edit:', kb)
+      const m = await sendBubble(token, chatId, 'Select a totals field to edit:', kb)
+      if (m?.message_id) {
+        const e = await readPendingEdit(chatId, cq.from?.id as number)
+        if (e && e.kind === 'INV') { e.controllerMessageId = m.message_id; await putPendingEdit(e) }
+      }
       return res.status(200).end('ok')
     }
     // Create New Invoice — start
@@ -1400,9 +1451,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (data.startsWith('NIC:NUMOK:')) {
       const [, , year, projectId, encNum] = data.split(':')
       const invoiceNumber = decodeURIComponent(encNum)
-      // Proceed to ask client company
+      // Proceed to ask client company with quick-pick list and skip
       await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV_CREATE', year, projectId, controllerMessageId: msgId, step: 'await_value', field: 'companyName', draft: { invoiceNumber } })
-      const m = await sendBubble(token, chatId, 'Send Client Company Name (or type "-" to skip/use project default):', { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] })
+      let clientsKb: any = { inline_keyboard: [] as any[] }
+      try {
+        const { fetchClientsDirectory } = await import('../../../lib/clientDirectory')
+        const clients = await fetchClientsDirectory()
+        const top = clients.slice(0, 12)
+        clientsKb.inline_keyboard = top.map((c: any) => [
+          { text: c.companyName, callback_data: `NIC:CLI:SEL:${year}:${projectId}:${encodeURIComponent(c.documentId)}` },
+        ])
+      } catch {}
+      clientsKb.inline_keyboard.push([{ text: 'Skip', callback_data: `NIC:CLI:SKIP:${year}:${projectId}` }])
+      clientsKb.inline_keyboard.push([{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }])
+      const m = await sendBubble(token, chatId, 'Please provide the name of the Client Company:', clientsKb)
       if (m?.message_id) {
         const edit = await readPendingEdit(chatId, cq.from?.id as number)
         if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit) }
@@ -1421,7 +1483,91 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         edit.field = 'representative'
         edit.step = 'await_value'
         await putPendingEdit(edit)
-        await tgEditMessage(token, chatId, edit.controllerMessageId, 'Send Representative Name:', { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] })
+        await tgEditMessage(token, chatId, edit.controllerMessageId, 'Please provide the name of the Representative', { inline_keyboard: [[{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] })
+      } else if (edit && edit.kind === 'INV') {
+        // Editing existing invoice: stash title in draft and ask for representative name
+        const draft = { ...(edit.draft || {}) }
+        draft.repTitle = (val === '_' ? null : val)
+        edit.draft = draft
+        edit.field = 'representative'
+        edit.step = 'await_value'
+        await putPendingEdit(edit)
+        await tgEditMessage(token, chatId, edit.controllerMessageId, 'Please provide the name of the Representative', { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: `INV:${year}:${projectId}:${edit.invoiceNumber}` }]] })
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('NIC:REGION:')) {
+      const parts = data.split(':')
+      const year = parts[2]; const projectId = parts[3]; const val = decodeURIComponent(parts[4])
+      const userId = cq.from?.id as number
+      const edit = await readPendingEdit(chatId, userId)
+      if (edit && edit.kind === 'INV_CREATE') {
+        const draft = { ...(edit.draft || {}) }
+        draft.region = (val === '_' ? null : val)
+        edit.draft = draft
+        edit.field = 'repTitle'
+        edit.step = 'await_value'
+        await putPendingEdit(edit)
+        const titleKb = { inline_keyboard: [[
+          { text: 'Mr.', callback_data: `NIC:TITLE:${year}:${projectId}:Mr.` },
+          { text: 'Mrs.', callback_data: `NIC:TITLE:${year}:${projectId}:Mrs.` },
+          { text: 'Ms.', callback_data: `NIC:TITLE:${year}:${projectId}:Ms.` },
+          { text: 'Skip', callback_data: `NIC:TITLE:${year}:${projectId}:_` },
+        ]] }
+        await tgEditMessage(token, chatId, edit.controllerMessageId, 'Select Representative Title:', titleKb)
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('NIC:CLI:SKIP:')) {
+      const [, , year, projectId] = data.split(':')
+      // Move to Address Line 1 prompt
+      await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV_CREATE', year, projectId, controllerMessageId: msgId, step: 'await_value', field: 'addressLine1', draft: { ...(await readPendingEdit(chatId, cq.from?.id as number))?.draft } })
+      const m = await sendBubble(token, chatId, 'Please provide Address Line 1:', { inline_keyboard: [[{ text: 'Skip', callback_data: `NIC:SKIP:${year}:${projectId}:addressLine1` }], [{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] })
+      if (m?.message_id) {
+        const edit = await readPendingEdit(chatId, cq.from?.id as number)
+        if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit) }
+      }
+      return res.status(200).end('ok')
+    }
+    if (data.startsWith('NIC:CLI:SEL:')) {
+      const [, , year, projectId, encId] = data.split(':')
+      const id = decodeURIComponent(encId)
+      const userId = cq.from?.id as number
+      const edit = await readPendingEdit(chatId, userId)
+      if (edit && edit.kind === 'INV_CREATE') {
+        try {
+          const { fetchClientsDirectory } = await import('../../../lib/clientDirectory')
+          const clients = await fetchClientsDirectory()
+          const c = clients.find((x: any) => x.documentId === id)
+          if (c) {
+            const draft = { ...(edit.draft || {}) }
+            draft.companyName = c.companyName || null
+            draft.addressLine1 = c.addressLine1 || null
+            draft.addressLine2 = c.addressLine2 || null
+            draft.addressLine3 = c.addressLine3 || c.addressLine4 || null
+            draft.region = c.region || null
+            draft.repTitle = c.title || null
+            draft.representative = c.representative || null
+            edit.draft = draft
+            // Jump to preview
+            edit.step = 'preview'
+            await putPendingEdit(edit)
+            const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            const lines = ['<b>Create Invoice</b>', '', `<b>Invoice:</b> #${esc(draft.invoiceNumber || '')}`]
+            if (draft.companyName) {
+              lines.push('', `<b>${esc(draft.companyName)}</b>`)
+              if (draft.addressLine1) lines.push(esc(draft.addressLine1))
+              if (draft.addressLine2) lines.push(esc(draft.addressLine2))
+              if (draft.addressLine3 || draft.region) {
+                const mix = [draft.addressLine3 ? esc(draft.addressLine3) : '', draft.region ? esc(draft.region) : ''].filter(Boolean).join(', ')
+                if (mix) lines.push(mix)
+              }
+              if (draft.representative) lines.push(`ATTN: <b><i>${esc((draft.repTitle ? draft.repTitle + ' ' : '') + draft.representative)}</i></b>`)
+            }
+            const kb = { inline_keyboard: [[{ text: 'Confirm Create', callback_data: `NIC:CONFIRM:${year}:${projectId}` }], [{ text: 'Revise', callback_data: `NEW:INV:${year}:${projectId}` }], [{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] }
+            await tgEditMessage(token, chatId, edit.controllerMessageId, lines.join('\n'), kb)
+          }
+        } catch {}
       }
       return res.status(200).end('ok')
     }
@@ -1548,6 +1694,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await tgEditMessage(token, chatId, msgId, 'Select an item to edit:', buildInvoiceItemsListKeyboard(year, projectId, decodeURIComponent(encInvoice), count))
       return res.status(200).end('ok')
     }
+    if (data.startsWith('NIC:SKIP:ITEM:')) {
+      const parts = data.split(':')
+      const year = parts[3]; const projectId = parts[4]; const encInvoice = parts[5]; const field = parts[6]
+      const userId = cq.from?.id as number
+      const edit = await readPendingEdit(chatId, userId)
+      if (edit && edit.kind === 'INV_ITEM_CREATE' && edit.field === field) {
+        // Advance to next field without changing draft
+        const order = ['title','subQuantity','feeType','notes','unitPrice','quantity','quantityUnit','discount']
+        const idx = order.indexOf(field)
+        const nextField = idx >= 0 && idx + 1 < order.length ? order[idx + 1] : null
+        if (nextField) {
+          edit.field = nextField
+          await putPendingEdit(edit)
+          const labels: any = {
+            title: 'Please provide the Title of Item *',
+            subQuantity: 'Please provide the Sub-Quantity of Item *',
+            feeType: 'What would be the fee type for Item *?',
+            notes: 'Any notes for Item *?',
+            unitPrice: 'Please provide the unit price for Item *',
+            quantity: `How many <Quantity Unit> for Item *?`,
+            quantityUnit: 'What would be the unit for Item *?',
+            discount: 'Discount (number, optional)',
+          }
+          const kb = { inline_keyboard: [[{ text: 'Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] }
+          const m = await sendBubble(token, chatId, labels[nextField], kb)
+          if (m?.message_id) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit); await appendCreationBubble(chatId, m.message_id) }
+        } else {
+          // No next; fall back to preview path by no-op message trigger
+          await tgAnswerCallback(token, cqid, 'Proceeding to preview…')
+        }
+      }
+      return res.status(200).end('ok')
+    }
     if (data.startsWith('EPI:SEL:')) {
       const parts = data.split(':')
       const year = parts[2]; const projectId = parts[3]; const encInvoice = parts[4]; const idx = parseInt(parts[5] || '0', 10) || 0
@@ -1582,7 +1761,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           kind: 'INV', year, projectId, invoiceNumber: encInvoice, controllerMessageId: msgId,
           step: 'await_value', field,
         })
-        await tgEditMessage(token, chatId, msgId, `Send new value for <b>${INVOICE_FIELD_LABELS[field]}</b>`, { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] })
+        const prompt = `Send new value for <b>${INVOICE_FIELD_LABELS[field]}</b>`
+        if (field === 'paymentStatus') {
+          const m = await sendBubble(token, chatId, prompt, { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] })
+          if (m?.message_id) {
+            const e = await readPendingEdit(chatId, cq.from?.id as number)
+            if (e) { e.controllerMessageId = m.message_id; await putPendingEdit(e) }
+          }
+        } else {
+          await tgEditMessage(token, chatId, msgId, prompt, { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] })
+        }
       }
       return res.status(200).end('ok')
     }
@@ -1666,7 +1854,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             items,
             client,
             taxOrDiscountPercent: current.taxOrDiscountPercent ?? null,
-            paymentStatus: (current as any).paymentStatus || null,
+            paymentStatus: (current as any).paymentStatus || 'Due',
             paidTo: (current as any).paidTo || null,
             paidOn: current.paidOnIso || null,
             onDate: current.paidOnIso || null,
