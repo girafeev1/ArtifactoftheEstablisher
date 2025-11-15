@@ -626,13 +626,19 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   }
   const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 
-  // 1) Controller message: Invoice number only + edit
+  // 1) Controller message: Invoice number + actions
   const title = `<b>Invoice:</b> #${esc(inv.invoiceNumber)}`
   await tgEditMessage(token, chatId, controllerMessageId, title, {
-    inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]],
+    inline_keyboard: [
+      [{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }],
+      [
+        { text: '⬅ Back to Project', callback_data: `P:${year}:${projectId}` },
+        { text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` },
+      ],
+    ],
   })
 
-  const sentIds: number[] = []
+  const sentIds: number[] = [controllerMessageId]
   // 2) Client details bubble with heading
   const clientLines: string[] = []
   clientLines.push('<b><u>Client Detail</u></b>')
@@ -690,14 +696,7 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   const totResp = await sendBubble(token, chatId, totals.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
   if (totResp?.message_id) sentIds.push(totResp.message_id)
 
-  // 6) Final Back bubble — back to Project Detail or Projects list
-  const back = await sendBubble(token, chatId, 'Use the actions below', {
-    inline_keyboard: [
-      [{ text: '⬅ Back to Project', callback_data: `P:${year}:${projectId}` }],
-      [{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` }],
-    ],
-  })
-  if (back?.message_id) sentIds.push(back.message_id)
+  // No final back bubble — actions attached to controller
   await saveInvoiceBubbles(chatId, sentIds)
 }
 
@@ -1056,6 +1055,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         // Hide the year list (and welcome) when a year is selected
         await clearYearMenu(chatId)
+        // Also delete the year menu controller message to avoid lingering prompts
+        try { await tgDeleteMessage(token, chatId, msgId) } catch {}
         const { projects } = await adminFetchAllProjectsForYear(year)
         // Send heading + one message per project with [Select] [Edit]
         const sentIds: number[] = [] // collected but not persisted (no deletion model)
