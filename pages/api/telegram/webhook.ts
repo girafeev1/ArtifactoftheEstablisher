@@ -1164,7 +1164,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const lines: string[] = []
       const itemNum = Number((pending.draft || {}).itemNumber || 1)
       const n = Number.isFinite(itemNum) && itemNum > 0 ? itemNum : 1
-      lines.push('<b>Create Item</b>',`<b><u>Item ${n}:</u></b>')
+      lines.push('<b>Create Item</b>', `<b><u>Item ${n}:</u></b>`)
       if (draft.title) lines.push(`<b>${esc(draft.title)}</b>${draft.subQuantity ? ` x<i>${esc(draft.subQuantity)}</i>` : ''}`)
       if (draft.feeType) lines.push(`<i>${esc(draft.feeType)}</i>`)
       if (draft.notes) lines.push(esc(draft.notes))
