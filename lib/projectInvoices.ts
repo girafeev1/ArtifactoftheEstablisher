@@ -411,6 +411,10 @@ export interface ProjectInvoiceRecord {
   items: ProjectInvoiceItemRecord[]
   createdAt?: string | null
   updatedAt?: string | null
+  // Optional PDF metadata
+  pdfFileId?: string | null
+  pdfHash?: string | null
+  pdfGeneratedAt?: string | null
 }
 
 const computeRecordLineTotal = (item: ProjectInvoiceItemRecord) => {
@@ -550,6 +554,10 @@ const buildInvoiceRecord = (
     items,
     createdAt: toIsoString(data.createdAt),
     updatedAt: toIsoString(data.updatedAt),
+    // Optional PDF metadata for UI (if present)
+    pdfFileId: toStringValue((data as any).pdfFileId),
+    pdfHash: toStringValue((data as any).pdfHash),
+    pdfGeneratedAt: toIsoString((data as any).pdfGeneratedAt),
   }
 }
 
@@ -568,7 +576,7 @@ const extractBaseInvoiceNumber = (invoiceNumber: string) => {
 export const fetchInvoicesForProject = async (
   year: string,
   projectId: string,
-): Promise<ProjectInvoiceRecord[]> => {
+): Promise<(ProjectInvoiceRecord & InvoicePdfMeta)[]> => {
   // Prefer nested doc; fallback to legacy path
   const nestedRef = doc(projectsDb, PROJECTS_ROOT, year, PROJECTS_SUBCOLLECTION, projectId)
   let projectRef = nestedRef
@@ -581,12 +589,12 @@ export const fetchInvoicesForProject = async (
     projectRef = doc(projectsDb, year, projectId)
   }
 
-  const invoices: ProjectInvoiceRecord[] = []
+  const invoices: (ProjectInvoiceRecord & InvoicePdfMeta)[] = []
   try {
     const collectionRef = collection(projectRef, SINGLE_INVOICE_COLLECTION_ID)
     const snapshot = await getDocs(collectionRef)
     snapshot.forEach((document) => {
-      invoices.push(buildInvoiceRecord(SINGLE_INVOICE_COLLECTION_ID, document.id, document.data()))
+      invoices.push(buildInvoiceRecord(SINGLE_INVOICE_COLLECTION_ID, document.id, document.data()) as any)
     })
   } catch (error) {
     console.warn("[projectInvoices] Failed to fetch invoices from unified collection", {
@@ -617,6 +625,13 @@ export interface InvoiceItemPayload {
   subQuantity: string
   notes: string
   quantityUnit: string
+}
+
+// Optional PDF metadata surfaced to UI when present
+export interface InvoicePdfMeta {
+  pdfFileId?: string | null
+  pdfHash?: string | null
+  pdfGeneratedAt?: string | null
 }
 
 interface InvoiceWritePayload {
@@ -850,7 +865,7 @@ export interface UpdateInvoiceInput extends InvoiceWritePayload {
 
 export const updateInvoiceForProject = async (
   input: UpdateInvoiceInput,
-): Promise<ProjectInvoiceRecord> => {
+): Promise<ProjectInvoiceRecord & InvoicePdfMeta> => {
   // Prefer nested; fallback to legacy path
   let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
   try {
@@ -953,7 +968,7 @@ export const updateInvoiceForProject = async (
   const writeDiffs = computeDocumentDiff(existingData, refreshedData ?? {})
   await logInvoiceChanges(documentRef, writeDiffs, input.editedBy)
 
-  return buildInvoiceRecord(resolvedCollectionId, refreshedSnapshot.id, refreshedData ?? {})
+  return buildInvoiceRecord(resolvedCollectionId, refreshedSnapshot.id, refreshedData ?? {}) as any
 }
 
 export interface DeleteInvoiceInput {

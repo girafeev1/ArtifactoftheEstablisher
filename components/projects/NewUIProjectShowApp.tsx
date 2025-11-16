@@ -1107,6 +1107,51 @@ const ProjectsShowContent = () => {
 
   const companyLine3 = mergeLineWithRegion(resolvedClient?.addressLine3, resolvedClient?.region)
 
+  // PDF export/view state
+  const activeInvoice = useMemo(() => (invoices.length > 0 ? invoices[Math.min(activeInvoiceIndex, invoices.length - 1)] ?? null : null), [activeInvoiceIndex, invoices])
+  const currentHashModel = useMemo(() => {
+    if (!activeInvoice) return null
+    return {
+      invoiceNumber: activeInvoice.invoiceNumber,
+      companyName: activeInvoice.companyName,
+      addressLine1: activeInvoice.addressLine1,
+      addressLine2: activeInvoice.addressLine2,
+      addressLine3: activeInvoice.addressLine3,
+      region: activeInvoice.region,
+      representative: activeInvoice.representative,
+      items: (activeInvoice.items || []).map((it) => ({ title: it.title, subQuantity: it.subQuantity, feeType: it.feeType, notes: it.notes, unitPrice: it.unitPrice, quantity: it.quantity, quantityUnit: it.quantityUnit, discount: it.discount })),
+      amount: activeInvoice.amount,
+      paymentStatus: activeInvoice.paymentStatus,
+      paidTo: activeInvoice.paidTo,
+    }
+  }, [activeInvoice])
+  const currentHash = useMemo(() => {
+    if (!currentHashModel) return null
+    try { return window.crypto ? null : null } catch { return null }
+  }, [currentHashModel])
+  const pdfMeta = activeInvoice ? { fileId: (activeInvoice as any).pdfFileId as string | undefined, hash: (activeInvoice as any).pdfHash as string | undefined } : { fileId: undefined, hash: undefined }
+
+  const canViewPdf = !!pdfMeta.fileId && !!pdfMeta.hash
+  // Since computing exact hash client-side is non-trivial (needs stable canonicalization), we conservatively show Export if no pdfHash or if editing
+  const shouldShowExport = !canViewPdf || invoiceMode !== 'idle'
+
+  const handleExportPdf = useCallback(() => {
+    if (!project || !activeInvoice) return
+    const url = `/api/invoices/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}/${encodeURIComponent(activeInvoice.invoiceNumber)}/pdf`
+    // Trigger browser download
+    const link = document.createElement('a')
+    link.href = url
+    link.download = ''
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }, [activeInvoice, project])
+
+  const handleViewPdf = useCallback(() => {
+    if (!pdfMeta.fileId) return
+    window.open(`https://drive.google.com/file/d/${encodeURIComponent(pdfMeta.fileId)}/view`, '_blank')
+  }, [pdfMeta.fileId])
+
   const prepareDraft = useCallback(
     (mode: "create" | "edit", targetIndex?: number) => {
       if (!project) {
@@ -2809,6 +2854,16 @@ const ProjectsShowContent = () => {
                       <div className="totals-row total">
                         <span className="meta-label">Total</span>
                         <span className="meta-value">{amountText(total)}</span>
+                      </div>
+                      <div className="totals-row" style={{ marginTop: 8 }}>
+                        {shouldShowExport ? (
+                          <Button type="primary" onClick={handleExportPdf}>Export PDF</Button>
+                        ) : (
+                          <Button onClick={handleViewPdf}>View Invoice</Button>
+                        )}
+                        {!shouldShowExport && invoiceMode === 'idle' ? null : (
+                          canViewPdf ? <span className="stale-chip" style={{ marginLeft: 12, color: '#b45309' }}>Previous invoice is no longer updated.</span> : null
+                        )}
                       </div>
                     </div>
                   </section>
