@@ -127,7 +127,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try { console.info('[pdf] rendered', { size: pdfBuf.byteLength }) } catch {}
   } catch (e: any) {
     try { console.error('[pdf] render failed', { error: e?.message || String(e) }) } catch {}
-    return res.status(500).send('Failed to render PDF')
+    // Fallback: render a minimal PDF via pdfkit to avoid a hard failure
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const PDFDocument = require('pdfkit')
+      const doc = new PDFDocument({ size: 'A4', margins: { top: 36, bottom: 36, left: 40, right: 40 } })
+      const chunks: Buffer[] = []
+      doc.on('data', (c: Buffer) => chunks.push(Buffer.from(c)))
+      doc.on('error', () => {})
+      doc.fontSize(18).text(`Invoice #${inv.invoiceNumber}`, { align: 'left' })
+      doc.moveDown(0.5)
+      if (inv.companyName) doc.fontSize(10).text(inv.companyName)
+      if (inv.addressLine1) doc.text(inv.addressLine1)
+      if (inv.addressLine2) doc.text(inv.addressLine2)
+      if (inv.addressLine3 || inv.region) doc.text([inv.addressLine3, inv.region].filter(Boolean).join(', '))
+      if (inv.representative) doc.text(`ATTN: ${inv.representative}`)
+      doc.moveDown(0.5)
+      doc.text('')
+      ;(inv.items || []).forEach((it: any) => {
+        const total = (typeof it.unitPrice === 'number' && typeof it.quantity === 'number') ? it.unitPrice * it.quantity : 0
+        doc.fontSize(10).text(`${it.title || ''}${it.subQuantity ? ` x${it.subQuantity}` : ''}`)
+        if (it.feeType) doc.text(it.feeType)
+        if (it.notes) doc.text(it.notes)
+        doc.text(`${it.quantity ?? ''}${it.quantityUnit ? `/${it.quantityUnit}` : ''}  @ ${typeof it.unitPrice==='number'?it.unitPrice.toFixed(2):''}  = ${total.toFixed(2)}`, { align: 'right' })
+        doc.moveDown(0.25)
+      })
+      doc.moveDown(0.5)
+      const amt = typeof inv.amount === 'number' ? inv.amount.toFixed(2) : '-'
+      doc.fontSize(12).text(`Total: ${amt}`, { align: 'right' })
+      if (inv.paidTo) doc.fontSize(10).text(`To: ${inv.paidTo}`)
+      if (inv.paymentStatus) doc.text(inv.paymentStatus)
+      doc.end()
+      await new Promise<void>((resolve) => doc.on('end', () => resolve()))
+      pdfBuf = Buffer.concat(chunks)
+      try { console.info('[pdf] rendered via pdfkit', { size: pdfBuf.byteLength }) } catch {}
+    } catch (e2: any) {
+      try { console.error('[pdf] pdfkit fallback failed', { error: e2?.message || String(e2) }) } catch {}
+      return res.status(500).send('Failed to render PDF')
+    }
   }
 
   // Prepare response headers early

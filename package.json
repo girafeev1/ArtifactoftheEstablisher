@@ -23,6 +23,7 @@
     "google-auth-library": "^9.15.0",
     "googleapis": "^144.0.0",
     "@react-pdf/renderer": "^3.4.5",
+    "pdfkit": "^0.13.0",
     "jwt-decode": "^4.0.0",
     "lodash.debounce": "^4.0.8",
     "lodash.isequal": "^4.5.0",
