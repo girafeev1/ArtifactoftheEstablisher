@@ -1135,16 +1135,33 @@ const ProjectsShowContent = () => {
   // Since computing exact hash client-side is non-trivial (needs stable canonicalization), we conservatively show Export if no pdfHash or if editing
   const shouldShowExport = !canViewPdf || invoiceMode !== 'idle'
 
-  const handleExportPdf = useCallback(() => {
+  const handleExportPdf = useCallback(async () => {
     if (!project || !activeInvoice) return
-    const url = `/api/invoices/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}/${encodeURIComponent(activeInvoice.invoiceNumber)}/pdf`
-    // Trigger browser download
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `Invoice-${activeInvoice.invoiceNumber}.pdf`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    const url = `/api/invoices/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}/${encodeURIComponent(activeInvoice.invoiceNumber)}/pdf?ts=${Date.now()}`
+    try {
+      const resp = await fetch(url, { method: 'GET' })
+      if (!resp.ok) {
+        console.error('[pdf] download failed', { status: resp.status, statusText: resp.statusText })
+        // fall back to direct navigation
+        window.open(url, '_self')
+        return
+      }
+      const blob = await resp.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = `Invoice-${activeInvoice.invoiceNumber}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl)
+        document.body.removeChild(link)
+      }, 0)
+    } catch (e) {
+      console.error('[pdf] download error', e)
+      // last resort navigation
+      window.open(url, '_self')
+    }
   }, [activeInvoice, project])
 
   const handleViewPdf = useCallback(() => {
