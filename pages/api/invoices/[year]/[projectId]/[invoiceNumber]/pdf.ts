@@ -116,20 +116,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const anyBuf: any = await pdf(docEl).toBuffer()
   const pdfBuf: Buffer = Buffer.isBuffer(anyBuf) ? anyBuf : Buffer.from(anyBuf)
 
-  // Upload to Drive
-  const yearFolderId = await ensureYearFolder(DRIVE_ROOT_FOLDER, year)
+  // Prepare response headers early
   const filename = `Invoice-${inv.invoiceNumber}.pdf`
-  const { fileId } = await uploadPdfBuffer(yearFolderId, filename, pdfBuf)
-
-  // Persist metadata on invoice doc (admin path)
-  try {
-    const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
-    const docRef = fs.collection('projects').doc(year).collection('projects').doc(projectId).collection('invoice').doc(inv.invoiceNumber)
-    await docRef.set({ pdfFileId: fileId, pdfHash: hash, pdfGeneratedAt: new Date().toISOString() }, { merge: true })
-  } catch {}
-
-  // Return PDF for browser download
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  // Send PDF to client for download
   res.status(200).send(Buffer.from(pdfBuf))
+
+  // Upload to Drive (best-effort, don't block response)
+  ;(async () => {
+    try {
+      const yearFolderId = await ensureYearFolder(DRIVE_ROOT_FOLDER, year)
+      const { fileId } = await uploadPdfBuffer(yearFolderId, filename, pdfBuf)
+      // Persist metadata on invoice doc (admin path)
+      try {
+        const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
+        const docRef = fs.collection('projects').doc(year).collection('projects').doc(projectId).collection('invoice').doc(inv.invoiceNumber)
+        await docRef.set({ pdfFileId: fileId, pdfHash: hash, pdfGeneratedAt: new Date().toISOString() }, { merge: true })
+      } catch {}
+    } catch (e) {
+      // swallow — export already downloaded
+    }
+  })()
 }
+export const config = { api: { bodyParser: false } }

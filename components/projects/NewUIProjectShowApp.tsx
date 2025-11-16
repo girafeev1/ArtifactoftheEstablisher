@@ -1141,7 +1141,7 @@ const ProjectsShowContent = () => {
     // Trigger browser download
     const link = document.createElement('a')
     link.href = url
-    link.download = ''
+    link.download = `Invoice-${activeInvoice.invoiceNumber}.pdf`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
