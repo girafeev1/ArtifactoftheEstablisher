@@ -729,6 +729,32 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   await saveInvoiceBubbles(chatId, sentIds)
 }
 
+// Helper: build per-item prompt text with concrete item number
+function buildItemPrompt(field: string, draft: any): string {
+  const num = Number(draft?.itemNumber || 1)
+  const n = Number.isFinite(num) && num > 0 ? num : 1
+  switch (field) {
+    case 'title':
+      return `Please provide the Title of Item ${n}`
+    case 'subQuantity':
+      return `Please provide the Sub-Quantity of Item ${n}`
+    case 'feeType':
+      return `What would be the fee type for Item ${n}?`
+    case 'notes':
+      return `Any notes for Item ${n}?`
+    case 'unitPrice':
+      return `Please provide the unit price for Item ${n}`
+    case 'quantity':
+      return `How many <Quantity Unit> for Item ${n}?`
+    case 'quantityUnit':
+      return `What would be the unit for Item ${n}?`
+    case 'discount':
+      return 'Discount (number, optional)'
+    default:
+      return 'Provide value'
+  }
+}
+
 // Admin fetch of quick client picks (avoid client SDK hangs)
 async function adminFetchClientQuickPicks(limit = 12): Promise<Array<{ documentId: string; companyName: string }>> {
   try {
@@ -1117,22 +1143,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pending.field = nextField
         pending.draft = draft
         await putPendingEdit(pending)
-        const labels: any = {
-          title: 'Please provide the Title of Item *',
-          subQuantity: 'Please provide the Sub-Quantity of Item *',
-          feeType: 'What would be the fee type for Item *?',
-          notes: 'Any notes for Item *?',
-          unitPrice: 'Please provide the unit price for Item *',
-          quantity: `How many <Quantity Unit> for Item *?`,
-          quantityUnit: 'What would be the unit for Item *?',
-          discount: 'Discount (number, optional)',
-        }
         const kb = { inline_keyboard: [] as any[] }
         if (nextField === 'subQuantity' || nextField === 'notes') {
           kb.inline_keyboard.push([{ text: 'Skip', callback_data: `NIC:SKIP:ITEM:${pending.year}:${pending.projectId}:${pending.invoiceNumber}:${nextField}` }])
         }
         kb.inline_keyboard.push([{ text: 'Cancel', callback_data: `INV:${pending.year}:${pending.projectId}:${pending.invoiceNumber}` }])
-        const m = await sendBubble(token, pending.chatId, labels[nextField], kb)
+        const m = await sendBubble(token, pending.chatId, buildItemPrompt(nextField, pending.draft || {}), kb)
         if (m?.message_id) { pending.controllerMessageId = m.message_id; await putPendingEdit(pending); await appendCreationBubble(pending.chatId, m.message_id) }
         return res.status(200).end('ok')
       }
@@ -1146,7 +1162,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const unitSuffix = draft.quantityUnit ? `/${esc(draft.quantityUnit)}` : ''
       const lineTotal = (typeof draft.unitPrice === 'number' && typeof draft.quantity === 'number') ? formatMoney(draft.unitPrice * draft.quantity) : '-'
       const lines: string[] = []
-      lines.push('<b>Create Item</b>','<b><u>Item 1:</u></b>')
+      const itemNum = Number((pending.draft || {}).itemNumber || 1)
+      const n = Number.isFinite(itemNum) && itemNum > 0 ? itemNum : 1
+      lines.push('<b>Create Item</b>',`<b><u>Item ${n}:</u></b>')
       if (draft.title) lines.push(`<b>${esc(draft.title)}</b>${draft.subQuantity ? ` x<i>${esc(draft.subQuantity)}</i>` : ''}`)
       if (draft.feeType) lines.push(`<i>${esc(draft.feeType)}</i>`)
       if (draft.notes) lines.push(esc(draft.notes))
@@ -1696,8 +1714,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const [, , year, projectId, encInvoice] = data.split(':')
       // Fresh page as this leads to user input
       await clearInvoiceBubbles(chatId)
-      await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV_ITEM_CREATE', year, projectId, invoiceNumber: encInvoice, controllerMessageId: msgId, step: 'await_value', field: 'title', draft: {} })
-      const m = await sendBubble(token, chatId, 'Send Item Title:', { inline_keyboard: [[{ text: 'Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] })
+      // Compute next item number based on existing count (if any)
+      let nextNumber = 1
+      try {
+        const invs = await fetchInvoicesForProject(year, projectId)
+        const inv = invs.find(i => i.invoiceNumber === decodeURIComponent(encInvoice))
+        nextNumber = ((inv?.items?.length || 0) + 1)
+      } catch {}
+      await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV_ITEM_CREATE', year, projectId, invoiceNumber: encInvoice, controllerMessageId: msgId, step: 'await_value', field: 'title', draft: { itemNumber: nextNumber } })
+      const m = await sendBubble(token, chatId, buildItemPrompt('title', { itemNumber: nextNumber }), { inline_keyboard: [[{ text: 'Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] })
       if (m?.message_id) {
         const edit = await readPendingEdit(chatId, cq.from?.id as number)
         if (edit) { edit.controllerMessageId = m.message_id; await putPendingEdit(edit); await appendCreationBubble(chatId, m.message_id) }
@@ -1731,22 +1756,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       edit.field = field
       edit.step = 'await_value'
       await putPendingEdit(edit)
-      const labels: any = {
-        title: 'Please provide the Title of Item *',
-        subQuantity: 'Please provide the Sub-Quantity of Item *',
-        feeType: 'What would be the fee type for Item *?',
-        notes: 'Any notes for Item *?',
-        unitPrice: 'Please provide the unit price for Item *',
-        quantity: `How many <Quantity Unit> for Item *?`,
-        quantityUnit: 'What would be the unit for Item *?',
-        discount: 'Discount (number, optional)',
-      }
       const kb = { inline_keyboard: [] as any[] }
       if (field === 'subQuantity' || field === 'notes') {
         kb.inline_keyboard.push([{ text: 'Skip', callback_data: `NIC:SKIP:ITEM:${year}:${projectId}:${encInvoice}:${field}` }])
       }
       kb.inline_keyboard.push([{ text: 'Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }])
-      await tgEditMessage(token, chatId, edit.controllerMessageId, labels[field], kb)
+      await tgEditMessage(token, chatId, edit.controllerMessageId, buildItemPrompt(field, edit.draft || {}), kb)
       return res.status(200).end('ok')
     }
     if (data.startsWith('NIT:CONFIRM:')) {
