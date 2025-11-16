@@ -729,6 +729,45 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   await saveInvoiceBubbles(chatId, sentIds)
 }
 
+// Admin fetch of quick client picks (avoid client SDK hangs)
+async function adminFetchClientQuickPicks(limit = 12): Promise<Array<{ documentId: string; companyName: string }>> {
+  try {
+    const fs = getAdminFirestore(DIRECTORY_FIRESTORE_DATABASE_ID)
+    const snap = await fs.collection('clients').orderBy('companyName').limit(limit).get()
+    const items: Array<{ documentId: string; companyName: string }> = []
+    snap.forEach((doc: any) => {
+      const data = doc.data() || {}
+      const name = typeof data.companyName === 'string' && data.companyName.trim().length ? data.companyName.trim() : doc.id
+      items.push({ documentId: doc.id, companyName: name })
+    })
+    return items
+  } catch (e) {
+    try { console.warn('[tg] adminFetchClientQuickPicks failed', { error: (e as any)?.message || String(e) }) } catch {}
+    return []
+  }
+}
+
+async function adminFetchClientById(id: string): Promise<{ companyName: string | null; addressLine1: string | null; addressLine2: string | null; addressLine3: string | null; region: string | null; title: string | null; representative: string | null } | null> {
+  try {
+    const fs = getAdminFirestore(DIRECTORY_FIRESTORE_DATABASE_ID)
+    const snap = await fs.collection('clients').doc(id).get()
+    if (!snap.exists) return null
+    const d = snap.data() as any
+    const pick = (k: string) => (typeof d?.[k] === 'string' ? (d[k] as string).trim() || null : null)
+    const companyName = pick('companyName') || snap.id
+    const title = pick('title')
+    const representative = pick('representative')
+    const addressLine1 = pick('addressLine1')
+    const addressLine2 = pick('addressLine2')
+    const addressLine3 = pick('addressLine3') || pick('addressLine4') || pick('addressLine5')
+    const region = pick('region')
+    return { companyName, addressLine1, addressLine2, addressLine3, region, title, representative }
+  } catch (e) {
+    try { console.warn('[tg] adminFetchClientById failed', { id, error: (e as any)?.message || String(e) }) } catch {}
+    return null
+  }
+}
+
 function extractBaseFromInvoice(inv: string): string {
   try {
     const v = decodeURIComponent(inv)
@@ -937,9 +976,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Present company input with quick-pick list and a Skip option
         let clientsKb: any = { inline_keyboard: [] as any[] }
         try {
-          const { fetchClientsDirectory } = await import('../../../lib/clientDirectory')
-          const clients = await fetchClientsDirectory()
-          const top = clients.slice(0, 12)
+          const top = await adminFetchClientQuickPicks(12)
           clientsKb.inline_keyboard = top.map((c: any) => [
             { text: c.companyName, callback_data: `NIC:CLI:SEL:${pending.year}:${pending.projectId}:${encodeURIComponent(c.documentId)}` },
           ])
@@ -1455,9 +1492,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV_CREATE', year, projectId, controllerMessageId: msgId, step: 'await_value', field: 'companyName', draft: { invoiceNumber } })
       let clientsKb: any = { inline_keyboard: [] as any[] }
       try {
-        const { fetchClientsDirectory } = await import('../../../lib/clientDirectory')
-        const clients = await fetchClientsDirectory()
-        const top = clients.slice(0, 12)
+        const top = await adminFetchClientQuickPicks(12)
         clientsKb.inline_keyboard = top.map((c: any) => [
           { text: c.companyName, callback_data: `NIC:CLI:SEL:${year}:${projectId}:${encodeURIComponent(c.documentId)}` },
         ])
@@ -1535,39 +1570,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const userId = cq.from?.id as number
       const edit = await readPendingEdit(chatId, userId)
       if (edit && edit.kind === 'INV_CREATE') {
-        try {
-          const { fetchClientsDirectory } = await import('../../../lib/clientDirectory')
-          const clients = await fetchClientsDirectory()
-          const c = clients.find((x: any) => x.documentId === id)
-          if (c) {
-            const draft = { ...(edit.draft || {}) }
-            draft.companyName = c.companyName || null
-            draft.addressLine1 = c.addressLine1 || null
-            draft.addressLine2 = c.addressLine2 || null
-            draft.addressLine3 = c.addressLine3 || c.addressLine4 || null
-            draft.region = c.region || null
-            draft.repTitle = c.title || null
-            draft.representative = c.representative || null
-            edit.draft = draft
-            // Jump to preview
-            edit.step = 'preview'
-            await putPendingEdit(edit)
-            const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-            const lines = ['<b>Create Invoice</b>', '', `<b>Invoice:</b> #${esc(draft.invoiceNumber || '')}`]
-            if (draft.companyName) {
-              lines.push('', `<b>${esc(draft.companyName)}</b>`)
-              if (draft.addressLine1) lines.push(esc(draft.addressLine1))
-              if (draft.addressLine2) lines.push(esc(draft.addressLine2))
-              if (draft.addressLine3 || draft.region) {
-                const mix = [draft.addressLine3 ? esc(draft.addressLine3) : '', draft.region ? esc(draft.region) : ''].filter(Boolean).join(', ')
-                if (mix) lines.push(mix)
-              }
-              if (draft.representative) lines.push(`ATTN: <b><i>${esc((draft.repTitle ? draft.repTitle + ' ' : '') + draft.representative)}</i></b>`)
+        const c = await adminFetchClientById(id)
+        if (c) {
+          const draft = { ...(edit.draft || {}) }
+          draft.companyName = c.companyName || null
+          draft.addressLine1 = c.addressLine1 || null
+          draft.addressLine2 = c.addressLine2 || null
+          draft.addressLine3 = c.addressLine3 || null
+          draft.region = c.region || null
+          draft.repTitle = c.title || null
+          draft.representative = c.representative || null
+          edit.draft = draft
+          // Jump to preview
+          edit.step = 'preview'
+          await putPendingEdit(edit)
+          const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          const lines = ['<b>Create Invoice</b>', '', `<b>Invoice:</b> #${esc(draft.invoiceNumber || '')}`]
+          if (draft.companyName) {
+            lines.push('', `<b>${esc(draft.companyName)}</b>`)
+            if (draft.addressLine1) lines.push(esc(draft.addressLine1))
+            if (draft.addressLine2) lines.push(esc(draft.addressLine2))
+            if (draft.addressLine3 || draft.region) {
+              const mix = [draft.addressLine3 ? esc(draft.addressLine3) : '', draft.region ? esc(draft.region) : ''].filter(Boolean).join(', ')
+              if (mix) lines.push(mix)
             }
-            const kb = { inline_keyboard: [[{ text: 'Confirm Create', callback_data: `NIC:CONFIRM:${year}:${projectId}` }], [{ text: 'Revise', callback_data: `NEW:INV:${year}:${projectId}` }], [{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] }
-            await tgEditMessage(token, chatId, edit.controllerMessageId, lines.join('\n'), kb)
+            if (draft.representative) lines.push(`ATTN: <b><i>${esc((draft.repTitle ? draft.repTitle + ' ' : '') + draft.representative)}</i></b>`)
           }
-        } catch {}
+          const kb = { inline_keyboard: [[{ text: 'Confirm Create', callback_data: `NIC:CONFIRM:${year}:${projectId}` }], [{ text: 'Revise', callback_data: `NEW:INV:${year}:${projectId}` }], [{ text: 'Cancel', callback_data: `P:${year}:${projectId}` }]] }
+          await tgEditMessage(token, chatId, edit.controllerMessageId, lines.join('\n'), kb)
+        }
       }
       return res.status(200).end('ok')
     }
