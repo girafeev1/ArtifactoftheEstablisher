@@ -41,11 +41,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   const { year, projectId, invoiceNumber } = req.query as Record<string, string>
   if (!year || !projectId || !invoiceNumber) return res.status(400).json({ error: 'Missing parameters' })
+  try { console.info('[pdf] request', { year, projectId, invoiceNumber }) } catch {}
 
   // Load invoice
-  const invoices = await fetchInvoicesForProject(year, projectId)
-  const inv = invoices.find((i) => i.invoiceNumber === invoiceNumber)
-  if (!inv) return res.status(404).json({ error: 'Invoice not found' })
+  let inv: any
+  try {
+    const invoices = await fetchInvoicesForProject(year, projectId)
+    inv = invoices.find((i) => i.invoiceNumber === invoiceNumber)
+  } catch (e: any) {
+    try { console.error('[pdf] failed to fetch invoices', { error: e?.message || String(e) }) } catch {}
+    return res.status(500).send('Failed to load invoice data')
+  }
+  if (!inv) return res.status(404).send('Invoice not found')
 
   // Compute hash of relevant fields for staleness
   const model = {
@@ -113,15 +120,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       inv.paymentStatus ? React.createElement(Text, null, inv.paymentStatus) : null,
     ),
   )
-  const anyBuf: any = await pdf(docEl).toBuffer()
-  const pdfBuf: Buffer = Buffer.isBuffer(anyBuf) ? anyBuf : Buffer.from(anyBuf)
+  let pdfBuf: Buffer
+  try {
+    const anyBuf: any = await pdf(docEl).toBuffer()
+    pdfBuf = Buffer.isBuffer(anyBuf) ? anyBuf : Buffer.from(anyBuf)
+    try { console.info('[pdf] rendered', { size: pdfBuf.byteLength }) } catch {}
+  } catch (e: any) {
+    try { console.error('[pdf] render failed', { error: e?.message || String(e) }) } catch {}
+    return res.status(500).send('Failed to render PDF')
+  }
 
   // Prepare response headers early
   const filename = `Invoice-${inv.invoiceNumber}.pdf`
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('Content-Length', String(pdfBuf.byteLength))
   // Send PDF to client for download
-  res.status(200).send(Buffer.from(pdfBuf))
+  res.status(200).end(pdfBuf)
 
   // Upload to Drive (best-effort, don't block response)
   ;(async () => {

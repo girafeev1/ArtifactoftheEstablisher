@@ -2855,14 +2855,14 @@ const ProjectsShowContent = () => {
                         <span className="meta-label">Total</span>
                         <span className="meta-value">{amountText(total)}</span>
                       </div>
-                      <div className="totals-row" style={{ marginTop: 8 }}>
-                        {shouldShowExport ? (
-                          <Button type="primary" onClick={handleExportPdf}>Export PDF</Button>
-                        ) : (
-                          <Button onClick={handleViewPdf}>View Invoice</Button>
-                        )}
+                      <div className="totals-row pdf-actions" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 8 }}>
                         {!shouldShowExport && invoiceMode === 'idle' ? null : (
-                          canViewPdf ? <span className="stale-chip" style={{ marginLeft: 12, color: '#b45309' }}>Previous invoice is no longer updated.</span> : null
+                          canViewPdf ? <span className="stale-chip" style={{ color: '#b45309', fontSize: 12 }}>Previous invoice is no longer updated.</span> : null
+                        )}
+                        {shouldShowExport ? (
+                          <Button size="small" type="primary" onClick={handleExportPdf} style={{ marginLeft: 'auto' }}>Export PDF</Button>
+                        ) : (
+                          <Button size="small" onClick={handleViewPdf} style={{ marginLeft: 'auto' }}>View Invoice</Button>
                         )}
                       </div>
                     </div>
