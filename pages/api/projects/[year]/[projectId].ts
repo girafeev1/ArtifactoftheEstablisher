@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 
-import { updateProjectInDatabase, deleteProjectInDatabase } from '../../../../lib/projectsDatabase'
+import { updateProjectInDatabase } from '../../../../lib/projectsDatabase'
+import { deleteProjectRecursively } from '../../../../lib/projectsAdmin'
 import { getAuthOptions } from '../../auth/[...nextauth]'
 
 type ErrorResponse = { error: string }
@@ -45,7 +46,8 @@ export default async function handler(
 
   try {
     if (req.method === 'DELETE') {
-      const result = await deleteProjectInDatabase({ year, projectId })
+      // Use Admin SDK recursive delete to remove subcollections (avoids console ghost docs)
+      const result = await deleteProjectRecursively(year, projectId)
       return res.status(200).json(result)
     }
 
