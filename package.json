@@ -63,7 +63,8 @@
     "migrate:clients:address5to4": "node scripts/migrate-clients-address-line5-to-4.js",
     "cleanup:clients:remove-address4-5": "node scripts/cleanup-clients-remove-address4-5.js",
     "capture:page": "node scripts/puppeteer-capture.js",
-    "sheet:scan-template": "node scripts/scan-invoice-template.js --id 12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0 --gid 598129981"
+    "sheet:scan-template": "node scripts/scan-invoice-template.js --id 12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0 --gid 598129981",
+    "sheet:scan-all": "node scripts/scan-spreadsheet-all.js --id 12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0"
   },
   "author": "",
   "license": "ISC",

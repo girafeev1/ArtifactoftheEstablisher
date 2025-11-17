@@ -150,6 +150,8 @@ function arg(key, def) {
     const alignV = new Set();
     let bordersCount = 0;
     const anchors = [];
+    let textRunsCount = 0;
+    const textRunsSample = [];
 
     // Scan a reasonable region for formatting/anchors
     if (data && data.rowData) {
@@ -170,6 +172,13 @@ function arg(key, def) {
             if (f.horizontalAlignment) alignH.add(f.horizontalAlignment);
             if (f.verticalAlignment) alignV.add(f.verticalAlignment);
             if (f.borders) bordersCount++;
+          }
+          if (Array.isArray(v.textFormatRuns) && v.textFormatRuns.length > 0) {
+            textRunsCount += 1;
+            if (textRunsSample.length < 50) {
+              const text = v.userEnteredValue && v.userEnteredValue.stringValue ? v.userEnteredValue.stringValue : '';
+              textRunsSample.push({ r, c, text, runs: v.textFormatRuns });
+            }
           }
           // Anchor detection
           if (v.userEnteredValue && v.userEnteredValue.stringValue) {
@@ -200,6 +209,7 @@ function arg(key, def) {
         bordersCellsSampled: bordersCount,
       },
       anchors,
+      textRuns: { count: textRunsCount, sample: textRunsSample },
       scannedAt: new Date().toISOString(),
     };
 
@@ -215,6 +225,7 @@ function arg(key, def) {
     console.log('Defaults:', out.defaults);
     console.log('Merges count:', out.merges.length, 'Sample:', out.merges.slice(0, 10));
     console.log('Formats summary:', out.formats);
+    console.log('Text runs with mixed styles (count):', out.textRuns.count, 'Sample count:', out.textRuns.sample.length);
     console.log('Anchor labels (sample):', out.anchors.slice(0, 12));
     console.log('Saved snapshot to', outPath);
   } catch (e) {
