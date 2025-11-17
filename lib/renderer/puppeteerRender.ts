@@ -1,9 +1,14 @@
-import puppeteer from 'puppeteer'
+import chromium from '@sparticuz/chromium'
+import puppeteer from 'puppeteer-core'
 
 export async function renderHtmlToPdf(html: string): Promise<Buffer> {
+  const executablePath = await chromium.executablePath()
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--font-render-hinting=medium'],
+    executablePath: executablePath || undefined,
+    args: [...chromium.args, '--font-render-hinting=medium'],
+    defaultViewport: chromium.defaultViewport,
+    ignoreHTTPSErrors: true,
   })
   try {
     const page = await browser.newPage()
