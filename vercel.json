@@ -4,7 +4,7 @@
     "deploymentEnabled": true
   },
   "functions": {
-    "api/invoices/**": {
+    "api/invoices/**.js": {
       "maxDuration": 60,
       "memory": 1536
     }
