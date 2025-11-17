@@ -4,34 +4,14 @@ import crypto from 'crypto'
 
 // Simple native PDF generator using @react-pdf/renderer to keep serverless-friendly
 // Avoid headless Chrome for now; continue improving layout in iterations
-import * as React from 'react'
-import { pdf, Document as PdfDocument, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+// Switch to HTML/CSS + Puppeteer for pixel-parity rendering
+import { buildInvoiceHtml, type InvoiceVariant } from '../../../../../../lib/renderer/invoiceHtml'
+import { renderHtmlToPdf } from '../../../../../../lib/renderer/puppeteerRender'
+import { amountHK, num2eng, num2chi } from '../../../../../../lib/invoiceFormat'
 
 // Drive upload disabled per current requirement (download only)
 
-const styles = StyleSheet.create({
-  page: { paddingTop: 36, paddingBottom: 36, paddingHorizontal: 40, fontSize: 10, fontFamily: 'Helvetica' },
-  heading: { fontSize: 18, marginBottom: 8 },
-  subheading: { fontSize: 12, marginBottom: 4 },
-  row: { display: 'flex', flexDirection: 'row', marginBottom: 2 },
-  colLeft: { flex: 1 },
-  colRight: { flex: 1, textAlign: 'right' },
-  divider: { marginVertical: 10, borderBottomWidth: 1, borderBottomColor: '#000' },
-  itemRow: { display: 'flex', flexDirection: 'row', paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: '#999' },
-  itemTitle: { flex: 3 },
-  itemQty: { flex: 1, textAlign: 'right' },
-  itemUnit: { flex: 1, textAlign: 'right' },
-  itemTotal: { flex: 1, textAlign: 'right' },
-  totalRow: { display: 'flex', flexDirection: 'row', marginTop: 8 },
-  totalLabel: { flex: 3, textAlign: 'right' },
-  totalValue: { flex: 1, textAlign: 'right' },
-})
-
-function amountHK(n?: number | null) {
-  if (typeof n !== 'number') return '-'
-  const f = new Intl.NumberFormat('en-HK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return `HK$ ${f.format(n)}`
-}
+// keep helpers available for potential inline text usage
 
 function num2eng(number: number) {
   if (number == null || isNaN(number) || Number(number) === 0) return ''
@@ -177,7 +157,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   const { year, projectId, invoiceNumber } = req.query as Record<string, string>
   if (!year || !projectId || !invoiceNumber) return res.status(400).json({ error: 'Missing parameters' })
-  const variant = (req.query.variant as string) || 'bundle'
+  const variant = ((req.query.variant as string) || 'bundle') as InvoiceVariant
   const meta = (req.query.meta as string) || null
   const inline = req.query.inline === '1'
   try { console.info('[pdf] request', { year, projectId, invoiceNumber }) } catch {}
@@ -228,103 +208,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const hash = computeHash(model)
 
   // Render quick native PDF (baseline; refine layout iteratively)
-  const items = (inv.items || []).map((it, idx) => {
-    const total = (typeof it.unitPrice === 'number' && typeof it.quantity === 'number') ? it.unitPrice * it.quantity : 0
-    return React.createElement(
-      View,
-      { key: String(idx), style: styles.itemRow },
-      React.createElement(Text, { style: styles.itemTitle }, `${it.title || ''}${it.subQuantity ? ` x${it.subQuantity}` : ''}${it.feeType ? `\n${it.feeType}` : ''}${it.notes ? `\n${it.notes}` : ''}`),
-      React.createElement(Text, { style: styles.itemQty }, `${it.quantity ?? ''}${it.quantityUnit ? `/${it.quantityUnit}` : ''}`),
-      React.createElement(Text, { style: styles.itemUnit }, typeof it.unitPrice === 'number' ? amountHK(it.unitPrice) : ''),
-      React.createElement(Text, { style: styles.itemTotal }, amountHK(total)),
-    )
-  })
+  // Build variant-aware HTML and render via Puppeteer
+  const html = buildInvoiceHtml({
+    invoiceNumber: inv.invoiceNumber,
+    companyName: inv.companyName ?? null,
+    addressLine1: inv.addressLine1 ?? null,
+    addressLine2: inv.addressLine2 ?? null,
+    addressLine3: inv.addressLine3 ?? null,
+    region: inv.region ?? null,
+    representative: inv.representative ?? null,
+    items: Array.isArray(inv.items) ? inv.items : [],
+    subtotal: typeof inv.subtotal === 'number' ? inv.subtotal : null,
+    total: typeof inv.total === 'number' ? inv.total : null,
+    amount: typeof inv.amount === 'number' ? inv.amount : null,
+    paidTo: inv.paidTo ?? null,
+    paymentStatus: inv.paymentStatus ?? null,
+    subsidiaryEnglishName: inv.companyName ?? null,
+  }, variant)
 
-  const docEl: any = React.createElement(
-    PdfDocument,
-    null,
-    React.createElement(
-      Page,
-      { size: 'A4', style: styles.page },
-      React.createElement(Text, { style: styles.heading }, `Invoice #${inv.invoiceNumber}`),
-      React.createElement(
-        View,
-        { style: styles.row },
-        React.createElement(
-          View,
-          { style: styles.colLeft },
-          inv.companyName ? React.createElement(Text, null, inv.companyName) : null,
-          inv.addressLine1 ? React.createElement(Text, null, inv.addressLine1) : null,
-          inv.addressLine2 ? React.createElement(Text, null, inv.addressLine2) : null,
-          (inv.addressLine3 || inv.region) ? React.createElement(Text, null, [inv.addressLine3, inv.region].filter(Boolean).join(', ')) : null,
-          inv.representative ? React.createElement(Text, null, `ATTN: ${inv.representative}`) : null,
-        ),
-        React.createElement(
-          View,
-          { style: styles.colRight },
-          React.createElement(Text, null, new Date().toLocaleDateString('en-HK')),
-        ),
-      ),
-      React.createElement(View, { style: styles.divider }),
-      ...items,
-      React.createElement(
-        View,
-        { style: styles.totalRow },
-        React.createElement(Text, { style: styles.totalLabel }, 'Total:'),
-        React.createElement(Text, { style: styles.totalValue }, amountHK(inv.amount)),
-      ),
-      // Amount-in-words lines: English above, Chinese below
-      typeof inv.amount === 'number' ? React.createElement(Text, null, `For the amount of: ${num2eng(inv.amount)}`) : null,
-      inv.paidTo ? React.createElement(Text, null, `To: ${inv.paidTo}`) : null,
-      typeof inv.amount === 'number' ? React.createElement(Text, null, `茲付金額：${num2chi(inv.amount)}`) : null,
-      inv.paymentStatus ? React.createElement(Text, null, `(${inv.paymentStatus})`) : null,
-    ),
-  )
   let pdfBuf: Buffer
   try {
-    const anyBuf: any = await pdf(docEl).toBuffer()
-    pdfBuf = Buffer.isBuffer(anyBuf) ? anyBuf : Buffer.from(anyBuf)
-    try { console.info('[pdf] rendered', { size: pdfBuf.byteLength }) } catch {}
+    pdfBuf = await renderHtmlToPdf(html)
   } catch (e: any) {
-    try { console.error('[pdf] render failed', { error: e?.message || String(e) }) } catch {}
-    // Fallback: render a minimal PDF via pdfkit to avoid a hard failure
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const PDFDocument = require('pdfkit')
-      const doc = new PDFDocument({ size: 'A4', margins: { top: 36, bottom: 36, left: 40, right: 40 } })
-      const chunks: Buffer[] = []
-      doc.on('data', (c: Buffer) => chunks.push(Buffer.from(c)))
-      doc.on('error', () => {})
-      doc.fontSize(18).text(`Invoice #${inv.invoiceNumber}`, { align: 'left' })
-      doc.moveDown(0.5)
-      if (inv.companyName) doc.fontSize(10).text(inv.companyName)
-      if (inv.addressLine1) doc.text(inv.addressLine1)
-      if (inv.addressLine2) doc.text(inv.addressLine2)
-      if (inv.addressLine3 || inv.region) doc.text([inv.addressLine3, inv.region].filter(Boolean).join(', '))
-      if (inv.representative) doc.text(`ATTN: ${inv.representative}`)
-      doc.moveDown(0.5)
-      doc.text('')
-      ;(inv.items || []).forEach((it: any) => {
-        const total = (typeof it.unitPrice === 'number' && typeof it.quantity === 'number') ? it.unitPrice * it.quantity : 0
-        doc.fontSize(10).text(`${it.title || ''}${it.subQuantity ? ` x${it.subQuantity}` : ''}`)
-        if (it.feeType) doc.text(it.feeType)
-        if (it.notes) doc.text(it.notes)
-        doc.text(`${it.quantity ?? ''}${it.quantityUnit ? `/${it.quantityUnit}` : ''}  @ ${typeof it.unitPrice==='number'?it.unitPrice.toFixed(2):''}  = ${total.toFixed(2)}`, { align: 'right' })
-        doc.moveDown(0.25)
-      })
-      doc.moveDown(0.5)
-      const amt = typeof inv.amount === 'number' ? inv.amount.toFixed(2) : '-'
-      doc.fontSize(12).text(`Total: ${amt}`, { align: 'right' })
-      if (inv.paidTo) doc.fontSize(10).text(`To: ${inv.paidTo}`)
-      if (inv.paymentStatus) doc.text(inv.paymentStatus)
-      doc.end()
-      await new Promise<void>((resolve) => doc.on('end', () => resolve()))
-      pdfBuf = Buffer.concat(chunks)
-      try { console.info('[pdf] rendered via pdfkit', { size: pdfBuf.byteLength }) } catch {}
-    } catch (e2: any) {
-      try { console.error('[pdf] pdfkit fallback failed', { error: e2?.message || String(e2) }) } catch {}
-      return res.status(500).send('Failed to render PDF')
-    }
+    try { console.error('[pdf] puppeteer render failed', { error: e?.message || String(e) }) } catch {}
+    return res.status(500).send('Failed to render PDF')
   }
 
   // Prepare response headers early
