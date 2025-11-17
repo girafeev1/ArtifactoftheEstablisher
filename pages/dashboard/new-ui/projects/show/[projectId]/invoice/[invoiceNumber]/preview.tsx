@@ -3,7 +3,8 @@ import { useRouter } from "next/router"
 import { Button, Space, Typography, Tag, Dropdown } from "antd"
 import type { MenuProps } from "antd"
 import React from "react"
-import AppShell from "../../../../../../../components/new-ui/AppShell"
+import AppShell from "../../../../../../../../components/new-ui/AppShell"
+import { projectsDataProvider } from "../../../../../../../../components/projects/NewUIProjectsApp"
 
 const { Title, Text } = Typography
 
@@ -54,7 +55,7 @@ export default function InvoicePreviewPage() {
     setTimeout(() => document.body.removeChild(a), 0)
   }, [year, projectId, invoiceNumber])
 
-  const menuItems: MenuProps['items'] = variants.map(v => ({ key: v.value, label: v.label, onClick: () => doExport(v.value) }))
+  const menuItems = variants.map(v => ({ key: v.value, label: v.label, onClick: () => doExport(v.value) }))
 
   const onBack = React.useCallback(() => {
     if (projectId) router.push(`/dashboard/new-ui/projects/show/${encodeURIComponent(projectId)}`)
@@ -62,7 +63,8 @@ export default function InvoicePreviewPage() {
 
   return (
     <AppShell
-      menuItems={[{ name: 'projects', list: '/dashboard/new-ui/projects', meta: { label: 'Projects' } }]}
+      dataProvider={projectsDataProvider}
+      resources={[{ name: 'projects', list: '/dashboard/new-ui/projects', meta: { label: 'Projects' } }]}
       allowedMenuKeys={['projects']}
     >
       <div className="preview-page">

@@ -2,7 +2,7 @@ import puppeteer from 'puppeteer'
 
 export async function renderHtmlToPdf(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({
-    headless: 'new',
+    headless: true,
     args: ['--no-sandbox', '--font-render-hinting=medium'],
   })
   try {
@@ -23,4 +23,3 @@ export async function renderHtmlToPdf(html: string): Promise<Buffer> {
     await browser.close()
   }
 }
-
