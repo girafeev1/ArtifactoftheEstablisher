@@ -1,8 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { fetchInvoicesForProject } from '../../../../../../lib/projectInvoices'
-import { getAdminFirestore } from '../../../../../../lib/firebaseAdmin'
-import { PROJECTS_FIRESTORE_DATABASE_ID } from '../../../../../../lib/firebase'
-import { ensureYearFolder, uploadPdfBuffer } from '../../../../../../lib/googleDrive'
 import crypto from 'crypto'
 
 // Simple native PDF generator using @react-pdf/renderer to keep serverless-friendly
@@ -10,7 +7,7 @@ import crypto from 'crypto'
 import * as React from 'react'
 import { pdf, Document as PdfDocument, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 
-const DRIVE_ROOT_FOLDER = process.env.GOOGLE_INVOICE_DRIVE_ROOT_FOLDER_ID || '158FNB18B_LLLahSssBxzIMoQN-VwEXqt'
+// Drive upload disabled per current requirement (download only)
 
 const styles = StyleSheet.create({
   page: { paddingTop: 36, paddingBottom: 36, paddingHorizontal: 40, fontSize: 10, fontFamily: 'Helvetica' },
@@ -30,7 +27,146 @@ const styles = StyleSheet.create({
   totalValue: { flex: 1, textAlign: 'right' },
 })
 
-function amount(n?: number | null) { return typeof n === 'number' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n) : '-' }
+function amountHK(n?: number | null) {
+  if (typeof n !== 'number') return '-'
+  const f = new Intl.NumberFormat('en-HK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `HK$ ${f.format(n)}`
+}
+
+function num2eng(number: number) {
+  if (number == null || isNaN(number) || Number(number) === 0) return ''
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen']
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+  const scales = ['', 'Thousand', 'Million', 'Billion', 'Trillion']
+  const numParts = number.toFixed(2).split('.')
+  const wholePart = parseInt(numParts[0], 10)
+  const decimalPart = parseInt(numParts[1], 10)
+  let dollarWords: string[] = []
+  let lastIntegerIndexInDollars = -1
+  function convertChunk(num: number) {
+    const chunkWords: string[] = []
+    let lastIntegerIndex = -1
+    if (num >= 100) {
+      chunkWords.push(ones[Math.floor(num / 100)])
+      chunkWords.push('Hundred')
+      num = num % 100
+    }
+    if (num > 0) {
+      lastIntegerIndex = chunkWords.length
+      if (num < 20) chunkWords.push(ones[num])
+      else {
+        chunkWords.push(tens[Math.floor(num / 10)])
+        if (num % 10 > 0) chunkWords.push(ones[num % 10])
+      }
+    }
+    return { words: chunkWords, lastIntegerIndex }
+  }
+  if (wholePart > 0) {
+    let numString = wholePart.toString()
+    const chunks: string[] = []
+    while (numString.length > 0) {
+      const end = numString.length
+      const start = Math.max(0, end - 3)
+      chunks.unshift(numString.substring(start, end))
+      numString = numString.substring(0, start)
+    }
+    const dollarWordArray: { words: string[]; lastIntegerIndex: number }[] = []
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkNum = parseInt(chunks[i], 10)
+      if (chunkNum > 0) {
+        const chunkObj = convertChunk(chunkNum)
+        const chunkWords = chunkObj.words
+        const scale = scales[chunks.length - i - 1]
+        if (scale) chunkWords.push(scale)
+        dollarWordArray.push({ words: chunkWords, lastIntegerIndex: chunkObj.lastIntegerIndex })
+      }
+    }
+    for (let i = 0; i < dollarWordArray.length; i++) {
+      const chunk = dollarWordArray[i]
+      dollarWords = dollarWords.concat(chunk.words)
+    }
+    const lastChunk = dollarWordArray[dollarWordArray.length - 1]
+    if (lastChunk.lastIntegerIndex > -1) {
+      lastIntegerIndexInDollars = dollarWords.length - lastChunk.words.length + lastChunk.lastIntegerIndex
+    } else {
+      lastIntegerIndexInDollars = dollarWords.length - lastChunk.words.length
+    }
+  }
+  let words: string[] = []
+  if (wholePart > 0) {
+    words = words.concat(dollarWords)
+    words.push('Dollars')
+  }
+  if (decimalPart > 0) {
+    const centsChunk = convertChunk(decimalPart).words
+    words.push('And')
+    words = words.concat(centsChunk)
+    words.push('Cents')
+  } else {
+    if (lastIntegerIndexInDollars > 0) words.splice(lastIntegerIndexInDollars, 0, 'And')
+    words.push('Only')
+  }
+  const result = words.join(' ').replace(/\s+/g, ' ').trim()
+  return result.replace(/\b\w/g, (ch) => ch.toUpperCase())
+}
+
+function num2chi(n: number) {
+  if (n === undefined || n === null) return ''
+  const s = String(n.toFixed(2))
+  const digit = ['零', '壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖']
+  const unit = ['', '拾', '佰', '仟']
+  const sectionUnit = ['', '萬', '億', '兆']
+  const decimalUnit = ['毫', '仙']
+  const parts = s.split('.')
+  let integerPart = parseInt(parts[0], 10)
+  const decimalPart = parts.length > 1 ? parts[1].substr(0, 2) : ''
+  function sectionToFinancialChinese(section: number) {
+    let str = ''
+    let unitPos = 0
+    let zero = true
+    while (section > 0) {
+      const v = section % 10
+      if (v === 0) {
+        if (!zero) { zero = true; str = digit[0] + str }
+      } else {
+        zero = false
+        str = digit[v] + unit[unitPos] + str
+      }
+      unitPos++
+      section = Math.floor(section / 10)
+    }
+    return str
+  }
+  function integerToChequeChinese(val: number) {
+    if (val === 0) return digit[0]
+    let str = ''
+    let sectionPos = 0
+    let needZero = false
+    while (val > 0) {
+      const section = val % 10000
+      const sectionStr = sectionToFinancialChinese(section)
+      if (needZero && sectionStr !== '') str = digit[0] + str
+      if (sectionStr !== '') str = sectionStr + sectionUnit[sectionPos] + str
+      else if (str !== '') str = sectionUnit[sectionPos] + str
+      needZero = section < 1000 && section > 0
+      val = Math.floor(val / 10000)
+      sectionPos++
+    }
+    return str
+  }
+  const integerStr = integerToChequeChinese(integerPart)
+  let decimalStr = ''
+  if (decimalPart && parseInt(decimalPart, 10) !== 0) {
+    for (let i = 0; i < decimalPart.length && i < 2; i++) {
+      const num = parseInt(decimalPart.charAt(i), 10)
+      if (num !== 0) decimalStr += digit[num] + decimalUnit[i]
+      else if (i < decimalPart.length - 1 && parseInt(decimalPart.charAt(i + 1), 10) !== 0) decimalStr += digit[0]
+    }
+  } else {
+    decimalStr = '正'
+  }
+  return integerStr + '元' + decimalStr
+}
 
 function computeHash(obj: any): string {
   const json = JSON.stringify(obj)
@@ -41,6 +177,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   const { year, projectId, invoiceNumber } = req.query as Record<string, string>
   if (!year || !projectId || !invoiceNumber) return res.status(400).json({ error: 'Missing parameters' })
+  const variant = (req.query.variant as string) || 'bundle'
+  const meta = (req.query.meta as string) || null
+  const inline = req.query.inline === '1'
   try { console.info('[pdf] request', { year, projectId, invoiceNumber }) } catch {}
 
   // Load invoice
@@ -53,6 +192,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).send('Failed to load invoice data')
   }
   if (!inv) return res.status(404).send('Invoice not found')
+
+  if (meta === 'itemsPages') {
+    // Heuristic items page count: 1 page minimum; more pages if notes are long/many items.
+    const items = Array.isArray(inv.items) ? inv.items : []
+    let lines = 0
+    for (const it of items) {
+      lines += 2 // title + calc line baseline
+      if (it.subQuantity) lines += 1
+      if (it.feeType) lines += 1
+      if (it.notes) {
+        const len = String(it.notes).length
+        lines += Math.ceil(len / 80)
+      }
+    }
+    const LINES_PER_PAGE = 28
+    const pages = Math.max(1, Math.ceil(lines / LINES_PER_PAGE))
+    return res.status(200).json({ itemsPages: pages, variant })
+  }
 
   // Compute hash of relevant fields for staleness
   const model = {
@@ -78,8 +235,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       { key: String(idx), style: styles.itemRow },
       React.createElement(Text, { style: styles.itemTitle }, `${it.title || ''}${it.subQuantity ? ` x${it.subQuantity}` : ''}${it.feeType ? `\n${it.feeType}` : ''}${it.notes ? `\n${it.notes}` : ''}`),
       React.createElement(Text, { style: styles.itemQty }, `${it.quantity ?? ''}${it.quantityUnit ? `/${it.quantityUnit}` : ''}`),
-      React.createElement(Text, { style: styles.itemUnit }, typeof it.unitPrice === 'number' ? amount(it.unitPrice) : ''),
-      React.createElement(Text, { style: styles.itemTotal }, amount(total)),
+      React.createElement(Text, { style: styles.itemUnit }, typeof it.unitPrice === 'number' ? amountHK(it.unitPrice) : ''),
+      React.createElement(Text, { style: styles.itemTotal }, amountHK(total)),
     )
   })
 
@@ -105,7 +262,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         React.createElement(
           View,
           { style: styles.colRight },
-          React.createElement(Text, null, new Date().toLocaleDateString()),
+          React.createElement(Text, null, new Date().toLocaleDateString('en-HK')),
         ),
       ),
       React.createElement(View, { style: styles.divider }),
@@ -114,10 +271,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         View,
         { style: styles.totalRow },
         React.createElement(Text, { style: styles.totalLabel }, 'Total:'),
-        React.createElement(Text, { style: styles.totalValue }, amount(inv.amount)),
+        React.createElement(Text, { style: styles.totalValue }, amountHK(inv.amount)),
       ),
+      // Amount-in-words lines: English above, Chinese below
+      typeof inv.amount === 'number' ? React.createElement(Text, null, `For the amount of: ${num2eng(inv.amount)}`) : null,
       inv.paidTo ? React.createElement(Text, null, `To: ${inv.paidTo}`) : null,
-      inv.paymentStatus ? React.createElement(Text, null, inv.paymentStatus) : null,
+      typeof inv.amount === 'number' ? React.createElement(Text, null, `茲付金額：${num2chi(inv.amount)}`) : null,
+      inv.paymentStatus ? React.createElement(Text, null, `(${inv.paymentStatus})`) : null,
     ),
   )
   let pdfBuf: Buffer
@@ -170,26 +330,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Prepare response headers early
   const filename = `Invoice-${inv.invoiceNumber}.pdf`
   res.setHeader('Content-Type', 'application/pdf')
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${filename}"`)
   res.setHeader('Cache-Control', 'no-store')
   res.setHeader('Content-Length', String(pdfBuf.byteLength))
   // Send PDF to client for download
   res.status(200).end(pdfBuf)
-
-  // Upload to Drive (best-effort, don't block response)
-  ;(async () => {
-    try {
-      const yearFolderId = await ensureYearFolder(DRIVE_ROOT_FOLDER, year)
-      const { fileId } = await uploadPdfBuffer(yearFolderId, filename, pdfBuf)
-      // Persist metadata on invoice doc (admin path)
-      try {
-        const fs = getAdminFirestore(PROJECTS_FIRESTORE_DATABASE_ID)
-        const docRef = fs.collection('projects').doc(year).collection('projects').doc(projectId).collection('invoice').doc(inv.invoiceNumber)
-        await docRef.set({ pdfFileId: fileId, pdfHash: hash, pdfGeneratedAt: new Date().toISOString() }, { merge: true })
-      } catch {}
-    } catch (e) {
-      // swallow — export already downloaded
-    }
-  })()
 }
 export const config = { api: { bodyParser: false } }

@@ -1135,33 +1135,10 @@ const ProjectsShowContent = () => {
   // Since computing exact hash client-side is non-trivial (needs stable canonicalization), we conservatively show Export if no pdfHash or if editing
   const shouldShowExport = !canViewPdf || invoiceMode !== 'idle'
 
-  const handleExportPdf = useCallback(async () => {
+  const handlePreviewInvoice = useCallback(() => {
     if (!project || !activeInvoice) return
-    const url = `/api/invoices/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}/${encodeURIComponent(activeInvoice.invoiceNumber)}/pdf?ts=${Date.now()}`
-    try {
-      const resp = await fetch(url, { method: 'GET' })
-      if (!resp.ok) {
-        console.error('[pdf] download failed', { status: resp.status, statusText: resp.statusText })
-        // fall back to direct navigation
-        window.open(url, '_self')
-        return
-      }
-      const blob = await resp.blob()
-      const blobUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = blobUrl
-      link.download = `Invoice-${activeInvoice.invoiceNumber}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      setTimeout(() => {
-        URL.revokeObjectURL(blobUrl)
-        document.body.removeChild(link)
-      }, 0)
-    } catch (e) {
-      console.error('[pdf] download error', e)
-      // last resort navigation
-      window.open(url, '_self')
-    }
+    const url = `/dashboard/new-ui/projects/show/${encodeURIComponent(project.id)}/invoice/${encodeURIComponent(activeInvoice.invoiceNumber)}/preview?year=${encodeURIComponent(project.year)}&projectNumber=${encodeURIComponent(project.projectNumber || '')}`
+    window.open(url, '_self')
   }, [activeInvoice, project])
 
   const handleViewPdf = useCallback(() => {
@@ -2877,7 +2854,7 @@ const ProjectsShowContent = () => {
                           canViewPdf ? <span className="stale-chip" style={{ color: '#b45309', fontSize: 12 }}>Previous invoice is no longer updated.</span> : null
                         )}
                         {shouldShowExport ? (
-                          <Button size="small" type="primary" onClick={handleExportPdf} style={{ marginLeft: 'auto' }}>Export PDF</Button>
+                          <Button size="small" type="primary" onClick={handlePreviewInvoice} style={{ marginLeft: 'auto' }}>Export Invoice</Button>
                         ) : (
                           <Button size="small" onClick={handleViewPdf} style={{ marginLeft: 'auto' }}>View Invoice</Button>
                         )}
