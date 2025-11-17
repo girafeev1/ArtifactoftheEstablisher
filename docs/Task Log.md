@@ -45,6 +45,10 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 | T-131 | Telegram — Back/cleanup polish (rename back target after invoice rename, hide year menu on select) | ✅ | Completed |
 | T-132 | Telegram — Per-section Edit actions (client, items, totals) | ✅ | Completed |
 | T-133 | Telegram — Clear project listing on “+ Add New Project” start | ✅ | Completed |
+| T-200 | Invoice Template — Sheets snapshot extraction | ⏳ | Active; `npm run sheet:scan-template` saves JSON under `tmp/` |
+| T-201 | PDF Renderer — Pixel parity with template | 🧭 | Planned; build native HTML/CSS (or @react-pdf) using snapshot geometry |
+| T-202 | PDF Export — Replace minimal output with final renderer | 🧭 | Planned; keep pdfkit fallback until stable |
+| T-203 | UI — Export/View freshness gating + stale chip | 🧭 | Planned; detect changed fields since last pdfGeneratedAt |
 
 ## Current Focus
 
@@ -52,6 +56,7 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 
 - T-110 — Telegram Text UI — Projects/Invoices UX, formatting, inline editing
 - T-121 — Docs — Task Log maintenance for Telegram phases
+- T-200 — Invoice Template — Sheets snapshot extraction
 
 ## Completed Task Details
 ### T-107
