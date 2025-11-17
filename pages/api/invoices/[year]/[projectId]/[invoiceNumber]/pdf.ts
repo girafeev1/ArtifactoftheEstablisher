@@ -94,7 +94,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     pdfBuf = await renderHtmlToPdf(html)
   } catch (e: any) {
-    try { console.error('[pdf] puppeteer render failed', { error: e?.message || String(e) }) } catch {}
+    const msg = e?.message || String(e)
+    try { console.error('[pdf] puppeteer render failed', { error: msg }) } catch {}
+    if ((req.query.debug as string) === '1') {
+      return res.status(500).send(`Failed to render PDF: ${msg}`)
+    }
     return res.status(500).send('Failed to render PDF')
   }
 

@@ -14,7 +14,19 @@ export async function renderHtmlToPdf(html: string): Promise<Buffer> {
     const page = await browser.newPage()
     // Emulate screen for proper font rendering
     await page.setViewport({ width: 1200, height: 800, deviceScaleFactor: 2 })
-    await page.setContent(html, { waitUntil: 'networkidle0' })
+    await page.emulateMediaType('screen')
+    // Avoid waiting on external fonts/styles; block heavy types for stability
+    try {
+      await page.setRequestInterception(true)
+      page.on('request', (req) => {
+        const type = req.resourceType()
+        if (type === 'font' || type === 'image' || type === 'media' || type === 'stylesheet') {
+          return req.abort()
+        }
+        return req.continue()
+      })
+    } catch {}
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
     // Support <!--pagebreak--> markers
     await page.addStyleTag({ content: '@media print { .pagebreak { page-break-before: always; } }' })
     const pdf = await page.pdf({
