@@ -1,7 +1,9 @@
 import Head from "next/head"
 import { useRouter } from "next/router"
-import { Button, Space, Typography, Select, Tag } from "antd"
+import { Button, Space, Typography, Tag, Dropdown } from "antd"
+import type { MenuProps } from "antd"
 import React from "react"
+import AppShell from "../../../../../../../components/new-ui/AppShell"
 
 const { Title, Text } = Typography
 
@@ -40,58 +42,65 @@ export default function InvoicePreviewPage() {
 
   React.useEffect(() => { fetchMeta() }, [fetchMeta])
 
-  const onExport = React.useCallback(() => {
-    if (!pdfUrl) return
+  const doExport = React.useCallback((v: string) => {
+    if (!year || !projectId || !invoiceNumber) return
+    const base = `/api/invoices/${encodeURIComponent(year)}/${encodeURIComponent(projectId)}/${encodeURIComponent(invoiceNumber)}/pdf?variant=${encodeURIComponent(v)}&inline=0&ts=${Date.now()}`
     const a = document.createElement('a')
-    a.href = pdfUrl.replace('inline=1', 'inline=0')
+    a.href = base
     a.target = '_self'
     a.download = `Invoice-${invoiceNumber}.pdf`
     document.body.appendChild(a)
     a.click()
     setTimeout(() => document.body.removeChild(a), 0)
-  }, [pdfUrl, invoiceNumber])
+  }, [year, projectId, invoiceNumber])
+
+  const menuItems: MenuProps['items'] = variants.map(v => ({ key: v.value, label: v.label, onClick: () => doExport(v.value) }))
 
   const onBack = React.useCallback(() => {
     if (projectId) router.push(`/dashboard/new-ui/projects/show/${encodeURIComponent(projectId)}`)
   }, [router, projectId])
 
   return (
-    <div className="preview-page">
-      <Head><title>Invoice Preview · #{invoiceNumber}</title></Head>
-      <div className="preview-inner">
-        <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
-          <Button onClick={onBack}>&larr; Back to {projectNumber || 'Project'}</Button>
-          <Space>
-            <Select value={variant} onChange={setVariant} options={variants} size="middle" />
-            <Button type="primary" danger onClick={onExport}>
+    <AppShell
+      menuItems={[{ name: 'projects', list: '/dashboard/new-ui/projects', meta: { label: 'Projects' } }]}
+      allowedMenuKeys={['projects']}
+    >
+      <div className="preview-page">
+        <Head><title>Invoice Preview · #{invoiceNumber}</title></Head>
+        <div className="preview-inner">
+          <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Button onClick={onBack}>&larr; Back to {projectNumber || 'Project'}</Button>
+            <Dropdown.Button
+              type="primary"
+              danger
+              menu={{ items: menuItems }}
+            >
               Export PDF
-              <span style={{ marginLeft: 6 }}>▾</span>
-            </Button>
+            </Dropdown.Button>
           </Space>
-        </Space>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <Title level={4} style={{ margin: 0 }}>Preview — #{invoiceNumber}</Title>
-          {itemsPages ? <Tag color="blue" style={{ fontFamily: 'Karla, sans-serif' }}>Items span: ({itemsPages} page{itemsPages > 1 ? 's' : ''})</Tag> : null}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Title level={4} style={{ margin: 0 }}>Preview — #{invoiceNumber}</Title>
+            {itemsPages ? <Tag color="blue" style={{ fontFamily: 'Karla, sans-serif' }}>Items span: ({itemsPages} page{itemsPages > 1 ? 's' : ''})</Tag> : null}
+          </div>
+          <div className="viewer-wrap">
+            {pdfUrl ? (
+              <object data={pdfUrl} type="application/pdf" width="100%" height="100%">
+                <iframe title="invoice-pdf" src={pdfUrl} width="100%" height="100%" />
+              </object>
+            ) : (
+              <Text>Preparing preview…</Text>
+            )}
+          </div>
         </div>
-        <div className="viewer-wrap">
-          {pdfUrl ? (
-            <object data={pdfUrl} type="application/pdf" width="100%" height="100%">
-              <iframe title="invoice-pdf" src={pdfUrl} width="100%" height="100%" />
-            </object>
-          ) : (
-            <Text>Preparing preview…</Text>
-          )}
-        </div>
+        <style jsx>{`
+          .preview-page { padding: 16px; }
+          .preview-inner { max-width: 1200px; margin: 0 auto; }
+          .viewer-wrap { height: 80vh; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #fff; }
+        `}</style>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;600;700&display=swap" rel="stylesheet" />
       </div>
-      <style jsx>{`
-        .preview-page { padding: 16px; }
-        .preview-inner { max-width: 1200px; margin: 0 auto; }
-        .viewer-wrap { height: 80vh; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #fff; }
-      `}</style>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;600;700&display=swap" rel="stylesheet" />
-    </div>
+    </AppShell>
   )
 }
-

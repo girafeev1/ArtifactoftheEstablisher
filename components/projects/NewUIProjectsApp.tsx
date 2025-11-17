@@ -906,21 +906,15 @@ const ProjectsContent = () => {
         title: <span style={tableHeadingStyle}>Actions</span>,
         dataIndex: "actions",
         align: "center" as const,
-        render: (_: unknown, record: ProjectRow) => (
-          <Space>
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              aria-label="View project details"
-              onClick={(event) => {
-                event.stopPropagation()
-                navigateToDetails(record)
-              }}
-            />
+        render: (_: unknown, record: ProjectRow & { _invoiceSummary?: { total?: number } }) => {
+          const invoiceCount = record._invoiceSummary?.total ?? 0
+          const deleteDisabled = invoiceCount > 0
+          const deleteBtn = (
             <Button
               type="text"
               aria-label="Delete project"
-              icon={<DeleteOutlined style={{ color: '#dc2626' }} />}
+              icon={<DeleteOutlined style={{ color: deleteDisabled ? '#9ca3af' : '#dc2626' }} />}
+              disabled={deleteDisabled}
               onClick={(event) => {
                 event.stopPropagation()
                 Modal.confirm({
@@ -943,8 +937,28 @@ const ProjectsContent = () => {
                 })
               }}
             />
-          </Space>
-        ),
+          )
+          return (
+            <Space>
+              <Button
+                type="text"
+                icon={<EyeOutlined />}
+                aria-label="View project details"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  navigateToDetails(record)
+                }}
+              />
+              {deleteDisabled ? (
+                <Tooltip title="Delete invoice(s) in this project first">
+                  <span>{deleteBtn}</span>
+                </Tooltip>
+              ) : (
+                deleteBtn
+              )}
+            </Space>
+          )
+        },
       },
     ]
   }, [navigateToDetails, subsidiaryMap])

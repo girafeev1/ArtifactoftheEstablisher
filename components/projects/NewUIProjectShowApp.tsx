@@ -1109,6 +1109,10 @@ const ProjectsShowContent = () => {
 
   // PDF export/view state
   const activeInvoice = useMemo(() => (invoices.length > 0 ? invoices[Math.min(activeInvoiceIndex, invoices.length - 1)] ?? null : null), [activeInvoiceIndex, invoices])
+  const activeInvoiceHasItems = useMemo(() => {
+    const items = (activeInvoice as any)?.items
+    return Array.isArray(items) && items.length > 0
+  }, [activeInvoice])
   const currentHashModel = useMemo(() => {
     if (!activeInvoice) return null
     return {
@@ -2854,7 +2858,11 @@ const ProjectsShowContent = () => {
                           canViewPdf ? <span className="stale-chip" style={{ color: '#b45309', fontSize: 12 }}>Previous invoice is no longer updated.</span> : null
                         )}
                         {shouldShowExport ? (
-                          <Button size="small" type="primary" onClick={handlePreviewInvoice} style={{ marginLeft: 'auto' }}>Export Invoice</Button>
+                          <Tooltip title={activeInvoiceHasItems ? undefined : 'Add at least one item to export'}>
+                            <Button size="small" type="primary" onClick={handlePreviewInvoice} disabled={!activeInvoiceHasItems} style={{ marginLeft: 'auto' }}>
+                              Export Invoice
+                            </Button>
+                          </Tooltip>
                         ) : (
                           <Button size="small" onClick={handleViewPdf} style={{ marginLeft: 'auto' }}>View Invoice</Button>
                         )}
