@@ -2859,7 +2859,7 @@ const ProjectsShowContent = () => {
                         )}
                         {shouldShowExport ? (
                           <Tooltip title={activeInvoiceHasItems ? undefined : 'Add at least one item to export'}>
-                            <Button size="small" type="primary" onClick={handlePreviewInvoice} disabled={!activeInvoiceHasItems} style={{ marginLeft: 'auto' }}>
+                            <Button className="btn-outline export-invoice" onClick={handlePreviewInvoice} disabled={!activeInvoiceHasItems} style={{ marginLeft: 'auto' }}>
                               Export Invoice
                             </Button>
                           </Tooltip>
