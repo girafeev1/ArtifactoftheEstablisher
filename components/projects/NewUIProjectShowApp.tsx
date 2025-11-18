@@ -1113,6 +1113,26 @@ const ProjectsShowContent = () => {
     const items = (activeInvoice as any)?.items
     return Array.isArray(items) && items.length > 0
   }, [activeInvoice])
+
+  // Estimate items-only page span locally (real-time, without waiting for server)
+  const [itemsPages, setItemsPages] = useState<number | null>(null)
+  useEffect(() => {
+    const items = (invoiceMode !== 'idle' && draftInvoice) ? (draftInvoice.items ?? []) : ((activeInvoice as any)?.items ?? [])
+    if (!Array.isArray(items)) { setItemsPages(null); return }
+    let lines = 0
+    for (const it of items) {
+      lines += 2 // title + calc line baseline
+      if (it?.subQuantity) lines += 1
+      if (it?.feeType) lines += 1
+      if (it?.notes) {
+        const len = String(it.notes).length
+        lines += Math.ceil(len / 80)
+      }
+    }
+    const LINES_PER_PAGE = 28
+    const pages = Math.max(1, Math.ceil(lines / LINES_PER_PAGE))
+    setItemsPages(pages)
+  }, [invoiceMode, draftInvoice, activeInvoice])
   const currentHashModel = useMemo(() => {
     if (!activeInvoice) return null
     return {
@@ -2412,6 +2432,11 @@ const ProjectsShowContent = () => {
                   <Title level={5} className="section-heading">
                     Billing &amp; Payments
                   </Title>
+                  {itemsPages ? (
+                    <Tag color="blue" style={{ fontFamily: KARLA_FONT }}>
+                      Items span: ({itemsPages} page{itemsPages > 1 ? 's' : ''})
+                    </Tag>
+                  ) : null}
                   {(invoiceMode === "idle" || isProjectEditing || isManagingInvoices) ? (
                     <div className="billing-header-actions">
                       <Button
