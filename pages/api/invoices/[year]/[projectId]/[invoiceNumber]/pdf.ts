@@ -1,61 +1,45 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { fetchInvoicesForProject } from '../../../../../../lib/projectInvoices'
 import crypto from 'crypto'
+import { pdf } from '@react-pdf/renderer'
+import { fetchInvoicesForProject } from '../../../../../../lib/projectInvoices'
+import { buildClassicInvoiceDocument } from '../../../../../../lib/pdfTemplates/classicInvoice'
 
-// Simple native PDF generator using @react-pdf/renderer to keep serverless-friendly
-// Avoid headless Chrome for now; continue improving layout in iterations
-// Switch to HTML/CSS + Puppeteer for pixel-parity rendering
-import { buildInvoiceHtml, type InvoiceVariant } from '../../../../../../lib/renderer/invoiceHtml'
-import { renderHtmlToPdf } from '../../../../../../lib/renderer/puppeteerRender'
-import { amountHK, num2eng, num2chi } from '../../../../../../lib/invoiceFormat'
-
-// Drive upload disabled per current requirement (download only)
-
-
-function computeHash(obj: any): string {
-  const json = JSON.stringify(obj)
-  return crypto.createHash('sha256').update(json).digest('hex')
-}
+const computeHash = (obj: any): string =>
+  crypto.createHash('sha256').update(JSON.stringify(obj)).digest('hex')
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+
   const { year, projectId, invoiceNumber } = req.query as Record<string, string>
   if (!year || !projectId || !invoiceNumber) return res.status(400).json({ error: 'Missing parameters' })
-  const variant = ((req.query.variant as string) || 'bundle') as InvoiceVariant
+
   const meta = (req.query.meta as string) || null
   const inline = req.query.inline === '1'
-  try { console.info('[pdf] request', { year, projectId, invoiceNumber }) } catch {}
 
-  // Load invoice
   let inv: any
   try {
     const invoices = await fetchInvoicesForProject(year, projectId)
-    inv = invoices.find((i) => i.invoiceNumber === invoiceNumber)
-  } catch (e: any) {
-    try { console.error('[pdf] failed to fetch invoices', { error: e?.message || String(e) }) } catch {}
+    inv = invoices.find((invoice) => invoice.invoiceNumber === invoiceNumber)
+  } catch (error: any) {
+    try { console.error('[pdf] fetch error', { error: error?.message || String(error) }) } catch {}
     return res.status(500).send('Failed to load invoice data')
   }
+
   if (!inv) return res.status(404).send('Invoice not found')
 
   if (meta === 'itemsPages') {
-    // Heuristic items page count: 1 page minimum; more pages if notes are long/many items.
     const items = Array.isArray(inv.items) ? inv.items : []
     let lines = 0
-    for (const it of items) {
-      lines += 2 // title + calc line baseline
-      if (it.subQuantity) lines += 1
-      if (it.feeType) lines += 1
-      if (it.notes) {
-        const len = String(it.notes).length
-        lines += Math.ceil(len / 80)
-      }
-    }
-    const LINES_PER_PAGE = 28
-    const pages = Math.max(1, Math.ceil(lines / LINES_PER_PAGE))
-    return res.status(200).json({ itemsPages: pages, variant })
+    items.forEach((item: any) => {
+      lines += 2
+      if (item.subQuantity) lines += 1
+      if (item.feeType) lines += 1
+      if (item.notes) lines += Math.ceil(String(item.notes).length / 80)
+    })
+    const pages = Math.max(1, Math.ceil(lines / 28))
+    return res.status(200).json({ itemsPages: pages })
   }
 
-  // Compute hash of relevant fields for staleness
   const model = {
     invoiceNumber: inv.invoiceNumber,
     companyName: inv.companyName,
@@ -64,16 +48,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     addressLine3: inv.addressLine3,
     region: inv.region,
     representative: inv.representative,
-    items: (inv.items || []).map((it) => ({ title: it.title, subQuantity: it.subQuantity, feeType: it.feeType, notes: it.notes, unitPrice: it.unitPrice, quantity: it.quantity, quantityUnit: it.quantityUnit, discount: it.discount })),
+    items: (inv.items || []).map((item: any) => ({
+      title: item.title,
+      subQuantity: item.subQuantity,
+      feeType: item.feeType,
+      notes: item.notes,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      quantityUnit: item.quantityUnit,
+      discount: item.discount,
+    })),
     amount: inv.amount,
     paymentStatus: inv.paymentStatus,
     paidTo: inv.paidTo,
   }
   const hash = computeHash(model)
+  try { console.info('[pdf] build model hash', { hash }) } catch {}
 
-  // Render quick native PDF (baseline; refine layout iteratively)
-  // Build variant-aware HTML and render via Puppeteer
-  const html = buildInvoiceHtml({
+  const docInput = {
     invoiceNumber: inv.invoiceNumber,
     companyName: inv.companyName ?? null,
     addressLine1: inv.addressLine1 ?? null,
@@ -81,31 +73,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     addressLine3: inv.addressLine3 ?? null,
     region: inv.region ?? null,
     representative: inv.representative ?? null,
+    presenterWorkType: inv.presenterWorkType ?? null,
+    projectTitle: inv.projectTitle ?? null,
+    projectNature: inv.projectNature ?? null,
+    subsidiaryEnglishName: inv.companyName ?? null,
+    subsidiaryChineseName: inv.subsidiaryChineseName ?? null,
     items: Array.isArray(inv.items) ? inv.items : [],
     subtotal: typeof inv.subtotal === 'number' ? inv.subtotal : null,
     total: typeof inv.total === 'number' ? inv.total : null,
     amount: typeof inv.amount === 'number' ? inv.amount : null,
     paidTo: inv.paidTo ?? null,
     paymentStatus: inv.paymentStatus ?? null,
-    subsidiaryEnglishName: inv.companyName ?? null,
-  }, variant)
+    bankName: inv.bankName ?? null,
+    bankCode: inv.bankCode ?? null,
+    accountType: inv.accountType ?? null,
+  }
 
-  let pdfBuf: Buffer
+  let pdfBuffer: Buffer
   try {
-    pdfBuf = await renderHtmlToPdf(html)
-  } catch (e: any) {
-    const msg = e?.message || String(e)
-    try { console.error('[pdf] puppeteer render failed', { error: msg }) } catch {}
+    const document = buildClassicInvoiceDocument(docInput)
+    const instance = pdf(document)
+    const rendered: any = await instance.toBuffer()
+    pdfBuffer = Buffer.isBuffer(rendered) ? rendered : Buffer.from(rendered)
+  } catch (renderError: any) {
+    const errorMessage = renderError?.message || String(renderError)
+    try { console.error('[pdf] react-pdf render failed', { error: errorMessage }) } catch {}
     if ((req.query.debug as string) === '1') {
-      return res.status(500).send(`Failed to render PDF: ${msg}`)
+      return res.status(500).send(`Failed to render PDF: ${errorMessage}`)
     }
-    // Fallback: minimal PDF via pdfkit to avoid blocking users
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const PDFDocument = require('pdfkit')
       const doc = new PDFDocument({ size: 'A4', margins: { top: 36, bottom: 36, left: 40, right: 40 } })
       const chunks: Buffer[] = []
-      doc.on('data', (c: Buffer) => chunks.push(Buffer.from(c)))
+      doc.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
       doc.on('error', () => {})
       doc.fontSize(16).text(`Invoice #${inv.invoiceNumber}`, { align: 'left' })
       doc.moveDown(0.5)
@@ -115,12 +116,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (inv.addressLine3 || inv.region) doc.text([inv.addressLine3, inv.region].filter(Boolean).join(', '))
       if (inv.representative) doc.text(`ATTN: ${inv.representative}`)
       doc.moveDown(0.5)
-      ;(inv.items || []).forEach((it: any) => {
-        const total = (typeof it.unitPrice === 'number' && typeof it.quantity === 'number') ? it.unitPrice * it.quantity : 0
-        if (it.title) doc.fontSize(10).text(it.title)
-        if (it.feeType) doc.text(it.feeType)
-        if (it.notes) doc.text(it.notes)
-        doc.text(`${it.unitPrice ?? ''} x ${it.quantity ?? ''}${it.quantityUnit ? `/${it.quantityUnit}` : ''} = ${total}`, { align: 'right' })
+      ;(inv.items || []).forEach((item: any) => {
+        const total = (typeof item.unitPrice === 'number' && typeof item.quantity === 'number') ? item.unitPrice * item.quantity : 0
+        if (item.title) doc.fontSize(10).text(item.title)
+        if (item.feeType) doc.text(item.feeType)
+        if (item.notes) doc.text(item.notes)
+        doc.text(`${item.unitPrice ?? ''} x ${item.quantity ?? ''}${item.quantityUnit ? `/${item.quantityUnit}` : ''} = ${total}`, { align: 'right' })
         doc.moveDown(0.25)
       })
       doc.moveDown(0.5)
@@ -130,20 +131,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (inv.paymentStatus) doc.text(`(${inv.paymentStatus})`)
       doc.end()
       await new Promise<void>((resolve) => doc.on('end', () => resolve()))
-      pdfBuf = Buffer.concat(chunks)
-    } catch (fallbackErr) {
-      try { console.error('[pdf] fallback render failed', { error: fallbackErr?.message || String(fallbackErr) }) } catch {}
+      pdfBuffer = Buffer.concat(chunks)
+    } catch (fallbackError) {
+      try { console.error('[pdf] fallback render failed', { error: fallbackError?.message || String(fallbackError) }) } catch {}
       return res.status(500).send('Failed to render PDF')
     }
   }
 
-  // Prepare response headers early
   const filename = `Invoice-${inv.invoiceNumber}.pdf`
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${filename}"`)
   res.setHeader('Cache-Control', 'no-store')
-  res.setHeader('Content-Length', String(pdfBuf.byteLength))
-  // Send PDF to client for download
-  res.status(200).end(pdfBuf)
+  res.setHeader('Content-Length', String(pdfBuffer.byteLength))
+  res.status(200).end(pdfBuffer)
 }
+
 export const config = { api: { bodyParser: false } }
