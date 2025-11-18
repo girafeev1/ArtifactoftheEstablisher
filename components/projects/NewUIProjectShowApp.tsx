@@ -2853,6 +2853,13 @@ const ProjectsShowContent = () => {
                       rowKey="key"
                       className="items-table"
                     />
+                    {itemsPages ? (
+                      <div className="items-span-indicator" style={{ marginTop: 8 }}>
+                        <Tag color="blue" style={{ fontFamily: KARLA_FONT }}>
+                          Items span: ({itemsPages} page{itemsPages > 1 ? 's' : ''})
+                        </Tag>
+                      </div>
+                    ) : null}
                     {/* Totals summary panel */}
                     <div className="totals-panel">
                       <div className="totals-row">
@@ -3555,6 +3562,16 @@ const ProjectsShowContent = () => {
           background: #ffffff !important;
           border: 1px solid #cbd5e1 !important; /* slate-300 */
           color: #0f172a !important; /* black-ish */
+          font-family: ${KARLA_FONT};
+          font-weight: 600;
+        }
+
+        /* Blue export invoice button */
+        :global(.export-invoice.ant-btn), .export-invoice {
+          background: #2563eb !important; /* blue-600 */
+          border-color: #2563eb !important;
+          color: #ffffff !important;
+          border-radius: 9999px !important;
           font-family: ${KARLA_FONT};
           font-weight: 600;
         }
