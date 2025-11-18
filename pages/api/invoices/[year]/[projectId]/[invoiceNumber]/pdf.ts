@@ -99,7 +99,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if ((req.query.debug as string) === '1') {
       return res.status(500).send(`Failed to render PDF: ${msg}`)
     }
-    return res.status(500).send('Failed to render PDF')
+    // Fallback: minimal PDF via pdfkit to avoid blocking users
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const PDFDocument = require('pdfkit')
+      const doc = new PDFDocument({ size: 'A4', margins: { top: 36, bottom: 36, left: 40, right: 40 } })
+      const chunks: Buffer[] = []
+      doc.on('data', (c: Buffer) => chunks.push(Buffer.from(c)))
+      doc.on('error', () => {})
+      doc.fontSize(16).text(`Invoice #${inv.invoiceNumber}`, { align: 'left' })
+      doc.moveDown(0.5)
+      if (inv.companyName) doc.fontSize(10).text(inv.companyName)
+      if (inv.addressLine1) doc.text(inv.addressLine1)
+      if (inv.addressLine2) doc.text(inv.addressLine2)
+      if (inv.addressLine3 || inv.region) doc.text([inv.addressLine3, inv.region].filter(Boolean).join(', '))
+      if (inv.representative) doc.text(`ATTN: ${inv.representative}`)
+      doc.moveDown(0.5)
+      ;(inv.items || []).forEach((it: any) => {
+        const total = (typeof it.unitPrice === 'number' && typeof it.quantity === 'number') ? it.unitPrice * it.quantity : 0
+        if (it.title) doc.fontSize(10).text(it.title)
+        if (it.feeType) doc.text(it.feeType)
+        if (it.notes) doc.text(it.notes)
+        doc.text(`${it.unitPrice ?? ''} x ${it.quantity ?? ''}${it.quantityUnit ? `/${it.quantityUnit}` : ''} = ${total}`, { align: 'right' })
+        doc.moveDown(0.25)
+      })
+      doc.moveDown(0.5)
+      const amt = typeof inv.amount === 'number' ? inv.amount.toFixed(2) : '-'
+      doc.fontSize(12).text(`Total: ${amt}`, { align: 'right' })
+      if (inv.paidTo) doc.fontSize(10).text(`To: ${inv.paidTo}`)
+      if (inv.paymentStatus) doc.text(`(${inv.paymentStatus})`)
+      doc.end()
+      await new Promise<void>((resolve) => doc.on('end', () => resolve()))
+      pdfBuf = Buffer.concat(chunks)
+    } catch (fallbackErr) {
+      try { console.error('[pdf] fallback render failed', { error: fallbackErr?.message || String(fallbackErr) }) } catch {}
+      return res.status(500).send('Failed to render PDF')
+    }
   }
 
   // Prepare response headers early

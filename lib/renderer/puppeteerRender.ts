@@ -6,7 +6,16 @@ export async function renderHtmlToPdf(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: executablePath || undefined,
-    args: [...chromium.args, '--font-render-hinting=medium'],
+    args: [
+      ...chromium.args,
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-gpu',
+      '--disable-dev-shm-usage',
+      '--no-zygote',
+      '--single-process',
+      '--font-render-hinting=medium',
+    ],
     defaultViewport: chromium.defaultViewport,
     ignoreHTTPSErrors: true,
   })
