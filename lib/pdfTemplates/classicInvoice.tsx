@@ -10,7 +10,8 @@ const KARLA_URL = 'https://fonts.gstatic.com/s/karla/v31/Qw3KOZ2NCQ.woff'
 const registerFontFamily = () => {
   const loadFont = (filename: string) => {
     try {
-      return fs.readFileSync(path.join(FONT_BASE, filename))
+      const buffer = fs.readFileSync(path.join(FONT_BASE, filename))
+      return `data:font/ttf;base64,${buffer.toString('base64')}`
     } catch {
       return null
     }
