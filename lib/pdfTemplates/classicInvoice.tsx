@@ -1,65 +1,75 @@
-import React from 'react'
 import path from 'path'
-import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer'
+import React from 'react'
+import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer'
 import { amountHK, num2eng, num2chi } from '../invoiceFormat'
 
 const FONT_DIR = path.join(process.cwd(), 'lib/pdfTemplates/fonts')
 const KARLA_URL = 'https://fonts.gstatic.com/s/karla/v31/Qw3KOZ2NCQ.woff'
 
-const registerFont = (family: string, fonts: { src: string; fontWeight?: number }[]) => {
+const registerFontFamily = () => {
   try {
-    Font.register({ family, fonts })
+    Font.register({
+      family: 'RobotoMono',
+      fonts: [
+        { src: path.join(FONT_DIR, 'RobotoMono-Regular.ttf'), fontWeight: 400 },
+        { src: path.join(FONT_DIR, 'RobotoMono-Bold.ttf'), fontWeight: 700 },
+      ],
+    })
   } catch {
-    // ignore font register errors for serverless builds
+    /* ignore font registration errors */
+  }
+  try {
+    Font.register({ family: 'VarelaRound', src: path.join(FONT_DIR, 'VarelaRound-Regular.ttf') })
+  } catch {
+    /* ignore font registration errors */
+  }
+  try {
+    Font.register({ family: 'RampartOne', src: path.join(FONT_DIR, 'RampartOne-Regular.ttf') })
+  } catch {
+    /* ignore font registration errors */
+  }
+  try {
+    Font.register({ family: 'Iansui', src: path.join(FONT_DIR, 'Iansui-Regular.ttf') })
+  } catch {
+    /* ignore font registration errors */
+  }
+  try {
+    Font.register({ family: 'Karla', src: KARLA_URL })
+  } catch {
+    /* ignore font registration errors */
   }
 }
 
-registerFont('RobotoMono', [
-  { src: path.join(FONT_DIR, 'RobotoMono-Regular.ttf'), fontWeight: 400 },
-  { src: path.join(FONT_DIR, 'RobotoMono-Bold.ttf'), fontWeight: 700 },
-])
-registerFont('VarelaRound', [{ src: path.join(FONT_DIR, 'VarelaRound-Regular.ttf') }])
-registerFont('RampartOne', [{ src: path.join(FONT_DIR, 'RampartOne-Regular.ttf') }])
-registerFont('Iansui', [{ src: path.join(FONT_DIR, 'Iansui-Regular.ttf') }])
-try {
-  Font.register({ family: 'Karla', src: KARLA_URL })
-} catch {
-  // ignore remote font failure
-}
+registerFontFamily()
+
+const PAGE_WIDTH = 595.28 // A4 width in points
+const PAGE_HEIGHT = 841.89
+const PAGE_MARGIN = { top: 21.6, bottom: 21.6, left: 14.4, right: 14.4 } // 0.3"/0.2"
 
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'RobotoMono',
     fontSize: 10,
-    color: '#0f172a',
-    paddingTop: 28,
-    paddingBottom: 32,
-    paddingHorizontal: 32,
+    color: '#111827',
+    paddingTop: PAGE_MARGIN.top,
+    paddingBottom: PAGE_MARGIN.bottom,
+    paddingHorizontal: PAGE_MARGIN.left,
     lineHeight: 1.35,
-  },
-  pageAlt: {
-    fontFamily: 'RobotoMono',
-    fontSize: 10,
-    color: '#0f172a',
-    paddingTop: 36,
-    paddingBottom: 36,
-    paddingHorizontal: 36,
-    lineHeight: 1.35,
-  },
-  paymentPage: {
-    fontFamily: 'RobotoMono',
-    fontSize: 10,
-    color: '#0f172a',
-    paddingTop: 40,
-    paddingBottom: 40,
-    paddingHorizontal: 44,
-    lineHeight: 1.4,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
     marginBottom: 12,
+  },
+  logoMark: {
+    fontFamily: 'RampartOne',
+    fontSize: 46,
+    color: '#0f172a',
+  },
+  invoiceLabel: {
+    fontFamily: 'VarelaRound',
+    fontSize: 22,
+    letterSpacing: 1.2,
   },
   sectionLabel: {
     fontSize: 9,
@@ -68,68 +78,15 @@ const styles = StyleSheet.create({
     color: '#475569',
     marginBottom: 4,
   },
-  labelMuted: {
-    fontSize: 9,
-    color: '#6b7280',
-  },
-  logoMark: {
-    fontFamily: 'RampartOne',
-    fontSize: 46,
-    color: '#111827',
-  },
-  companyEn: {
-    fontSize: 16,
-    fontWeight: 700,
-    letterSpacing: 0.2,
-    marginBottom: 2,
-  },
-  companyZh: {
-    fontSize: 10,
-    fontFamily: 'Iansui',
-    letterSpacing: 1,
-  },
-  addressLine: {
-    fontSize: 10,
-  },
-  contactLine: {
-    fontSize: 10,
-  },
-  billBlock: {
-    flex: 1,
-    paddingRight: 18,
-  },
-  metaBlock: {
-    width: 200,
-    borderLeftWidth: 1,
-    borderColor: '#cbd5f5',
-    paddingLeft: 16,
-  },
-  metaAltBlock: {
-    width: 240,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 12,
-    borderRadius: 6,
-  },
   billName: {
     fontSize: 13,
     fontWeight: 700,
     marginBottom: 2,
   },
-  invoiceLabel: {
-    fontFamily: 'VarelaRound',
-    fontSize: 18,
-    letterSpacing: 1.2,
-  },
-  invoiceNumber: {
-    fontSize: 14,
-    fontWeight: 700,
-    marginTop: 4,
-  },
   projectTitle: {
     fontSize: 11,
     fontWeight: 700,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   projectNature: {
     fontStyle: 'italic',
@@ -138,14 +95,13 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: 'row',
     borderBottomWidth: 1.4,
-    borderColor: '#111827',
-    paddingBottom: 6,
-    marginTop: 18,
-    marginBottom: 4,
+    borderColor: '#0f172a',
+    paddingBottom: 4,
+    marginTop: 16,
   },
   tableColDesc: {
     width: '70%',
-    paddingRight: 16,
+    paddingRight: 18,
   },
   tableColAmount: {
     width: '30%',
@@ -157,25 +113,8 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     paddingVertical: 6,
   },
-  itemTitle: {
-    fontWeight: 700,
-    fontSize: 11,
-    marginBottom: 2,
-  },
-  itemNote: {
-    fontSize: 10,
-    color: '#1f2937',
-    marginTop: 2,
-  },
-  itemMeta: {
-    fontStyle: 'italic',
-    fontSize: 9,
-    marginTop: 4,
-    color: '#6b7280',
-  },
   amountCell: {
     fontWeight: 700,
-    fontSize: 11,
   },
   totalsBlock: {
     marginTop: 12,
@@ -188,75 +127,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
-  totalLabel: {
-    fontSize: 11,
-    fontWeight: 700,
-  },
-  totalValue: {
-    fontSize: 12,
-    fontWeight: 700,
-  },
-  amountWords: {
-    marginTop: 10,
-    fontStyle: 'italic',
-  },
-  amountWordsZh: {
-    fontFamily: 'Iansui',
-    marginTop: 2,
-    fontSize: 11,
-  },
-  paymentSummary: {
-    marginTop: 16,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderColor: '#cbd5e1',
-  },
-  paymentLine: {
-    marginBottom: 4,
-  },
-  footerContact: {
-    marginTop: 18,
+  footer: {
+    marginTop: 14,
     fontSize: 9,
     color: '#475569',
-  },
-  footerEn: {
-    fontSize: 10,
-    fontWeight: 700,
   },
   footerZh: {
     fontFamily: 'Iansui',
     marginTop: 2,
   },
-  paymentCard: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 16,
-    marginTop: 16,
-  },
-  playfulCard: {
-    borderRadius: 12,
-    padding: 20,
-    backgroundColor: '#fff7ed',
-    borderWidth: 1,
-    borderColor: '#fed7aa',
-  },
-  playfulHeading: {
-    fontFamily: 'VarelaRound',
-    fontSize: 18,
-    marginBottom: 6,
-  },
-  playfulSub: {
-    fontSize: 10,
-    color: '#92400e',
-    marginBottom: 12,
-  },
-  badge: {
-    fontFamily: 'Karla',
+  pageNumber: {
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
     fontSize: 9,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    color: '#dc2626',
+    color: '#94a3b8',
+  },
+  qrContainer: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
 })
 
@@ -309,38 +202,72 @@ export interface ClassicInvoiceDocInput {
 
 export type ClassicInvoiceVariant = 'bundle' | 'A' | 'A2' | 'B' | 'B2'
 
-const computeLineTotal = (item: ClassicInvoiceItem): number => {
-  const unit = typeof item.unitPrice === 'number' ? item.unitPrice : 0
-  const qty = typeof item.quantity === 'number' ? item.quantity : 0
-  const discount = typeof item.discount === 'number' ? item.discount : 0
-  return unit * qty - discount
+type VariantBase = 'A' | 'B'
+
+const LINE_LIMITS: Record<VariantBase, { first: number; other: number }> = {
+  B: { first: 32, other: 38 },
+  A: { first: 34, other: 42 },
 }
 
-const computeTotals = (data: ClassicInvoiceDocInput) => {
-  const subtotal =
-    typeof data.subtotal === 'number'
-      ? data.subtotal
-      : data.items.reduce((sum, item) => sum + computeLineTotal(item), 0)
-  const totalCandidate =
-    typeof data.total === 'number'
-      ? data.total
-      : typeof data.amount === 'number'
-        ? data.amount
-        : subtotal
-  const adjustment = totalCandidate - subtotal
-  return { subtotal, total: totalCandidate, adjustment }
+const estimateItemLines = (item: ClassicInvoiceItem) => {
+  let lines = 3
+  if (item.subQuantity) lines += 1
+  if (item.feeType) lines += 1
+  if (item.notes) {
+    const text = String(item.notes)
+    const chunks = Math.max(1, Math.ceil(text.length / 80))
+    lines += chunks
+  }
+  return lines
 }
 
-const notEmpty = (value?: string | null) => Boolean(value && value.trim().length)
+const paginateItemsForVariant = (items: ClassicInvoiceItem[], variant: VariantBase) => {
+  const limits = LINE_LIMITS[variant]
+  const pages: ClassicInvoiceItem[][] = []
+  let current: ClassicInvoiceItem[] = []
+  let remaining = limits.first
+  const otherLimit = limits.other
+  const pushPage = () => {
+    if (current.length) {
+      pages.push(current)
+      current = []
+    }
+  }
+  items.forEach((item, index) => {
+    const lines = estimateItemLines(item)
+    const limit = pages.length === 0 ? limits.first : otherLimit
+    if (current.length === 0 && lines > limit) {
+      pages.push([item])
+      remaining = otherLimit
+      return
+    }
+    if (lines > remaining) {
+      pushPage()
+      remaining = otherLimit
+    }
+    current.push(item)
+    remaining -= lines
+  })
+  if (current.length) {
+    pages.push(current)
+  }
+  if (!pages.length) {
+    pages.push([])
+  }
+  return pages
+}
 
 const joinAddress = (parts: (string | null | undefined)[]) =>
-  parts.map((p) => (p || '').trim()).filter(Boolean).join(', ')
+  parts
+    .map((p) => (p || '').trim())
+    .filter(Boolean)
+    .join(', ')
 
 const renderAddressLines = (lines: (string | null | undefined)[]) =>
   lines
-    .filter((line): line is string => notEmpty(line))
+    .filter((line): line is string => Boolean(line && line.trim()))
     .map((line, idx) => (
-      <Text key={`addr-${idx}`} style={styles.addressLine}>
+      <Text key={`addr-${idx}`} style={{ fontSize: 10 }}>
         {line}
       </Text>
     ))
@@ -350,9 +277,9 @@ const BillTo = ({ data }: { data: ClassicInvoiceDocInput }) => {
     data.addressLine1,
     data.addressLine2,
     joinAddress([data.addressLine3, data.region]),
-  ].filter((line): line is string => notEmpty(line))
+  ].filter((line): line is string => Boolean(line && line.trim()))
   return (
-    <View style={styles.billBlock}>
+    <View style={{ flex: 1, paddingRight: 18 }}>
       <Text style={styles.sectionLabel}>Bill To</Text>
       <Text style={styles.billName}>{data.companyName ?? '-'}</Text>
       {addressLines.map((line, idx) => (
@@ -377,36 +304,31 @@ const ProjectMeta = ({ data }: { data: ClassicInvoiceDocInput }) => (
   </View>
 )
 
-const ItemsTable = ({ data }: { data: ClassicInvoiceDocInput }) => {
-  if (!data.items || data.items.length === 0) {
-    return (
-      <View style={{ paddingVertical: 16 }}>
+const ItemsTable = ({ data, items }: { data: ClassicInvoiceDocInput; items: ClassicInvoiceItem[] }) => (
+  <View>
+    <View style={styles.tableHeader}>
+      <View style={styles.tableColDesc}>
+        <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Description</Text>
+      </View>
+      <View style={styles.tableColAmount}>
+        <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Amount</Text>
+      </View>
+    </View>
+    {items.length === 0 ? (
+      <View style={{ paddingVertical: 12 }}>
         <Text>No items added.</Text>
       </View>
-    )
-  }
-  return (
-    <View>
-      <View style={styles.tableHeader}>
-        <View style={styles.tableColDesc}>
-          <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Description</Text>
-        </View>
-        <View style={styles.tableColAmount}>
-          <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Amount</Text>
-        </View>
-      </View>
-      {data.items.map((item, idx) => {
-        const total = computeLineTotal(item)
+    ) : (
+      items.map((item, idx) => {
+        const total = (item.unitPrice ?? 0) * (item.quantity ?? 0) - (item.discount ?? 0)
         return (
           <View key={`item-${idx}`} style={styles.itemRow}>
             <View style={styles.tableColDesc}>
-              <Text style={styles.itemTitle}>{item.title || `Item ${idx + 1}`}</Text>
+              <Text style={{ fontSize: 11, fontWeight: 700 }}>{item.title || `Item ${idx + 1}`}</Text>
               {item.subQuantity ? <Text>{item.subQuantity}</Text> : null}
               {item.feeType ? <Text style={{ fontStyle: 'italic' }}>{item.feeType}</Text> : null}
-              {item.notes ? (
-                <Text style={styles.itemNote}>{item.notes}</Text>
-              ) : null}
-              <Text style={styles.itemMeta}>
+              {item.notes ? <Text>{item.notes}</Text> : null}
+              <Text style={{ fontStyle: 'italic', color: '#6b7280', marginTop: 2 }}>
                 {amountHK(item.unitPrice ?? 0)} × {item.quantity ?? 0}
                 {item.quantityUnit ? ` ${item.quantityUnit}` : ''}
                 {item.discount ? ` — Disc ${amountHK(item.discount)}` : ''}
@@ -417,9 +339,24 @@ const ItemsTable = ({ data }: { data: ClassicInvoiceDocInput }) => {
             </View>
           </View>
         )
-      })}
-    </View>
-  )
+      })
+    )}
+  </View>
+)
+
+const computeTotals = (data: ClassicInvoiceDocInput) => {
+  const subtotal =
+    typeof data.subtotal === 'number'
+      ? data.subtotal
+      : data.items.reduce((sum, item) => sum + Math.max(0, (item.unitPrice ?? 0) * (item.quantity ?? 0) - (item.discount ?? 0)), 0)
+  const total =
+    typeof data.total === 'number'
+      ? data.total
+      : typeof data.amount === 'number'
+        ? data.amount
+        : subtotal
+  const adjustment = total - subtotal
+  return { subtotal, total, adjustment }
 }
 
 const Totals = ({ data }: { data: ClassicInvoiceDocInput }) => {
@@ -438,185 +375,339 @@ const Totals = ({ data }: { data: ClassicInvoiceDocInput }) => {
         </View>
       ) : null}
       <View style={[styles.totalsRow, { marginTop: 6 }]}>
-        <Text style={styles.totalLabel}>Invoice Total</Text>
-        <Text style={styles.totalValue}>{amountHK(total)}</Text>
+        <Text style={{ fontSize: 11, fontWeight: 700 }}>Invoice Total</Text>
+        <Text style={{ fontSize: 11, fontWeight: 700 }}>{amountHK(total)}</Text>
       </View>
-      <View style={styles.amountWords}>
+      <View style={{ marginTop: 8 }}>
         <Text>For the amount of: {num2eng(total) || amountHK(total)}</Text>
-        <Text style={styles.amountWordsZh}>茲付金額：{num2chi(total)}</Text>
+        <Text style={{ fontFamily: 'Iansui' }}>茲付金額：{num2chi(total)}</Text>
       </View>
     </View>
   )
 }
 
 const PaymentSummary = ({ data }: { data: ClassicInvoiceDocInput }) => (
-  <View style={styles.paymentSummary}>
-    <Text style={styles.paymentLine}>
-      Cheque Payable To: {data.paidTo ?? data.subsidiaryEnglishName ?? '-'}
+  <View style={{ marginTop: 12 }}>
+    <Text>
+      Cheque Payable To: {data.paidTo ?? data.subsidiaryEnglishName ?? 'Establish Records Limited'}
     </Text>
     {data.bankName ? (
-      <Text style={styles.paymentLine}>
+      <Text>
         Bank: {data.bankName}
-        {data.bankCode ? ` (${data.bankCode})` : ''}
-        {data.accountType ? ` — ${data.accountType}` : ''}
+        {data.bankCode ? ` (${data.bankCode})` : ''} {data.accountType ? `– ${data.accountType}` : ''}
       </Text>
     ) : null}
-    {data.bankAccountNumber ? (
-      <Text style={styles.paymentLine}>Bank Account Number: {data.bankAccountNumber}</Text>
-    ) : null}
-    {data.fpsId ? (
-      <Text style={styles.paymentLine}>FPS ID: {data.fpsId}</Text>
-    ) : null}
+    {data.bankAccountNumber ? <Text>Bank Account Number: {data.bankAccountNumber}</Text> : null}
+    {data.fpsId ? <Text>FPS ID: {data.fpsId}</Text> : null}
+    {data.fpsEmail ? <Text>FPS Email: {data.fpsEmail}</Text> : null}
     {data.paymentStatus ? (
-      <Text style={[styles.paymentLine, { fontStyle: 'italic', color: '#7f1d1d' }]}>Status: {data.paymentStatus}</Text>
+      <Text style={{ fontStyle: 'italic', color: '#7f1d1d' }}>Status: {data.paymentStatus}</Text>
     ) : null}
+    {data.paymentTerms ? <Text style={{ marginTop: 6, fontWeight: 600 }}>Payment Terms: {data.paymentTerms}</Text> : null}
   </View>
 )
 
-const Footer = ({ data }: { data: ClassicInvoiceDocInput }) => (
-  <View style={styles.footerContact}>
-    <Text style={styles.footerEn}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+const FooterBlock = ({ data }: { data: ClassicInvoiceDocInput }) => (
+  <View style={styles.footer}>
+    <Text>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
     {data.subsidiaryChineseName ? <Text style={styles.footerZh}>{data.subsidiaryChineseName}</Text> : null}
     {renderAddressLines(data.subsidiaryAddressLines ?? [])}
-    {data.subsidiaryPhone ? <Text style={styles.contactLine}>{data.subsidiaryPhone}</Text> : null}
-    {data.subsidiaryEmail ? <Text style={styles.contactLine}>{data.subsidiaryEmail}</Text> : null}
+    {data.subsidiaryPhone ? <Text>{data.subsidiaryPhone}</Text> : null}
+    {data.subsidiaryEmail ? <Text>{data.subsidiaryEmail}</Text> : null}
   </View>
 )
 
-const VersionBPage = ({ data }: { data: ClassicInvoiceDocInput }) => (
-  <Page size="A4" style={styles.page}>
-    <View style={styles.headerRow}>
-      <View>
-        <Text style={styles.logoMark}>E.</Text>
-      </View>
-      <View style={{ alignItems: 'flex-end' }}>
-        <Text style={styles.companyEn}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
-        {data.subsidiaryChineseName ? <Text style={styles.companyZh}>{data.subsidiaryChineseName}</Text> : null}
+type ItemPageDescriptor = {
+  kind: 'items'
+  variantBase: VariantBase
+  items: ClassicInvoiceItem[]
+  pageIndex: number
+  totalPagesForVariant: number
+}
+
+type ExtraPageDescriptor =
+  | { kind: 'payment-details'; title: 'Payment Details' }
+  | { kind: 'payment-instructions'; title: 'Payment Instructions' }
+
+type PageDescriptor = ItemPageDescriptor | ExtraPageDescriptor
+
+const buildHKFPSPayload = (
+  fpsProxyValue: string | null,
+  includeAmount: boolean,
+  amountNumber: number | null,
+) => {
+  if (!fpsProxyValue || !fpsProxyValue.trim()) return null
+  const TLV = (id: string, val: string | null | undefined) => {
+    if (!val) return ''
+    const str = String(val)
+    return id + (`0${str.length}`).slice(-2) + str
+  }
+
+  const CRC16 = (input: string) => {
+    let crc = 0xffff
+    for (let i = 0; i < input.length; i++) {
+      crc ^= (input.charCodeAt(i) & 0xff) << 8
+      for (let j = 0; j < 8; j++) {
+        if (crc & 0x8000) crc = (crc << 1) ^ 0x1021
+        else crc <<= 1
+        crc &= 0xffff
+      }
+    }
+    return (`000${crc.toString(16).toUpperCase()}`).slice(-4)
+  }
+
+  const payloadFormat = TLV('00', '01')
+  const pointOfInit = TLV('01', includeAmount ? '12' : '11')
+  const raw = fpsProxyValue.trim()
+  let proxyType: 'id' | 'phone' | 'email'
+  if (/@/.test(raw)) proxyType = 'email'
+  else if (/^\+/.test(raw)) proxyType = 'phone'
+  else proxyType = 'id'
+  const GUID = 'hk.com.hkicl'
+  let mai = TLV('00', GUID)
+  if (proxyType === 'email') mai += TLV('04', raw)
+  else if (proxyType === 'phone') mai += TLV('03', raw)
+  else mai += TLV('02', raw)
+  const merchantAccountInfo = TLV('26', mai)
+  const mcc = TLV('52', '0000')
+  const currency = TLV('53', '344')
+  let amountTLV = ''
+  if (includeAmount && typeof amountNumber === 'number' && Number.isFinite(amountNumber)) {
+    let amt = amountNumber.toFixed(2).replace(/\.00$/, '')
+    amountTLV = TLV('54', amt)
+  }
+  const country = TLV('58', 'HK')
+  const name = TLV('59', 'NA')
+  const city = TLV('60', 'HK')
+  const withoutCRC = payloadFormat + pointOfInit + merchantAccountInfo + mcc + currency + amountTLV + country + name + city
+  const crc = CRC16(withoutCRC + '63' + '04')
+  return withoutCRC + '63' + '04' + crc
+}
+
+const buildHKFPSQrUrl = (payload: string | null, size = 220) =>
+  payload
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(payload)}`
+    : null
+
+const PaymentDetailsPage = ({
+  data,
+  qrPayload,
+  pageNumber,
+  totalPages,
+}: {
+  data: ClassicInvoiceDocInput
+  qrPayload: string | null
+  pageNumber: number
+  totalPages: number
+}) => {
+  const qrUrl = buildHKFPSQrUrl(qrPayload, 240)
+  return (
+    <Page size="A4" style={styles.page}>
+      <Text style={{ fontFamily: 'VarelaRound', fontSize: 20, textAlign: 'center', marginBottom: 16 }}>
+        Payment Details
+      </Text>
+      <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <Text style={styles.sectionLabel}>Payee</Text>
+        <Text style={{ fontSize: 12, fontWeight: 700 }}>{data.paidTo ?? data.subsidiaryEnglishName ?? '-'}</Text>
+        <Text>{data.subsidiaryEnglishName ?? ''}</Text>
         {renderAddressLines(data.subsidiaryAddressLines ?? [])}
-        {data.subsidiaryPhone ? <Text style={styles.contactLine}>{data.subsidiaryPhone}</Text> : null}
-        {data.subsidiaryEmail ? <Text style={styles.contactLine}>{data.subsidiaryEmail}</Text> : null}
       </View>
+      <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 16 }}>
+        <Text style={styles.sectionLabel}>Bank Information</Text>
+        <Text>Bank: {data.bankName ?? '-'}</Text>
+        {data.bankCode ? <Text>Bank Code: {data.bankCode}</Text> : null}
+        <Text>Account Type: {data.accountType ?? '-'}</Text>
+        <Text>Account Number: {data.bankAccountNumber ?? '-'}</Text>
+        {data.fpsId ? <Text>FPS ID: {data.fpsId}</Text> : null}
+        {data.fpsEmail ? <Text>FPS Email: {data.fpsEmail}</Text> : null}
+        {qrUrl ? (
+          <View style={styles.qrContainer}>
+            <Image src={qrUrl} style={{ width: 140, height: 140 }} />
+            <Text>Scan this QR via FPS to auto-fill payee reference.</Text>
+          </View>
+        ) : null}
+      </View>
+      <FooterBlock data={data} />
+      <Text style={styles.pageNumber}>Page {pageNumber} of {totalPages}</Text>
+    </Page>
+  )
+}
+
+const PaymentInstructionsPage = ({
+  data,
+  pageNumber,
+  totalPages,
+}: {
+  data: ClassicInvoiceDocInput
+  pageNumber: number
+  totalPages: number
+}) => (
+  <Page size="A4" style={styles.page}>
+    <View
+      style={{
+        padding: 24,
+        borderWidth: 1,
+        borderRadius: 12,
+        borderColor: '#fed7aa',
+        backgroundColor: '#fff7ed',
+      }}
+    >
+      <Text style={{ fontFamily: 'Karla', textTransform: 'uppercase', fontSize: 10, color: '#dc2626' }}>
+        Payment Instructions
+      </Text>
+      <Text style={{ fontFamily: 'VarelaRound', fontSize: 20, marginTop: 8, marginBottom: 6 }}>
+        Thank you for partnering with us
+      </Text>
+      <Text style={{ fontSize: 11, color: '#92400e', marginBottom: 12 }}>
+        Please ensure payment references the invoice number #{data.invoiceNumber} and notify us once funds are transferred.
+      </Text>
+      <Text>1. Verify the payee ({data.paidTo ?? data.subsidiaryEnglishName ?? 'Establish Records Limited'}).</Text>
+      <Text>2. Confirm the bank information and FPS ID.</Text>
+      <Text>3. Reference #{data.invoiceNumber} in remarks.</Text>
+      <Text>4. Email the remittance to {data.subsidiaryEmail ?? 'account@establishrecords.com'}.</Text>
     </View>
-    <View style={[styles.headerRow, { marginBottom: 18 }]}>
-      <BillTo data={data} />
-      <View style={styles.metaBlock}>
-        <Text style={styles.sectionLabel}>Invoice</Text>
-        <Text style={styles.invoiceNumber}>#{data.invoiceNumber}</Text>
-        {data.invoiceDateDisplay ? <Text>Issued Date: {data.invoiceDateDisplay}</Text> : null}
-        <View style={{ marginTop: 12 }}>
-          <ProjectMeta data={data} />
+    <FooterBlock data={data} />
+    <Text style={styles.pageNumber}>Page {pageNumber} of {totalPages}</Text>
+  </Page>
+)
+
+const renderHeaderForVariant = (
+  data: ClassicInvoiceDocInput,
+  variant: VariantBase,
+  showClientBlock: boolean,
+) => {
+  if (variant === 'A') {
+    return (
+      <>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.invoiceLabel}>Invoice</Text>
+            <Text style={{ fontSize: 14, fontWeight: 700 }}>#{data.invoiceNumber}</Text>
+            {data.invoiceDateDisplay ? <Text>Date: {data.invoiceDateDisplay}</Text> : null}
+            {data.projectNumber ? <Text style={{ marginTop: 6 }}>Project #: {data.projectNumber}</Text> : null}
+            {data.projectDate ? <Text>Project Date: {data.projectDate}</Text> : null}
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={styles.logoMark}>E.</Text>
+            <Text>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+            {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui' }}>{data.subsidiaryChineseName}</Text> : null}
+            {renderAddressLines(data.subsidiaryAddressLines ?? [])}
+          </View>
+        </View>
+        {showClientBlock ? (
+          <View style={styles.headerRow}>
+            <BillTo data={data} />
+            <View style={{ width: 220, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, padding: 12 }}>
+              <ProjectMeta data={data} />
+            </View>
+          </View>
+        ) : null}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.logoMark}>E.</Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={{ fontSize: 16, fontWeight: 700, letterSpacing: 0.3 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+          {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui' }}>{data.subsidiaryChineseName}</Text> : null}
+          {renderAddressLines(data.subsidiaryAddressLines ?? [])}
+          {data.subsidiaryEmail ? <Text>{data.subsidiaryEmail}</Text> : null}
+          {data.subsidiaryPhone ? <Text>{data.subsidiaryPhone}</Text> : null}
         </View>
       </View>
-    </View>
-    <ItemsTable data={data} />
-    <Totals data={data} />
-    <PaymentSummary data={data} />
-    {data.paymentTerms ? (
-      <Text style={{ marginTop: 10, fontWeight: 600 }}>PAYMENT TERMS: {data.paymentTerms}</Text>
-    ) : null}
-    <Footer data={data} />
-  </Page>
-)
-
-const VersionAPage = ({ data }: { data: ClassicInvoiceDocInput }) => (
-  <Page size="A4" style={styles.pageAlt}>
-    <View style={styles.headerRow}>
-      <View style={{ flex: 1, paddingRight: 18 }}>
-        <Text style={styles.invoiceLabel}>Invoice</Text>
-        <Text style={styles.invoiceNumber}>#{data.invoiceNumber}</Text>
-        {data.invoiceDateDisplay ? <Text>Date: {data.invoiceDateDisplay}</Text> : null}
-        {data.projectNumber ? <Text style={{ marginTop: 6 }}>Project #: {data.projectNumber}</Text> : null}
-        {data.projectDate ? <Text>Project Date: {data.projectDate}</Text> : null}
-      </View>
-      <View style={{ alignItems: 'flex-end' }}>
-        <Text style={styles.logoMark}>E.</Text>
-        <Text style={styles.companyEn}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
-        {data.subsidiaryChineseName ? <Text style={styles.companyZh}>{data.subsidiaryChineseName}</Text> : null}
-        {renderAddressLines(data.subsidiaryAddressLines ?? [])}
-      </View>
-    </View>
-    <View style={[styles.headerRow, { marginBottom: 16 }]}>
-      <BillTo data={data} />
-      <View style={styles.metaAltBlock}>
-        <ProjectMeta data={data} />
-      </View>
-    </View>
-    <ItemsTable data={data} />
-    <Totals data={data} />
-    <PaymentSummary data={data} />
-    {data.paymentTerms ? (
-      <Text style={{ marginTop: 8 }}>Payment Terms: {data.paymentTerms}</Text>
-    ) : null}
-    <Footer data={data} />
-  </Page>
-)
-
-const FormalPaymentPage = ({ data }: { data: ClassicInvoiceDocInput }) => (
-  <Page size="A4" style={styles.paymentPage}>
-    <Text style={{ fontFamily: 'VarelaRound', fontSize: 22, textAlign: 'center', marginBottom: 20 }}>Payment Details</Text>
-    <View style={styles.paymentCard}>
-      <Text style={styles.sectionLabel}>Payee</Text>
-      <Text style={{ fontSize: 12, fontWeight: 700 }}>{data.paidTo ?? data.subsidiaryEnglishName ?? '-'}</Text>
-      <Text>{data.subsidiaryEnglishName ?? ''}</Text>
-      {renderAddressLines(data.subsidiaryAddressLines ?? [])}
-    </View>
-    <View style={styles.paymentCard}>
-      <Text style={styles.sectionLabel}>Bank Information</Text>
-      <Text>Bank: {data.bankName ?? '-'}</Text>
-      {data.bankCode ? <Text>Bank Code: {data.bankCode}</Text> : null}
-      <Text>Account Type: {data.accountType ?? '-'}</Text>
-      <Text>Account Number: {data.bankAccountNumber ?? '-'}</Text>
-      {data.fpsId ? <Text>FPS ID: {data.fpsId}</Text> : null}
-      {data.fpsEmail ? <Text>FPS Email: {data.fpsEmail}</Text> : null}
-    </View>
-    {data.paymentTerms ? (
-      <View style={styles.paymentCard}>
-        <Text style={styles.sectionLabel}>Terms</Text>
-        <Text>{data.paymentTerms}</Text>
-      </View>
-    ) : null}
-    <Footer data={data} />
-  </Page>
-)
-
-const PlayfulPaymentPage = ({ data }: { data: ClassicInvoiceDocInput }) => (
-  <Page size="A4" style={styles.paymentPage}>
-    <View style={styles.playfulCard}>
-      <Text style={styles.badge}>Receipt Companion</Text>
-      <Text style={styles.playfulHeading}>Payment Instructions</Text>
-      <Text style={styles.playfulSub}>Double check the amount and bank details before submitting your transfer.</Text>
-      <Text style={{ fontSize: 11, marginBottom: 6 }}>Pay To</Text>
-      <Text style={{ fontSize: 14, fontWeight: 700 }}>{data.paidTo ?? data.subsidiaryEnglishName ?? '-'}</Text>
-      <Text style={{ marginTop: 8 }}>Bank: {data.bankName ?? '-'} {data.bankCode ? `(${data.bankCode})` : ''}</Text>
-      <Text>Account Number: {data.bankAccountNumber ?? '-'}</Text>
-      {data.fpsId ? <Text>FPS: {data.fpsId}</Text> : null}
-      {data.paymentTerms ? (
-        <Text style={{ marginTop: 12, fontWeight: 600 }}>Payment Terms: {data.paymentTerms}</Text>
+      {showClientBlock ? (
+        <View style={styles.headerRow}>
+          <BillTo data={data} />
+          <View style={{ width: 200, borderLeftWidth: 1, borderColor: '#cbd5f5', paddingLeft: 16 }}>
+            <Text style={styles.sectionLabel}>Invoice</Text>
+            <Text style={{ fontSize: 14, fontWeight: 700 }}>#{data.invoiceNumber}</Text>
+            {data.invoiceDateDisplay ? <Text>Issued Date: {data.invoiceDateDisplay}</Text> : null}
+            <View style={{ marginTop: 12 }}>
+              <ProjectMeta data={data} />
+            </View>
+          </View>
+        </View>
       ) : null}
-    </View>
-    <Footer data={data} />
+    </>
+  )
+}
+
+const renderFooterForVariant = (
+  data: ClassicInvoiceDocInput,
+  variant: VariantBase,
+  showFooter: boolean,
+  pageNumber: number,
+  totalPages: number,
+) => (
+  <>
+    {showFooter ? <FooterBlock data={data} /> : null}
+    <Text style={styles.pageNumber}>Page {pageNumber} of {totalPages}</Text>
+  </>
+)
+
+const renderItemPage = (
+  data: ClassicInvoiceDocInput,
+  descriptor: ItemPageDescriptor,
+  pageNumber: number,
+  totalPages: number,
+  includeTotals: boolean,
+  showFooter: boolean,
+) => (
+  <Page key={`items-${descriptor.variantBase}-${descriptor.pageIndex}-${pageNumber}`} size="A4" style={styles.page}>
+    {renderHeaderForVariant(data, descriptor.variantBase, descriptor.pageIndex === 0)}
+    <ItemsTable data={data} items={descriptor.items} />
+    {includeTotals ? (
+      <>
+        <Totals data={data} />
+        <PaymentSummary data={data} />
+      </>
+    ) : null}
+    {renderFooterForVariant(data, descriptor.variantBase, showFooter, pageNumber, totalPages)}
   </Page>
 )
 
-const buildPagesForVariant = (data: ClassicInvoiceDocInput, variant: ClassicInvoiceVariant) => {
+const buildDescriptors = (variant: ClassicInvoiceVariant, data: ClassicInvoiceDocInput): PageDescriptor[] => {
+  const descriptors: PageDescriptor[] = []
+  const addVariantBlock = (base: VariantBase, includePaymentDetails: boolean, includePaymentInstructions: boolean) => {
+    const paginated = paginateItemsForVariant(data.items, base)
+    paginated.forEach((items, pageIndex) => {
+      descriptors.push({
+        kind: 'items',
+        variantBase: base,
+        items,
+        pageIndex,
+        totalPagesForVariant: paginated.length,
+      })
+    })
+    if (includePaymentDetails) descriptors.push({ kind: 'payment-details', title: 'Payment Details' })
+    if (includePaymentInstructions) descriptors.push({ kind: 'payment-instructions', title: 'Payment Instructions' })
+  }
+
   switch (variant) {
-    case 'A':
-      return [<VersionAPage key="A-main" data={data} />, <FormalPaymentPage key="A-pay" data={data} />]
-    case 'A2':
-      return [<VersionAPage key="A2-main" data={data} />, <PlayfulPaymentPage key="A2-pay" data={data} />]
     case 'B':
-      return [<VersionBPage key="B-main" data={data} />]
+      addVariantBlock('B', false, false)
+      break
     case 'B2':
-      return [<VersionBPage key="B2-main" data={data} />, <PlayfulPaymentPage key="B2-pay" data={data} />]
+      addVariantBlock('B', false, true)
+      break
+    case 'A':
+      addVariantBlock('A', true, false)
+      break
+    case 'A2':
+      addVariantBlock('A', true, true)
+      break
     case 'bundle':
     default:
-      return [
-        <VersionBPage key="bundle-b" data={data} />,
-        <VersionAPage key="bundle-a" data={data} />,
-        <FormalPaymentPage key="bundle-pay" data={data} />,
-        <PlayfulPaymentPage key="bundle-cute" data={data} />,
-      ]
+      addVariantBlock('B', false, false)
+      addVariantBlock('A', true, true)
+      break
   }
+  return descriptors
 }
 
 export const buildClassicInvoiceDocument = (
@@ -624,6 +715,35 @@ export const buildClassicInvoiceDocument = (
   options?: { variant?: ClassicInvoiceVariant },
 ) => {
   const variant = options?.variant ?? 'bundle'
-  const pages = buildPagesForVariant(data, variant)
+  const descriptors = buildDescriptors(variant, data)
+  const qrPayload = buildHKFPSPayload(data.fpsId ?? data.fpsEmail ?? null, true, (typeof data.total === 'number' ? data.total : data.amount) ?? null)
+  const pages: React.ReactElement[] = []
+  const totalPages = descriptors.length
+  descriptors.forEach((descriptor, index) => {
+    const pageNumber = index + 1
+    if (descriptor.kind === 'items') {
+      const isLastPageForVariant = descriptor.pageIndex === descriptor.totalPagesForVariant - 1
+      const shouldShowTotals = isLastPageForVariant
+      const showFooter =
+        descriptor.variantBase === 'B'
+          ? isLastPageForVariant
+          : true
+      pages.push(
+        renderItemPage(
+          data,
+          descriptor,
+          pageNumber,
+          totalPages,
+          shouldShowTotals,
+          showFooter,
+        ),
+      )
+    } else if (descriptor.kind === 'payment-details') {
+      pages.push(<PaymentDetailsPage key={`details-${index}`} data={data} qrPayload={qrPayload} pageNumber={pageNumber} totalPages={totalPages} />)
+    } else {
+      pages.push(<PaymentInstructionsPage key={`instructions-${index}`} data={data} pageNumber={pageNumber} totalPages={totalPages} />)
+    }
+  })
+
   return <Document>{pages}</Document>
 }
