@@ -33,8 +33,21 @@ const baseStyles = StyleSheet.create({
     fontSize: 42,
     fontWeight: 700,
   },
+  subBlock: {
+    alignItems: 'flex-end',
+    maxWidth: 220,
+  },
+  subEn: {
+    fontFamily: 'EBGaramond',
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  subZh: {
+    fontSize: 10,
+    marginTop: 2,
+  },
   billToBlock: {
-    marginBottom: 14,
+    marginBottom: 18,
   },
   label: {
     fontSize: 9,
@@ -210,11 +223,7 @@ const buildPaymentBlock = (data: ClassicInvoiceDocInput) => (
   </View>
 )
 
-const renderHeaderVariant = (
-  data: ClassicInvoiceDocInput,
-  variant: 'A' | 'B',
-  invoiceDate: string,
-) => {
+const renderHeaderVariant = (data: ClassicInvoiceDocInput, variant: 'A' | 'B', invoiceDate: string) => {
   if (variant === 'A') {
     return (
       <View style={baseStyles.header}>
@@ -242,9 +251,14 @@ const renderHeaderVariant = (
     <View style={baseStyles.header}>
       <View>
         <Text style={baseStyles.logo}>E.</Text>
-        <Text style={{ fontSize: 10, marginTop: 4 }}>Establish Records Limited</Text>
+        <Text style={{ fontSize: 10, marginTop: 4 }}>
+          {data.subsidiaryEnglishName ?? 'Establish Records Limited'}
+        </Text>
+        {data.subsidiaryChineseName ? (
+          <Text style={baseStyles.subZh}>{data.subsidiaryChineseName}</Text>
+        ) : null}
       </View>
-      <View style={{ alignItems: 'flex-end' }}>
+      <View style={baseStyles.subBlock}>
         <Text style={baseStyles.label}>Invoice #</Text>
         <Text style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
           #{data.invoiceNumber}
