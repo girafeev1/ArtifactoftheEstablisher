@@ -28,8 +28,8 @@ const registerFontFamily = () => {
         ],
       })
     }
-  } catch {
-    /* ignore font registration errors */
+  } catch (error) {
+    console.error('[pdf] failed to register RobotoMono', error)
   }
   try {
     const varelaBase64 = FONT_DATA['VarelaRound-Regular.ttf']
@@ -41,8 +41,8 @@ const registerFontFamily = () => {
     if (varela) {
       Font.register({ family: 'VarelaRound', src: varela })
     }
-  } catch {
-    /* ignore font registration errors */
+  } catch (error) {
+    console.error('[pdf] failed to register VarelaRound', error)
   }
   try {
     const rampartBase64 = FONT_DATA['RampartOne-Regular.ttf']
@@ -54,8 +54,8 @@ const registerFontFamily = () => {
     if (rampart) {
       Font.register({ family: 'RampartOne', src: rampart })
     }
-  } catch {
-    /* ignore font registration errors */
+  } catch (error) {
+    console.error('[pdf] failed to register RampartOne', error)
   }
   try {
     const iansuiBase64 = FONT_DATA['Iansui-Regular.ttf']
@@ -67,8 +67,8 @@ const registerFontFamily = () => {
     if (iansui) {
       Font.register({ family: 'Iansui', src: iansui })
     }
-  } catch {
-    /* ignore font registration errors */
+  } catch (error) {
+    console.error('[pdf] failed to register Iansui', error)
   }
   try {
     Font.register({ family: 'Karla', src: KARLA_URL })
