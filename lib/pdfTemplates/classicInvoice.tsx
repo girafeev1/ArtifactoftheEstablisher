@@ -1,3 +1,4 @@
+import { Buffer } from 'buffer'
 import React from 'react'
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer'
 import { amountHK, num2eng, num2chi } from '../invoiceFormat'
@@ -5,14 +6,21 @@ import { FONT_DATA } from './fontData'
 
 const KARLA_URL = 'https://fonts.gstatic.com/s/karla/v31/Qw3KOZ2NCQ.woff'
 
+const ensureAtobPolyfill = () => {
+  if (typeof globalThis.atob !== 'function') {
+    globalThis.atob = (input: string) => Buffer.from(input, 'base64').toString('binary')
+  }
+}
+
+const toDataUri = (base64?: string | null) => (base64 ? `data:font/ttf;base64,${base64}` : null)
+
 const registerFontFamily = () => {
+  ensureAtobPolyfill()
   try {
     const robotoRegularBase64 = FONT_DATA['RobotoMono-Regular.ttf']
     const robotoBoldBase64 = FONT_DATA['RobotoMono-Bold.ttf']
-    const robotoRegularBuffer = robotoRegularBase64 ? Buffer.from(robotoRegularBase64, 'base64') : null
-    const robotoBoldBuffer = robotoBoldBase64 ? Buffer.from(robotoBoldBase64, 'base64') : null
-    const robotoRegular = robotoRegularBuffer ? ({ data: robotoRegularBuffer, format: 'truetype' } as any) : null
-    const robotoBold = robotoBoldBuffer ? ({ data: robotoBoldBuffer, format: 'truetype' } as any) : null
+    const robotoRegular = toDataUri(robotoRegularBase64)
+    const robotoBold = toDataUri(robotoBoldBase64)
     if (!robotoRegular || !robotoBold) {
       console.error('[pdf] missing embedded RobotoMono font data', {
         hasRegular: Boolean(robotoRegular),
@@ -33,8 +41,7 @@ const registerFontFamily = () => {
   }
   try {
     const varelaBase64 = FONT_DATA['VarelaRound-Regular.ttf']
-    const varelaBuffer = varelaBase64 ? Buffer.from(varelaBase64, 'base64') : null
-    const varela = varelaBuffer ? ({ data: varelaBuffer, format: 'truetype' } as any) : null
+    const varela = toDataUri(varelaBase64)
     if (!varela) {
       console.error('[pdf] missing embedded VarelaRound font data')
     }
@@ -46,8 +53,7 @@ const registerFontFamily = () => {
   }
   try {
     const rampartBase64 = FONT_DATA['RampartOne-Regular.ttf']
-    const rampartBuffer = rampartBase64 ? Buffer.from(rampartBase64, 'base64') : null
-    const rampart = rampartBuffer ? ({ data: rampartBuffer, format: 'truetype' } as any) : null
+    const rampart = toDataUri(rampartBase64)
     if (!rampart) {
       console.error('[pdf] missing embedded RampartOne font data')
     }
@@ -59,8 +65,7 @@ const registerFontFamily = () => {
   }
   try {
     const iansuiBase64 = FONT_DATA['Iansui-Regular.ttf']
-    const iansuiBuffer = iansuiBase64 ? Buffer.from(iansuiBase64, 'base64') : null
-    const iansui = iansuiBuffer ? ({ data: iansuiBuffer, format: 'truetype' } as any) : null
+    const iansui = toDataUri(iansuiBase64)
     if (!iansui) {
       console.error('[pdf] missing embedded Iansui font data')
     }
