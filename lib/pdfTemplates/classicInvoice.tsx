@@ -1,25 +1,14 @@
-import fs from 'fs'
-import path from 'path'
 import React from 'react'
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer'
 import { amountHK, num2eng, num2chi } from '../invoiceFormat'
+import { FONT_DATA } from './fontData'
 
-const FONT_BASE = path.join(process.cwd(), 'public/pdf-fonts')
 const KARLA_URL = 'https://fonts.gstatic.com/s/karla/v31/Qw3KOZ2NCQ.woff'
 
 const registerFontFamily = () => {
-  const loadFont = (filename: string) => {
-    try {
-      const buffer = fs.readFileSync(path.join(FONT_BASE, filename))
-      return `data:font/ttf;base64,${buffer.toString('base64')}`
-    } catch {
-      return null
-    }
-  }
-
   try {
-    const robotoRegular = loadFont('RobotoMono-Regular.ttf')
-    const robotoBold = loadFont('RobotoMono-Bold.ttf')
+    const robotoRegular = FONT_DATA['RobotoMono-Regular.ttf']
+    const robotoBold = FONT_DATA['RobotoMono-Bold.ttf']
     if (robotoRegular && robotoBold) {
       Font.register({
         family: 'RobotoMono',
@@ -33,7 +22,7 @@ const registerFontFamily = () => {
     /* ignore font registration errors */
   }
   try {
-    const varela = loadFont('VarelaRound-Regular.ttf')
+    const varela = FONT_DATA['VarelaRound-Regular.ttf']
     if (varela) {
       Font.register({ family: 'VarelaRound', src: varela })
     }
@@ -41,7 +30,7 @@ const registerFontFamily = () => {
     /* ignore font registration errors */
   }
   try {
-    const rampart = loadFont('RampartOne-Regular.ttf')
+    const rampart = FONT_DATA['RampartOne-Regular.ttf']
     if (rampart) {
       Font.register({ family: 'RampartOne', src: rampart })
     }
@@ -49,7 +38,7 @@ const registerFontFamily = () => {
     /* ignore font registration errors */
   }
   try {
-    const iansui = loadFont('Iansui-Regular.ttf')
+    const iansui = FONT_DATA['Iansui-Regular.ttf']
     if (iansui) {
       Font.register({ family: 'Iansui', src: iansui })
     }
