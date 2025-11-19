@@ -1,35 +1,57 @@
+import fs from 'fs'
 import path from 'path'
 import React from 'react'
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer'
 import { amountHK, num2eng, num2chi } from '../invoiceFormat'
 
-const FONT_DIR = path.join(process.cwd(), 'lib/pdfTemplates/fonts')
+const FONT_BASE = path.join(process.cwd(), 'public/pdf-fonts')
 const KARLA_URL = 'https://fonts.gstatic.com/s/karla/v31/Qw3KOZ2NCQ.woff'
 
 const registerFontFamily = () => {
+  const loadFont = (filename: string) => {
+    try {
+      return fs.readFileSync(path.join(FONT_BASE, filename))
+    } catch {
+      return null
+    }
+  }
+
   try {
-    Font.register({
-      family: 'RobotoMono',
-      fonts: [
-        { src: path.join(FONT_DIR, 'RobotoMono-Regular.ttf'), fontWeight: 400 },
-        { src: path.join(FONT_DIR, 'RobotoMono-Bold.ttf'), fontWeight: 700 },
-      ],
-    })
+    const robotoRegular = loadFont('RobotoMono-Regular.ttf')
+    const robotoBold = loadFont('RobotoMono-Bold.ttf')
+    if (robotoRegular && robotoBold) {
+      Font.register({
+        family: 'RobotoMono',
+        fonts: [
+          { src: robotoRegular, fontWeight: 400 },
+          { src: robotoBold, fontWeight: 700 },
+        ],
+      })
+    }
   } catch {
     /* ignore font registration errors */
   }
   try {
-    Font.register({ family: 'VarelaRound', src: path.join(FONT_DIR, 'VarelaRound-Regular.ttf') })
+    const varela = loadFont('VarelaRound-Regular.ttf')
+    if (varela) {
+      Font.register({ family: 'VarelaRound', src: varela })
+    }
   } catch {
     /* ignore font registration errors */
   }
   try {
-    Font.register({ family: 'RampartOne', src: path.join(FONT_DIR, 'RampartOne-Regular.ttf') })
+    const rampart = loadFont('RampartOne-Regular.ttf')
+    if (rampart) {
+      Font.register({ family: 'RampartOne', src: rampart })
+    }
   } catch {
     /* ignore font registration errors */
   }
   try {
-    Font.register({ family: 'Iansui', src: path.join(FONT_DIR, 'Iansui-Regular.ttf') })
+    const iansui = loadFont('Iansui-Regular.ttf')
+    if (iansui) {
+      Font.register({ family: 'Iansui', src: iansui })
+    }
   } catch {
     /* ignore font registration errors */
   }
