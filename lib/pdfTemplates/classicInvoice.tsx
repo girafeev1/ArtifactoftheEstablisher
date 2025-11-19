@@ -9,6 +9,12 @@ const registerFontFamily = () => {
   try {
     const robotoRegular = FONT_DATA['RobotoMono-Regular.ttf']
     const robotoBold = FONT_DATA['RobotoMono-Bold.ttf']
+    if (!robotoRegular || !robotoBold) {
+      console.error('[pdf] missing embedded RobotoMono font data', {
+        hasRegular: Boolean(robotoRegular),
+        hasBold: Boolean(robotoBold),
+      })
+    }
     if (robotoRegular && robotoBold) {
       Font.register({
         family: 'RobotoMono',
@@ -23,6 +29,9 @@ const registerFontFamily = () => {
   }
   try {
     const varela = FONT_DATA['VarelaRound-Regular.ttf']
+    if (!varela) {
+      console.error('[pdf] missing embedded VarelaRound font data')
+    }
     if (varela) {
       Font.register({ family: 'VarelaRound', src: varela })
     }
@@ -31,6 +40,9 @@ const registerFontFamily = () => {
   }
   try {
     const rampart = FONT_DATA['RampartOne-Regular.ttf']
+    if (!rampart) {
+      console.error('[pdf] missing embedded RampartOne font data')
+    }
     if (rampart) {
       Font.register({ family: 'RampartOne', src: rampart })
     }
@@ -39,6 +51,9 @@ const registerFontFamily = () => {
   }
   try {
     const iansui = FONT_DATA['Iansui-Regular.ttf']
+    if (!iansui) {
+      console.error('[pdf] missing embedded Iansui font data')
+    }
     if (iansui) {
       Font.register({ family: 'Iansui', src: iansui })
     }
