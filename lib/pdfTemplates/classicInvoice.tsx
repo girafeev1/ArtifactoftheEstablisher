@@ -7,8 +7,12 @@ const KARLA_URL = 'https://fonts.gstatic.com/s/karla/v31/Qw3KOZ2NCQ.woff'
 
 const registerFontFamily = () => {
   try {
-    const robotoRegular = FONT_DATA['RobotoMono-Regular.ttf']
-    const robotoBold = FONT_DATA['RobotoMono-Bold.ttf']
+    const robotoRegularBase64 = FONT_DATA['RobotoMono-Regular.ttf']
+    const robotoBoldBase64 = FONT_DATA['RobotoMono-Bold.ttf']
+    const robotoRegularBuffer = robotoRegularBase64 ? Buffer.from(robotoRegularBase64, 'base64') : null
+    const robotoBoldBuffer = robotoBoldBase64 ? Buffer.from(robotoBoldBase64, 'base64') : null
+    const robotoRegular = robotoRegularBuffer ? ({ data: robotoRegularBuffer, format: 'truetype' } as any) : null
+    const robotoBold = robotoBoldBuffer ? ({ data: robotoBoldBuffer, format: 'truetype' } as any) : null
     if (!robotoRegular || !robotoBold) {
       console.error('[pdf] missing embedded RobotoMono font data', {
         hasRegular: Boolean(robotoRegular),
@@ -28,7 +32,9 @@ const registerFontFamily = () => {
     /* ignore font registration errors */
   }
   try {
-    const varela = FONT_DATA['VarelaRound-Regular.ttf']
+    const varelaBase64 = FONT_DATA['VarelaRound-Regular.ttf']
+    const varelaBuffer = varelaBase64 ? Buffer.from(varelaBase64, 'base64') : null
+    const varela = varelaBuffer ? ({ data: varelaBuffer, format: 'truetype' } as any) : null
     if (!varela) {
       console.error('[pdf] missing embedded VarelaRound font data')
     }
@@ -39,7 +45,9 @@ const registerFontFamily = () => {
     /* ignore font registration errors */
   }
   try {
-    const rampart = FONT_DATA['RampartOne-Regular.ttf']
+    const rampartBase64 = FONT_DATA['RampartOne-Regular.ttf']
+    const rampartBuffer = rampartBase64 ? Buffer.from(rampartBase64, 'base64') : null
+    const rampart = rampartBuffer ? ({ data: rampartBuffer, format: 'truetype' } as any) : null
     if (!rampart) {
       console.error('[pdf] missing embedded RampartOne font data')
     }
@@ -50,7 +58,9 @@ const registerFontFamily = () => {
     /* ignore font registration errors */
   }
   try {
-    const iansui = FONT_DATA['Iansui-Regular.ttf']
+    const iansuiBase64 = FONT_DATA['Iansui-Regular.ttf']
+    const iansuiBuffer = iansuiBase64 ? Buffer.from(iansuiBase64, 'base64') : null
+    const iansui = iansuiBuffer ? ({ data: iansuiBuffer, format: 'truetype' } as any) : null
     if (!iansui) {
       console.error('[pdf] missing embedded Iansui font data')
     }
