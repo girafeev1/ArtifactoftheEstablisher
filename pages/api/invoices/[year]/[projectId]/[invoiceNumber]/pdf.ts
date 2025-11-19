@@ -1,11 +1,89 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import crypto from 'crypto'
 import { pdf } from '@react-pdf/renderer'
+import { doc, getDoc } from 'firebase/firestore'
 import { fetchInvoicesForProject } from '../../../../../../lib/projectInvoices'
-import { buildClassicInvoiceDocument } from '../../../../../../lib/pdfTemplates/classicInvoice'
+import { buildClassicInvoiceDocument, type ClassicInvoiceVariant } from '../../../../../../lib/pdfTemplates/classicInvoice'
+import { projectsDb } from '../../../../../../lib/firebase'
+import { fetchSubsidiaryById } from '../../../../../../lib/subsidiaries'
+import { resolveBankAccountIdentifier } from '../../../../../../lib/erlDirectory'
+
+const VARIANTS: ClassicInvoiceVariant[] = ['bundle', 'A', 'A2', 'B', 'B2']
 
 const computeHash = (obj: any): string =>
   crypto.createHash('sha256').update(JSON.stringify(obj)).digest('hex')
+
+const parseVariant = (raw: string | undefined | null): ClassicInvoiceVariant => {
+  if (!raw) return 'bundle'
+  const normalized = raw.trim()
+  return (VARIANTS.includes(normalized as ClassicInvoiceVariant) ? normalized : 'bundle') as ClassicInvoiceVariant
+}
+
+const toStringValue = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed.length ? trimmed : null
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value)
+  }
+  return null
+}
+
+const toNumberValue = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim())
+    return Number.isNaN(parsed) ? null : parsed
+  }
+  return null
+}
+
+const formatDisplayDate = (value: unknown): string | null => {
+  if (!value) return null
+  const fromString = toStringValue(value)
+  if (!fromString) return null
+  const parsed = new Date(fromString)
+  if (Number.isNaN(parsed.getTime())) return fromString
+  return parsed.toLocaleDateString('en-HK', { month: 'short', day: '2-digit', year: 'numeric' })
+}
+
+const fallbackSubsidiaryProfile = {
+  englishName: 'Establish Records Limited',
+  chineseName: '別樹唱片有限公司',
+  addressLines: [
+    '1/F 18 Wang Toi Shan Leung Uk Tsuen',
+    'Yuen Long Pat Heung',
+    'N.T.',
+    'Hong Kong',
+  ],
+  phone: '+(852) 6694 9527',
+  email: 'account@establishrecords.com',
+}
+
+const fetchProjectSnapshot = async (year: string, projectId: string) => {
+  try {
+    const nested = doc(projectsDb, 'projects', year, 'projects', projectId)
+    const nestedSnap = await getDoc(nested)
+    if (nestedSnap.exists()) {
+      return nestedSnap
+    }
+  } catch {
+    // ignore nested errors and fall back
+  }
+  try {
+    const legacy = doc(projectsDb, year, projectId)
+    const legacySnap = await getDoc(legacy)
+    if (legacySnap.exists()) {
+      return legacySnap
+    }
+  } catch {
+    // ignore
+  }
+  return null
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
@@ -15,13 +93,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const meta = (req.query.meta as string) || null
   const inline = req.query.inline === '1'
+  const variant = parseVariant(req.query.variant as string)
 
   let inv: any
   try {
     const invoices = await fetchInvoicesForProject(year, projectId)
     inv = invoices.find((invoice) => invoice.invoiceNumber === invoiceNumber)
   } catch (error: any) {
-    try { console.error('[pdf] fetch error', { error: error?.message || String(error) }) } catch {}
+    try { console.error('[pdf] fetch error', { error: error?.message || String(error) }) } catch {
+      /* ignore logging errors */
+    }
     return res.status(500).send('Failed to load invoice data')
   }
 
@@ -36,9 +117,100 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (item.feeType) lines += 1
       if (item.notes) lines += Math.ceil(String(item.notes).length / 80)
     })
-    const pages = Math.max(1, Math.ceil(lines / 28))
+    const perPage = variant === 'A' || variant === 'A2' ? 22 : 28
+    const pages = Math.max(1, Math.ceil(lines / perPage))
     return res.status(200).json({ itemsPages: pages })
   }
+
+  const projectSnap = await fetchProjectSnapshot(year, projectId)
+  const projectData = projectSnap?.data() ?? null
+  const projectTitle = toStringValue(projectData?.projectTitle) ?? toStringValue(inv.projectTitle)
+  const presenterWorkType =
+    toStringValue(projectData?.presenterWorkType) ?? toStringValue(inv.presenterWorkType)
+  const projectNature = toStringValue(projectData?.projectNature) ?? toStringValue(inv.projectNature)
+  const projectNumber = toStringValue(projectData?.projectNumber) ?? toStringValue(inv.projectNumber)
+  const projectDate = formatDisplayDate(
+    (projectData as any)?.projectDateDisplay ??
+      (projectData as any)?.projectDateIso ??
+      (projectData as any)?.projectDate ??
+      inv.projectDateDisplay ??
+      inv.projectDateIso ??
+      inv.projectDate ??
+      null,
+  )
+  const projectPickupDate = formatDisplayDate((projectData as any)?.projectPickupDate ?? null)
+  const subsidiaryId = toStringValue((projectData as any)?.subsidiary ?? inv.subsidiary ?? null)
+  let subsidiaryDoc: Awaited<ReturnType<typeof fetchSubsidiaryById>> | null = null
+  if (subsidiaryId) {
+    try {
+      subsidiaryDoc = await fetchSubsidiaryById(subsidiaryId)
+    } catch {
+      subsidiaryDoc = null
+    }
+  }
+  const subsidiaryProfile = {
+    englishName:
+      toStringValue(subsidiaryDoc?.englishName) ?? fallbackSubsidiaryProfile.englishName,
+    chineseName:
+      toStringValue(subsidiaryDoc?.chineseName) ?? fallbackSubsidiaryProfile.chineseName,
+    addressLines: [
+      toStringValue((subsidiaryDoc as any)?.addressLine1),
+      toStringValue((subsidiaryDoc as any)?.addressLine2),
+      toStringValue((subsidiaryDoc as any)?.addressLine3),
+      toStringValue((subsidiaryDoc as any)?.region),
+    ].filter((line): line is string => Boolean(line && line.trim())),
+    phone: toStringValue(subsidiaryDoc?.phone) ?? fallbackSubsidiaryProfile.phone,
+    email: toStringValue(subsidiaryDoc?.email) ?? fallbackSubsidiaryProfile.email,
+  }
+  if (!subsidiaryProfile.addressLines.length) {
+    subsidiaryProfile.addressLines = [...fallbackSubsidiaryProfile.addressLines]
+  }
+
+  const normalizedItems = (Array.isArray(inv.items) ? inv.items : []).map((item: any) => ({
+    title: toStringValue(item.title),
+    subQuantity: toStringValue(item.subQuantity),
+    feeType: toStringValue(item.feeType),
+    notes: toStringValue(item.notes),
+    unitPrice: toNumberValue(item.unitPrice),
+    quantity: toNumberValue(item.quantity),
+    quantityUnit: toStringValue(item.quantityUnit),
+    discount: toNumberValue(item.discount),
+  }))
+
+  let bankProfile: Awaited<ReturnType<typeof resolveBankAccountIdentifier>> | null = null
+  if (typeof inv.paidTo === 'string' && inv.paidTo.trim()) {
+    try {
+      bankProfile = await resolveBankAccountIdentifier(inv.paidTo.trim())
+    } catch {
+      bankProfile = null
+    }
+  }
+
+  const bankName = toStringValue(inv.bankName) ?? toStringValue(bankProfile?.bankName)
+  const bankCode = toStringValue(inv.bankCode) ?? toStringValue(bankProfile?.bankCode)
+  const accountType = toStringValue(inv.accountType) ?? toStringValue(bankProfile?.accountType)
+  const accountNumber = toStringValue((inv as any)?.bankAccountNumber) ?? toStringValue(bankProfile?.accountNumber)
+  const fpsId = toStringValue((inv as any)?.fpsId) ?? toStringValue(bankProfile?.fpsId)
+  const fpsEmail = toStringValue((inv as any)?.fpsEmail) ?? toStringValue(bankProfile?.fpsEmail)
+  const paidToLabel =
+    toStringValue((inv as any)?.paidToLabel) ??
+    toStringValue((inv as any)?.payeeName) ??
+    toStringValue(inv.paidTo) ??
+    subsidiaryProfile.englishName
+
+  const paymentStatus = toStringValue(inv.paymentStatus) ?? 'Due'
+  const subtotalValue = typeof inv.subtotal === 'number' ? inv.subtotal : null
+  const totalValue = typeof inv.total === 'number' ? inv.total : null
+  const amountValue = typeof inv.amount === 'number' ? inv.amount : null
+  const taxOrDiscountPercent =
+    typeof inv.taxOrDiscountPercent === 'number' ? inv.taxOrDiscountPercent : null
+  const invoiceDateDisplay = new Date().toLocaleDateString('en-HK', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  })
+  const paymentTerms =
+    toStringValue((inv as any)?.paymentTerms) ?? 'FULL PAYMENT WITHIN 7 DAYS'
 
   const model = {
     invoiceNumber: inv.invoiceNumber,
@@ -48,62 +220,73 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     addressLine3: inv.addressLine3,
     region: inv.region,
     representative: inv.representative,
-    items: (inv.items || []).map((item: any) => ({
-      title: item.title,
-      subQuantity: item.subQuantity,
-      feeType: item.feeType,
-      notes: item.notes,
-      unitPrice: item.unitPrice,
-      quantity: item.quantity,
-      quantityUnit: item.quantityUnit,
-      discount: item.discount,
-    })),
-    amount: inv.amount,
-    paymentStatus: inv.paymentStatus,
-    paidTo: inv.paidTo,
+    items: normalizedItems,
+    amount: amountValue,
+    paymentStatus,
+    paidTo: paidToLabel,
+    projectTitle,
+    presenterWorkType,
+    projectNature,
+    projectNumber,
+    projectDate,
   }
   const hash = computeHash(model)
-  try { console.info('[pdf] build model hash', { hash }) } catch {}
+  try { console.info('[pdf] build model hash', { hash }) } catch {
+    /* ignore logging errors */
+  }
 
   const docInput = {
     invoiceNumber: inv.invoiceNumber,
+    invoiceDateDisplay,
     companyName: inv.companyName ?? null,
     addressLine1: inv.addressLine1 ?? null,
     addressLine2: inv.addressLine2 ?? null,
     addressLine3: inv.addressLine3 ?? null,
     region: inv.region ?? null,
     representative: inv.representative ?? null,
-    presenterWorkType: inv.presenterWorkType ?? null,
-    projectTitle: inv.projectTitle ?? null,
-    projectNature: inv.projectNature ?? null,
-    subsidiaryEnglishName: inv.companyName ?? null,
-    subsidiaryChineseName: inv.subsidiaryChineseName ?? null,
-    items: Array.isArray(inv.items) ? inv.items : [],
-    subtotal: typeof inv.subtotal === 'number' ? inv.subtotal : null,
-    total: typeof inv.total === 'number' ? inv.total : null,
-    amount: typeof inv.amount === 'number' ? inv.amount : null,
-    paidTo: inv.paidTo ?? null,
-    paymentStatus: inv.paymentStatus ?? null,
-    bankName: inv.bankName ?? null,
-    bankCode: inv.bankCode ?? null,
-    accountType: inv.accountType ?? null,
+    presenterWorkType: presenterWorkType ?? null,
+    projectTitle: projectTitle ?? null,
+    projectNature: projectNature ?? null,
+    projectNumber: projectNumber ?? null,
+    projectDate: projectDate ?? null,
+    projectPickupDate: projectPickupDate ?? null,
+    subsidiaryEnglishName: subsidiaryProfile.englishName,
+    subsidiaryChineseName: subsidiaryProfile.chineseName ?? null,
+    subsidiaryAddressLines: subsidiaryProfile.addressLines,
+    subsidiaryPhone: subsidiaryProfile.phone,
+    subsidiaryEmail: subsidiaryProfile.email,
+    items: normalizedItems,
+    subtotal: subtotalValue,
+    total: totalValue,
+    amount: amountValue,
+    taxOrDiscountPercent,
+    paidTo: paidToLabel,
+    paymentStatus,
+    bankName,
+    bankCode,
+    accountType,
+    bankAccountNumber: accountNumber,
+    fpsId,
+    fpsEmail,
+    paymentTerms,
   }
 
   let pdfBuffer: Buffer
   try {
-    const document = buildClassicInvoiceDocument(docInput)
+    const document = buildClassicInvoiceDocument(docInput, { variant })
     const instance = pdf(document)
     const rendered: any = await instance.toBuffer()
     pdfBuffer = Buffer.isBuffer(rendered) ? rendered : Buffer.from(rendered)
   } catch (renderError: any) {
     const errorMessage = renderError?.message || String(renderError)
-    try { console.error('[pdf] react-pdf render failed', { error: errorMessage }) } catch {}
+    try { console.error('[pdf] react-pdf render failed', { error: errorMessage }) } catch {
+      /* ignore logging errors */
+    }
     if ((req.query.debug as string) === '1') {
       return res.status(500).send(`Failed to render PDF: ${errorMessage}`)
     }
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const PDFDocument = require('pdfkit')
+      const { default: PDFDocument } = await import('pdfkit')
       const doc = new PDFDocument({ size: 'A4', margins: { top: 36, bottom: 36, left: 40, right: 40 } })
       const chunks: Buffer[] = []
       doc.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
@@ -133,7 +316,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await new Promise<void>((resolve) => doc.on('end', () => resolve()))
       pdfBuffer = Buffer.concat(chunks)
     } catch (fallbackError) {
-      try { console.error('[pdf] fallback render failed', { error: fallbackError?.message || String(fallbackError) }) } catch {}
+      try { console.error('[pdf] fallback render failed', { error: fallbackError?.message || String(fallbackError) }) } catch {
+        /* ignore logging errors */
+      }
       return res.status(500).send('Failed to render PDF')
     }
   }
