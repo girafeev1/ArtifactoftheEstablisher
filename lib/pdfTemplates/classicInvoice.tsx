@@ -101,16 +101,21 @@ registerFontFamily()
 const PAGE_WIDTH = 595.28 // A4 width in points
 const PAGE_HEIGHT = 841.89
 const PAGE_MARGIN = { top: 21.6, bottom: 21.6, left: 14.4, right: 14.4 } // 0.3"/0.2"
+const px2pt = (px: number) => px * 0.75
+const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN.left - PAGE_MARGIN.right
+// Use absolute widths (pt) for closer parity; replace with scanned values when available
+const DESC_COL_WIDTH = Math.round(CONTENT_WIDTH * 0.70)
+const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
 
   const styles = StyleSheet.create({
     page: {
     fontFamily: 'Helvetica',
-    fontSize: 10,
+    fontSize: 10, // Body text
     color: '#111827',
     paddingTop: PAGE_MARGIN.top,
     paddingBottom: PAGE_MARGIN.bottom,
     paddingHorizontal: PAGE_MARGIN.left,
-    lineHeight: 1.35,
+    lineHeight: 1.4,
   },
   headerRow: {
     flexDirection: 'row',
@@ -128,19 +133,19 @@ const PAGE_MARGIN = { top: 21.6, bottom: 21.6, left: 14.4, right: 14.4 } // 0.3"
     letterSpacing: 1.2,
   },
   sectionLabel: {
-    fontSize: 9,
-    letterSpacing: 1,
+    fontSize: 12,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
     color: '#475569',
     marginBottom: 4,
   },
   billName: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 700,
     marginBottom: 2,
   },
   projectTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 700,
     marginBottom: 1,
   },
@@ -150,24 +155,24 @@ const PAGE_MARGIN = { top: 21.6, bottom: 21.6, left: 14.4, right: 14.4 } // 0.3"
   },
   tableHeader: {
     flexDirection: 'row',
-    borderBottomWidth: 1.4,
+    borderBottomWidth: 1.5,
     borderColor: '#0f172a',
     paddingBottom: 4,
     marginTop: 16,
   },
   tableColDesc: {
-    width: '70%',
+    width: DESC_COL_WIDTH,
     paddingRight: 18,
   },
   tableColAmount: {
-    width: '30%',
+    width: AMOUNT_COL_WIDTH,
     textAlign: 'right',
   },
   itemRow: {
     flexDirection: 'row',
     borderBottomWidth: 0.5,
     borderColor: '#e2e8f0',
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   amountCell: {
     fontWeight: 700,
@@ -185,7 +190,7 @@ const PAGE_MARGIN = { top: 21.6, bottom: 21.6, left: 14.4, right: 14.4 } // 0.3"
   },
   footer: {
     marginTop: 14,
-    fontSize: 9,
+    fontSize: 8.5,
     color: '#475569',
   },
   footerZh: {
