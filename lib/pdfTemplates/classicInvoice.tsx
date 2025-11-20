@@ -22,16 +22,33 @@ const ensureAtobPolyfill = () => {
 
 const toDataUri = (base64?: string | null) => (base64 ? `data:font/ttf;base64,${base64}` : null)
 
+const isValidBase64Font = (b64?: string | null) => {
+  try {
+    if (!b64 || typeof b64 !== 'string' || b64.length < 32) return false
+    const buf = Buffer.from(b64, 'base64')
+    if (!buf || buf.length < 1024) return false
+    // TrueType starts with 00 01 00 00; OpenType(CFF) starts with 'OTTO'
+    const sig = buf.slice(0, 4).toString('ascii')
+    if (sig === 'OTTO') return true
+    const ttfSig = buf.readUInt32BE(0)
+    return ttfSig === 0x00010000
+  } catch {
+    return false
+  }
+}
+
 const pickFontSrc = (fileKey: keyof typeof FONT_DATA | string, remoteUrl?: string | null) => {
   try {
     // Prefer embedded base64 when available
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const base64: string | undefined = FONT_DATA[fileKey as any]
-    const data = toDataUri(base64)
-    if (data) {
-      try { console.info('[pdf-font] using embedded', { fileKey }) } catch {}
-      return data
+    if (isValidBase64Font(base64)) {
+      const data = toDataUri(base64)
+      if (data) {
+        try { console.info('[pdf-font] using embedded', { fileKey }) } catch {}
+        return data
+      }
     }
     if (remoteUrl) {
       try { console.info('[pdf-font] using remote', { fileKey, url: remoteUrl }) } catch {}
@@ -46,11 +63,9 @@ const pickFontSrc = (fileKey: keyof typeof FONT_DATA | string, remoteUrl?: strin
 const registerFontFamily = () => {
   ensureAtobPolyfill()
   try {
-    let r400 = pickFontSrc('RobotoMono-Regular.ttf', REMOTE_TTF.RobotoMonoRegular)
-    let r700 = pickFontSrc('RobotoMono-Bold.ttf', REMOTE_TTF.RobotoMonoBold)
-    // Fallback to variable TTF if specific cuts are unavailable
-    if (!r400) r400 = REMOTE_TTF.RobotoMonoVar
-    if (!r700) r700 = REMOTE_TTF.RobotoMonoVar
+    // RobotoMono: embedded only. Skip registration if invalid/missing to avoid Unknown font format.
+    const r400 = pickFontSrc('RobotoMono-Regular.ttf', null)
+    const r700 = pickFontSrc('RobotoMono-Bold.ttf', null)
     if (!r400 || !r700) {
       try { console.error('[pdf-font] RobotoMono sources missing', { has400: Boolean(r400), has700: Boolean(r700) }) } catch {}
     }
@@ -644,39 +659,39 @@ const PaymentInstructionsPage = ({
     <Text style={{ fontFamily: 'CormorantInfant', fontSize: 22, letterSpacing: 0.3, marginBottom: 10 }}>
       Payment Instructions
     </Text>
-    <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, marginBottom: 12 }}>
+      <Text style={{ fontSize: 10, marginBottom: 12 }}>
       Payment for this invoice is required within <Text style={{ fontWeight: 700 }}>7 DAYS</Text> of its issuance. Please choose from the payment methods listed below.
     </Text>
 
     {/* 1. Payable Cheque */}
     <View style={{ borderWidth: 1, borderColor: '#f59e0b', backgroundColor: '#fff7e6', borderRadius: 6, padding: 16, marginBottom: 16 }}>
-      <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, fontWeight: 700, marginBottom: 6 }}>1. Payable Cheque</Text>
+      <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>1. Payable Cheque</Text>
       <View style={{ borderWidth: 1, borderColor: '#eab308', backgroundColor: '#fffef7', borderRadius: 4, padding: 12 }}>
-        <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>
+        <Text style={{ fontSize: 10 }}>
           Pay to: {data.paidTo ?? data.subsidiaryEnglishName ?? 'Establish Records Limited'}
         </Text>
-        <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Amount (in words): {num2eng((typeof data.total === 'number' ? data.total : data.amount) ?? 0) || amountHK((typeof data.total === 'number' ? data.total : data.amount) ?? 0)}</Text>
+        <Text style={{ fontSize: 10 }}>Amount (in words): {num2eng((typeof data.total === 'number' ? data.total : data.amount) ?? 0) || amountHK((typeof data.total === 'number' ? data.total : data.amount) ?? 0)}</Text>
         <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>金額（中文）：{num2chi((typeof data.total === 'number' ? data.total : data.amount) ?? 0)}</Text>
       </View>
     </View>
 
-    <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, textAlign: 'center', marginBottom: 12 }}>or</Text>
+    <Text style={{ fontSize: 10, textAlign: 'center', marginBottom: 12 }}>or</Text>
 
     {/* 2. Payment Transfer */}
     <View style={{ borderWidth: 1, borderColor: '#86efac', backgroundColor: '#f0fff4', borderRadius: 6, padding: 16 }}>
-      <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, fontWeight: 700, marginBottom: 6 }}>2. Payment Transfer</Text>
-      <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Account Name: {data.paidTo ?? data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+      <Text style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>2. Payment Transfer</Text>
+      <Text style={{ fontSize: 10 }}>Account Name: {data.paidTo ?? data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
       {data.bankName ? (
-        <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>
+        <Text style={{ fontSize: 10 }}>
           Bank: {data.bankName}{data.bankCode ? ` (${data.bankCode})` : ''}
         </Text>
       ) : null}
       <View style={{ flexDirection: 'row', gap: 24, marginTop: 2 }}>
-        {data.bankCode ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Branch Code: {data.bankCode}</Text> : null}
-        {data.bankAccountNumber ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Account Number: {data.bankAccountNumber}</Text> : null}
+        {data.bankCode ? <Text style={{ fontSize: 10 }}>Branch Code: {data.bankCode}</Text> : null}
+        {data.bankAccountNumber ? <Text style={{ fontSize: 10 }}>Account Number: {data.bankAccountNumber}</Text> : null}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
-        {data.fpsId ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>FPS ID: {data.fpsId}</Text> : null}
+        {data.fpsId ? <Text style={{ fontSize: 10 }}>FPS ID: {data.fpsId}</Text> : null}
         {qrPayload ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Image src={buildHKFPSQrUrl(qrPayload, 128)!} style={{ width: 96, height: 96 }} />
@@ -710,12 +725,12 @@ const renderHeaderForVariant = (
         <View style={[styles.headerRow, { marginBottom: 16 }]}>
           <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={styles.invoiceLabel}>Invoice</Text>
-            <Text style={{ fontFamily: 'RobotoMono', fontSize: 12, fontWeight: 700, marginTop: 6 }}>Invoice #: {data.invoiceNumber}</Text>
-            {data.invoiceDateDisplay ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Date: {data.invoiceDateDisplay}</Text> : null}
+            <Text style={{ fontSize: 12, fontWeight: 700, marginTop: 6 }}>Invoice #: {data.invoiceNumber}</Text>
+            {data.invoiceDateDisplay ? <Text style={{ fontSize: 10 }}>Date: {data.invoiceDateDisplay}</Text> : null}
           </View>
           <View style={{ alignItems: 'flex-end', paddingLeft: 12 }}>
             <Text style={[styles.logoMark, { marginBottom: 6 }]}>E.</Text>
-            <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, fontWeight: 700 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+            <Text style={{ fontSize: 10, fontWeight: 700 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
             {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>{data.subsidiaryChineseName}</Text> : null}
             <View style={{ marginTop: 2 }}>{renderAddressLines(data.subsidiaryAddressLines ?? [])}</View>
           </View>
