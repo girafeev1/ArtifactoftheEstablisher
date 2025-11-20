@@ -285,12 +285,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     paymentTerms,
   }
 
+  const bufferFromStream = (stream: any): Promise<Buffer> =>
+    new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []
+      stream.on('data', (chunk: Buffer | Uint8Array) => chunks.push(Buffer.from(chunk)))
+      stream.on('end', () => resolve(Buffer.concat(chunks)))
+      stream.on('error', (err: any) => reject(err))
+    })
+
   let pdfBuffer: Buffer
   try {
     const document = buildClassicInvoiceDocument(docInput, { variant })
     const instance = pdf(document)
     const rendered: any = await instance.toBuffer()
-    pdfBuffer = Buffer.isBuffer(rendered) ? rendered : Buffer.from(rendered)
+    if (Buffer.isBuffer(rendered)) {
+      pdfBuffer = rendered
+    } else if (
+      rendered instanceof Uint8Array ||
+      (typeof rendered === 'object' && rendered && typeof (rendered as any).byteLength === 'number')
+    ) {
+      pdfBuffer = Buffer.from(rendered as Uint8Array)
+    } else if (rendered && typeof (rendered as any).on === 'function' && typeof (rendered as any).pipe === 'function') {
+      const stream = await instance.toStream()
+      pdfBuffer = await bufferFromStream(stream)
+    } else {
+      // As a final attempt, try streaming
+      const stream = await instance.toStream()
+      pdfBuffer = await bufferFromStream(stream)
+    }
   } catch (renderError: any) {
     const errorMessage = renderError?.message || String(renderError)
     try { console.error('[pdf] react-pdf render failed', { error: errorMessage }) } catch {
