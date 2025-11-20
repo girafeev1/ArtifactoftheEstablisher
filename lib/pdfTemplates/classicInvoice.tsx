@@ -631,10 +631,12 @@ const PaymentDetailsPage = ({
 
 const PaymentInstructionsPage = ({
   data,
+  qrPayload,
   pageNumber,
   totalPages,
 }: {
   data: ClassicInvoiceDocInput
+  qrPayload: string | null
   pageNumber: number
   totalPages: number
 }) => (
@@ -859,7 +861,7 @@ export const buildClassicInvoiceDocument = (
     } else if (descriptor.kind === 'payment-details') {
       pages.push(<PaymentDetailsPage key={`details-${index}`} data={data} qrPayload={qrPayload} pageNumber={pageNumber} totalPages={totalPages} />)
     } else {
-      pages.push(<PaymentInstructionsPage key={`instructions-${index}`} data={data} pageNumber={pageNumber} totalPages={totalPages} />)
+      pages.push(<PaymentInstructionsPage key={`instructions-${index}`} data={data} qrPayload={qrPayload} pageNumber={pageNumber} totalPages={totalPages} />)
     }
   })
 
