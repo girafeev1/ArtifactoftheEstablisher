@@ -4,8 +4,6 @@ import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/
 import { amountHK, num2eng, num2chi } from '../invoiceFormat'
 import { FONT_DATA } from './fontData'
 
-const KARLA_URL = 'https://fonts.gstatic.com/s/karla/v31/Qw3KOZ2NCQ.woff'
-
 // Remote TTF fallbacks (used only if embedded base64 is missing)
 const REMOTE_TTF = {
   RobotoMonoRegular: 'https://raw.githubusercontent.com/google/fonts/main/apache/robotomono/RobotoMono-Regular.ttf',
@@ -94,11 +92,8 @@ const registerFontFamily = () => {
   } catch (error) {
     try { console.error('[pdf-font] failed to register Iansui', { error: (error as any)?.message || String(error) }) } catch {}
   }
-  try {
-    Font.register({ family: 'Karla', src: KARLA_URL })
-  } catch {
-    /* ignore font registration errors */
-  }
+  // Removed Karla WOFF registration (unsupported format in fontkit/React-PDF). If Karla is
+  // required later, embed a TTF as base64 in FONT_DATA or use a valid TTF URL.
 }
 
 registerFontFamily()
@@ -613,7 +608,7 @@ const PaymentInstructionsPage = ({
         backgroundColor: '#fff7ed',
       }}
     >
-      <Text style={{ fontFamily: 'Karla', textTransform: 'uppercase', fontSize: 10, color: '#dc2626' }}>
+      <Text style={{ fontFamily: 'VarelaRound', textTransform: 'uppercase', fontSize: 10, color: '#dc2626' }}>
         Payment Instructions
       </Text>
       <Text style={{ fontFamily: 'VarelaRound', fontSize: 20, marginTop: 8, marginBottom: 6 }}>
