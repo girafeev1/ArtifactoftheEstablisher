@@ -11,8 +11,7 @@ const REMOTE_TTF = {
   RobotoMonoVar: 'https://raw.githubusercontent.com/google/fonts/main/ofl/robotomono/RobotoMono%5Bwght%5D.ttf',
   VarelaRoundRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/varelaround/VarelaRound-Regular.ttf',
   RampartOneRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/rampartone/RampartOne-Regular.ttf',
-  CormorantInfantRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantinfant/CormorantInfant-Regular.ttf',
-  CormorantInfantBold: 'https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantinfant/CormorantInfant-Bold.ttf',
+  CormorantInfantVar: 'https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantinfant/CormorantInfant%5Bwght%5D.ttf',
 } as const
 
 const ensureAtobPolyfill = () => {
@@ -78,13 +77,12 @@ const registerFontFamily = () => {
     try { console.error('[pdf-font] failed to register VarelaRound', { error: (error as any)?.message || String(error) }) } catch {}
   }
   try {
-    const ciRegular = pickFontSrc('CormorantInfant-Regular.ttf', REMOTE_TTF.CormorantInfantRegular) || REMOTE_TTF.CormorantInfantRegular
-    const ciBold = pickFontSrc('CormorantInfant-Bold.ttf', REMOTE_TTF.CormorantInfantBold) || REMOTE_TTF.CormorantInfantBold
+    const ciVar = REMOTE_TTF.CormorantInfantVar
     Font.register({
       family: 'CormorantInfant',
       fonts: [
-        { src: ciRegular, fontWeight: 400 },
-        { src: ciBold, fontWeight: 700 },
+        { src: ciVar, fontWeight: 400 },
+        { src: ciVar, fontWeight: 700 },
       ],
     })
   } catch (error) {
