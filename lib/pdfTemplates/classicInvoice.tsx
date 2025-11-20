@@ -753,8 +753,12 @@ const buildDescriptors = (variant: ClassicInvoiceVariant, data: ClassicInvoiceDo
       break
     case 'bundle':
     default:
-      addVariantBlock('B', false, false)
-      addVariantBlock('A', true, true)
+      // Produce exactly 4 pages to mirror company standard:
+      // 1) Invoice (variant B), 2) Invoice (variant A), 3) Payment Details, 4) Payment Instructions
+      descriptors.push({ kind: 'items', variantBase: 'B', items: data.items, pageIndex: 0, totalPagesForVariant: 1 })
+      descriptors.push({ kind: 'items', variantBase: 'A', items: data.items, pageIndex: 0, totalPagesForVariant: 1 })
+      descriptors.push({ kind: 'payment-details', title: 'Payment Details' })
+      descriptors.push({ kind: 'payment-instructions', title: 'Payment Instructions' })
       break
   }
   return descriptors
