@@ -11,6 +11,8 @@ const REMOTE_TTF = {
   RobotoMonoVar: 'https://raw.githubusercontent.com/google/fonts/main/ofl/robotomono/RobotoMono%5Bwght%5D.ttf',
   VarelaRoundRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/varelaround/VarelaRound-Regular.ttf',
   RampartOneRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/rampartone/RampartOne-Regular.ttf',
+  CormorantInfantRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantinfant/CormorantInfant-Regular.ttf',
+  CormorantInfantBold: 'https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantinfant/CormorantInfant-Bold.ttf',
 } as const
 
 const ensureAtobPolyfill = () => {
@@ -76,6 +78,19 @@ const registerFontFamily = () => {
     try { console.error('[pdf-font] failed to register VarelaRound', { error: (error as any)?.message || String(error) }) } catch {}
   }
   try {
+    const ciRegular = pickFontSrc('CormorantInfant-Regular.ttf', REMOTE_TTF.CormorantInfantRegular) || REMOTE_TTF.CormorantInfantRegular
+    const ciBold = pickFontSrc('CormorantInfant-Bold.ttf', REMOTE_TTF.CormorantInfantBold) || REMOTE_TTF.CormorantInfantBold
+    Font.register({
+      family: 'CormorantInfant',
+      fonts: [
+        { src: ciRegular, fontWeight: 400 },
+        { src: ciBold, fontWeight: 700 },
+      ],
+    })
+  } catch (error) {
+    try { console.error('[pdf-font] failed to register CormorantInfant', { error: (error as any)?.message || String(error) }) } catch {}
+  }
+  try {
     const rampart = pickFontSrc('RampartOne-Regular.ttf', REMOTE_TTF.RampartOneRegular)
     if (!rampart) {
       try { console.error('[pdf-font] RampartOne source missing') } catch {}
@@ -128,28 +143,28 @@ const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
   },
   logoMark: {
     fontFamily: 'RampartOne',
-    fontSize: 46,
+    fontSize: 36,
     color: '#0f172a',
   },
   invoiceLabel: {
-    fontFamily: 'VarelaRound',
-    fontSize: 22,
-    letterSpacing: 1.2,
+    fontFamily: 'CormorantInfant',
+    fontSize: 24,
+    letterSpacing: 0.35,
   },
   sectionLabel: {
-    fontSize: 12,
-    letterSpacing: 0.5,
+    fontSize: 10,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
     color: '#475569',
     marginBottom: 4,
   },
   billName: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
     marginBottom: 2,
   },
   projectTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
     marginBottom: 1,
   },
@@ -636,21 +651,21 @@ const renderHeaderForVariant = (
   if (variant === 'A') {
     return (
       <>
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
+        <View style={[styles.headerRow, { marginBottom: 16 }]}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={styles.invoiceLabel}>Invoice</Text>
-            <Text style={{ fontSize: 14, fontWeight: 700 }}>Invoice #: {data.invoiceNumber}</Text>
-            {data.invoiceDateDisplay ? <Text>Date: {data.invoiceDateDisplay}</Text> : null}
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 12, fontWeight: 700, marginTop: 6 }}>Invoice #: {data.invoiceNumber}</Text>
+            {data.invoiceDateDisplay ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Date: {data.invoiceDateDisplay}</Text> : null}
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.logoMark}>E.</Text>
-            <Text>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
-            {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui' }}>{data.subsidiaryChineseName}</Text> : null}
-            {renderAddressLines(data.subsidiaryAddressLines ?? [])}
+          <View style={{ alignItems: 'flex-end', paddingLeft: 12 }}>
+            <Text style={[styles.logoMark, { marginBottom: 6 }]}>E.</Text>
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, fontWeight: 700 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+            {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>{data.subsidiaryChineseName}</Text> : null}
+            <View style={{ marginTop: 2 }}>{renderAddressLines(data.subsidiaryAddressLines ?? [])}</View>
           </View>
         </View>
         {showClientBlock ? (
-          <View style={styles.headerRow}>
+          <View style={[styles.headerRow, { marginBottom: 8 }]}>
             <BillTo data={data} />
             <View style={{ width: 220 }} />
           </View>
@@ -661,16 +676,16 @@ const renderHeaderForVariant = (
 
   return (
     <>
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, { marginBottom: 16 }]}>
         <View>
-          <Text style={styles.logoMark}>E.</Text>
+          <Text style={[styles.logoMark, { marginRight: 8 }]}>E.</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ fontSize: 16, fontWeight: 700, letterSpacing: 0.3 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
-          {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui' }}>{data.subsidiaryChineseName}</Text> : null}
+          <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, fontWeight: 700 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+          {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>{data.subsidiaryChineseName}</Text> : null}
           {renderAddressLines(data.subsidiaryAddressLines ?? [])}
-          {data.subsidiaryEmail ? <Text>{data.subsidiaryEmail}</Text> : null}
-          {data.subsidiaryPhone ? <Text>{data.subsidiaryPhone}</Text> : null}
+          {data.subsidiaryEmail ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>{data.subsidiaryEmail}</Text> : null}
+          {data.subsidiaryPhone ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>{data.subsidiaryPhone}</Text> : null}
         </View>
       </View>
       {showClientBlock ? (
