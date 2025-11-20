@@ -125,14 +125,14 @@ const DESC_COL_WIDTH = Math.round(CONTENT_WIDTH * 0.70)
 const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
 
   const styles = StyleSheet.create({
-    page: {
-    fontFamily: 'Helvetica',
+  page: {
+    fontFamily: 'RobotoMono',
     fontSize: 10, // Body text
     color: '#111827',
     paddingTop: PAGE_MARGIN.top,
     paddingBottom: PAGE_MARGIN.bottom,
     paddingHorizontal: PAGE_MARGIN.left,
-    lineHeight: 1.4,
+    lineHeight: 1.38,
   },
   headerRow: {
     flexDirection: 'row',
@@ -639,29 +639,59 @@ const PaymentInstructionsPage = ({
   totalPages: number
 }) => (
   <Page size="A4" style={styles.page}>
-    <View
-      style={{
-        padding: 24,
-        borderWidth: 1,
-        borderRadius: 12,
-        borderColor: '#fed7aa',
-        backgroundColor: '#fff7ed',
-      }}
-    >
-      <Text style={{ fontFamily: 'VarelaRound', textTransform: 'uppercase', fontSize: 10, color: '#dc2626' }}>
-        Payment Instructions
-      </Text>
-      <Text style={{ fontFamily: 'VarelaRound', fontSize: 20, marginTop: 8, marginBottom: 6 }}>
-        Thank you for partnering with us
-      </Text>
-      <Text style={{ fontSize: 11, color: '#92400e', marginBottom: 12 }}>
-        Please ensure payment references the invoice number #{data.invoiceNumber} and notify us once funds are transferred.
-      </Text>
-      <Text>1. Verify the payee ({data.paidTo ?? data.subsidiaryEnglishName ?? 'Establish Records Limited'}).</Text>
-      <Text>2. Confirm the bank information and FPS ID.</Text>
-      <Text>3. Reference #{data.invoiceNumber} in remarks.</Text>
-      <Text>4. Email the remittance to {data.subsidiaryEmail ?? 'account@establishrecords.com'}.</Text>
+    <Text style={{ fontFamily: 'CormorantInfant', fontSize: 22, letterSpacing: 0.3, marginBottom: 10 }}>
+      Payment Instructions
+    </Text>
+    <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, marginBottom: 12 }}>
+      Payment for this invoice is required within <Text style={{ fontWeight: 700 }}>7 DAYS</Text> of its issuance. Please choose from the payment methods listed below.
+    </Text>
+
+    {/* 1. Payable Cheque */}
+    <View style={{ borderWidth: 1, borderColor: '#f59e0b', backgroundColor: '#fff7e6', borderRadius: 6, padding: 16, marginBottom: 16 }}>
+      <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, fontWeight: 700, marginBottom: 6 }}>1. Payable Cheque</Text>
+      <View style={{ borderWidth: 1, borderColor: '#eab308', backgroundColor: '#fffef7', borderRadius: 4, padding: 12 }}>
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>
+          Pay to: {data.paidTo ?? data.subsidiaryEnglishName ?? 'Establish Records Limited'}
+        </Text>
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Amount (in words): {num2eng((typeof data.total === 'number' ? data.total : data.amount) ?? 0) || amountHK((typeof data.total === 'number' ? data.total : data.amount) ?? 0)}</Text>
+        <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>金額（中文）：{num2chi((typeof data.total === 'number' ? data.total : data.amount) ?? 0)}</Text>
+      </View>
     </View>
+
+    <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, textAlign: 'center', marginBottom: 12 }}>or</Text>
+
+    {/* 2. Payment Transfer */}
+    <View style={{ borderWidth: 1, borderColor: '#86efac', backgroundColor: '#f0fff4', borderRadius: 6, padding: 16 }}>
+      <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, fontWeight: 700, marginBottom: 6 }}>2. Payment Transfer</Text>
+      <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Account Name: {data.paidTo ?? data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+      {data.bankName ? (
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>
+          Bank: {data.bankName}{data.bankCode ? ` (${data.bankCode})` : ''}
+        </Text>
+      ) : null}
+      <View style={{ flexDirection: 'row', gap: 24, marginTop: 2 }}>
+        {data.bankCode ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Branch Code: {data.bankCode}</Text> : null}
+        {data.bankAccountNumber ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Account Number: {data.bankAccountNumber}</Text> : null}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
+        {data.fpsId ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>FPS ID: {data.fpsId}</Text> : null}
+        {qrPayload ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Image src={buildHKFPSQrUrl(qrPayload, 128)!} style={{ width: 96, height: 96 }} />
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>
+              ↑ SCAN IN BANK APP
+            </Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={{ marginTop: 8 }}>
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>
+          For the amount of: <Text style={{ fontWeight: 700 }}>{num2eng((typeof data.total === 'number' ? data.total : data.amount) ?? 0) || amountHK((typeof data.total === 'number' ? data.total : data.amount) ?? 0)}</Text>
+        </Text>
+        <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>茲付金額：{num2chi((typeof data.total === 'number' ? data.total : data.amount) ?? 0)}</Text>
+      </View>
+    </View>
+
     <FooterBlock data={data} />
     <Text style={styles.pageNumber}>Page {pageNumber} of {totalPages}</Text>
   </Page>
