@@ -456,26 +456,8 @@ const Totals = ({ data }: { data: ClassicInvoiceDocInput }) => {
   )
 }
 
-const PaymentSummary = ({ data }: { data: ClassicInvoiceDocInput }) => (
-  <View style={{ marginTop: 12 }}>
-    <Text>
-      Cheque Payable To: {data.paidTo ?? data.subsidiaryEnglishName ?? 'Establish Records Limited'}
-    </Text>
-    {data.bankName ? (
-      <Text>
-        Bank: {data.bankName}
-        {data.bankCode ? ` (${data.bankCode})` : ''} {data.accountType ? `– ${data.accountType}` : ''}
-      </Text>
-    ) : null}
-    {data.bankAccountNumber ? <Text>Bank Account Number: {data.bankAccountNumber}</Text> : null}
-    {data.fpsId ? <Text>FPS ID: {data.fpsId}</Text> : null}
-    {data.fpsEmail ? <Text>FPS Email: {data.fpsEmail}</Text> : null}
-    {data.paymentStatus ? (
-      <Text style={{ fontStyle: 'italic', color: '#7f1d1d' }}>Status: {data.paymentStatus}</Text>
-    ) : null}
-    {data.paymentTerms ? <Text style={{ marginTop: 6, fontWeight: 600 }}>Payment Terms: {data.paymentTerms}</Text> : null}
-  </View>
-)
+// Removed generic PaymentSummary from item pages. All payment identifiers and terms are
+// rendered only on the Payment Details/Instructions pages to match the classic invoices.
 
 const FooterBlock = ({ data }: { data: ClassicInvoiceDocInput }) => (
   <View style={styles.footer}>
@@ -573,30 +555,74 @@ const PaymentDetailsPage = ({
   const qrUrl = buildHKFPSQrUrl(qrPayload, 240)
   return (
     <Page size="A4" style={styles.page}>
-      <Text style={{ fontFamily: 'VarelaRound', fontSize: 20, textAlign: 'center', marginBottom: 16 }}>
+      <Text style={{ fontFamily: 'CormorantInfant', fontSize: 22, letterSpacing: 0.3, marginBottom: 12 }}>
         Payment Details
       </Text>
-      <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-        <Text style={styles.sectionLabel}>Payee</Text>
-        <Text style={{ fontSize: 12, fontWeight: 700 }}>{data.paidTo ?? data.subsidiaryEnglishName ?? '-'}</Text>
-        <Text>{data.subsidiaryEnglishName ?? ''}</Text>
-        {renderAddressLines(data.subsidiaryAddressLines ?? [])}
-      </View>
-      <View style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 16 }}>
-        <Text style={styles.sectionLabel}>Bank Information</Text>
-        <Text>Bank: {data.bankName ?? '-'}</Text>
-        {data.bankCode ? <Text>Bank Code: {data.bankCode}</Text> : null}
-        <Text>Account Type: {data.accountType ?? '-'}</Text>
-        <Text>Account Number: {data.bankAccountNumber ?? '-'}</Text>
-        {data.fpsId ? <Text>FPS ID: {data.fpsId}</Text> : null}
-        {data.fpsEmail ? <Text>FPS Email: {data.fpsEmail}</Text> : null}
-        {qrUrl ? (
-          <View style={styles.qrContainer}>
-            <Image src={qrUrl} style={{ width: 140, height: 140 }} />
-            <Text>Scan this QR via FPS to auto-fill payee reference.</Text>
-          </View>
+
+      {/* Beneficiary / Bank identifiers */}
+      <View style={{ marginBottom: 12 }}>
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>
+          Beneficiary: <Text style={{ fontWeight: 700 }}>{data.paidTo ?? data.subsidiaryEnglishName ?? '-'}</Text>
+        </Text>
+        {(data as any).brNo ? (
+          <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>BR No.: {(data as any).brNo}</Text>
         ) : null}
+        {data.bankName ? (
+          <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>
+            Bank: {data.bankName}{data.bankCode ? ` (${data.bankCode})` : ''}
+          </Text>
+        ) : null}
+        <View style={{ flexDirection: 'row', gap: 24, marginTop: 2 }}>
+          {data.bankCode ? (
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Branch Code: {data.bankCode}</Text>
+          ) : null}
+          {data.bankAccountNumber ? (
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Account Number: {data.bankAccountNumber}</Text>
+          ) : null}
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 6 }}>
+          {data.fpsId ? (
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>FPS ID: {data.fpsId}</Text>
+          ) : null}
+          {qrUrl ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Image src={qrUrl} style={{ width: 120, height: 120 }} />
+              <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>FPS QR Code</Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={{ marginTop: 8 }}>
+          <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>
+            For the amount of: <Text style={{ fontWeight: 700 }}>{num2eng((typeof data.total === 'number' ? data.total : data.amount) ?? 0) || amountHK((typeof data.total === 'number' ? data.total : data.amount) ?? 0)}</Text>
+          </Text>
+          <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>茲付金額：{num2chi((typeof data.total === 'number' ? data.total : data.amount) ?? 0)}</Text>
+        </View>
+        <View style={{ marginTop: 8 }}>
+          <Text style={{ fontFamily: 'RobotoMono', fontSize: 10 }}>Address:</Text>
+          {renderAddressLines(data.subsidiaryAddressLines ?? [])}
+        </View>
       </View>
+
+      {/* Terms & Conditions */}
+      <View style={{ marginTop: 12 }}>
+        <Text style={{ fontFamily: 'CormorantInfant', fontSize: 16, marginBottom: 6 }}>Terms & Conditions</Text>
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>
+          1. Acceptance: By continuing to use our services, instructing us to proceed, requesting release of deliverables, failing to object in writing within the dispute period, or paying in whole or in part, the Client is deemed to have agreed to and be bound by these Terms & Conditions.
+        </Text>
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>
+          2. Payment: Payment is due within seven (7) calendar days after the earlier of (i) the Invoice date; or (ii) the Client’s written request to release final deliverables. Deliverables are released only after receipt of cleared funds.
+        </Text>
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>
+          3. Disputes: Any billing disputes must be submitted in writing within three (3) days of receipt of this Invoice; otherwise, the Invoice is deemed accepted.
+        </Text>
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>
+          4. Late Charges: If payment is not received when due, a late fee of the greater of HK$150 or 1.5% of the outstanding balance per 14-day period accrues until paid in full, unless otherwise agreed in writing.
+        </Text>
+        <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>
+          5. Other terms customary to your invoices can be added verbatim here.
+        </Text>
+      </View>
+
       <FooterBlock data={data} />
       <Text style={styles.pageNumber}>Page {pageNumber} of {totalPages}</Text>
     </Page>
@@ -724,12 +750,7 @@ const renderItemPage = (
   <Page key={`items-${descriptor.variantBase}-${descriptor.pageIndex}-${pageNumber}`} size="A4" style={styles.page}>
     {renderHeaderForVariant(data, descriptor.variantBase, descriptor.pageIndex === 0)}
     <ItemsTable data={data} items={descriptor.items} />
-    {includeTotals ? (
-      <>
-        <Totals data={data} />
-        <PaymentSummary data={data} />
-      </>
-    ) : null}
+    {includeTotals ? <Totals data={data} /> : null}
     {renderFooterForVariant(data, descriptor.variantBase, showFooter, pageNumber, totalPages)}
   </Page>
 )
