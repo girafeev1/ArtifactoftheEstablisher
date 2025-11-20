@@ -63,9 +63,9 @@ const pickFontSrc = (fileKey: keyof typeof FONT_DATA | string, remoteUrl?: strin
 const registerFontFamily = () => {
   ensureAtobPolyfill()
   try {
-    // RobotoMono: embedded only. Skip registration if invalid/missing to avoid Unknown font format.
-    const r400 = pickFontSrc('RobotoMono-Regular.ttf', null)
-    const r700 = pickFontSrc('RobotoMono-Bold.ttf', null)
+    // RobotoMono: prefer embedded; fallback to variable TTF URL when not embedded
+    const r400 = pickFontSrc('RobotoMono-Regular.ttf', REMOTE_TTF.RobotoMonoVar)
+    const r700 = pickFontSrc('RobotoMono-Bold.ttf', REMOTE_TTF.RobotoMonoVar)
     if (!r400 || !r700) {
       try { console.error('[pdf-font] RobotoMono sources missing', { has400: Boolean(r400), has700: Boolean(r700) }) } catch {}
     }
@@ -141,13 +141,13 @@ const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
 
   const styles = StyleSheet.create({
   page: {
-    fontFamily: 'Helvetica',
+    fontFamily: 'RobotoMono',
     fontSize: 10, // Body text
     color: '#111827',
     paddingTop: PAGE_MARGIN.top,
     paddingBottom: PAGE_MARGIN.bottom,
     paddingHorizontal: PAGE_MARGIN.left,
-    lineHeight: 1.4,
+    lineHeight: 1.38,
   },
   headerRow: {
     flexDirection: 'row',
