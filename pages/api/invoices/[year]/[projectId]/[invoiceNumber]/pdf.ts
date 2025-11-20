@@ -293,6 +293,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       stream.on('error', (err: any) => reject(err))
     })
 
+  const bufferFromWebStream = async (webStream: any): Promise<Buffer> => {
+    try {
+      const reader = webStream.getReader()
+      const chunks: Buffer[] = []
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) chunks.push(Buffer.from(value))
+      }
+      return Buffer.concat(chunks)
+    } catch (err) {
+      throw err
+    }
+  }
+
   let pdfBuffer: Buffer
   try {
     const document = buildClassicInvoiceDocument(docInput, { variant })
@@ -305,13 +320,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       (typeof rendered === 'object' && rendered && typeof (rendered as any).byteLength === 'number')
     ) {
       pdfBuffer = Buffer.from(rendered as Uint8Array)
+    } else if (rendered && typeof (rendered as any).getReader === 'function') {
+      // Web ReadableStream (browser-like)
+      pdfBuffer = await bufferFromWebStream(rendered)
     } else if (rendered && typeof (rendered as any).on === 'function' && typeof (rendered as any).pipe === 'function') {
-      const stream = await instance.toStream()
-      pdfBuffer = await bufferFromStream(stream)
+      // Node.js readable stream (or pdfkit doc)
+      pdfBuffer = await bufferFromStream(rendered)
     } else {
-      // As a final attempt, try streaming
-      const stream = await instance.toStream()
-      pdfBuffer = await bufferFromStream(stream)
+      // Final attempt: render directly to stream via renderer API
+      const { renderToStream } = await import('@react-pdf/renderer')
+      const stream: any = await renderToStream(document as any)
+      if (stream && typeof stream.getReader === 'function') {
+        pdfBuffer = await bufferFromWebStream(stream)
+      } else {
+        pdfBuffer = await bufferFromStream(stream)
+      }
     }
   } catch (renderError: any) {
     const errorMessage = renderError?.message || String(renderError)
