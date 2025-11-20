@@ -6,6 +6,14 @@ import { FONT_DATA } from './fontData'
 
 const KARLA_URL = 'https://fonts.gstatic.com/s/karla/v31/Qw3KOZ2NCQ.woff'
 
+// Remote TTF fallbacks (used only if embedded base64 is missing)
+const REMOTE_TTF = {
+  RobotoMonoRegular: 'https://raw.githubusercontent.com/google/fonts/main/apache/robotomono/RobotoMono-Regular.ttf',
+  RobotoMonoBold: 'https://raw.githubusercontent.com/google/fonts/main/apache/robotomono/RobotoMono-Bold.ttf',
+  VarelaRoundRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/varelaround/VarelaRound-Regular.ttf',
+  RampartOneRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/rampartone/RampartOne-Regular.ttf',
+} as const
+
 const ensureAtobPolyfill = () => {
   if (typeof globalThis.atob !== 'function') {
     globalThis.atob = (input: string) => Buffer.from(input, 'base64').toString('binary')
@@ -14,66 +22,77 @@ const ensureAtobPolyfill = () => {
 
 const toDataUri = (base64?: string | null) => (base64 ? `data:font/ttf;base64,${base64}` : null)
 
+const pickFontSrc = (fileKey: keyof typeof FONT_DATA | string, remoteUrl?: string | null) => {
+  try {
+    // Prefer embedded base64 when available
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const base64: string | undefined = FONT_DATA[fileKey as any]
+    const data = toDataUri(base64)
+    if (data) {
+      try { console.info('[pdf-font] using embedded', { fileKey }) } catch {}
+      return data
+    }
+    if (remoteUrl) {
+      try { console.info('[pdf-font] using remote', { fileKey, url: remoteUrl }) } catch {}
+      return remoteUrl
+    }
+  } catch (err) {
+    try { console.error('[pdf-font] pickFontSrc error', { fileKey, error: (err as any)?.message || String(err) }) } catch {}
+  }
+  return null
+}
+
 const registerFontFamily = () => {
   ensureAtobPolyfill()
   try {
-    const robotoRegularBase64 = FONT_DATA['RobotoMono-Regular.ttf']
-    const robotoBoldBase64 = FONT_DATA['RobotoMono-Bold.ttf']
-    const robotoRegular = toDataUri(robotoRegularBase64)
-    const robotoBold = toDataUri(robotoBoldBase64)
-    if (!robotoRegular || !robotoBold) {
-      console.error('[pdf] missing embedded RobotoMono font data', {
-        hasRegular: Boolean(robotoRegular),
-        hasBold: Boolean(robotoBold),
-      })
+    const r400 = pickFontSrc('RobotoMono-Regular.ttf', REMOTE_TTF.RobotoMonoRegular)
+    const r700 = pickFontSrc('RobotoMono-Bold.ttf', REMOTE_TTF.RobotoMonoBold)
+    if (!r400 || !r700) {
+      try { console.error('[pdf-font] RobotoMono sources missing', { has400: Boolean(r400), has700: Boolean(r700) }) } catch {}
     }
-    if (robotoRegular && robotoBold) {
+    if (r400 && r700) {
       Font.register({
         family: 'RobotoMono',
         fonts: [
-          { src: robotoRegular, fontWeight: 400 },
-          { src: robotoBold, fontWeight: 700 },
+          { src: r400, fontWeight: 400 },
+          { src: r700, fontWeight: 700 },
         ],
       })
     }
   } catch (error) {
-    console.error('[pdf] failed to register RobotoMono', error)
+    try { console.error('[pdf-font] failed to register RobotoMono', { error: (error as any)?.message || String(error) }) } catch {}
   }
   try {
-    const varelaBase64 = FONT_DATA['VarelaRound-Regular.ttf']
-    const varela = toDataUri(varelaBase64)
+    const varela = pickFontSrc('VarelaRound-Regular.ttf', REMOTE_TTF.VarelaRoundRegular)
     if (!varela) {
-      console.error('[pdf] missing embedded VarelaRound font data')
-    }
-    if (varela) {
+      try { console.error('[pdf-font] VarelaRound source missing') } catch {}
+    } else {
       Font.register({ family: 'VarelaRound', src: varela })
     }
   } catch (error) {
-    console.error('[pdf] failed to register VarelaRound', error)
+    try { console.error('[pdf-font] failed to register VarelaRound', { error: (error as any)?.message || String(error) }) } catch {}
   }
   try {
-    const rampartBase64 = FONT_DATA['RampartOne-Regular.ttf']
-    const rampart = toDataUri(rampartBase64)
+    const rampart = pickFontSrc('RampartOne-Regular.ttf', REMOTE_TTF.RampartOneRegular)
     if (!rampart) {
-      console.error('[pdf] missing embedded RampartOne font data')
-    }
-    if (rampart) {
+      try { console.error('[pdf-font] RampartOne source missing') } catch {}
+    } else {
       Font.register({ family: 'RampartOne', src: rampart })
     }
   } catch (error) {
-    console.error('[pdf] failed to register RampartOne', error)
+    try { console.error('[pdf-font] failed to register RampartOne', { error: (error as any)?.message || String(error) }) } catch {}
   }
   try {
     const iansuiBase64 = FONT_DATA['Iansui-Regular.ttf']
     const iansui = toDataUri(iansuiBase64)
     if (!iansui) {
-      console.error('[pdf] missing embedded Iansui font data')
-    }
-    if (iansui) {
+      try { console.error('[pdf-font] Iansui embedded data missing') } catch {}
+    } else {
       Font.register({ family: 'Iansui', src: iansui })
     }
   } catch (error) {
-    console.error('[pdf] failed to register Iansui', error)
+    try { console.error('[pdf-font] failed to register Iansui', { error: (error as any)?.message || String(error) }) } catch {}
   }
   try {
     Font.register({ family: 'Karla', src: KARLA_URL })
@@ -88,9 +107,9 @@ const PAGE_WIDTH = 595.28 // A4 width in points
 const PAGE_HEIGHT = 841.89
 const PAGE_MARGIN = { top: 21.6, bottom: 21.6, left: 14.4, right: 14.4 } // 0.3"/0.2"
 
-const styles = StyleSheet.create({
-  page: {
-    fontFamily: 'RobotoMono',
+  const styles = StyleSheet.create({
+    page: {
+    fontFamily: 'Helvetica',
     fontSize: 10,
     color: '#111827',
     paddingTop: PAGE_MARGIN.top,

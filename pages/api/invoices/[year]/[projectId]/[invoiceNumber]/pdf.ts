@@ -4,6 +4,7 @@ import { pdf } from '@react-pdf/renderer'
 import { doc, getDoc } from 'firebase/firestore'
 import { fetchInvoicesForProject } from '../../../../../../lib/projectInvoices'
 import { buildClassicInvoiceDocument, type ClassicInvoiceVariant } from '../../../../../../lib/pdfTemplates/classicInvoice'
+import { FONT_DATA } from '../../../../../../lib/pdfTemplates/fontData'
 import { projectsDb } from '../../../../../../lib/firebase'
 import { fetchSubsidiaryById } from '../../../../../../lib/subsidiaries'
 import { resolveBankAccountIdentifier } from '../../../../../../lib/erlDirectory'
@@ -233,6 +234,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const hash = computeHash(model)
   try { console.info('[pdf] build model hash', { hash }) } catch {
     /* ignore logging errors */
+  }
+
+  // Font presence snapshot (helps diagnose font registration issues in serverless)
+  try {
+    console.info('[pdf][fonts] presence', {
+      hasRobotoRegular: Boolean((FONT_DATA as any)['RobotoMono-Regular.ttf']),
+      hasRobotoBold: Boolean((FONT_DATA as any)['RobotoMono-Bold.ttf']),
+      hasVarelaRound: Boolean((FONT_DATA as any)['VarelaRound-Regular.ttf']),
+      hasRampartOne: Boolean((FONT_DATA as any)['RampartOne-Regular.ttf']),
+      hasIansui: Boolean((FONT_DATA as any)['Iansui-Regular.ttf']),
+    })
+  } catch {
+    /* ignore font presence logging errors */
   }
 
   const docInput = {
