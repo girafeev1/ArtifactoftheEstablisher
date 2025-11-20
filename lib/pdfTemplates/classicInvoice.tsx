@@ -126,13 +126,13 @@ const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
 
   const styles = StyleSheet.create({
   page: {
-    fontFamily: 'RobotoMono',
+    fontFamily: 'Helvetica',
     fontSize: 10, // Body text
     color: '#111827',
     paddingTop: PAGE_MARGIN.top,
     paddingBottom: PAGE_MARGIN.bottom,
     paddingHorizontal: PAGE_MARGIN.left,
-    lineHeight: 1.38,
+    lineHeight: 1.4,
   },
   headerRow: {
     flexDirection: 'row',
