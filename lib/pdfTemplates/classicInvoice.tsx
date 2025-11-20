@@ -8,6 +8,7 @@ import { FONT_DATA } from './fontData'
 const REMOTE_TTF = {
   RobotoMonoRegular: 'https://raw.githubusercontent.com/google/fonts/main/apache/robotomono/RobotoMono-Regular.ttf',
   RobotoMonoBold: 'https://raw.githubusercontent.com/google/fonts/main/apache/robotomono/RobotoMono-Bold.ttf',
+  RobotoMonoVar: 'https://raw.githubusercontent.com/google/fonts/main/ofl/robotomono/RobotoMono%5Bwght%5D.ttf',
   VarelaRoundRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/varelaround/VarelaRound-Regular.ttf',
   RampartOneRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/rampartone/RampartOne-Regular.ttf',
 } as const
@@ -44,8 +45,11 @@ const pickFontSrc = (fileKey: keyof typeof FONT_DATA | string, remoteUrl?: strin
 const registerFontFamily = () => {
   ensureAtobPolyfill()
   try {
-    const r400 = pickFontSrc('RobotoMono-Regular.ttf', REMOTE_TTF.RobotoMonoRegular)
-    const r700 = pickFontSrc('RobotoMono-Bold.ttf', REMOTE_TTF.RobotoMonoBold)
+    let r400 = pickFontSrc('RobotoMono-Regular.ttf', REMOTE_TTF.RobotoMonoRegular)
+    let r700 = pickFontSrc('RobotoMono-Bold.ttf', REMOTE_TTF.RobotoMonoBold)
+    // Fallback to variable TTF if specific cuts are unavailable
+    if (!r400) r400 = REMOTE_TTF.RobotoMonoVar
+    if (!r700) r700 = REMOTE_TTF.RobotoMonoVar
     if (!r400 || !r700) {
       try { console.error('[pdf-font] RobotoMono sources missing', { has400: Boolean(r400), has700: Boolean(r700) }) } catch {}
     }
@@ -341,7 +345,7 @@ const BillTo = ({ data }: { data: ClassicInvoiceDocInput }) => {
   ].filter((line): line is string => Boolean(line && line.trim()))
   return (
     <View style={{ flex: 1, paddingRight: 18 }}>
-      <Text style={styles.sectionLabel}>Bill To</Text>
+      <Text style={styles.sectionLabel}>BILL TO:</Text>
       <Text style={styles.billName}>{data.companyName ?? '-'}</Text>
       {addressLines.map((line, idx) => (
         <Text key={`client-line-${idx}`}>{line}</Text>
@@ -354,27 +358,19 @@ const BillTo = ({ data }: { data: ClassicInvoiceDocInput }) => {
 }
 
 const ProjectMeta = ({ data }: { data: ClassicInvoiceDocInput }) => (
-  <View>
-    <Text style={styles.sectionLabel}>Project Detail</Text>
-    {data.presenterWorkType ? <Text>{data.presenterWorkType}</Text> : null}
-    {data.projectTitle ? <Text style={styles.projectTitle}>{data.projectTitle}</Text> : null}
-    {data.projectNature ? <Text style={styles.projectNature}>{data.projectNature}</Text> : null}
-    {data.projectNumber ? <Text>Project #: {data.projectNumber}</Text> : null}
-    {data.projectDate ? <Text>Project Date: {data.projectDate}</Text> : null}
-    {data.projectPickupDate ? <Text>Pickup Date: {data.projectPickupDate}</Text> : null}
-  </View>
+  <View />
 )
 
 const ItemsTable = ({ data, items }: { data: ClassicInvoiceDocInput; items: ClassicInvoiceItem[] }) => (
   <View>
-    <View style={styles.tableHeader}>
-      <View style={styles.tableColDesc}>
-        <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Description</Text>
+      <View style={styles.tableHeader}>
+        <View style={styles.tableColDesc}>
+          <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Description</Text>
+        </View>
+        <View style={styles.tableColAmount}>
+          <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Amount</Text>
+        </View>
       </View>
-      <View style={styles.tableColAmount}>
-        <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Amount</Text>
-      </View>
-    </View>
     {items.length === 0 ? (
       <View style={{ paddingVertical: 12 }}>
         <Text>No items added.</Text>
@@ -643,10 +639,8 @@ const renderHeaderForVariant = (
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.invoiceLabel}>Invoice</Text>
-            <Text style={{ fontSize: 14, fontWeight: 700 }}>#{data.invoiceNumber}</Text>
+            <Text style={{ fontSize: 14, fontWeight: 700 }}>Invoice #: {data.invoiceNumber}</Text>
             {data.invoiceDateDisplay ? <Text>Date: {data.invoiceDateDisplay}</Text> : null}
-            {data.projectNumber ? <Text style={{ marginTop: 6 }}>Project #: {data.projectNumber}</Text> : null}
-            {data.projectDate ? <Text>Project Date: {data.projectDate}</Text> : null}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={styles.logoMark}>E.</Text>
@@ -658,9 +652,7 @@ const renderHeaderForVariant = (
         {showClientBlock ? (
           <View style={styles.headerRow}>
             <BillTo data={data} />
-            <View style={{ width: 220, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, padding: 12 }}>
-              <ProjectMeta data={data} />
-            </View>
+            <View style={{ width: 220 }} />
           </View>
         ) : null}
       </>
@@ -686,11 +678,8 @@ const renderHeaderForVariant = (
           <BillTo data={data} />
           <View style={{ width: 200, borderLeftWidth: 1, borderColor: '#cbd5f5', paddingLeft: 16 }}>
             <Text style={styles.sectionLabel}>Invoice</Text>
-            <Text style={{ fontSize: 14, fontWeight: 700 }}>#{data.invoiceNumber}</Text>
-            {data.invoiceDateDisplay ? <Text>Issued Date: {data.invoiceDateDisplay}</Text> : null}
-            <View style={{ marginTop: 12 }}>
-              <ProjectMeta data={data} />
-            </View>
+            <Text style={{ fontSize: 14, fontWeight: 700 }}>Invoice #: {data.invoiceNumber}</Text>
+            {data.invoiceDateDisplay ? <Text>Date: {data.invoiceDateDisplay}</Text> : null}
           </View>
         </View>
       ) : null}
