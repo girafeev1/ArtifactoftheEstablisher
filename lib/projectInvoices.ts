@@ -935,6 +935,22 @@ export const updateInvoiceForProject = async (
   const existingData = existing.data()
   const existingCount = Number(existingData.itemsCount) || 0
 
+  // If the invoice number (document id) has changed, rename the document first
+  if (input.invoiceNumber !== existing.id) {
+    const renamed = await renameInvoiceForProject({
+      year: input.year,
+      projectId: input.projectId,
+      fromInvoiceNumber: existing.id,
+      toInvoiceNumber: input.invoiceNumber,
+      editedBy: input.editedBy,
+    })
+    // Point our refs to the renamed document in the unified collection
+    resolvedCollectionId = SINGLE_INVOICE_COLLECTION_ID
+    collectionRef = collection(projectRef, SINGLE_INVOICE_COLLECTION_ID)
+    documentRef = doc(collectionRef, renamed.invoiceNumber)
+    existing = await getDoc(documentRef)
+  }
+
   const payload = buildInvoiceWritePayload(
     {
       baseInvoiceNumber: extractBaseInvoiceNumber(input.invoiceNumber),
