@@ -459,7 +459,19 @@ const BillTo = ({ data }: { data: ClassicInvoiceDocInput }) => {
 }
 
 const ProjectMeta = ({ data }: { data: ClassicInvoiceDocInput }) => (
-  <View />
+  <View style={{ marginBottom: 12 }}>
+    {data.presenterWorkType ? (
+      <Text style={{ fontFamily: 'Google Sans Mono', fontSize: 8, fontStyle: 'italic' }}>
+        {data.presenterWorkType}
+      </Text>
+    ) : null}
+    {data.projectTitle ? (
+      <Text style={styles.projectTitle}>{data.projectTitle}</Text>
+    ) : null}
+    {data.projectNature ? (
+      <Text style={styles.projectNature}>{data.projectNature}</Text>
+    ) : null}
+  </View>
 )
 
 const ItemsTable = ({ data, items }: { data: ClassicInvoiceDocInput; items: ClassicInvoiceItem[] }) => (
@@ -839,6 +851,7 @@ const renderHeaderForVariant = (
             <Text style={styles.sectionLabel}>Invoice</Text>
             <Text style={{ fontSize: 14, fontWeight: 700 }}>Invoice #: {data.invoiceNumber}</Text>
             {data.invoiceDateDisplay ? <Text>Date: {data.invoiceDateDisplay}</Text> : null}
+            <ProjectMeta data={data} />
           </View>
         </View>
       ) : null}
@@ -909,10 +922,8 @@ const buildDescriptors = (variant: ClassicInvoiceVariant, data: ClassicInvoiceDo
     default:
       // Produce exactly 4 pages to mirror company standard:
       // 1) Invoice (variant B), 2) Invoice (variant A), 3) Payment Details, 4) Payment Instructions
-      descriptors.push({ kind: 'items', variantBase: 'B', items: data.items, pageIndex: 0, totalPagesForVariant: 1 })
-      descriptors.push({ kind: 'items', variantBase: 'A', items: data.items, pageIndex: 0, totalPagesForVariant: 1 })
-      descriptors.push({ kind: 'payment-details', title: 'Payment Details' })
-      descriptors.push({ kind: 'payment-instructions', title: 'Payment Instructions' })
+      addVariantBlock('B', false, false) // Variant B items pages
+      addVariantBlock('A', true, true) // Variant A items pages, plus payment details and instructions
       break
   }
   return descriptors
