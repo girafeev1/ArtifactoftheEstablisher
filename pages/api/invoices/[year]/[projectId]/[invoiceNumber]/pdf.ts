@@ -9,6 +9,9 @@ import { projectsDb } from '../../../../../../lib/firebase'
 import { fetchSubsidiaryById } from '../../../../../../lib/subsidiaries'
 import { resolveBankAccountIdentifier } from '../../../../../../lib/erlDirectory'
 
+const computeHash = (obj: any): string =>
+  crypto.createHash('sha256').update(JSON.stringify(obj)).digest('hex')
+
 
 
 const toStringValue = (value: unknown): string | null => {
@@ -108,7 +111,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (item.feeType) lines += 1
       if (item.notes) lines += Math.ceil(String(item.notes).length / 80)
     })
-    const perPage = variant === 'A' || variant === 'A2' ? 22 : 28
+    const perPage = 28;
     const pages = Math.max(1, Math.ceil(lines / perPage))
     return res.status(200).json({ itemsPages: pages })
   }
