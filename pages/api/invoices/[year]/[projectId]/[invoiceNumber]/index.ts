@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { fetchInvoicesForProject } from "../../../../../lib/projectInvoices";
+import { fetchInvoicesForProject } from "../../../../../../lib/projectInvoices";
 
 export default async function handler(
   req: NextApiRequest,
