@@ -1,14 +1,14 @@
 import React from 'react';
-import type { InvoiceDraftState } from './NewUIProjectShowApp';
+import type { ProjectInvoiceRecord } from '../../lib/projectInvoices';
 
 type GeneratedInvoiceProps = {
-  invoice: InvoiceDraftState;
+  invoice: ProjectInvoiceRecord;
   // Add other props as needed, e.g., client, project details
 };
 
 const GeneratedInvoice: React.FC<GeneratedInvoiceProps> = ({ invoice }) => {
-    const subtotal = invoice.items.reduce((acc, item) => acc + (item.unitPrice * item.quantity), 0);
-    const total = subtotal - invoice.items.reduce((acc, item) => acc + item.discount, 0);
+    const subtotal = invoice.items.reduce((acc, item) => acc + ((item.unitPrice || 0) * (item.quantity || 0)), 0);
+    const total = subtotal - invoice.items.reduce((acc, item) => acc + (item.discount || 0), 0);
 
   return (
     <div className="invoice-container">
@@ -28,12 +28,12 @@ const GeneratedInvoice: React.FC<GeneratedInvoiceProps> = ({ invoice }) => {
       <main>
         <div className="bill-to">
           <h2>BILL TO:</h2>
-          <p>{invoice.client.companyName}</p>
-          <p>{invoice.client.addressLine1}</p>
-          <p>{invoice.client.addressLine2}</p>
-          <p>{invoice.client.addressLine3}</p>
-          <p>{invoice.client.region}, Hong Kong</p>
-          <p>Attn: {invoice.client.representative}</p>
+          <p>{invoice.companyName}</p>
+          <p>{invoice.addressLine1}</p>
+          <p>{invoice.addressLine2}</p>
+          <p>{invoice.addressLine3}</p>
+          <p>{invoice.region}, Hong Kong</p>
+          <p>Attn: {invoice.representative}</p>
         </div>
 
         <div className="invoice-details">
@@ -63,7 +63,7 @@ const GeneratedInvoice: React.FC<GeneratedInvoiceProps> = ({ invoice }) => {
                   <div>{item.title}</div>
                   <div className="fee-type">{item.feeType}</div>
                 </td>
-                <td>${(item.unitPrice * item.quantity).toFixed(2)}</td>
+                <td>${((item.unitPrice || 0) * (item.quantity || 0)).toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
@@ -71,7 +71,7 @@ const GeneratedInvoice: React.FC<GeneratedInvoiceProps> = ({ invoice }) => {
 
         <div className="total-section">
           <div className="total-label">INVOICE TOTAL (HK)</div>
-          <div className="total-amount">${total.toFixed(2)}</div>
+          <div className="total-amount">${(invoice.total || 0).toFixed(2)}</div>
           {/* These should be calculated based on the total */}
           <div className="total-in-words">Five Thousand Dollars Only</div>
           <div className="total-in-chinese">伍仟元正</div>

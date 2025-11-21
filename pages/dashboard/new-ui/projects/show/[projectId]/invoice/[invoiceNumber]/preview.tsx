@@ -6,7 +6,7 @@ import React, { useEffect, useState } from "react";
 import AppShell from "../../../../../../../../components/new-ui/AppShell";
 import { projectsDataProvider } from "../../../../../../../../components/projects/NewUIProjectsApp";
 import GeneratedInvoice from "../../../../../../../../components/projects/GeneratedInvoice";
-import type { InvoiceDraftState } from "../../../../../../../../components/projects/NewUIProjectShowApp";
+import type { ProjectInvoiceRecord } from "../../../../../../../../lib/projectInvoices";
 
 const { Title, Text } = Typography;
 
@@ -22,7 +22,7 @@ export default function InvoicePreviewPage() {
   const router = useRouter();
   const { projectId, invoiceNumber } = router.query as { projectId?: string; invoiceNumber?: string };
   const year = (router.query.year as string) || '';
-  const [invoice, setInvoice] = useState<InvoiceDraftState | null>(null);
+  const [invoice, setInvoice] = useState<ProjectInvoiceRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   const projectNumber = (router.query.projectNumber as string) || '';
