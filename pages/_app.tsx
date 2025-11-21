@@ -4,7 +4,14 @@ import { SessionProvider, useSession } from 'next-auth/react';
 import { SnackbarProvider } from 'notistack';
 import type { AppProps } from 'next/app';
 import { setupClientLogging } from '../lib/clientLogger';
-import { Newsreader, Cantata_One, Nunito } from 'next/font/google';
+import { Newsreader, Cantata_One, Nunito, Cormorant_Infant, Roboto_Mono, Fascinate } from 'next/font/google';
+
+// Iansui is not available on Google Fonts, so we'll have to find another way to load it if needed.
+// For now, we will proceed without it.
+
+const cormorantInfant = Cormorant_Infant({ subsets: ['latin'], weight: ['400', '700'] });
+const robotoMono = Roboto_Mono({ subsets: ['latin'], weight: ['400', '700'] });
+const fascinate = Fascinate({ subsets: ['latin'], weight: '400' });
 import '../styles/antd-reset.css';
 import '../styles/studentDialog.css';
 import '../styles/project-dialog.css';
@@ -31,7 +38,7 @@ function MyApp({ Component, pageProps }: AppProps<{ promptId?: string; session?:
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </Head>
-      <div className={`${newsreader.className} ${cantata.className} ${nunito.variable}`}>
+      <div className={`${newsreader.className} ${cantata.className} ${nunito.variable} ${cormorantInfant.className} ${robotoMono.className} ${fascinate.className}`}>
         <ThemeProvider theme={theme}>
           <QueryClientProvider client={queryClient}>
             <SessionProvider session={pageProps.session}>
