@@ -1,12 +1,14 @@
-import Head from "next/head"
-import { useRouter } from "next/router"
-import { Button, Space, Typography, Tag, Dropdown } from "antd"
-import type { MenuProps } from "antd"
-import React from "react"
-import AppShell from "../../../../../../../../components/new-ui/AppShell"
-import { projectsDataProvider } from "../../../../../../../../components/projects/NewUIProjectsApp"
+import Head from "next/head";
+import { useRouter } from "next/router";
+import { Button, Space, Typography, Tag, Dropdown, Empty, Spin } from "antd";
+import type { MenuProps } from "antd";
+import React, { useEffect, useState } from "react";
+import AppShell from "../../../../../../../../components/new-ui/AppShell";
+import { projectsDataProvider } from "../../../../../../../../components/projects/NewUIProjectsApp";
+import GeneratedInvoice from "../../../../../../../../components/projects/GeneratedInvoice";
+import type { InvoiceDraftState } from "../../../../../../../../components/projects/NewUIProjectShowApp";
 
-const { Title, Text } = Typography
+const { Title, Text } = Typography;
 
 const variants = [
   { value: 'bundle', label: 'Full Bundle (4 pages)' },
@@ -14,35 +16,31 @@ const variants = [
   { value: 'A2', label: 'Version A2' },
   { value: 'B', label: 'Version B' },
   { value: 'B2', label: 'Version B2' },
-]
+];
 
 export default function InvoicePreviewPage() {
-  const router = useRouter()
-  const { projectId, invoiceNumber } = router.query as { projectId?: string; invoiceNumber?: string }
-  const year = (router.query.year as string) || ''
-  const [variant, setVariant] = React.useState<string>('bundle')
-  const [itemsPages, setItemsPages] = React.useState<number | null>(null)
+  const router = useRouter();
+  const { projectId, invoiceNumber } = router.query as { projectId?: string; invoiceNumber?: string };
+  const year = (router.query.year as string) || '';
+  const [invoice, setInvoice] = useState<InvoiceDraftState | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const projectNumber = (router.query.projectNumber as string) || ''
+  const projectNumber = (router.query.projectNumber as string) || '';
 
-  const pdfUrl = React.useMemo(() => {
-    if (!year || !projectId || !invoiceNumber) return ''
-    const u = `/api/invoices/${encodeURIComponent(year)}/${encodeURIComponent(projectId)}/${encodeURIComponent(invoiceNumber)}/pdf?variant=${encodeURIComponent(variant)}&inline=1&ts=${Date.now()}`
-    return u
-  }, [year, projectId, invoiceNumber, variant])
-
-  const fetchMeta = React.useCallback(async () => {
-    if (!year || !projectId || !invoiceNumber) return
-    try {
-      const resp = await fetch(`/api/invoices/${encodeURIComponent(year)}/${encodeURIComponent(projectId)}/${encodeURIComponent(invoiceNumber)}/pdf?meta=itemsPages&variant=${encodeURIComponent(variant)}&ts=${Date.now()}`)
-      if (!resp.ok) return
-      const json = await resp.json()
-      setItemsPages(json.itemsPages ?? null)
-    } catch {}
-  }, [year, projectId, invoiceNumber, variant])
-
-  React.useEffect(() => { fetchMeta() }, [fetchMeta])
-
+  useEffect(() => {
+    if (!year || !projectId || !invoiceNumber) return;
+    setLoading(true);
+    fetch(`/api/invoices/${encodeURIComponent(year)}/${encodeURIComponent(projectId)}/${encodeURIComponent(invoiceNumber)}`)
+      .then(res => res.json())
+      .then(data => {
+        setInvoice(data.invoice);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, [year, projectId, invoiceNumber]);
+  
   const doExport = React.useCallback((v: string) => {
     if (!year || !projectId || !invoiceNumber) return
     const base = `/api/invoices/${encodeURIComponent(year)}/${encodeURIComponent(projectId)}/${encodeURIComponent(invoiceNumber)}/pdf?variant=${encodeURIComponent(v)}&inline=0&ts=${Date.now()}`
@@ -82,22 +80,21 @@ export default function InvoicePreviewPage() {
           </Space>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <Title level={4} style={{ margin: 0 }}>Preview — #{invoiceNumber}</Title>
-            {itemsPages ? <Tag color="blue" style={{ fontFamily: 'Karla, sans-serif' }}>Items span: ({itemsPages} page{itemsPages > 1 ? 's' : ''})</Tag> : null}
           </div>
           <div className="viewer-wrap">
-            {pdfUrl ? (
-              <object data={pdfUrl} type="application/pdf" width="100%" height="100%">
-                <iframe title="invoice-pdf" src={pdfUrl} width="100%" height="100%" />
-              </object>
+            {loading ? (
+              <Spin size="large" />
+            ) : invoice ? (
+              <GeneratedInvoice invoice={invoice} />
             ) : (
-              <Text>Preparing preview…</Text>
+              <Empty description="Invoice not found" />
             )}
           </div>
         </div>
         <style jsx>{`
           .preview-page { padding: 16px; }
           .preview-inner { max-width: 1200px; margin: 0 auto; }
-          .viewer-wrap { height: 80vh; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #fff; }
+          .viewer-wrap { min-height: 80vh; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #fff; display: flex; justify-content: center; align-items: center; }
         `}</style>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
