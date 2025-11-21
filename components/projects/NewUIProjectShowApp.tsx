@@ -39,7 +39,6 @@ import { fetchSubsidiaryById, fetchSubsidiaries, type SubsidiaryDoc } from "../.
 import clsx from 'clsx'
 
 import AppShell from "../new-ui/AppShell"
-import GeneratedInvoice from "./GeneratedInvoice"
 import {
   amountText,
   mergeLineWithRegion,
@@ -126,7 +125,7 @@ type InvoiceClientState = {
   representative: string | null
 }
 
-export type InvoiceDraftState = {
+type InvoiceDraftState = {
   invoiceNumber: string
   baseInvoiceNumber: string
   collectionId?: string
@@ -2847,11 +2846,60 @@ const ProjectsShowContent = () => {
                     {/* Remove separate Cancel button; use trash on pending row to cancel */}
                   </section>
                   <section className="items-section" data-section="items">
-                    {resolvedDraft ? (
-                      <GeneratedInvoice invoice={resolvedDraft} />
-                    ) : (
-                      <Empty description="No invoice data available." />
-                    )}
+                    <Table
+                      dataSource={itemsRows}
+                      columns={itemsColumns as any}
+                      pagination={false}
+                      rowKey="key"
+                      className="items-table"
+                    />
+                    {itemsPages ? (
+                      <div className="items-span-indicator" style={{ marginTop: 8 }}>
+                        <Tag color="blue" style={{ fontFamily: KARLA_FONT }}>
+                          Items span: ({itemsPages} page{itemsPages > 1 ? 's' : ''})
+                        </Tag>
+                      </div>
+                    ) : null}
+                    {/* Totals summary panel */}
+                    <div className="totals-panel">
+                      <div className="totals-row">
+                        <span className="meta-label">Sub-total</span>
+                        <span className="meta-value">{amountText(subtotal)}</span>
+                      </div>
+                      <div className="totals-row">
+                        <span className="meta-label">Tax/Discount</span>
+                        {invoiceMode !== 'idle' ? (
+                          <InputNumber
+                            min={-100}
+                            max={100}
+                            step={0.5}
+                            value={taxPercent}
+                            onChange={(v) => handleTaxChange(typeof v === 'number' ? v : 0)}
+                            className="tax-input"
+                          />
+                        ) : (
+                          <span className="meta-value italic">{`${taxPercent}%`}</span>
+                        )}
+                      </div>
+                      <div className="totals-row total">
+                        <span className="meta-label">Total</span>
+                        <span className="meta-value">{amountText(total)}</span>
+                      </div>
+                      <div className="totals-row pdf-actions" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                        {!shouldShowExport && invoiceMode === 'idle' ? null : (
+                          canViewPdf ? <span className="stale-chip" style={{ color: '#b45309', fontSize: 12 }}>Previous invoice is no longer updated.</span> : null
+                        )}
+                        {shouldShowExport ? (
+                          <Tooltip title={activeInvoiceHasItems ? undefined : 'Add at least one item to export'}>
+                            <Button className="btn-outline export-invoice" onClick={handlePreviewInvoice} disabled={!activeInvoiceHasItems} style={{ marginLeft: 'auto' }}>
+                              Export Invoice
+                            </Button>
+                          </Tooltip>
+                        ) : (
+                          <Button size="small" onClick={handleViewPdf} style={{ marginLeft: 'auto' }}>View Invoice</Button>
+                        )}
+                      </div>
+                    </div>
                   </section>
                 </div>
               ) : (
