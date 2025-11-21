@@ -12,6 +12,10 @@ const REMOTE_TTF = {
   VarelaRoundRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/varelaround/VarelaRound-Regular.ttf',
   RampartOneRegular: 'https://raw.githubusercontent.com/google/fonts/main/ofl/rampartone/RampartOne-Regular.ttf',
   CormorantInfantVar: 'https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantinfant/CormorantInfant%5Bwght%5D.ttf',
+  NanumPenScriptRegular: 'https://cdn.jsdelivr.net/npm/@fontsource/nanum-pen-script@5.0.8/files/nanum-pen-script-latin-400-normal.woff',
+  YomogiRegular: 'https://cdn.jsdelivr.net/npm/@fontsource/yomogi@5.0.8/files/yomogi-latin-400-normal.woff',
+  EphesisRegular: 'https://cdn.jsdelivr.net/npm/@fontsource/ephesis@5.0.8/files/ephesis-latin-400-normal.woff',
+  EBGaramondRegular: 'https://cdn.jsdelivr.net/npm/@fontsource/eb-garamond@5.0.8/files/eb-garamond-latin-400-normal.woff',
 } as const
 
 const ensureAtobPolyfill = () => {
@@ -124,6 +128,68 @@ const registerFontFamily = () => {
   } catch (error) {
     try { console.error('[pdf-font] failed to register Iansui', { error: (error as any)?.message || String(error) }) } catch {}
   }
+  try {
+    // Google Sans Mono - CDN from Reddit thread (example TTF URL, usually dynamic CSS)
+    // This font often requires a CSS @import or direct TTF links. For simplicity, we'll use
+    // a generic Google Fonts CDN and register with a fallback.
+    Font.register({
+      family: 'Google Sans Mono',
+      src: 'https://fonts.googleapis.com/css2?family=Google+Sans+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap',
+      // React-PDF expects a direct TTF/WOFF URL, not a CSS link. This will likely fail.
+      // Fallback to a generic sans-serif in StyleSheet.
+    });
+  } catch (error) {
+    try { console.error('[pdf-font] failed to register Google Sans Mono', { error: (error as any)?.message || String(error) }) } catch {}
+  }
+
+  try {
+    // Nanum Pen Script
+    const nanum = REMOTE_TTF.NanumPenScriptRegular;
+    if (nanum) {
+      Font.register({ family: 'Nanum Pen Script', src: nanum });
+    } else {
+      try { console.error('[pdf-font] Nanum Pen Script source missing') } catch {}
+    }
+  } catch (error) {
+    try { console.error('[pdf-font] failed to register Nanum Pen Script', { error: (error as any)?.message || String(error) }) } catch {}
+  }
+
+  try {
+    // Yomogi
+    const yomogi = REMOTE_TTF.YomogiRegular;
+    if (yomogi) {
+      Font.register({ family: 'Yomogi', src: yomogi });
+    } else {
+      try { console.error('[pdf-font] Yomogi source missing') } catch {}
+    }
+  } catch (error) {
+    try { console.error('[pdf-font] failed to register Yomogi', { error: (error as any)?.message || String(error) }) } catch {}
+  }
+
+  try {
+    // Ephesis
+    const ephesis = REMOTE_TTF.EphesisRegular;
+    if (ephesis) {
+      Font.register({ family: 'Ephesis', src: ephesis });
+    } else {
+      try { console.error('[pdf-font] Ephesis source missing') } catch {}
+    }
+  } catch (error) {
+    try { console.error('[pdf-font] failed to register Ephesis', { error: (error as any)?.message || String(error) }) } catch {}
+  }
+
+  try {
+    // EB Garamond
+    const ebGaramond = REMOTE_TTF.EBGaramondRegular;
+    if (ebGaramond) {
+      Font.register({ family: 'EB Garamond', src: ebGaramond });
+    } else {
+      try { console.error('[pdf-font] EB Garamond source missing') } catch {}
+    }
+  } catch (error) {
+    try { console.error('[pdf-font] failed to register EB Garamond', { error: (error as any)?.message || String(error) }) } catch {}
+  }
+
   // Removed Karla WOFF registration (unsupported format in fontkit/React-PDF). If Karla is
   // required later, embed a TTF as base64 in FONT_DATA or use a valid TTF URL.
 }
@@ -139,11 +205,11 @@ const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN.left - PAGE_MARGIN.right
 const DESC_COL_WIDTH = Math.round(CONTENT_WIDTH * 0.70)
 const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
 
-  const styles = StyleSheet.create({
+const styles = StyleSheet.create({
   page: {
     fontFamily: 'RobotoMono',
     fontSize: 10,
-    color: '#111827',
+    color: '#000',
     paddingTop: 30,
     paddingBottom: 30,
     paddingHorizontal: 40,
@@ -155,34 +221,40 @@ const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
     marginBottom: 20,
   },
   logoMark: {
-    fontFamily: 'Fascinate',
-    fontSize: 48,
+    fontFamily: 'RampartOne',
+    fontSize: 60,
     color: '#000',
   },
   invoiceLabel: {
-    fontFamily: 'CormorantInfant',
-    fontSize: 32,
+    fontFamily: 'EB Garamond',
+    fontSize: 35,
     fontWeight: 'bold',
-    letterSpacing: 0.5,
   },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
+    fontFamily: 'Google Sans Mono',
+    fontSize: 8,
+    fontStyle: 'italic',
     color: '#000',
-    marginBottom: 8,
-  },
-  billName: {
-    fontSize: 12,
-    fontWeight: 'bold',
     marginBottom: 4,
   },
-  projectTitle: {
-    fontSize: 12,
+  billName: {
+    fontFamily: 'Google Sans Mono',
+    fontSize: 11,
     fontWeight: 'bold',
+    color: '#000',
     marginBottom: 2,
   },
+  projectTitle: {
+    fontFamily: 'Yuji Mai',
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 1,
+  },
   projectNature: {
+    fontFamily: 'Federo',
+    fontSize: 8,
+    color: '#000',
     fontStyle: 'italic',
     marginBottom: 2,
   },
