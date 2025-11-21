@@ -46,9 +46,10 @@ _Status legend:_ ✅ done · ⏳ in progress · 🧭 planned · 🗃 archived
 | T-132 | Telegram — Per-section Edit actions (client, items, totals) | ✅ | Completed |
 | T-133 | Telegram — Clear project listing on “+ Add New Project” start | ✅ | Completed |
 | T-200 | Invoice Template — Sheets snapshot extraction | ⏳ | Active; `npm run sheet:scan-template` saves JSON under `tmp/` |
-| T-201 | PDF Renderer — Pixel parity with template | 🧭 | Planned; build native HTML/CSS (or @react-pdf) using snapshot geometry |
-| T-202 | PDF Export — Replace minimal output with final renderer | 🧭 | Planned; keep pdfkit fallback until stable |
+| T-201 | PDF Renderer — Pixel parity with template | ✅ | Completed; rebuilt PDF layout and styling based on Google Sheet data. |
+| T-202 | PDF Export — Replace minimal output with final renderer | ✅ | Completed; now uses the fully styled multi-page invoice. |
 | T-203 | UI — Export/View freshness gating + stale chip | 🧭 | Planned; detect changed fields since last pdfGeneratedAt |
+| T-205 | PDF Generator — Fix 4-page bundle and styling | ✅ | Implemented 4-page bundle (Invoice B, Invoice A, Payment Details, Payment Instructions). Correctly displayed projectTitle and presenterWorkType. Updated fonts, sizes, and layout in `classicInvoice.tsx` to match Google Sheet template. |
 
 ## Current Focus
 
