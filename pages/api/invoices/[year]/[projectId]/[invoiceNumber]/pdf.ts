@@ -3,22 +3,13 @@ import crypto from 'crypto'
 import { pdf } from '@react-pdf/renderer'
 import { doc, getDoc } from 'firebase/firestore'
 import { fetchInvoicesForProject } from '../../../../../../lib/projectInvoices'
-import { buildClassicInvoiceDocument, type ClassicInvoiceVariant } from '../../../../../../lib/pdfTemplates/classicInvoice'
+import { buildGeneratedInvoiceDocument } from '../../../../../../lib/pdfTemplates/generatedInvoicePdf'
 import { FONT_DATA } from '../../../../../../lib/pdfTemplates/fontData'
 import { projectsDb } from '../../../../../../lib/firebase'
 import { fetchSubsidiaryById } from '../../../../../../lib/subsidiaries'
 import { resolveBankAccountIdentifier } from '../../../../../../lib/erlDirectory'
 
-const VARIANTS: ClassicInvoiceVariant[] = ['bundle', 'A', 'A2', 'B', 'B2']
 
-const computeHash = (obj: any): string =>
-  crypto.createHash('sha256').update(JSON.stringify(obj)).digest('hex')
-
-const parseVariant = (raw: string | undefined | null): ClassicInvoiceVariant => {
-  if (!raw) return 'bundle'
-  const normalized = raw.trim()
-  return (VARIANTS.includes(normalized as ClassicInvoiceVariant) ? normalized : 'bundle') as ClassicInvoiceVariant
-}
 
 const toStringValue = (value: unknown): string | null => {
   if (typeof value === 'string') {
@@ -94,7 +85,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const meta = (req.query.meta as string) || null
   const inline = req.query.inline === '1'
-  const variant = parseVariant(req.query.variant as string)
 
   let inv: any
   try {
@@ -310,7 +300,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   let pdfBuffer: Buffer
   try {
-    const document = buildClassicInvoiceDocument(docInput, { variant })
+    const document = buildGeneratedInvoiceDocument(docInput as any);
     const instance = pdf(document)
     const rendered: any = await instance.toBuffer()
     if (Buffer.isBuffer(rendered)) {
