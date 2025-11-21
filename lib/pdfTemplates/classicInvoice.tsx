@@ -933,36 +933,20 @@ export const buildClassicInvoiceDocument = (
   data: ClassicInvoiceDocInput,
   options?: { variant?: ClassicInvoiceVariant },
 ) => {
-  const variant = options?.variant ?? 'bundle'
-  const descriptors = buildDescriptors(variant, data)
-  const qrPayload = buildHKFPSPayload(data.fpsId ?? data.fpsEmail ?? null, true, (typeof data.total === 'number' ? data.total : data.amount) ?? null)
-  const pages: React.ReactElement[] = []
-  const totalPages = descriptors.length
-  descriptors.forEach((descriptor, index) => {
-    const pageNumber = index + 1
-    if (descriptor.kind === 'items') {
-      const isLastPageForVariant = descriptor.pageIndex === descriptor.totalPagesForVariant - 1
-      const shouldShowTotals = isLastPageForVariant
-      const showFooter =
-        descriptor.variantBase === 'B'
-          ? isLastPageForVariant
-          : true
-      pages.push(
-        renderItemPage(
-          data,
-          descriptor,
-          pageNumber,
-          totalPages,
-          shouldShowTotals,
-          showFooter,
-        ),
-      )
-    } else if (descriptor.kind === 'payment-details') {
-      pages.push(<PaymentDetailsPage key={`details-${index}`} data={data} qrPayload={qrPayload} pageNumber={pageNumber} totalPages={totalPages} />)
-    } else {
-      pages.push(<PaymentInstructionsPage key={`instructions-${index}`} data={data} qrPayload={qrPayload} pageNumber={pageNumber} totalPages={totalPages} />)
-    }
-  })
-
-  return <Document>{pages}</Document>
-}
+  return (
+    <Document>
+      <Page size="A4" style={{ padding: 40 }}>
+        <Text>Page 1: Variant B</Text>
+      </Page>
+      <Page size="A4" style={{ padding: 40 }}>
+        <Text>Page 2: Variant A</Text>
+      </Page>
+      <Page size="A4" style={{ padding: 40 }}>
+        <Text>Page 3: Payment Details</Text>
+      </Page>
+      <Page size="A4" style={{ padding: 40 }}>
+        <Text>Page 4: Payment Instructions</Text>
+      </Page>
+    </Document>
+  );
+};
