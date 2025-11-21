@@ -1865,6 +1865,7 @@ const ProjectsShowContent = () => {
           : {
               collectionId: draftInvoice.collectionId,
               invoiceNumber: normalizedInvoiceNumber,
+              originalInvoiceNumber: draftInvoice.originalInvoiceNumber ?? (invoices[activeInvoiceIndex]?.invoiceNumber ?? undefined),
               client: draftInvoice.client,
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
@@ -2432,11 +2433,7 @@ const ProjectsShowContent = () => {
                   <Title level={5} className="section-heading">
                     Billing &amp; Payments
                   </Title>
-                  {itemsPages ? (
-                    <Tag color="blue" style={{ fontFamily: KARLA_FONT }}>
-                      Items span: ({itemsPages} page{itemsPages > 1 ? 's' : ''})
-                    </Tag>
-                  ) : null}
+                  {/* Removed redundant items span indicator from header; single indicator remains below the items table */}
                   {(invoiceMode === "idle" || isProjectEditing || isManagingInvoices) ? (
                     <div className="billing-header-actions">
                       <Button
