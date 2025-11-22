@@ -312,6 +312,7 @@ export interface ClassicInvoiceDocInput {
   fpsId?: string | null
   fpsEmail?: string | null
   paymentTerms?: string | null
+  sheetData: any;
 }
 
 export type ClassicInvoiceVariant = 'bundle' | 'A' | 'A2' | 'B' | 'B2'
@@ -881,11 +882,7 @@ export const buildClassicInvoiceDocument = (
   data: ClassicInvoiceDocInput,
   options?: { variant?: ClassicInvoiceVariant },
 ) => {
-  // We will need to fetch the raw sheet data here.
-  // For now, let's assume it's passed in as a prop.
-  // This will be connected to the API route later.
-  const sheetData = {}; // Placeholder for raw sheet data
-
+  const { sheetData } = data;
   const { rows, merges, rowMetadata, columnMetadata } = processSheetData(sheetData);
 
   const styles = StyleSheet.create({

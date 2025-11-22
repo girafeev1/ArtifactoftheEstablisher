@@ -251,6 +251,158 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     /* ignore font presence logging errors */
   }
 
+  import { google } from 'googleapis';
+// ... other imports
+
+// Function to fetch sheet data
+const getSheetData = async () => {
+  const auth = new google.auth.GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    },
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth });
+  const spreadsheetId = '12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0';
+
+  const response = await sheets.spreadsheets.get({
+    spreadsheetId,
+    includeGridData: true,
+  });
+
+  return response.data;
+};
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+
+  const { year, projectId, invoiceNumber } = req.query as Record<string, string>
+  if (!year || !projectId || !invoiceNumber) return res.status(400).json({ error: 'Missing parameters' })
+
+  const meta = (req.query.meta as string) || null
+  const inline = req.query.inline === '1'
+  const variant = parseVariant(req.query.variant as string)
+
+  let inv: any
+  try {
+    const invoices = await fetchInvoicesForProject(year, projectId)
+    inv = invoices.find((invoice) => invoice.invoiceNumber === invoiceNumber)
+  } catch (error: any) {
+    try { console.error('[pdf] fetch error', { error: error?.message || String(error) }) } catch {
+      /* ignore logging errors */
+    }
+    return res.status(500).send('Failed to load invoice data')
+  }
+
+  if (!inv) return res.status(404).send('Invoice not found')
+
+  if (meta === 'itemsPages') {
+    const items = Array.isArray(inv.items) ? inv.items : []
+    let lines = 0
+    items.forEach((item: any) => {
+      lines += 2
+      if (item.subQuantity) lines += 1
+      if (item.feeType) lines += 1
+      if (item.notes) lines += Math.ceil(String(item.notes).length / 80)
+    })
+    const perPage = 28;
+    const pages = Math.max(1, Math.ceil(lines / perPage))
+    return res.status(200).json({ itemsPages: pages })
+  }
+
+  const projectSnap = await fetchProjectSnapshot(year, projectId)
+  const projectData = projectSnap?.data() ?? null
+  const projectTitle = toStringValue(projectData?.projectTitle) ?? toStringValue(inv.projectTitle)
+  const presenterWorkType =
+    toStringValue(projectData?.presenterWorkType) ?? toStringValue(inv.presenterWorkType)
+  const projectNature = toStringValue(projectData?.projectNature) ?? toStringValue(inv.projectNature)
+  const projectNumber = toStringValue(projectData?.projectNumber) ?? toStringValue(inv.projectNumber)
+  const projectDate = formatDisplayDate(
+    (projectData as any)?.projectDateDisplay ??
+      (projectData as any)?.projectDateIso ??
+      (projectData as any)?.projectDate ??
+      inv.projectDateDisplay ??
+      inv.projectDateIso ??
+      inv.projectDate ??
+      null,
+  )
+  const projectPickupDate = formatDisplayDate((projectData as any)?.projectPickupDate ?? null)
+  const subsidiaryId = toStringValue((projectData as any)?.subsidiary ?? inv.subsidiary ?? null)
+  let subsidiaryDoc: Awaited<ReturnType<typeof fetchSubsidiaryById>> | null = null
+  if (subsidiaryId) {
+    try {
+      subsidiaryDoc = await fetchSubsidiaryById(subsidiaryId)
+    } catch {
+      subsidiaryDoc = null
+    }
+  }
+  const subsidiaryProfile = {
+    englishName:
+      toStringValue(subsidiaryDoc?.englishName) ?? fallbackSubsidiaryProfile.englishName,
+    chineseName:
+      toStringValue(subsidiaryDoc?.chineseName) ?? fallbackSubsidiaryProfile.chineseName,
+    addressLines: [
+      toStringValue((subsidiaryDoc as any)?.addressLine1),
+      toStringValue((subsidiaryDoc as any)?.addressLine2),
+      toStringValue((subsidiaryDoc as any)?.addressLine3),
+      toStringValue((subsidiaryDoc as any)?.region),
+    ].filter((line): line is string => Boolean(line && line.trim())),
+    phone: toStringValue(subsidiaryDoc?.phone) ?? fallbackSubsidiaryProfile.phone,
+    email: toStringValue(subsidiaryDoc?.email) ?? fallbackSubsidiaryProfile.email,
+  }
+  if (!subsidiaryProfile.addressLines.length) {
+    subsidiaryProfile.addressLines = [...fallbackSubsidiaryProfile.addressLines]
+  }
+
+  const normalizedItems = (Array.isArray(inv.items) ? inv.items : []).map((item: any) => ({
+    title: toStringValue(item.title),
+    subQuantity: toStringValue(item.subQuantity),
+    feeType: toStringValue(item.feeType),
+    notes: toStringValue(item.notes),
+    unitPrice: toNumberValue(item.unitPrice),
+    quantity: toNumberValue(item.quantity),
+    quantityUnit: toStringValue(item.quantityUnit),
+    discount: toNumberValue(item.discount),
+  }))
+
+  let bankProfile: Awaited<ReturnType<typeof resolveBankAccountIdentifier>> | null = null
+  if (typeof inv.paidTo === 'string' && inv.paidTo.trim()) {
+    try {
+      bankProfile = await resolveBankAccountIdentifier(inv.paidTo.trim())
+    } catch {
+      bankProfile = null
+    }
+  }
+
+  const bankName = toStringValue(inv.bankName) ?? toStringValue(bankProfile?.bankName)
+  const bankCode = toStringValue(inv.bankCode) ?? toStringValue(bankProfile?.bankCode)
+  const accountType = toStringValue(inv.accountType) ?? toStringValue(bankProfile?.accountType)
+  const accountNumber = toStringValue((inv as any)?.bankAccountNumber) ?? toStringValue(bankProfile?.accountNumber)
+  const fpsId = toStringValue((inv as any)?.fpsId) ?? toStringValue(bankProfile?.fpsId)
+  const fpsEmail = toStringValue((inv as any)?.fpsEmail) ?? toStringValue(bankProfile?.fpsEmail)
+  const paidToLabel =
+    toStringValue((inv as any)?.paidToLabel) ??
+    toStringValue((inv as any)?.payeeName) ??
+    toStringValue(inv.paidTo) ??
+    subsidiaryProfile.englishName
+
+  const paymentStatus = toStringValue(inv.paymentStatus) ?? 'Due'
+  const subtotalValue = typeof inv.subtotal === 'number' ? inv.subtotal : null
+  const totalValue = typeof inv.total === 'number' ? inv.total : null
+  const amountValue = typeof inv.amount === 'number' ? inv.amount : null
+  const taxOrDiscountPercent =
+    typeof inv.taxOrDiscountPercent === 'number' ? inv.taxOrDiscountPercent : null
+  const invoiceDateDisplay = new Date().toLocaleDateString('en-HK', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  })
+  const paymentTerms =
+    toStringValue((inv as any)?.paymentTerms) ?? 'FULL PAYMENT WITHIN 7 DAYS'
+
+  const sheetData = await getSheetData();
   const docInput = {
     invoiceNumber: inv.invoiceNumber,
     invoiceDateDisplay,
@@ -285,7 +437,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     fpsId,
     fpsEmail,
     paymentTerms,
+    sheetData,
   }
+
+  // ... rest of the handler
+}
 
   const bufferFromStream = (stream: any): Promise<Buffer> =>
     new Promise((resolve, reject) => {
