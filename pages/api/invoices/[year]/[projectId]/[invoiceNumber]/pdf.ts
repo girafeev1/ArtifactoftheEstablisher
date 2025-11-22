@@ -352,6 +352,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const chunks: Buffer[] = []
       doc.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
       doc.on('error', () => {})
+      doc.fontSize(25).text('FALLBACK PDF RENDERED', { align: 'center' });
+      doc.moveDown(2);
       doc.fontSize(16).text(`Invoice #${inv.invoiceNumber}`, { align: 'left' })
       doc.moveDown(0.5)
       if (inv.companyName) doc.fontSize(10).text(inv.companyName)
