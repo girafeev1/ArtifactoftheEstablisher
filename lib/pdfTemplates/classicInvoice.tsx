@@ -2,7 +2,67 @@ import { Buffer } from 'buffer'
 import React from 'react'
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer'
 import { amountHK, num2eng, num2chi } from '../invoiceFormat'
-import { FONT_DATA } from './fontData'
+import { FONT_DATA } from './fontData';
+
+// Helper function to process the raw sheet data
+const processSheetData = (sheetData: any) => {
+  const TARGET_SHEET_TITLE = 'Classic Single-Item Invoice (Sample';
+  const targetSheet = sheetData.sheets.find(
+    (sheet: any) => sheet.properties?.title === TARGET_SHEET_TITLE
+  );
+
+  if (!targetSheet) {
+    throw new Error(`Sheet with title "${TARGET_SHEET_TITLE}" not found.`);
+  }
+
+  const simplifyCell = (cell: any) => {
+    if (!cell) return null;
+    const simplified: {
+      value?: string | number | boolean;
+      format?: {
+        fontFamily?: string;
+        fontSize?: number;
+        bold?: boolean;
+        italic?: boolean;
+        horizontalAlignment?: string;
+        verticalAlignment?: string;
+      };
+      note?: string;
+    } = {};
+
+    if (cell.effectiveValue) {
+      const value = Object.values(cell.effectiveValue)[0];
+      simplified.value = value as string | number | boolean;
+    }
+
+    if (cell.effectiveFormat) {
+      const { textFormat, horizontalAlignment, verticalAlignment } = cell.effectiveFormat;
+      simplified.format = {
+        fontFamily: textFormat?.fontFamily,
+        fontSize: textFormat?.fontSize,
+        bold: textFormat?.bold,
+        italic: textFormat?.italic,
+        horizontalAlignment,
+        verticalAlignment,
+      };
+    }
+    if(cell.note) {
+      simplified.note = cell.note
+    }
+    return simplified;
+  };
+
+  return {
+    properties: targetSheet.properties,
+    rows: targetSheet.data[0].rowData.map((row: any) => {
+      if (!row.values) return [];
+      return row.values.map(simplifyCell);
+    }),
+    merges: targetSheet.merges,
+    rowMetadata: targetSheet.data[0].rowMetadata,
+    columnMetadata: targetSheet.data[0].columnMetadata,
+  };
+};
 
 // Remote TTF fallbacks (used only if embedded base64 is missing)
 const REMOTE_TTF = {
@@ -817,16 +877,28 @@ const buildDescriptors = (variant: ClassicInvoiceVariant, data: ClassicInvoiceDo
   return descriptors
 }
 
-import { generatedStyles as styles } from './generatedStyles';
-
 export const buildClassicInvoiceDocument = (
   data: ClassicInvoiceDocInput,
   options?: { variant?: ClassicInvoiceVariant },
 ) => {
-  // For now, we will render the first sheet from the template data.
-  // We can add logic to switch between sheets for different variants later.
-  const sheetData = require('../../tmp/invoice-template-data.json');
-  const { rows, merges, rowMetadata, columnMetadata } = sheetData;
+  // We will need to fetch the raw sheet data here.
+  // For now, let's assume it's passed in as a prop.
+  // This will be connected to the API route later.
+  const sheetData = {}; // Placeholder for raw sheet data
+
+  const { rows, merges, rowMetadata, columnMetadata } = processSheetData(sheetData);
+
+  const styles = StyleSheet.create({
+    page: {
+      fontFamily: 'RobotoMono',
+      fontSize: 10,
+      color: '#000',
+      paddingTop: 30,
+      paddingBottom: 30,
+      paddingHorizontal: 40,
+      lineHeight: 1.4,
+    },
+  });
 
   return (
     <Document>
@@ -835,7 +907,14 @@ export const buildClassicInvoiceDocument = (
           {rows.map((row: any, rowIndex: number) => (
             <View key={rowIndex} style={{ flexDirection: 'row', height: rowMetadata[rowIndex]?.pixelSize || 'auto' }}>
               {row.map((cell: any, colIndex: number) => {
-                const style = styles[`cell_${rowIndex}_${colIndex}`] || {};
+                const style: any = {
+                  fontFamily: cell?.format?.fontFamily,
+                  fontSize: cell?.format?.fontSize,
+                  fontWeight: cell?.format?.bold ? 'bold' : 'normal',
+                  fontStyle: cell?.format?.italic ? 'italic' : 'normal',
+                  textAlign: cell?.format?.horizontalAlignment?.toLowerCase() || 'left',
+                  verticalAlign: cell?.format?.verticalAlignment?.toLowerCase() || 'top',
+                };
                 const width = columnMetadata[colIndex]?.pixelSize || 100;
 
                 // Check if this cell is part of a merge
