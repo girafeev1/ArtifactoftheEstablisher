@@ -205,119 +205,7 @@ const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN.left - PAGE_MARGIN.right
 const DESC_COL_WIDTH = Math.round(CONTENT_WIDTH * 0.70)
 const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
 
-const styles = StyleSheet.create({
-  page: {
-    fontFamily: 'RobotoMono',
-    fontSize: 10,
-    color: '#000',
-    paddingTop: 30,
-    paddingBottom: 30,
-    paddingHorizontal: 40,
-    lineHeight: 1.4,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  logoMark: {
-    fontFamily: 'RampartOne',
-    fontSize: 60,
-    color: '#000',
-  },
-  invoiceLabel: {
-    fontFamily: 'EB Garamond',
-    fontSize: 35,
-    fontWeight: 'bold',
-  },
-  sectionLabel: {
-    fontFamily: 'Google Sans Mono',
-    fontSize: 8,
-    fontStyle: 'italic',
-    color: '#000',
-    marginBottom: 4,
-  },
-  billName: {
-    fontFamily: 'Google Sans Mono',
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 2,
-  },
-  projectTitle: {
-    fontFamily: 'Yuji Mai',
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 1,
-  },
-  projectNature: {
-    fontFamily: 'Federo',
-    fontSize: 8,
-    color: '#000',
-    fontStyle: 'italic',
-    marginBottom: 2,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    borderBottomWidth: 1.5,
-    borderColor: '#0f172a',
-    paddingBottom: 4,
-    marginTop: 16,
-  },
-  tableColDesc: {
-    width: DESC_COL_WIDTH,
-    paddingRight: 18,
-  },
-  tableColAmount: {
-    width: AMOUNT_COL_WIDTH,
-    textAlign: 'right',
-  },
-  itemRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 0.5,
-    borderColor: '#e2e8f0',
-    paddingVertical: 4,
-  },
-  amountCell: {
-    fontWeight: 700,
-  },
-  totalsBlock: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderColor: '#94a3b8',
-  },
-  totalsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  footer: {
-    marginTop: 14,
-    fontSize: 8.5,
-    color: '#475569',
-  },
-  footerZh: {
-    fontFamily: 'Iansui',
-    marginTop: 2,
-  },
-  pageNumber: {
-    position: 'absolute',
-    bottom: 12,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 9,
-    color: '#94a3b8',
-  },
-  qrContainer: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-})
+import { generatedStyles as styles } from './generatedStyles';
 
 export type ClassicInvoiceItem = {
   title?: string | null
@@ -929,23 +817,67 @@ const buildDescriptors = (variant: ClassicInvoiceVariant, data: ClassicInvoiceDo
   return descriptors
 }
 
+import { generatedStyles as styles } from './generatedStyles';
+
 export const buildClassicInvoiceDocument = (
   data: ClassicInvoiceDocInput,
   options?: { variant?: ClassicInvoiceVariant },
 ) => {
+  // For now, we will render the first sheet from the template data.
+  // We can add logic to switch between sheets for different variants later.
+  const sheetData = require('../../tmp/invoice-template-data.json');
+  const { rows, merges, rowMetadata, columnMetadata } = sheetData;
+
   return (
     <Document>
-      <Page size="A4" style={{ padding: 40 }}>
-        <Text>Page 1: Variant B</Text>
-      </Page>
-      <Page size="A4" style={{ padding: 40 }}>
-        <Text>Page 2: Variant A</Text>
-      </Page>
-      <Page size="A4" style={{ padding: 40 }}>
-        <Text>Page 3: Payment Details</Text>
-      </Page>
-      <Page size="A4" style={{ padding: 40 }}>
-        <Text>Page 4: Payment Instructions</Text>
+      <Page size="A4" style={styles.page}>
+        <View>
+          {rows.map((row: any, rowIndex: number) => (
+            <View key={rowIndex} style={{ flexDirection: 'row', height: rowMetadata[rowIndex]?.pixelSize || 'auto' }}>
+              {row.map((cell: any, colIndex: number) => {
+                const style = styles[`cell_${rowIndex}_${colIndex}`] || {};
+                const width = columnMetadata[colIndex]?.pixelSize || 100;
+
+                // Check if this cell is part of a merge
+                const merge = merges.find(
+                  (m: any) =>
+                    rowIndex >= m.startRowIndex &&
+                    rowIndex < m.endRowIndex &&
+                    colIndex >= m.startColumnIndex &&
+                    colIndex < m.endColumnIndex
+                );
+
+                if (merge && (rowIndex !== merge.startRowIndex || colIndex !== merge.startColumnIndex)) {
+                  // This cell is not the top-left of a merged region, so we render nothing.
+                  return null;
+                }
+
+                let colSpan = 1;
+                let rowSpan = 1;
+                if (merge) {
+                  colSpan = merge.endColumnIndex - merge.startColumnIndex;
+                  rowSpan = merge.endRowIndex - merge.startRowIndex;
+                }
+
+                let finalWidth = 0;
+                for (let i = 0; i < colSpan; i++) {
+                  finalWidth += columnMetadata[colIndex + i]?.pixelSize || 100;
+                }
+                
+                let finalHeight = 0;
+                for (let i = 0; i < rowSpan; i++) {
+                    finalHeight += rowMetadata[rowIndex + i]?.pixelSize || 21;
+                }
+
+                return (
+                  <View key={colIndex} style={{ width: finalWidth, height: finalHeight, ...style }}>
+                    <Text>{cell?.value || ''}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+        </View>
       </Page>
     </Document>
   );
