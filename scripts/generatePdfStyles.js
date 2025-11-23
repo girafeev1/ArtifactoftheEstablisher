@@ -1,6 +1,6 @@
-// scripts/generatePdfStyles.ts
-import fs from 'fs/promises';
-import path from 'path';
+// scripts/generatePdfStyles.js
+const fs = require('fs/promises');
+const path = require('path');
 
 const INPUT_PATH = path.resolve(process.cwd(), 'tmp', 'invoice-template-data.json');
 const OUTPUT_PATH = path.resolve(process.cwd(), 'lib', 'pdfTemplates', 'generatedStyles.ts');
@@ -12,20 +12,15 @@ async function main() {
     const fileContent = await fs.readFile(INPUT_PATH, 'utf-8');
     const sheetData = JSON.parse(fileContent);
 
-    const styles: { [key: string]: any } = {
+    const styles = {
       page: {
         fontFamily: 'Roboto',
         fontSize: 11,
         padding: 40,
         flexDirection: 'column',
       },
-      // ... more styles to be added here
+      // ... more styles to be added here from parsing sheetData
     };
-
-    // This is a simplified example. A more robust implementation would
-    // iterate through all rows and cells and generate styles based on their
-    // `effectiveFormat`. This is a complex task that will be done iteratively.
-    // For now, we will just add a few key styles.
 
     const firstRow = sheetData.rows[0];
     if (firstRow && firstRow[0] && firstRow[0].format) {
@@ -34,9 +29,8 @@ async function main() {
         fontSize: firstRow[0].format.fontSize,
       };
     }
-
-    // These are just placeholders to get the build to pass.
-    // I will replace these with the actual styles from the sheet data.
+    
+    // Add placeholders to prevent build failure
     styles.sectionLabel = { fontSize: 10 };
     styles.billName = { fontSize: 12 };
     styles.projectTitle = { fontSize: 14 };
@@ -56,7 +50,7 @@ async function main() {
     styles.headerRow = {};
 
 
-    const outputContent = `// This file is auto-generated. Do not edit.\n\nimport { StyleSheet } from '@react-pdf/renderer';\n\nexport const generatedStyles = StyleSheet.create(${JSON.stringify(styles, null, 2)});`;
+    const outputContent = "// This file is auto-generated. Do not edit.\n\nimport { StyleSheet } from '@react-pdf/renderer';\n\nexport const generatedStyles = StyleSheet.create(" + JSON.stringify(styles, null, 2) + ");";
 
     await fs.writeFile(OUTPUT_PATH, outputContent);
     console.log(`Successfully generated styles to ${OUTPUT_PATH}`);
