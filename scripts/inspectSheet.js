@@ -10,11 +10,13 @@ const OUTPUT_PATH = path.resolve(process.cwd(), 'tmp', 'invoice-template-data.js
 async function main() {
   console.log('Authenticating with Google Sheets API...');
 
+  const private_key = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+
   const auth = new google.auth.GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     credentials: {
       client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      private_key,
     },
   });
 
