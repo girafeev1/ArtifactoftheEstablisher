@@ -48,7 +48,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npm run build:styles && next build",
-    "build:styles": "ts-node scripts/generatePdfStyles.ts",
+    "build:styles": "ts-node scripts/inspectSheet.ts && ts-node scripts/generatePdfStyles.ts",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
