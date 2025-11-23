@@ -48,7 +48,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+"build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -67,7 +67,8 @@
     "cleanup:clients:remove-address4-5": "node scripts/cleanup-clients-remove-address4-5.js",
     "capture:page": "node scripts/puppeteer-capture.js",
     "sheet:scan-template": "node scripts/scan-invoice-template.js --id 12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0 --gid 598129981",
-    "sheet:scan-all": "node scripts/scan-spreadsheet-all.js --id 12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0"
+    "sheet:scan-all": "node scripts/scan-spreadsheet-all.js --id 12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0",
+    "build:styles": "node scripts/inspectSheet.js && node scripts/generatePdfStyles.js"
   },
   "author": "",
   "license": "ISC",
