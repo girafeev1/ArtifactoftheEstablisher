@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import crypto from 'crypto';
-import { pdf, Document as PdfDocument } from '@react-pdf/renderer';
+import * as ReactPdf from '@react-pdf/renderer';
+const { pdf } = ReactPdf;
 import { doc, getDoc } from 'firebase/firestore';
 import { buildClassicInvoiceDocument, type ClassicInvoiceDocInput, type ClassicInvoiceVariant } from '../../../../../../lib/pdfTemplates/classicInvoice';
 import { projectsDb } from '../../../../../../lib/firebase';

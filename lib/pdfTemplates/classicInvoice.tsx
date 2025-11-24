@@ -1,6 +1,7 @@
 import { Buffer } from 'buffer'
 import React from 'react'
-import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer'
+import * as ReactPdf from '@react-pdf/renderer';
+const { Document, Page, Text, View, StyleSheet, Font, Image } = ReactPdf;
 import { amountHK, num2eng, num2chi } from '../invoiceFormat'
 import { FONT_DATA } from './fontData';
 
