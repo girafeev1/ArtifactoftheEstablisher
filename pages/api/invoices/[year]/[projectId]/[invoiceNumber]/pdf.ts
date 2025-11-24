@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import * as ReactPdf from '@react-pdf/renderer'
 const { pdf } = ReactPdf
 import { doc as docFs, getDoc } from 'firebase/firestore'
+import { fetchInvoicesForProject } from '../../../../../../lib/projectInvoices'
 import {
   buildClassicInvoiceDocument,
   type ClassicInvoiceDocInput,
@@ -53,44 +54,54 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   try {
+    // Load project (for subsidiary metadata) — prefer nested path
     const projectSnap = await getDoc(docFs(projectsDb, 'projects', year, 'projects', projectId))
     if (!projectSnap.exists()) {
-      return res.status(404).send('Project not found')
+      // Fall back to legacy root if nested is missing
+      const legacySnap = await getDoc(docFs(projectsDb, year, projectId))
+      if (!legacySnap.exists()) {
+        return res.status(404).send('Project not found')
+      }
     }
-    const projectData = projectSnap.data()
-    const invoice = (projectData as any)?.invoices?.[invoiceNumber]
+
+    // Fetch invoices via our library (works with current Firestore layout)
+    const invoices = await fetchInvoicesForProject(year, projectId)
+    const invoice = invoices.find((inv) => inv.invoiceNumber === invoiceNumber)
     if (!invoice) {
       return res.status(404).send('Invoice not found')
     }
 
-    const subsidiary = await fetchSubsidiaryById((projectData as any).subsidiaryId)
-    const bankDetails = await resolveBankAccountIdentifier(invoice.paidTo)
+    const projectData = projectSnap.exists() ? projectSnap.data() : null
+    const subsidiaryId = (projectData as any)?.subsidiaryId || (projectData as any)?.subsidiary || null
+    const subsidiary = subsidiaryId ? await fetchSubsidiaryById(subsidiaryId) : null
+    const bankDetails = invoice.paidTo ? await resolveBankAccountIdentifier(invoice.paidTo) : null
 
     const invoiceData: ClassicInvoiceDocInput = {
       // --- Map your invoice and project data here ---
       invoiceNumber: invoice.invoiceNumber,
-      invoiceDateDisplay: invoice.invoiceDate,
-      companyName: projectData.clientName,
-      addressLine1: projectData.clientAddressLine1,
-      addressLine2: projectData.clientAddressLine2,
-      addressLine3: projectData.clientAddressLine3,
-      region: projectData.clientRegion,
-      representative: projectData.clientContactPerson,
-      projectTitle: projectData.projectName,
-      projectNature: projectData.projectNature,
-      items: invoice.items,
-      total: invoice.totalAmount,
+      invoiceDateDisplay: invoice.updatedAt || invoice.createdAt || null,
+      companyName: invoice.companyName,
+      addressLine1: invoice.addressLine1,
+      addressLine2: invoice.addressLine2,
+      addressLine3: invoice.addressLine3,
+      region: invoice.region,
+      representative: invoice.representative,
+      projectTitle: (projectData as any)?.projectTitle ?? (projectData as any)?.projectName ?? null,
+      projectNature: (projectData as any)?.projectNature ?? null,
+      items: invoice.items as any,
+      subtotal: invoice.subtotal ?? null,
+      total: invoice.total ?? invoice.amount ?? null,
       // --- Map subsidiary and bank details ---
-      subsidiaryEnglishName: subsidiary?.englishName,
-      subsidiaryChineseName: subsidiary?.chineseName,
-      subsidiaryAddressLines: subsidiary?.addressLine1 ? [subsidiary.addressLine1] : [],
-      subsidiaryPhone: subsidiary?.phone,
-      subsidiaryEmail: subsidiary?.email,
-      paidTo: bankDetails?.bankName,
-      bankName: bankDetails?.bankName,
-      bankCode: bankDetails?.bankCode,
-      bankAccountNumber: bankDetails?.accountNumber,
-      fpsId: bankDetails?.fpsId,
+      subsidiaryEnglishName: subsidiary?.englishName ?? null,
+      subsidiaryChineseName: subsidiary?.chineseName ?? null,
+      subsidiaryAddressLines: subsidiary?.addressLine1 ? [subsidiary.addressLine1] : undefined,
+      subsidiaryPhone: subsidiary?.phone ?? null,
+      subsidiaryEmail: subsidiary?.email ?? null,
+      paidTo: invoice.paidTo ?? null,
+      bankName: bankDetails?.bankName ?? null,
+      bankCode: bankDetails?.bankCode ?? null,
+      bankAccountNumber: bankDetails?.accountNumber ?? null,
+      fpsId: (bankDetails as any)?.fpsId ?? null,
       sheetData: null, // We are not using live sheet data anymore
     }
 
