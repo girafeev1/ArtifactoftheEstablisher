@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import crypto from 'crypto';
 import * as ReactPdf from '@react-pdf/renderer';
 const { pdf } = ReactPdf;
-import { doc, getDoc } from 'firebase/firestore';
+import { doc as docFs, getDoc } from 'firebase/firestore';
 import { buildClassicInvoiceDocument, type ClassicInvoiceDocInput, type ClassicInvoiceVariant } from '../../../../../../lib/pdfTemplates/classicInvoice';
 import { projectsDb } from '../../../../../../lib/firebase';
 import { fetchSubsidiaryById } from '../../../../../../lib/subsidiaries';
@@ -29,7 +29,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   try {
-    const projectSnap = await getDoc(doc(projectsDb, 'projects', year, 'projects', projectId));
+    const projectSnap = await getDoc(docFs(projectsDb, 'projects', year, 'projects', projectId));
     if (!projectSnap.exists()) {
       return res.status(404).send('Project not found');
     }
