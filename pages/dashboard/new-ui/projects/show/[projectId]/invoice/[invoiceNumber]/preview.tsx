@@ -1,7 +1,7 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { Button, Space, Typography, Tag, Dropdown, Empty, Spin } from "antd";
-import type { MenuProps } from "antd";
+// antd types can be finicky with Next's TS; inline menu config instead
 import React, { useEffect, useState } from "react";
 import AppShell from "../../../../../../../../components/new-ui/AppShell";
 import { projectsDataProvider } from "../../../../../../../../components/projects/NewUIProjectsApp";
@@ -24,6 +24,7 @@ export default function InvoicePreviewPage() {
   const year = (router.query.year as string) || '';
   const [invoice, setInvoice] = useState<ProjectInvoiceRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [variant, setVariant] = useState<string>('bundle');
 
   const projectNumber = (router.query.projectNumber as string) || '';
 
@@ -54,6 +55,9 @@ export default function InvoicePreviewPage() {
   }, [year, projectId, invoiceNumber])
 
   const menuItems = variants.map(v => ({ key: v.value, label: v.label, onClick: () => doExport(v.value) }))
+  const variantMenu = {
+    items: variants.map(v => ({ key: v.value, label: v.label, onClick: () => setVariant(v.value) })),
+  } as any
 
   const onBack = React.useCallback(() => {
     if (projectId) router.push(`/dashboard/new-ui/projects/show/${encodeURIComponent(projectId)}`)
@@ -78,23 +82,39 @@ export default function InvoicePreviewPage() {
               Export PDF
             </Dropdown.Button>
           </Space>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Space align="center" style={{ width: '100%', justifyContent: 'space-between', marginBottom: 8 }}>
             <Title level={4} style={{ margin: 0 }}>Preview — #{invoiceNumber}</Title>
-          </div>
+            <Dropdown menu={variantMenu} trigger={["click"]}>
+              <Button>Select Variant: {variants.find(v => v.value === variant)?.label || variant}</Button>
+            </Dropdown>
+          </Space>
           <div className="viewer-wrap">
             {loading ? (
               <Spin size="large" />
-            ) : invoice ? (
-              <GeneratedInvoice invoice={invoice} />
-            ) : (
+            ) : !invoice ? (
               <Empty description="Invoice not found" />
+            ) : (
+              // Inline PDF viewer rendering server-generated PDF (uses current variant)
+              <object
+                data={`/api/invoices/${encodeURIComponent(year)}/${encodeURIComponent(projectId!)}/${encodeURIComponent(invoiceNumber!)}/pdf?variant=${encodeURIComponent(variant)}&inline=1&ts=${Date.now()}`}
+                type="application/pdf"
+                width="100%"
+                height="100%"
+              >
+                <iframe
+                  src={`/api/invoices/${encodeURIComponent(year)}/${encodeURIComponent(projectId!)}/${encodeURIComponent(invoiceNumber!)}/pdf?variant=${encodeURIComponent(variant)}&inline=1&ts=${Date.now()}`}
+                  width="100%"
+                  height="100%"
+                  title="Invoice PDF"
+                />
+              </object>
             )}
           </div>
         </div>
         <style jsx>{`
           .preview-page { padding: 16px; }
           .preview-inner { max-width: 1200px; margin: 0 auto; }
-          .viewer-wrap { min-height: 80vh; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #fff; display: flex; justify-content: center; align-items: center; }
+          .viewer-wrap { min-height: 80vh; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #fff; display: flex; justify-content: center; align-items: stretch; }
         `}</style>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
