@@ -936,7 +936,7 @@ export const buildClassicInvoiceDocument = (
   const totalPages = descriptors.length
   let pageCounter = 0
 
-  const fpsProxyValue = data.fpsId ?? data.fpsEmail ?? null
+  const fpsProxyValue = data.fpsId != null ? String(data.fpsId) : (data.fpsEmail ?? null)
   const qrPayload = buildHKFPSPayload(fpsProxyValue, false, null)
   const qrPayloadWithAmount = buildHKFPSPayload(fpsProxyValue, true, data.total ?? data.amount ?? null)
 
