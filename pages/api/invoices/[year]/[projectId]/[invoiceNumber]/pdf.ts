@@ -62,7 +62,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       subsidiaryAddressLines: subsidiary?.addressLine1 ? [subsidiary.addressLine1] : [],
       subsidiaryPhone: subsidiary?.phone,
       subsidiaryEmail: subsidiary?.email,
-      paidTo: bankDetails?.beneficiaryName,
+      paidTo: bankDetails?.bankName,
       bankName: bankDetails?.bankName,
       bankCode: bankDetails?.bankCode,
       bankAccountNumber: bankDetails?.accountNumber,
