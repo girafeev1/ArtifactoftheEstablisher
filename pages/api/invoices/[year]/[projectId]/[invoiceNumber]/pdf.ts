@@ -59,7 +59,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       // --- Map subsidiary and bank details ---
       subsidiaryEnglishName: subsidiary?.englishName,
       subsidiaryChineseName: subsidiary?.chineseName,
-      subsidiaryAddressLines: subsidiary?.addressLines,
+      subsidiaryAddressLines: subsidiary?.addressLine1,
       subsidiaryPhone: subsidiary?.phone,
       subsidiaryEmail: subsidiary?.email,
       paidTo: bankDetails?.beneficiaryName,
