@@ -28,6 +28,15 @@ const FOOTER_RANGES = {
   page4: 'A205:N206',
 }
 
+// Header ranges per page (as specified)
+// Note: page1/page3 use only column N band per your guidance; page2/page4 full A..N band
+const HEADER_RANGES = {
+  page1: 'A1:N6',
+  page2: 'A58:N63',
+  page3: 'A111:N116',
+  page4: 'A154:N159',
+}
+
 const auth = new google.auth.JWT(
   process.env.GOOGLE_CLIENT_EMAIL,
   undefined,
@@ -93,26 +102,56 @@ function mergeIntersectsRange(merge, rangeIdx) {
 
 function simplifyCell(cell) {
   if (!cell) return null
-  const value = cell.formattedValue ?? (cell.effectiveValue ? Object.values(cell.effectiveValue)[0] : null)
+  const valueFormatted = cell.formattedValue ?? null
+  const valueRawEntered = cell.userEnteredValue && 'stringValue' in cell.userEnteredValue
+    ? cell.userEnteredValue.stringValue
+    : (cell.effectiveValue ? Object.values(cell.effectiveValue)[0] : null)
   const fmt = cell.effectiveFormat || {}
   const text = fmt.textFormat || {}
   const borders = fmt.borders || {}
   const numFmt = fmt.numberFormat || null
   const bg = fmt.backgroundColor || null
+  const wrapStrategy = fmt.wrapStrategy || null
+  const padding = fmt.padding || null
+  const textRotation = fmt.textRotation || null
+  const textRuns = Array.isArray(cell.textFormatRuns) ? cell.textFormatRuns.map((r) => ({
+    startIndex: r.startIndex ?? null,
+    format: r.format ? {
+      fontFamily: r.format.fontFamily ?? null,
+      fontSize: r.format.fontSize ?? null,
+      bold: !!r.format.bold,
+      italic: !!r.format.italic,
+      underline: !!r.format.underline,
+      strikethrough: !!r.format.strikethrough,
+      foregroundColor: r.format.foregroundColor || null,
+    } : null,
+  })) : null
+  const hyperlink = cell.hyperlink || null
+
+  // Detect spacing usage (e.g., deliberate extra spaces)
+  const raw = typeof valueRawEntered === 'string' ? valueRawEntered : (typeof valueFormatted === 'string' ? valueFormatted : '')
+  const hasExtraSpaces = / {2,}/.test(raw) || /\s$/.test(raw) || /^\s/.test(raw)
   return {
-    value,
+    valueFormatted,
+    valueRaw: valueRawEntered,
+    hasExtraSpaces,
     note: cell.note ?? null,
     format: {
       fontFamily: text.fontFamily ?? null,
       fontSize: text.fontSize ?? null,
       bold: !!text.bold,
       italic: !!text.italic,
+      underline: !!text.underline,
+      strikethrough: !!text.strikethrough,
       horizontalAlignment: fmt.horizontalAlignment ?? null,
       verticalAlignment: fmt.verticalAlignment ?? null,
       numberFormat: numFmt ? { type: numFmt.type || null, pattern: numFmt.pattern || null } : null,
       backgroundColor: bg
         ? { r: bg.red ?? 0, g: bg.green ?? 0, b: bg.blue ?? 0, a: bg.alpha ?? 1 }
         : null,
+      wrapStrategy,
+      padding,
+      textRotation,
       borders: Object.fromEntries(
         ['top', 'bottom', 'left', 'right'].map((side) => [
           side,
@@ -126,6 +165,8 @@ function simplifyCell(cell) {
         ]),
       ),
     },
+    textFormatRuns: textRuns,
+    hyperlink,
   }
 }
 
@@ -195,7 +236,53 @@ async function scan() {
       }
     }
 
-    out.sheets[gid] = { title, footers: entries }
+    // Also scan headers using HEADER_RANGES
+    const headerRangesAll = Object.entries(HEADER_RANGES).map(([page, a1]) => ({ page, a1 }))
+    const headerValid = []
+    const rowMax2 = rowCountByGid[gid] ?? Number.MAX_SAFE_INTEGER
+    for (const r of headerRangesAll) {
+      const idx = a1ToIndexes(r.a1)
+      if (!idx) { continue }
+      if (idx.endRow < rowMax2) {
+        headerValid.push({ ...r, range: `'${title}'!${r.a1}` })
+      } else {
+        console.warn(`[scan-footers] Skipping header ${title} ${r.a1} (exceeds rowCount ${rowMax2})`)
+      }
+    }
+
+    let headers = {}
+    if (headerValid.length) {
+      const resHeaders = await sheets.spreadsheets.get({
+        spreadsheetId: SPREADSHEET_ID,
+        includeGridData: true,
+        ranges: headerValid.map((r) => r.range),
+      })
+      const sheetPayloads2 = resHeaders.data.sheets || []
+      headers = {}
+      for (let i = 0; i < sheetPayloads2.length; i += 1) {
+        const block = sheetPayloads2[i]
+        const target = headerValid[i]
+        if (!block || !block.data || !block.data.length) {
+          headers[target.page] = { error: 'no data' }
+          continue
+        }
+        const grid = block.data[0]
+        const rowMetadata = (grid.rowMetadata || []).map((r) => ({ pixelSize: r.pixelSize ?? null }))
+        const columnMetadata = (grid.columnMetadata || []).map((c) => ({ pixelSize: c.pixelSize ?? null }))
+        const rangeIdx = a1ToIndexes(target.a1)
+        const merges = (block.merges || []).filter((m) => mergeIntersectsRange(m, rangeIdx))
+        const rows = (grid.rowData || []).map((row) => (row.values || []).map((cell) => simplifyCell(cell)))
+        headers[target.page] = {
+          a1: target.a1,
+          colWidthsPx: columnMetadata.map((c) => c.pixelSize),
+          rowHeightsPx: rowMetadata.map((r) => r.pixelSize),
+          merges,
+          cells: rows,
+        }
+      }
+    }
+
+    out.sheets[gid] = { title, footers: entries, headers }
   }
 
   const dir = path.resolve(process.cwd(), 'tmp')

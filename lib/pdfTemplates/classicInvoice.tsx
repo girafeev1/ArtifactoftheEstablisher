@@ -266,6 +266,19 @@ const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN.left - PAGE_MARGIN.right
 const DESC_COL_WIDTH = Math.round(CONTENT_WIDTH * 0.70)
 const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
 
+// Scanned grid bands (A..N in points) for header/footer placement
+const COLS_PT = [36, 18.75, 27, 90, 22.5, 67.5, 56.25, 56.25, 55.5, 30, 26.25, 15, 15, 96]
+const COL_OFFSETS_PT: number[] = COLS_PT.reduce((acc: number[], w, i) => {
+  acc[i] = (acc[i - 1] || 0) + w
+  return acc
+}, [])
+// Page 1 footer row heights (pt). Pages 2–4 are visually similar; we reuse these for now.
+const ROWS_FOOTER_PT = [12, 15.75, 12, 15.75, 12, 15.75, 12, 15.75, 15, 15.75]
+
+const cellLeft = (col: number) => (PAGE_MARGIN.left + (col > 0 ? COL_OFFSETS_PT[col - 1] : 0))
+const footerTopY = () => PAGE_HEIGHT - PAGE_MARGIN.bottom - ROWS_FOOTER_PT.reduce((s, h) => s + h, 0)
+const footerRowOffset = (row: number) => ROWS_FOOTER_PT.slice(0, row).reduce((s, h) => s + h, 0)
+
 const styles = generatedStyles;
 
 export type ClassicInvoiceItem = {
@@ -518,6 +531,40 @@ const FooterBlock = ({ data }: { data: ClassicInvoiceDocInput }) => (
     {data.subsidiaryEmail ? <Text>{data.subsidiaryEmail}</Text> : null}
   </View>
 )
+
+// Footer per scanned layout (labels on left block; bank details on right block)
+const ScannedFooter = ({ data, pageNumber, totalPages }: { data: ClassicInvoiceDocInput; pageNumber: number; totalPages: number }) => {
+  const leftX = cellLeft(0) // col A
+  const rightX = cellLeft(6) // col G
+  const y0 = footerTopY()
+  const at = (row: number) => ({ position: 'absolute' as const, left: leftX, top: y0 + footerRowOffset(row) })
+  const atr = (row: number) => ({ position: 'absolute' as const, left: rightX, top: y0 + footerRowOffset(row) })
+  const label = (txt: string, side: 'L' | 'R', row: number) => (
+    <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic', ...(side === 'L' ? at(row) : atr(row)) }}>{txt}</Text>
+  )
+  const value = (txt: string, side: 'L' | 'R', row: number, strong = false) => (
+    <Text style={{ fontFamily: 'RobotoMono', fontSize: strong ? 11 : 10, fontWeight: strong ? 700 : 400, ...(side === 'L' ? at(row) : atr(row)) }}>{txt}</Text>
+  )
+  const beneficiary = data.paidTo ?? data.subsidiaryEnglishName ?? ''
+  const bank = [data.bankName, data.bankCode ? `(${data.bankCode})` : ''].filter(Boolean).join(' ')
+  const acct = data.bankAccountNumber ?? ''
+  const fps = data.fpsId ?? ''
+  return (
+    <View>
+      {label('Cheque Payable To :', 'L', 0)}
+      {beneficiary ? value(beneficiary, 'L', 1, true) : null}
+      {label('Bank:', 'R', 0)}
+      {bank ? value(bank, 'R', 1) : null}
+      {label('Account Number:', 'R', 2)}
+      {acct ? value(acct, 'R', 3) : null}
+      {label('FPS ID:', 'R', 4)}
+      {fps ? value(fps, 'R', 5) : null}
+      <Text style={{ position: 'absolute', left: PAGE_MARGIN.left, right: PAGE_MARGIN.right, textAlign: 'center', top: y0 + footerRowOffset(9), fontSize: 9, color: '#94a3b8' }}>
+        Page {pageNumber} of {totalPages}
+      </Text>
+    </View>
+  )
+}
 
 type ItemPageDescriptor = {
   kind: 'items'
@@ -817,8 +864,7 @@ const renderFooterForVariant = (
   totalPages: number,
 ) => (
   <>
-    {showFooter ? <FooterBlock data={data} /> : null}
-    <Text style={styles.pageNumber}>Page {pageNumber} of {totalPages}</Text>
+    {showFooter ? <ScannedFooter data={data} pageNumber={pageNumber} totalPages={totalPages} /> : null}
   </>
 )
 
