@@ -128,20 +128,35 @@ const pickFontSrc = (fileKey: keyof typeof FONT_DATA | string, remoteUrl?: strin
 const registerFontFamily = () => {
   ensureAtobPolyfill()
   try {
-    // RobotoMono: prefer embedded; fallback to variable TTF URL when not embedded
-    const r400 = pickFontSrc('RobotoMono-Regular.ttf', REMOTE_TTF.RobotoMonoVar)
-    const r700 = pickFontSrc('RobotoMono-Bold.ttf', REMOTE_TTF.RobotoMonoVar)
+    // RobotoMono: use embedded only; do not rely on remote URLs (can 404 on Vercel)
+    let r400 = pickFontSrc('RobotoMono-Regular.ttf', null)
+    let r700 = pickFontSrc('RobotoMono-Bold.ttf', null)
     if (!r400 || !r700) {
-      try { console.error('[pdf-font] RobotoMono sources missing', { has400: Boolean(r400), has700: Boolean(r700) }) } catch {}
+      // As a hard fallback on Vercel (to avoid render crash), alias to VarelaRound if RobotoMono assets are invalid
+      const alt = pickFontSrc('VarelaRound-Regular.ttf', null)
+      if (!r400 && alt) r400 = alt
+      if (!r700 && alt) r700 = alt
+      try { console.error('[pdf-font] RobotoMono missing; falling back to VarelaRound for registration', { has400: Boolean(r400), has700: Boolean(r700) }) } catch {}
     }
     if (r400 && r700) {
-      Font.register({
-        family: 'RobotoMono',
-        fonts: [
-          { src: r400, fontWeight: 400 },
-          { src: r700, fontWeight: 700 },
-        ],
-      })
+      // Register multiple weight aliases to avoid resolution errors
+      const fonts: any[] = [
+        // normal style
+        { src: r400, fontWeight: 400, fontStyle: 'normal' },
+        { src: r400, fontWeight: 'normal', fontStyle: 'normal' },
+        { src: r400, fontWeight: 300, fontStyle: 'normal' },
+        { src: r400, fontWeight: 500, fontStyle: 'normal' },
+        { src: r700, fontWeight: 700, fontStyle: 'normal' },
+        { src: r700, fontWeight: 'bold', fontStyle: 'normal' },
+        { src: r700, fontWeight: 600, fontStyle: 'normal' },
+        { src: r700, fontWeight: 800, fontStyle: 'normal' },
+        // italic style aliases (map to same files to avoid missing-face crash)
+        { src: r400, fontWeight: 400, fontStyle: 'italic' },
+        { src: r400, fontWeight: 'normal', fontStyle: 'italic' },
+        { src: r700, fontWeight: 700, fontStyle: 'italic' },
+        { src: r700, fontWeight: 'bold', fontStyle: 'italic' },
+      ]
+      Font.register({ family: 'RobotoMono', fonts })
     }
   } catch (error) {
     try { console.error('[pdf-font] failed to register RobotoMono', { error: (error as any)?.message || String(error) }) } catch {}
@@ -189,19 +204,7 @@ const registerFontFamily = () => {
   } catch (error) {
     try { console.error('[pdf-font] failed to register Iansui', { error: (error as any)?.message || String(error) }) } catch {}
   }
-  try {
-    // Google Sans Mono - CDN from Reddit thread (example TTF URL, usually dynamic CSS)
-    // This font often requires a CSS @import or direct TTF links. For simplicity, we'll use
-    // a generic Google Fonts CDN and register with a fallback.
-    Font.register({
-      family: 'Google Sans Mono',
-      src: 'https://fonts.googleapis.com/css2?family=Google+Sans+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap',
-      // React-PDF expects a direct TTF/WOFF URL, not a CSS link. This will likely fail.
-      // Fallback to a generic sans-serif in StyleSheet.
-    });
-  } catch (error) {
-    try { console.error('[pdf-font] failed to register Google Sans Mono', { error: (error as any)?.message || String(error) }) } catch {}
-  }
+  // Removed Google Sans Mono registration: React-PDF requires direct TTF/OTF; CSS URLs are unsupported.
 
   try {
     // Nanum Pen Script
@@ -424,7 +427,7 @@ const BillTo = ({ data }: { data: ClassicInvoiceDocInput }) => {
 const ProjectMeta = ({ data }: { data: ClassicInvoiceDocInput }) => (
   <View style={{ marginBottom: 12 }}>
     {data.presenterWorkType ? (
-      <Text style={{ fontFamily: 'Google Sans Mono', fontSize: 8, fontStyle: 'italic' }}>
+      <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>
         {data.presenterWorkType}
       </Text>
     ) : null}

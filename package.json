@@ -43,12 +43,13 @@
     "react-sortablejs": "^6.1.4",
     "sortablejs": "^1.15.6",
     "stream-browserify": "^3.0.0",
+    "typeface-roboto-mono": "^1.1.13",
     "url": "^0.11.4",
     "whatwg-url": "^14.0.0"
   },
   "scripts": {
     "dev": "next dev",
-"build": "next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -69,7 +70,8 @@
     "sheet:scan-template": "node scripts/scan-invoice-template.js --id 12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0 --gid 598129981",
     "sheet:scan-all": "node scripts/scan-spreadsheet-all.js --id 12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0",
     "build:styles": "node scripts/inspectSheet.js && node scripts/generatePdfStyles.js",
-    "scan:footers": "node scripts/scan-footers.js"
+    "scan:footers": "node scripts/scan-footers.js",
+    "embed:fonts": "node scripts/embed-fonts.js"
   },
   "author": "",
   "license": "ISC",
