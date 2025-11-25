@@ -24,7 +24,7 @@ export const generatedStyles = StyleSheet.create({
     color: '#000',
   },
   invoiceLabel: {
-    fontFamily: 'RobotoMono',
+    fontFamily: 'EB Garamond',
     fontSize: 35,
     fontWeight: 'bold',
   },

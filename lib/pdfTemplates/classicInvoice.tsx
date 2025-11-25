@@ -179,14 +179,20 @@ const registerFontFamily = () => {
     try { console.error('[pdf-font] failed to register VarelaRound', { error: (error as any)?.message || String(error) }) } catch {}
   }
   try {
-    const ciVar = REMOTE_TTF.CormorantInfantVar
-    Font.register({
-      family: 'CormorantInfant',
-      fonts: [
-        { src: ciVar, fontWeight: 400 },
-        { src: ciVar, fontWeight: 700 },
-      ],
-    })
+    const ci = pickFontSrc('CormorantInfant[wght].ttf', REMOTE_TTF.CormorantInfantVar)
+    if (!ci) {
+      try { console.error('[pdf-font] CormorantInfant source missing') } catch {}
+    } else {
+      Font.register({
+        family: 'CormorantInfant',
+        fonts: [
+          { src: ci, fontWeight: 400, fontStyle: 'normal' },
+          { src: ci, fontWeight: 700, fontStyle: 'normal' },
+          { src: ci, fontWeight: 400, fontStyle: 'italic' },
+          { src: ci, fontWeight: 700, fontStyle: 'italic' },
+        ],
+      })
+    }
   } catch (error) {
     try { console.error('[pdf-font] failed to register CormorantInfant', { error: (error as any)?.message || String(error) }) } catch {}
   }
@@ -215,52 +221,29 @@ const registerFontFamily = () => {
   }
   // Removed Google Sans Mono registration: React-PDF requires direct TTF/OTF; CSS URLs are unsupported.
 
+  // Use embedded EB Garamond variable TTF; alias common names
   try {
-    // Nanum Pen Script
-    const nanum = REMOTE_TTF.NanumPenScriptRegular;
-    if (nanum) {
-      Font.register({ family: 'Nanum Pen Script', src: nanum });
+    const eb = pickFontSrc('EBGaramond[wght].ttf', null)
+    if (!eb) {
+      try { console.error('[pdf-font] EBGaramond source missing') } catch {}
     } else {
-      try { console.error('[pdf-font] Nanum Pen Script source missing') } catch {}
+      Font.register({
+        family: 'EB Garamond',
+        fonts: [
+          { src: eb, fontWeight: 400, fontStyle: 'normal' },
+          { src: eb, fontWeight: 700, fontStyle: 'normal' },
+        ],
+      })
+      Font.register({
+        family: 'EBGaramond',
+        fonts: [
+          { src: eb, fontWeight: 400, fontStyle: 'normal' },
+          { src: eb, fontWeight: 700, fontStyle: 'normal' },
+        ],
+      })
     }
   } catch (error) {
-    try { console.error('[pdf-font] failed to register Nanum Pen Script', { error: (error as any)?.message || String(error) }) } catch {}
-  }
-
-  try {
-    // Yomogi
-    const yomogi = REMOTE_TTF.YomogiRegular;
-    if (yomogi) {
-      Font.register({ family: 'Yomogi', src: yomogi });
-    } else {
-      try { console.error('[pdf-font] Yomogi source missing') } catch {}
-    }
-  } catch (error) {
-    try { console.error('[pdf-font] failed to register Yomogi', { error: (error as any)?.message || String(error) }) } catch {}
-  }
-
-  try {
-    // Ephesis
-    const ephesis = REMOTE_TTF.EphesisRegular;
-    if (ephesis) {
-      Font.register({ family: 'Ephesis', src: ephesis });
-    } else {
-      try { console.error('[pdf-font] Ephesis source missing') } catch {}
-    }
-  } catch (error) {
-    try { console.error('[pdf-font] failed to register Ephesis', { error: (error as any)?.message || String(error) }) } catch {}
-  }
-
-  try {
-    // EB Garamond
-    const ebGaramond = REMOTE_TTF.EBGaramondRegular;
-    if (ebGaramond) {
-      Font.register({ family: 'EB Garamond', src: ebGaramond });
-    } else {
-      try { console.error('[pdf-font] EB Garamond source missing') } catch {}
-    }
-  } catch (error) {
-    try { console.error('[pdf-font] failed to register EB Garamond', { error: (error as any)?.message || String(error) }) } catch {}
+    try { console.error('[pdf-font] failed to register EBGaramond', { error: (error as any)?.message || String(error) }) } catch {}
   }
 
   // Removed Karla WOFF registration (unsupported format in fontkit/React-PDF). If Karla is
@@ -412,6 +395,28 @@ const renderAddressLines = (lines: (string | null | undefined)[], styleOverride?
         {line}
       </Text>
     ))
+
+// Insert spaces between all non-newline characters (to mimic “spacified” style in the sheet)
+const spacify = (input: string | null | undefined) => {
+  if (!input) return ''
+  return String(input)
+    .split('\n')
+    .map((line) => line.split('').join(' '))
+    .join('\n')
+}
+
+// Produce spaced Hong Kong phone number grouping similar to the sheet example
+const spacifyPhoneHK = (raw: string | null | undefined) => {
+  if (!raw) return ''
+  const s = String(raw)
+  const m = s.replace(/\s+/g, '').match(/^(\+)?\(?([0-9]{3})\)?[-\s]?([0-9]{4})[-\s]?([0-9]{4})$/)
+  if (!m) return spacify(s)
+  const plus = m[1] ? '+ ' : ''
+  const a = m[2].split('').join(' ')
+  const b = m[3].split('').join(' ')
+  const c = m[4].split('').join(' ')
+  return `${plus}${a}   ${b}   ${c}`
+}
 
 const BillTo = ({ data }: { data: ClassicInvoiceDocInput }) => {
   const addressLines = [
@@ -819,14 +824,40 @@ const renderHeaderForVariant = (
         <View style={[styles.headerRow, { marginBottom: 16 }]}>
           <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={styles.invoiceLabel}>Invoice</Text>
-            <Text style={{ fontSize: 12, fontWeight: 700, marginTop: 6 }}>Invoice #: {data.invoiceNumber}</Text>
-            {data.invoiceDateDisplay ? <Text style={{ fontSize: 10 }}>Date: {data.invoiceDateDisplay}</Text> : null}
+            <View style={{ marginTop: 6, alignItems: 'flex-start' }}>
+              <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Invoice #:</Text>
+              <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceNumber}</Text>
+              {data.invoiceDateDisplay ? (
+                <>
+                  <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Issued Date:</Text>
+                  <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceDateDisplay}</Text>
+                </>
+              ) : null}
+            </View>
           </View>
           <View style={{ alignItems: 'flex-end', paddingLeft: 12 }}>
             <Text style={[styles.logoMark, { marginBottom: 6 }]}>E.</Text>
-            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
-            {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>{data.subsidiaryChineseName}</Text> : null}
-            <View style={{ marginTop: 2 }}>{renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant' })}</View>
+            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textAlign: 'right' }}>
+              {spacify(data.subsidiaryEnglishName ?? 'Establish Records Limited')}
+            </Text>
+            {data.subsidiaryChineseName ? (
+              <Text style={{ fontFamily: 'Iansui', fontSize: 10, textAlign: 'right' }}>{spacify(data.subsidiaryChineseName)}</Text>
+            ) : null}
+            <View style={{ marginTop: 2 }}>
+              {renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant', fontSize: 7, textAlign: 'right' })}
+            </View>
+            <View>
+              {data.subsidiaryEmail ? (
+                <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
+                  {spacify(data.subsidiaryEmail)}
+                </Text>
+              ) : null}
+              {data.subsidiaryPhone ? (
+                <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
+                  {spacifyPhoneHK(data.subsidiaryPhone)}
+                </Text>
+              ) : null}
+            </View>
           </View>
         </View>
         {showClientBlock ? (
@@ -846,11 +877,23 @@ const renderHeaderForVariant = (
           <Text style={[styles.logoMark, { marginRight: 8 }]}>E.</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
-          {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>{data.subsidiaryChineseName}</Text> : null}
-          {renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant' })}
-          {data.subsidiaryEmail ? <Text style={{ fontFamily: 'CormorantInfant', fontSize: 9, letterSpacing: 0.4 }}>{data.subsidiaryEmail}</Text> : null}
-          {data.subsidiaryPhone ? <Text style={{ fontFamily: 'CormorantInfant', fontSize: 9, letterSpacing: 0.4 }}>{data.subsidiaryPhone}</Text> : null}
+          <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textAlign: 'right' }}>
+            {spacify(data.subsidiaryEnglishName ?? 'Establish Records Limited')}
+          </Text>
+          {data.subsidiaryChineseName ? (
+            <Text style={{ fontFamily: 'Iansui', fontSize: 10, textAlign: 'right' }}>{spacify(data.subsidiaryChineseName)}</Text>
+          ) : null}
+          {renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant', fontSize: 7, textAlign: 'right' })}
+          {data.subsidiaryEmail ? (
+            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
+              {spacify(data.subsidiaryEmail)}
+            </Text>
+          ) : null}
+          {data.subsidiaryPhone ? (
+            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
+              {spacifyPhoneHK(data.subsidiaryPhone)}
+            </Text>
+          ) : null}
         </View>
       </View>
       {showClientBlock ? (
@@ -858,8 +901,14 @@ const renderHeaderForVariant = (
           <BillTo data={data} />
           <View style={{ width: 200, paddingLeft: 16 }}>
             <Text style={styles.sectionLabel}>Invoice</Text>
-            <Text style={{ fontSize: 14, fontWeight: 700 }}>Invoice #: {data.invoiceNumber}</Text>
-            {data.invoiceDateDisplay ? <Text>Date: {data.invoiceDateDisplay}</Text> : null}
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Invoice #:</Text>
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceNumber}</Text>
+            {data.invoiceDateDisplay ? (
+              <>
+                <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Issued Date:</Text>
+                <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceDateDisplay}</Text>
+              </>
+            ) : null}
             <ProjectMeta data={data} />
           </View>
         </View>

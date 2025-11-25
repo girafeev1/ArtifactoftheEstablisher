@@ -12,6 +12,9 @@ const CANDIDATES = [
   'VarelaRound-Regular.ttf',
   'RampartOne-Regular.ttf',
   'Iansui-Regular.ttf',
+  // Variable TTFs for serif/display families used in headers
+  'CormorantInfant[wght].ttf',
+  'EBGaramond[wght].ttf',
 ]
 
 function b64(file) {
@@ -39,4 +42,3 @@ function main() {
 }
 
 main()
-
