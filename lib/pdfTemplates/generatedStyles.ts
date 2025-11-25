@@ -15,6 +15,7 @@ export const generatedStyles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 20,
   },
   logoMark: {

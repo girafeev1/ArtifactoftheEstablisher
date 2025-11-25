@@ -404,11 +404,11 @@ const joinAddress = (parts: (string | null | undefined)[]) =>
     .filter(Boolean)
     .join(', ')
 
-const renderAddressLines = (lines: (string | null | undefined)[]) =>
+const renderAddressLines = (lines: (string | null | undefined)[], styleOverride?: any) =>
   lines
     .filter((line): line is string => Boolean(line && line.trim()))
     .map((line, idx) => (
-      <Text key={`addr-${idx}`} style={{ fontSize: 10 }}>
+      <Text key={`addr-${idx}`} style={{ fontSize: 10, ...(styleOverride || {}) }}>
         {line}
       </Text>
     ))
@@ -422,12 +422,12 @@ const BillTo = ({ data }: { data: ClassicInvoiceDocInput }) => {
   return (
     <View style={{ flex: 1, paddingRight: 18 }}>
       <Text style={styles.sectionLabel}>BILL TO:</Text>
-      <Text style={styles.billName}>{data.companyName ?? '-'}</Text>
+      <Text style={[styles.billName, { fontStyle: 'italic' }]}>{data.companyName ?? '-'}</Text>
       {addressLines.map((line, idx) => (
         <Text key={`client-line-${idx}`}>{line}</Text>
       ))}
       {data.representative ? (
-        <Text style={{ fontWeight: 700, marginTop: 4 }}>ATTN: {data.representative}</Text>
+        <Text style={{ fontStyle: 'italic', marginTop: 4 }}>ATTN: {data.representative}</Text>
       ) : null}
     </View>
   )
@@ -824,9 +824,9 @@ const renderHeaderForVariant = (
           </View>
           <View style={{ alignItems: 'flex-end', paddingLeft: 12 }}>
             <Text style={[styles.logoMark, { marginBottom: 6 }]}>E.</Text>
-            <Text style={{ fontSize: 10, fontWeight: 700 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
             {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>{data.subsidiaryChineseName}</Text> : null}
-            <View style={{ marginTop: 2 }}>{renderAddressLines(data.subsidiaryAddressLines ?? [])}</View>
+            <View style={{ marginTop: 2 }}>{renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant' })}</View>
           </View>
         </View>
         {showClientBlock ? (
@@ -846,17 +846,17 @@ const renderHeaderForVariant = (
           <Text style={[styles.logoMark, { marginRight: 8 }]}>E.</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ fontFamily: 'RobotoMono', fontSize: 10, fontWeight: 700 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
+          <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{data.subsidiaryEnglishName ?? 'Establish Records Limited'}</Text>
           {data.subsidiaryChineseName ? <Text style={{ fontFamily: 'Iansui', fontSize: 10 }}>{data.subsidiaryChineseName}</Text> : null}
-          {renderAddressLines(data.subsidiaryAddressLines ?? [])}
-          {data.subsidiaryEmail ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>{data.subsidiaryEmail}</Text> : null}
-          {data.subsidiaryPhone ? <Text style={{ fontFamily: 'RobotoMono', fontSize: 9 }}>{data.subsidiaryPhone}</Text> : null}
+          {renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant' })}
+          {data.subsidiaryEmail ? <Text style={{ fontFamily: 'CormorantInfant', fontSize: 9, letterSpacing: 0.4 }}>{data.subsidiaryEmail}</Text> : null}
+          {data.subsidiaryPhone ? <Text style={{ fontFamily: 'CormorantInfant', fontSize: 9, letterSpacing: 0.4 }}>{data.subsidiaryPhone}</Text> : null}
         </View>
       </View>
       {showClientBlock ? (
         <View style={styles.headerRow}>
           <BillTo data={data} />
-          <View style={{ width: 200, borderLeftWidth: 1, borderColor: '#cbd5f5', paddingLeft: 16 }}>
+          <View style={{ width: 200, paddingLeft: 16 }}>
             <Text style={styles.sectionLabel}>Invoice</Text>
             <Text style={{ fontSize: 14, fontWeight: 700 }}>Invoice #: {data.invoiceNumber}</Text>
             {data.invoiceDateDisplay ? <Text>Date: {data.invoiceDateDisplay}</Text> : null}

@@ -114,7 +114,8 @@ export default function InvoicePreviewPage() {
         <style jsx>{`
           .preview-page { padding: 16px; }
           .preview-inner { max-width: 1200px; margin: 0 auto; }
-          .viewer-wrap { min-height: 80vh; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #fff; display: flex; justify-content: center; align-items: stretch; }
+          /* Give the embedded <object/iframe> an explicit height container. */
+          .viewer-wrap { height: 85vh; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #fff; display: flex; justify-content: center; align-items: stretch; }
         `}</style>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
