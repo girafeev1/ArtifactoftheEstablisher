@@ -396,6 +396,104 @@ const renderAddressLines = (lines: (string | null | undefined)[], styleOverride?
       </Text>
     ))
 
+// Insert spaces between characters to mirror the sheet's "spacified" style
+const spacify = (input: string | null | undefined) => {
+  if (!input) return ''
+  return String(input)
+    .split('\n')
+    .map((line) => line.split('').join(' '))
+    .join('\n')
+}
+
+// Spacified Hong Kong phone number grouping
+const spacifyPhoneHK = (raw: string | null | undefined) => {
+  if (!raw) return ''
+  const s = String(raw)
+  const m = s.replace(/\s+/g, '').match(/^(\+)?\(?([0-9]{3})\)?[-\s]?([0-9]{4})[-\s]?([0-9]{4})$/)
+  if (!m) return spacify(s)
+  const plus = m[1] ? '+ ' : ''
+  const a = m[2].split('').join(' ')
+  const b = m[3].split('').join(' ')
+  const c = m[4].split('').join(' ')
+  return `${plus}${a}   ${b}   ${c}`
+}
+
+// Header A1:N6 geometry from scanned sheet (px → pt). Applies to page 1.
+const HEADER1_COLS_PX = [48, 25, 36, 120, 30, 90, 75, 75, 74, 40, 35, 20, 20, 128]
+const HEADER1_ROWS_PX = [31, 18, 18, 18, 16, 16]
+const HEADER1_COLS_PT = HEADER1_COLS_PX.map(px2pt)
+const HEADER1_ROWS_PT = HEADER1_ROWS_PX.map(px2pt)
+const header1ColOffsets = HEADER1_COLS_PT.reduce((acc: number[], w, i) => {
+  acc[i] = (acc[i - 1] || 0) + w
+  return acc
+}, [])
+const header1RowOffsets = HEADER1_ROWS_PT.reduce((acc: number[], h, i) => {
+  acc[i] = (acc[i - 1] || 0) + h
+  return acc
+}, [])
+
+const a1ToRect = (colIndex1: number, rowIndex1: number, colSpan = 1, rowSpan = 1) => {
+  const c0 = colIndex1 - 1
+  const r0 = rowIndex1 - 1
+  const left = PAGE_MARGIN.left + (c0 > 0 ? header1ColOffsets[c0 - 1] : 0)
+  const top = PAGE_MARGIN.top + (r0 > 0 ? header1RowOffsets[r0 - 1] : 0)
+  const width = HEADER1_COLS_PT.slice(c0, c0 + colSpan).reduce((s, v) => s + v, 0)
+  const height = HEADER1_ROWS_PT.slice(r0, r0 + rowSpan).reduce((s, v) => s + v, 0)
+  return { left, top, width, height }
+}
+
+const HeaderGridPage1 = ({ data }: { data: ClassicInvoiceDocInput }) => {
+  // Container has exact header band height
+  const headerHeight = HEADER1_ROWS_PT.reduce((s, v) => s + v, 0)
+  return (
+    <View style={{ position: 'relative', height: headerHeight, width: CONTENT_WIDTH }}>
+      {/* Subsidiary English + Chinese at N1 (col 14), RIGHT/TOP */}
+      {(() => {
+        const r = a1ToRect(14, 1, 1, 1)
+        return (
+          <View style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height }}>
+            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, textAlign: 'right' }}>
+              {spacify(data.subsidiaryEnglishName ?? 'Establish Records Limited')}
+            </Text>
+            {data.subsidiaryChineseName ? (
+              <Text style={{ fontFamily: 'Iansui', fontSize: 10, textAlign: 'right' }}>
+                {spacify(data.subsidiaryChineseName)}
+              </Text>
+            ) : null}
+          </View>
+        )
+      })()}
+      {/* Address block J2..J5 (col 10 rows 2-5), RIGHT/MIDDLE */}
+      {(() => {
+        const r = a1ToRect(10, 2, 1, 4)
+        return (
+          <View style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height }}>
+            {renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant', fontSize: 7, textAlign: 'right' })}
+          </View>
+        )
+      })()}
+      {/* Email + Phone at J5 (use same block bottom), RIGHT/TOP; bold gray */}
+      {(() => {
+        const r = a1ToRect(10, 5, 1, 1)
+        return (
+          <View style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height }}>
+            {data.subsidiaryEmail ? (
+              <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
+                {spacify(data.subsidiaryEmail)}
+              </Text>
+            ) : null}
+            {data.subsidiaryPhone ? (
+              <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
+                {spacifyPhoneHK(data.subsidiaryPhone)}
+              </Text>
+            ) : null}
+          </View>
+        )
+      })()}
+    </View>
+  )
+}
+
 // Insert spaces between all non-newline characters (to mimic “spacified” style in the sheet)
 const spacify = (input: string | null | undefined) => {
   if (!input) return ''
@@ -821,43 +919,31 @@ const renderHeaderForVariant = (
   if (variant === 'A') {
     return (
       <>
-        <View style={[styles.headerRow, { marginBottom: 16 }]}>
+        {/* Header grid (A1:N6) with top alignment */}
+        <View style={[styles.headerRow, { marginBottom: 12 }]}> 
+          <View>
+            <Text style={[styles.logoMark, { marginRight: 8 }]}>E.</Text>
+          </View>
+          <HeaderGridPage1 data={data} />
+        </View>
+        {/* Invoice label and right-side info per sheet */}
+        <View style={[styles.headerRow, { marginBottom: 8 }]}> 
           <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={styles.invoiceLabel}>Invoice</Text>
-            <View style={{ marginTop: 6, alignItems: 'flex-start' }}>
-              <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Invoice #:</Text>
-              <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceNumber}</Text>
-              {data.invoiceDateDisplay ? (
-                <>
-                  <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Issued Date:</Text>
-                  <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceDateDisplay}</Text>
-                </>
-              ) : null}
-            </View>
           </View>
-          <View style={{ alignItems: 'flex-end', paddingLeft: 12 }}>
-            <Text style={[styles.logoMark, { marginBottom: 6 }]}>E.</Text>
-            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textAlign: 'right' }}>
-              {spacify(data.subsidiaryEnglishName ?? 'Establish Records Limited')}
-            </Text>
-            {data.subsidiaryChineseName ? (
-              <Text style={{ fontFamily: 'Iansui', fontSize: 10, textAlign: 'right' }}>{spacify(data.subsidiaryChineseName)}</Text>
+          <View style={{ width: 220, alignItems: 'flex-end' }}>
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Invoice #:</Text>
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceNumber}</Text>
+            <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic', marginTop: 2 }}>Issued Date:</Text>
+            {data.invoiceDateDisplay ? (
+              <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceDateDisplay}</Text>
             ) : null}
-            <View style={{ marginTop: 2 }}>
-              {renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant', fontSize: 7, textAlign: 'right' })}
-            </View>
-            <View>
-              {data.subsidiaryEmail ? (
-                <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
-                  {spacify(data.subsidiaryEmail)}
-                </Text>
-              ) : null}
-              {data.subsidiaryPhone ? (
-                <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
-                  {spacifyPhoneHK(data.subsidiaryPhone)}
-                </Text>
-              ) : null}
-            </View>
+            {data.fpsId || data.fpsEmail ? (
+              <View style={{ marginTop: 2 }}>
+                <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>FPS:</Text>
+                <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{String(data.fpsId ?? data.fpsEmail ?? '')}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
         {showClientBlock ? (
@@ -907,6 +993,12 @@ const renderHeaderForVariant = (
               <>
                 <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Issued Date:</Text>
                 <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceDateDisplay}</Text>
+              </>
+            ) : null}
+            {data.fpsId || data.fpsEmail ? (
+              <>
+                <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>FPS:</Text>
+                <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{String(data.fpsId ?? data.fpsEmail ?? '')}</Text>
               </>
             ) : null}
             <ProjectMeta data={data} />
@@ -1010,7 +1102,7 @@ export const buildClassicInvoiceDocument = (
           case 'items': {
             const isLastPageOfVariant = descriptor.pageIndex === descriptor.totalPagesForVariant - 1
             const includeTotals = isLastPageOfVariant
-            const showFooter = isLastPageOfVariant
+            const showFooter = descriptor.variantBase === 'B' ? isLastPageOfVariant : true
             return renderItemPage(data, descriptor, currentPage, totalPages, includeTotals, showFooter)
           }
           case 'payment-details':
