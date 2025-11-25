@@ -111,7 +111,9 @@ const pickFontSrc = (fileKey: keyof typeof FONT_DATA | string, remoteUrl?: strin
     if (isValidBase64Font(base64)) {
       const data = toDataUri(base64)
       if (data) {
-        try { console.info('[pdf-font] using embedded', { fileKey }) } catch {}
+        try {
+          console.info('[pdf-font] using embedded', { fileKey, size: base64?.length })
+        } catch {}
         return data
       }
     }
@@ -132,6 +134,11 @@ const registerFontFamily = () => {
     let r400 = pickFontSrc('RobotoMono-Regular.ttf', null)
     let r700 = pickFontSrc('RobotoMono-Bold.ttf', null)
     if (!r400 || !r700) {
+      try {
+        const b64r = (FONT_DATA as any)['RobotoMono-Regular.ttf']?.length
+        const b64b = (FONT_DATA as any)['RobotoMono-Bold.ttf']?.length
+        console.error('[pdf-font] RobotoMono embedded data check', { b64r, b64b, r400: !!r400, r700: !!r700 })
+      } catch {}
       // As a hard fallback on Vercel (to avoid render crash), alias to VarelaRound if RobotoMono assets are invalid
       const alt = pickFontSrc('VarelaRound-Regular.ttf', null)
       if (!r400 && alt) r400 = alt
@@ -188,7 +195,9 @@ const registerFontFamily = () => {
     if (!rampart) {
       try { console.error('[pdf-font] RampartOne source missing') } catch {}
     } else {
+      // Register under both names to avoid mismatches
       Font.register({ family: 'RampartOne', src: rampart })
+      Font.register({ family: 'Rampart One', src: rampart })
     }
   } catch (error) {
     try { console.error('[pdf-font] failed to register RampartOne', { error: (error as any)?.message || String(error) }) } catch {}

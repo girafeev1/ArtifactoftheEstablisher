@@ -57,36 +57,6 @@ Notes:
   - Add `-d` to run in debug mode.
   - Try the REST API fallback.
 
-## Incident Prompt Template
-
-Copy this into `tmp/gemini_prompt.txt` and fill in sections.
-
----
-You are Google Gemini assisting with a production incident. Analyze the issue and propose concrete fixes.
-
-System context:
-- Key route(s): <list endpoints>
-- Libraries: <name@version> with relevant configuration
-- What changed recently: <deploy id / commit / config>
-
-Key error(s):
-<paste 1–3 representative log lines>
-
-Observations from the repo (paths + summaries, not full files):
-- <file path>: <what it does / why relevant>
-
-Hypothesis:
-<one or two root cause theories>
-
-Questions:
-1) Do you agree with the suspected root cause?
-2) Any gotchas or alternate causes worth ruling out?
-3) Provide a minimal hotfix plan suitable for production.
-4) Suggest logs/telemetry so the next failure is self‑diagnosing.
-
-Please answer with a crisp RCA + action plan.
----
-
 ## Typical Workflow for This Project
 
 1) Prepare the prompt (see template), include:
@@ -95,3 +65,17 @@ Please answer with a crisp RCA + action plan.
 2) Run Gemini from the repo root in JSON mode and extract text with `jq`.
 3) Apply the recommended hotfix in a small PR (fallbacks, logs), then follow up with the full fix (e.g., embed fonts).
 
+## Project‑specific Quick Commands
+
+- Re‑embed fonts after placing valid TTFs in `public/pdf-fonts/`:
+  - `node scripts/embed-fonts.js`
+  - Confirms by opening `lib/pdfTemplates/fontData.ts` and verifying base64 begins with `AAEAAA` (typical TTF) instead of HTML.
+
+- Test the invoice PDF API locally (Next dev):
+  - `npm run dev`
+  - Then visit: `/api/invoices/<year>/<project>/<invoice>/pdf?variant=bundle&inline=1&debug=1`
+  - Or the inline preview page: `/dashboard/new-ui/projects/show/<projectId>/invoice/<invoiceNumber>/preview?variant=bundle`
+
+- Scan header/footer bands from Google Sheets (requires service account in `.env.local`):
+  - `node scripts/scan-footers.js`
+  - Outputs `tmp/footers-scan-*.json` with col widths, row heights, merges, and formats.
