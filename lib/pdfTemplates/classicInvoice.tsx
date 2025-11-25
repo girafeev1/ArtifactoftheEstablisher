@@ -257,9 +257,10 @@ const PAGE_HEIGHT = 841.89
 const PAGE_MARGIN = { top: 21.6, bottom: 21.6, left: 14.4, right: 14.4 } // 0.3"/0.2"
 const px2pt = (px: number) => px * 0.75
 const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN.left - PAGE_MARGIN.right
-// Use absolute widths (pt) for closer parity; replace with scanned values when available
-const DESC_COL_WIDTH = Math.round(CONTENT_WIDTH * 0.70)
-const AMOUNT_COL_WIDTH = Math.max(0, Math.round(CONTENT_WIDTH - DESC_COL_WIDTH))
+// Use absolute widths (pt) for closer parity; now derived from A..N grid columns
+// Description = A..L, Amount = M..N by default
+// These are refined for the items table, not the header/footer band placements
+// (COLS_PT is declared below)
 
 // Scanned grid bands (A..N in points) for header/footer placement
 const COLS_PT = [36, 18.75, 27, 90, 22.5, 67.5, 56.25, 56.25, 55.5, 30, 26.25, 15, 15, 96]
@@ -273,6 +274,10 @@ const ROWS_FOOTER_PT = [12, 15.75, 12, 15.75, 12, 15.75, 12, 15.75, 15, 15.75]
 const cellLeft = (col: number) => (PAGE_MARGIN.left + (col > 0 ? COL_OFFSETS_PT[col - 1] : 0))
 const footerTopY = () => PAGE_HEIGHT - PAGE_MARGIN.bottom - ROWS_FOOTER_PT.reduce((s, h) => s + h, 0)
 const footerRowOffset = (row: number) => ROWS_FOOTER_PT.slice(0, row).reduce((s, h) => s + h, 0)
+
+// Table column widths derived from grid
+const DESC_COL_WIDTH = COLS_PT.slice(0, 12).reduce((s, w) => s + w, 0) // A..L
+const AMOUNT_COL_WIDTH = COLS_PT.slice(12).reduce((s, w) => s + w, 0)   // M..N
 
 const styles = generatedStyles;
 
@@ -494,27 +499,7 @@ const HeaderGridPage1 = ({ data }: { data: ClassicInvoiceDocInput }) => {
   )
 }
 
-// Insert spaces between all non-newline characters (to mimic “spacified” style in the sheet)
-const spacify = (input: string | null | undefined) => {
-  if (!input) return ''
-  return String(input)
-    .split('\n')
-    .map((line) => line.split('').join(' '))
-    .join('\n')
-}
-
-// Produce spaced Hong Kong phone number grouping similar to the sheet example
-const spacifyPhoneHK = (raw: string | null | undefined) => {
-  if (!raw) return ''
-  const s = String(raw)
-  const m = s.replace(/\s+/g, '').match(/^(\+)?\(?([0-9]{3})\)?[-\s]?([0-9]{4})[-\s]?([0-9]{4})$/)
-  if (!m) return spacify(s)
-  const plus = m[1] ? '+ ' : ''
-  const a = m[2].split('').join(' ')
-  const b = m[3].split('').join(' ')
-  const c = m[4].split('').join(' ')
-  return `${plus}${a}   ${b}   ${c}`
-}
+// duplicate spacify/spacifyPhoneHK removed (defined earlier at ~400)
 
 const BillTo = ({ data }: { data: ClassicInvoiceDocInput }) => {
   const addressLines = [
@@ -554,12 +539,12 @@ const ProjectMeta = ({ data }: { data: ClassicInvoiceDocInput }) => (
 
 const ItemsTable = ({ data, items }: { data: ClassicInvoiceDocInput; items: ClassicInvoiceItem[] }) => (
   <View>
-      <View style={styles.tableHeader}>
-        <View style={styles.tableColDesc}>
-          <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Description</Text>
+      <View style={[styles.tableHeader, { borderBottomWidth: 2 }]}> 
+        <View style={[styles.tableColDesc, { width: DESC_COL_WIDTH }]}>
+          <Text style={{ fontWeight: 700, letterSpacing: 0.6 }}>Description</Text>
         </View>
-        <View style={styles.tableColAmount}>
-          <Text style={{ fontWeight: 700, letterSpacing: 0.8 }}>Amount</Text>
+        <View style={[styles.tableColAmount, { width: AMOUNT_COL_WIDTH }]}>
+          <Text style={{ fontWeight: 700, letterSpacing: 0.6, textAlign: 'right' }}>Amount</Text>
         </View>
       </View>
     {items.length === 0 ? (
@@ -571,7 +556,7 @@ const ItemsTable = ({ data, items }: { data: ClassicInvoiceDocInput; items: Clas
         const total = (item.unitPrice ?? 0) * (item.quantity ?? 0) - (item.discount ?? 0)
         return (
           <View key={`item-${idx}`} style={styles.itemRow}>
-            <View style={styles.tableColDesc}>
+            <View style={[styles.tableColDesc, { width: DESC_COL_WIDTH }]}>
               <Text style={{ fontSize: 11, fontWeight: 700 }}>{item.title || `Item ${idx + 1}`}</Text>
               {item.subQuantity ? <Text>{item.subQuantity}</Text> : null}
               {item.feeType ? <Text style={{ fontStyle: 'italic' }}>{item.feeType}</Text> : null}
@@ -582,7 +567,7 @@ const ItemsTable = ({ data, items }: { data: ClassicInvoiceDocInput; items: Clas
                 {item.discount ? ` — Disc ${amountHK(item.discount)}` : ''}
               </Text>
             </View>
-            <View style={styles.tableColAmount}>
+            <View style={[styles.tableColAmount, { width: AMOUNT_COL_WIDTH }]}>
               <Text style={styles.amountCell}>{amountHK(total)}</Text>
             </View>
           </View>

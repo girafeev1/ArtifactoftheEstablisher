@@ -64,26 +64,26 @@ export const generatedStyles = StyleSheet.create({
     marginTop: 16,
   },
   tableColDesc: {
-    width: '70%',
+    // concrete width assigned at call site based on grid
     paddingRight: 18,
   },
   tableColAmount: {
-    width: '30%',
+    // concrete width assigned at call site based on grid
     textAlign: 'right',
   },
   itemRow: {
     flexDirection: 'row',
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 0.75,
     borderColor: '#e2e8f0',
-    paddingVertical: 4,
+    paddingVertical: 3,
   },
   amountCell: {
     fontWeight: 700,
   },
   totalsBlock: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1.25,
     borderColor: '#94a3b8',
   },
   totalsRow: {

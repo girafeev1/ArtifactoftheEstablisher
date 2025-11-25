@@ -94,7 +94,17 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       // --- Map subsidiary and bank details ---
       subsidiaryEnglishName: subsidiary?.englishName ?? null,
       subsidiaryChineseName: subsidiary?.chineseName ?? null,
-      subsidiaryAddressLines: subsidiary?.addressLine1 ? [subsidiary.addressLine1] : undefined,
+      // Include all known lines + region to mirror the sheet header block
+      subsidiaryAddressLines: (
+        subsidiary
+          ? [
+              subsidiary.addressLine1 || null,
+              subsidiary.addressLine2 || null,
+              subsidiary.addressLine3 || null,
+              subsidiary.region ? `${subsidiary.region}` : null,
+            ].filter((v): v is string => Boolean(v && v.trim()))
+          : undefined
+      ),
       subsidiaryPhone: subsidiary?.phone ?? null,
       subsidiaryEmail: subsidiary?.email ?? null,
       paidTo: invoice.paidTo ?? null,
