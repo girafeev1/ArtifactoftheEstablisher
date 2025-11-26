@@ -425,72 +425,137 @@ const spacifyPhoneHK = (raw: string | null | undefined) => {
 
 // Header A1:N6 geometry from scanned sheet (px → pt). Applies to page 1.
 const HEADER1_COLS_PX = [48, 25, 36, 120, 30, 90, 75, 75, 74, 40, 35, 20, 20, 128]
-const HEADER1_ROWS_PX = [31, 18, 18, 18, 16, 16]
+// Rows 1..6 from scan; rows 7..15 approximated to match sheet defaults
+const PAGE1_ROWS_PX = [31, 18, 18, 18, 16, 16, 18, 18, 18, 18, 18, 18, 18, 18, 18]
 const HEADER1_COLS_PT = HEADER1_COLS_PX.map(px2pt)
-const HEADER1_ROWS_PT = HEADER1_ROWS_PX.map(px2pt)
+const PAGE1_ROWS_PT = PAGE1_ROWS_PX.map(px2pt)
 const header1ColOffsets = HEADER1_COLS_PT.reduce((acc: number[], w, i) => {
   acc[i] = (acc[i - 1] || 0) + w
   return acc
 }, [])
-const header1RowOffsets = HEADER1_ROWS_PT.reduce((acc: number[], h, i) => {
+const page1RowOffsets = PAGE1_ROWS_PT.reduce((acc: number[], h, i) => {
   acc[i] = (acc[i - 1] || 0) + h
   return acc
 }, [])
 
-const a1ToRect = (colIndex1: number, rowIndex1: number, colSpan = 1, rowSpan = 1) => {
+const a1ToRectPage1 = (colIndex1: number, rowIndex1: number, colSpan = 1, rowSpan = 1) => {
   const c0 = colIndex1 - 1
   const r0 = rowIndex1 - 1
   const left = PAGE_MARGIN.left + (c0 > 0 ? header1ColOffsets[c0 - 1] : 0)
-  const top = PAGE_MARGIN.top + (r0 > 0 ? header1RowOffsets[r0 - 1] : 0)
+  const top = PAGE_MARGIN.top + (r0 > 0 ? page1RowOffsets[r0 - 1] : 0)
   const width = HEADER1_COLS_PT.slice(c0, c0 + colSpan).reduce((s, v) => s + v, 0)
-  const height = HEADER1_ROWS_PT.slice(r0, r0 + rowSpan).reduce((s, v) => s + v, 0)
+  const height = PAGE1_ROWS_PT.slice(r0, r0 + rowSpan).reduce((s, v) => s + v, 0)
   return { left, top, width, height }
 }
 
-const HeaderGridPage1 = ({ data }: { data: ClassicInvoiceDocInput }) => {
-  // Container has exact header band height
-  const headerHeight = HEADER1_ROWS_PT.reduce((s, v) => s + v, 0)
+const HeaderGridPage1 = ({ data, qrPayload }: { data: ClassicInvoiceDocInput; qrPayload: string | null }) => {
+  const headerHeight = PAGE1_ROWS_PT.slice(0, 6).reduce((s, v) => s + v, 0)
+  const page1Height = PAGE1_ROWS_PT.slice(0, 15).reduce((s, v) => s + v, 0)
+  const toCell = (c: number, r: number, cs = 1, rs = 1) => a1ToRectPage1(c, r, cs, rs)
+  const formatDate = (iso?: string | null) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  }
   return (
-    <View style={{ position: 'relative', height: headerHeight, width: CONTENT_WIDTH }}>
-      {/* Subsidiary English + Chinese at N1 (col 14), RIGHT/TOP */}
+    <View style={{ position: 'relative', height: page1Height, width: CONTENT_WIDTH }}>
+      {/* E. logo aligned with row 1 top */}
       {(() => {
-        const r = a1ToRect(14, 1, 1, 1)
+        const r = toCell(1, 1)
         return (
-          <View style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height }}>
-            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, textAlign: 'right' }}>
-              {spacify(data.subsidiaryEnglishName ?? 'Establish Records Limited')}
-            </Text>
+          <Text style={{ position: 'absolute', left: PAGE_MARGIN.left, top: r.top, fontFamily: 'RampartOne', fontSize: 60 }}>E.</Text>
+        )
+      })()}
+      {/* Subsidiary English + Chinese at N1 */}
+      {(() => {
+        const r = toCell(14, 1)
+        return (
+          <View style={{ position: 'absolute', left: r.left, top: r.top, width: r.width }}>
+            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, textAlign: 'right' }}>{spacify(data.subsidiaryEnglishName ?? 'Establish Records Limited')}</Text>
             {data.subsidiaryChineseName ? (
-              <Text style={{ fontFamily: 'Iansui', fontSize: 10, textAlign: 'right' }}>
-                {spacify(data.subsidiaryChineseName)}
-              </Text>
+              <Text style={{ fontFamily: 'Iansui', fontSize: 10, textAlign: 'right' }}>{spacify(data.subsidiaryChineseName)}</Text>
             ) : null}
           </View>
         )
       })()}
-      {/* Address block J2..J5 (col 10 rows 2-5), RIGHT/MIDDLE */}
+      {/* Address J2..J5 */}
       {(() => {
-        const r = a1ToRect(10, 2, 1, 4)
+        const r = toCell(10, 2, 1, 4)
         return (
           <View style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height }}>
             {renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant', fontSize: 7, textAlign: 'right' })}
           </View>
         )
       })()}
-      {/* Email + Phone at J5 (use same block bottom), RIGHT/TOP; bold gray */}
+      {/* Email + Phone J5 */}
       {(() => {
-        const r = a1ToRect(10, 5, 1, 1)
+        const r = toCell(10, 5)
         return (
-          <View style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height }}>
+          <View style={{ position: 'absolute', left: r.left, top: r.top, width: r.width }}>
             {data.subsidiaryEmail ? (
-              <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
-                {spacify(data.subsidiaryEmail)}
-              </Text>
+              <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>{spacify(data.subsidiaryEmail)}</Text>
             ) : null}
             {data.subsidiaryPhone ? (
-              <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
-                {spacifyPhoneHK(data.subsidiaryPhone)}
-              </Text>
+              <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>{spacifyPhoneHK(data.subsidiaryPhone)}</Text>
+            ) : null}
+          </View>
+        )
+      })()}
+      {/* BILL TO A6; Client A8..A11; ATTN A13 */}
+      {(() => {
+        const a6 = toCell(1, 6)
+        return (
+          <Text style={{ position: 'absolute', left: a6.left, top: a6.top, fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>BILL TO:</Text>
+        )
+      })()}
+      {(() => {
+        const a8 = toCell(1, 8, 6, 1)
+        return (
+          <Text style={{ position: 'absolute', left: a8.left, top: a8.top, fontFamily: 'RobotoMono', fontSize: 11, fontWeight: 700, fontStyle: 'italic' }}>{data.companyName ?? '-'}</Text>
+        )
+      })()}
+      {(() => {
+        const a9 = toCell(1, 9, 6, 1)
+        const a10 = toCell(1, 10, 6, 1)
+        const a11 = toCell(1, 11, 6, 1)
+        const lines = [data.addressLine1, data.addressLine2, joinAddress([data.addressLine3, data.region])].filter((v)=>Boolean(v && String(v).trim())) as string[]
+        return (
+          <View>
+            {lines[0] ? <Text style={{ position: 'absolute', left: a9.left, top: a9.top }}>{lines[0]}</Text> : null}
+            {lines[1] ? <Text style={{ position: 'absolute', left: a10.left, top: a10.top }}>{lines[1]}</Text> : null}
+            {lines[2] ? <Text style={{ position: 'absolute', left: a11.left, top: a11.top }}>{lines[2]}</Text> : null}
+          </View>
+        )
+      })()}
+      {(() => {
+        const a13 = toCell(1, 13, 6, 1)
+        return data.representative ? (
+          <Text style={{ position: 'absolute', left: a13.left, top: a13.top, fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700, fontStyle: 'italic' }}>ATTN: {data.representative}</Text>
+        ) : null
+      })()}
+      {/* Invoice L7, labels and values N10/M11, N12/L13, FPS at N15 with QR */}
+      {(() => {
+        const l7 = toCell(12, 7, 1, 1) // col L
+        return (
+          <Text style={{ position: 'absolute', left: l7.left, top: l7.top, width: HEADER1_COLS_PT[11], textAlign: 'center', fontFamily: 'EB Garamond', fontSize: 35, fontWeight: 700 }}>Invoice</Text>
+        )
+      })()}
+      {(() => {
+        const n10 = toCell(14, 10)
+        const m11 = toCell(13, 11)
+        const n12 = toCell(14, 12)
+        const l13 = toCell(12, 13)
+        const n15 = toCell(14, 15)
+        return (
+          <View>
+            <Text style={{ position: 'absolute', left: n10.left, top: n10.top, fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic', textAlign: 'right', width: HEADER1_COLS_PT[13] }}>Invoice #:</Text>
+            <Text style={{ position: 'absolute', left: m11.left, top: m11.top, fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700, textAlign: 'right', width: HEADER1_COLS_PT[12] }}>{data.invoiceNumber}</Text>
+            <Text style={{ position: 'absolute', left: n12.left, top: n12.top, fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic', textAlign: 'right', width: HEADER1_COLS_PT[13] }}>Issued Date:</Text>
+            <Text style={{ position: 'absolute', left: l13.left, top: l13.top, fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700, textAlign: 'right', width: HEADER1_COLS_PT[11] }}>{formatDate(data.invoiceDateDisplay)}</Text>
+            <Text style={{ position: 'absolute', left: n15.left, top: n15.top, fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic', textAlign: 'right', width: HEADER1_COLS_PT[13] }}>FPS:</Text>
+            {qrPayload ? (
+              <Image src={buildHKFPSQrUrl(qrPayload, 128)!} style={{ position: 'absolute', left: m11.left, top: n15.top + 6, width: 64, height: 64 }} />
             ) : null}
           </View>
         )
@@ -904,92 +969,14 @@ const renderHeaderForVariant = (
   if (variant === 'A') {
     return (
       <>
-        {/* Header grid (A1:N6) with top alignment */}
-        <View style={[styles.headerRow, { marginBottom: 12 }]}> 
-          <View>
-            <Text style={[styles.logoMark, { marginRight: 8 }]}>E.</Text>
-          </View>
-          <HeaderGridPage1 data={data} />
-        </View>
-        {/* Invoice label and right-side info per sheet */}
-        <View style={[styles.headerRow, { marginBottom: 8 }]}> 
-          <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={styles.invoiceLabel}>Invoice</Text>
-          </View>
-          <View style={{ width: 220, alignItems: 'flex-end' }}>
-            <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Invoice #:</Text>
-            <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceNumber}</Text>
-            <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic', marginTop: 2 }}>Issued Date:</Text>
-            {data.invoiceDateDisplay ? (
-              <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceDateDisplay}</Text>
-            ) : null}
-            {data.fpsId || data.fpsEmail ? (
-              <View style={{ marginTop: 2 }}>
-                <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>FPS:</Text>
-                <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{String(data.fpsId ?? data.fpsEmail ?? '')}</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-        {showClientBlock ? (
-          <View style={[styles.headerRow, { marginBottom: 8 }]}>
-            <BillTo data={data} />
-            <View style={{ width: 220 }} />
-          </View>
-        ) : null}
+        <HeaderGridPage1 data={data} qrPayload={buildHKFPSPayload(data.fpsId ?? data.fpsEmail ?? null, false, null)} />
       </>
     )
   }
 
   return (
     <>
-      <View style={[styles.headerRow, { marginBottom: 16 }]}>
-        <View>
-          <Text style={[styles.logoMark, { marginRight: 8 }]}>E.</Text>
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ fontFamily: 'CormorantInfant', fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textAlign: 'right' }}>
-            {spacify(data.subsidiaryEnglishName ?? 'Establish Records Limited')}
-          </Text>
-          {data.subsidiaryChineseName ? (
-            <Text style={{ fontFamily: 'Iansui', fontSize: 10, textAlign: 'right' }}>{spacify(data.subsidiaryChineseName)}</Text>
-          ) : null}
-          {renderAddressLines((data.subsidiaryAddressLines ?? []), { fontFamily: 'CormorantInfant', fontSize: 7, textAlign: 'right' })}
-          {data.subsidiaryEmail ? (
-            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
-              {spacify(data.subsidiaryEmail)}
-            </Text>
-          ) : null}
-          {data.subsidiaryPhone ? (
-            <Text style={{ fontFamily: 'CormorantInfant', fontSize: 7, fontWeight: 700, color: '#666', textAlign: 'right' }}>
-              {spacifyPhoneHK(data.subsidiaryPhone)}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-      {showClientBlock ? (
-        <View style={styles.headerRow}>
-          <BillTo data={data} />
-          <View style={{ width: 200, paddingLeft: 16 }}>
-            <Text style={styles.sectionLabel}>Invoice</Text>
-            <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Invoice #:</Text>
-            <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceNumber}</Text>
-            {data.invoiceDateDisplay ? (
-              <>
-                <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>Issued Date:</Text>
-                <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{data.invoiceDateDisplay}</Text>
-              </>
-            ) : null}
-            {data.fpsId || data.fpsEmail ? (
-              <>
-                <Text style={{ fontFamily: 'RobotoMono', fontSize: 8, fontStyle: 'italic' }}>FPS:</Text>
-                <Text style={{ fontFamily: 'RobotoMono', fontSize: 9, fontWeight: 700 }}>{String(data.fpsId ?? data.fpsEmail ?? '')}</Text>
-              </>
-            ) : null}
-            <ProjectMeta data={data} />
-          </View>
-        </View>
-      ) : null}
+      <HeaderGridPage1 data={data} qrPayload={buildHKFPSPayload(data.fpsId ?? data.fpsEmail ?? null, false, null)} />
     </>
   )
 }
