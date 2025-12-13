@@ -5,6 +5,7 @@ import { createProjectInDatabase } from '../../../lib/projectsDatabase'
 import { updateProjectInDatabase } from '../../../lib/projectsDatabase'
 import { getAdminFirestore } from '../../../lib/firebaseAdmin'
 import { PROJECTS_FIRESTORE_DATABASE_ID } from '../../../lib/firebase'
+import { representativeToDisplay } from '../../../lib/representative'
 
 export const config = { api: { bodyParser: false } }
 
@@ -598,7 +599,8 @@ async function buildInvoiceDetailsText(year: string, projectId: string, invoiceN
       const mix = [addr3, reg].filter(Boolean).join(', ')
       if (mix) lines.push(mix)
     }
-    if (inv.representative) lines.push(`ATTN: <b><i>${esc(inv.representative)}</i></b>`) // bold+italic rep
+    const repDisplay = representativeToDisplay(inv.representative)
+    if (repDisplay) lines.push(`ATTN: <b><i>${esc(repDisplay)}</i></b>`) // bold+italic rep
   }
   // Items
   if (inv.items && inv.items.length > 0) {
@@ -671,8 +673,9 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
       if (mix) clientLines.push(mix)
     }
     // extra empty line before ATTN
-    if (inv.representative) clientLines.push('')
-    if (inv.representative) clientLines.push(`ATTN: <b><i>${esc(inv.representative)}</i></b>`)
+  const repDisplay = representativeToDisplay(inv.representative)
+  if (repDisplay) clientLines.push('')
+  if (repDisplay) clientLines.push(`ATTN: <b><i>${esc(repDisplay)}</i></b>`)
   } else {
     clientLines.push('No client details')
   }

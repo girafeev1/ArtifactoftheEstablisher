@@ -15,12 +15,17 @@ import {
 import { getFirestoreForDatabase, getFirebaseDiagnosticsSnapshot } from './firebase'
 import { fetchProjectsFromDatabase, resolvePaymentStatusFlag } from './projectsDatabase'
 import { fetchInvoicesForProject, type ProjectInvoiceRecord } from './projectInvoices'
+import {
+  normalizeRepresentative,
+  parseRepresentativeString,
+  representativeToDisplay,
+  type RepresentativeInfo,
+} from './representative'
 
 export interface ClientDirectoryRecord {
   documentId: string
   companyName: string
-  title: string | null
-  representative: string | null
+  representative: RepresentativeInfo | null
   email: string | null
   phone: string | null
   addressLine1: string | null
@@ -123,13 +128,32 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
       const data = doc.data() as Record<string, unknown>
       const documentId = doc.id
       const companyName = sanitizeString(data.companyName) ?? doc.id
-      const title = sanitizeString(data.title)
-      let representative = sanitizeString(data.representative)
+      // Representative info is now stored as a map in Firestore:
+      // representative: { title, firstName, lastName }.
+      // For legacy records we may still have separate title + representative strings;
+      // normalise both shapes into RepresentativeInfo.
+      let representative: RepresentativeInfo | null =
+        normalizeRepresentative(data.representative) ?? null
 
-      if (title && representative) {
-        const normalizedTitle = title.toLowerCase()
-        if (representative.toLowerCase().startsWith(normalizedTitle)) {
-          representative = representative.slice(title.length).trimStart()
+      const legacyTitle = sanitizeString((data as any).title)
+      if (representative && !representative.title && legacyTitle) {
+        representative = { ...representative, title: legacyTitle }
+      }
+
+      if (!representative) {
+        let legacyName = sanitizeString((data as any).representative)
+
+        if (legacyTitle && legacyName) {
+          const normalizedTitle = legacyTitle.toLowerCase()
+          if (legacyName.toLowerCase().startsWith(normalizedTitle)) {
+            legacyName = legacyName.slice(legacyTitle.length).trimStart()
+          }
+        }
+
+        if (legacyTitle || legacyName) {
+          representative = parseRepresentativeString(
+            `${legacyTitle ? `${legacyTitle} ` : ''}${legacyName ?? ''}`.trim(),
+          )
         }
       }
 
@@ -145,7 +169,6 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
       return {
         documentId,
         companyName,
-        title,
         representative,
         email: sanitizeString(data.email) ?? sanitizeString(data.emailAddress),
         phone: sanitizeString(data.phone),
@@ -196,8 +219,7 @@ export const fetchClientsDirectory = async (): Promise<ClientDirectoryRecord[]> 
 
 export interface ClientDirectoryWriteInput {
   companyName: string
-  title?: string | null
-  representative?: string | null
+  representative?: RepresentativeInfo | string | null
   email?: string | null
   phone?: string | null
   addressLine1?: string | null
@@ -214,13 +236,15 @@ const CLIENT_LOG_COLLECTION = 'updateLogs'
 const sanitizeWriteValue = (value: unknown): string | null => sanitizeString(value)
 
 const buildClientDocument = (input: ClientDirectoryWriteInput, options?: { fallbackName?: string }) => {
-  const representative =
-    sanitizeWriteValue(input.representative) ?? sanitizeWriteValue(options?.fallbackName)
+  const rep =
+    normalizeRepresentative((input as any).representative) ??
+    (typeof options?.fallbackName === 'string' && options.fallbackName.trim()
+      ? parseRepresentativeString(options.fallbackName)
+      : null)
 
   return {
     companyName: sanitizeWriteValue(input.companyName) ?? '',
-    title: sanitizeWriteValue(input.title),
-    representative,
+    representative: rep,
     email: sanitizeWriteValue(input.email),
     phone: sanitizeWriteValue(input.phone),
     addressLine1: sanitizeWriteValue(input.addressLine1),
@@ -232,9 +256,30 @@ const buildClientDocument = (input: ClientDirectoryWriteInput, options?: { fallb
   }
 }
 
+const stableStringify = (value: unknown): string => {
+  if (!value || typeof value !== 'object') {
+    return JSON.stringify(value ?? null)
+  }
+  const record = value as Record<string, unknown>
+  const keys = Object.keys(record).sort()
+  const normalized: Record<string, unknown> = {}
+  keys.forEach((k) => {
+    normalized[k] = record[k]
+  })
+  return JSON.stringify(normalized)
+}
+
 const hasValueChanged = (current: unknown, next: unknown) => {
   const currentNormal = current ?? null
   const nextNormal = next ?? null
+  if (
+    currentNormal &&
+    nextNormal &&
+    typeof currentNormal === 'object' &&
+    typeof nextNormal === 'object'
+  ) {
+    return stableStringify(currentNormal) !== stableStringify(nextNormal)
+  }
   return currentNormal !== nextNormal
 }
 

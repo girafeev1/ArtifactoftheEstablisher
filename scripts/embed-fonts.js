@@ -6,15 +6,38 @@ const ROOT = process.cwd()
 const INPUT_DIR = path.resolve(ROOT, 'public', 'pdf-fonts')
 const OUTPUT = path.resolve(ROOT, 'lib', 'pdfTemplates', 'fontData.ts')
 
+// Only include files that are known to be real TTF binaries in this repo.
+// Some of the other filenames that exist under public/pdf-fonts are actually
+// HTML "download" pages, which would cause "Unknown font format" errors if
+// embedded. If you add more fonts, make sure `file` reports them as a real
+// font before adding their names here.
 const CANDIDATES = [
+  // Latin mono + bold for body copy and numbers
   'RobotoMono-Regular.ttf',
   'RobotoMono-Bold.ttf',
+
+  // Display / UI fonts
   'VarelaRound-Regular.ttf',
   'RampartOne-Regular.ttf',
+
+  // Karla family for headings / labels
+  'Karla-Regular.ttf',
+  'Karla-Bold.ttf',
+  'Karla-Italic.ttf',
+  'Karla-BoldItalic.ttf',
+
+  // Serif families for headers
+  'CormorantInfant-Regular.ttf',
+  'CormorantInfant-Bold.ttf',
+  'EBGaramond-Regular.ttf',
+  'EBGaramond-Bold.ttf',
+
+  // CJK + mixed CJK/Latin display
   'Iansui-Regular.ttf',
-  // Variable TTFs for serif/display families used in headers
-  'CormorantInfant[wght].ttf',
-  'EBGaramond[wght].ttf',
+  'YujiMai-Regular.ttf',
+
+  // Display font for InvoiceTotalEnglish
+  'Federo-Regular.ttf',
 ]
 
 function b64(file) {

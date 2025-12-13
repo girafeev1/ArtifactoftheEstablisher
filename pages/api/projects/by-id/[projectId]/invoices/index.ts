@@ -52,14 +52,23 @@ const buildBaseInvoiceNumber = (project: ProjectRecord) => {
 
 const normalizeClientPayload = (value: unknown, fallbackCompany: string | null): InvoiceClientPayload => {
   const input = (value && typeof value === "object") ? (value as Record<string, unknown>) : {}
+  const representativeRaw = (input as any).representative
+  const representative =
+    representativeRaw && typeof representativeRaw === "object"
+      ? representativeRaw
+      : toStringValue(representativeRaw)
+
+  // Keep accepting legacy payloads where title + representative were separate fields.
+  // The server-side sanitizer will normalize these into the representative map.
   return {
     companyName: toStringValue(input.companyName) ?? fallbackCompany ?? null,
     addressLine1: toStringValue(input.addressLine1),
     addressLine2: toStringValue(input.addressLine2),
     addressLine3: toStringValue(input.addressLine3),
     region: toStringValue(input.region),
-    representative: toStringValue(input.representative),
-  }
+    representative: (representative as any) ?? null,
+    ...(toStringValue((input as any).title) ? { title: toStringValue((input as any).title) } : {}),
+  } as any
 }
 
 const normalizeItemsPayload = (value: unknown): InvoiceItemPayload[] => {

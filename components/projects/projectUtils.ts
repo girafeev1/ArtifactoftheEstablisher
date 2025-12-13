@@ -1,5 +1,6 @@
 import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
 import type { ProjectRecord } from "../../lib/projectsDatabase"
+import { normalizeRepresentative, representativeToDisplay, type RepresentativeInfo } from "../../lib/representative"
 
 export type NormalizedProject = ProjectRecord & {
   projectNumber: string
@@ -15,7 +16,8 @@ export type NormalizedClient = {
   addressLine2: string | null
   addressLine3: string | null
   region: string | null
-  representative: string | null
+  representative: RepresentativeInfo | null
+  representativeDisplay: string | null
   email: string | null
 }
 
@@ -43,20 +45,6 @@ export const amountText = (value: number | null | undefined) => {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })}`
-}
-
-export const paidStatusText = (value: boolean | null | undefined) => {
-  if (value === null || value === undefined) {
-    return "N/A"
-  }
-  return value ? "Paid" : "Unpaid"
-}
-
-export const paidStatusColor = (value: boolean | null | undefined) => {
-  if (value === null || value === undefined) {
-    return "default"
-  }
-  return value ? "green" : "red"
 }
 
 export const paidDateText = (
@@ -116,7 +104,8 @@ export const normalizeProject = (record: ProjectRecord): NormalizedProject => {
 
 export const normalizeClient = (record: ClientDirectoryRecord): NormalizedClient => {
   const companyName = trimOrNull(record.companyName)
-  const representative = trimOrNull(record.representative)
+  const representative = normalizeRepresentative((record as any).representative) ?? null
+  const representativeDisplay = trimOrNull(representativeToDisplay(representative))
   const email = trimOrNull(record.email)
 
   return {
@@ -126,6 +115,7 @@ export const normalizeClient = (record: ClientDirectoryRecord): NormalizedClient
     addressLine3: trimOrNull(record.addressLine3),
     region: trimOrNull(record.region ?? record.addressLine5 ?? null),
     representative,
+    representativeDisplay,
     email,
   }
 }

@@ -1,6 +1,7 @@
 import { addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp, updateDoc } from "firebase/firestore"
 
 import { projectsDb, PROJECTS_FIRESTORE_DATABASE_ID } from "./firebase"
+import { normalizeRepresentative, parseRepresentativeString, type RepresentativeInfo } from "./representative"
 
 const API_TIMEOUT_MS = 15000
 
@@ -398,7 +399,7 @@ export interface ProjectInvoiceRecord {
   addressLine2: string | null
   addressLine3: string | null
   region: string | null
-  representative: string | null
+  representative: RepresentativeInfo | null
   subtotal: number | null
   taxOrDiscountPercent: number | null
   total: number | null
@@ -531,6 +532,33 @@ const buildInvoiceRecord = (
   const paidTo = toStringValue(data.paidTo ?? data.paymentRecipient ?? data.payTo)
   const paymentStatus = sanitizePaymentStatus(rawPaymentStatus, paid)
 
+  // Representative is now stored as a map:
+  // representative: { title, firstName, lastName }
+  // Legacy records stored a single string (often including the title) and/or a
+  // separate `title` field. Normalize both shapes into RepresentativeInfo.
+  let representative: RepresentativeInfo | null = normalizeRepresentative(data.representative) ?? null
+  const legacyTitle = toStringValue((data as any).title)
+  if (representative && !representative.title && legacyTitle) {
+    representative = { ...representative, title: legacyTitle }
+  }
+
+  if (!representative) {
+    let legacyName = toStringValue((data as any).representative)
+
+    if (legacyTitle && legacyName) {
+      const normalizedTitle = legacyTitle.toLowerCase()
+      if (legacyName.toLowerCase().startsWith(normalizedTitle)) {
+        legacyName = legacyName.slice(legacyTitle.length).trimStart()
+      }
+    }
+
+    if (legacyTitle || legacyName) {
+      representative = parseRepresentativeString(
+        `${legacyTitle ? `${legacyTitle} ` : ""}${legacyName ?? ""}`.trim(),
+      )
+    }
+  }
+
   return {
     collectionId,
     invoiceNumber,
@@ -541,7 +569,7 @@ const buildInvoiceRecord = (
     addressLine2: toStringValue(data.addressLine2),
     addressLine3: toStringValue(data.addressLine3),
     region: toStringValue(data.region),
-    representative: toStringValue(data.representative),
+    representative,
     subtotal,
     taxOrDiscountPercent,
     total,
@@ -613,7 +641,7 @@ export interface InvoiceClientPayload {
   addressLine2: string | null
   addressLine3: string | null
   region: string | null
-  representative: string | null
+  representative: RepresentativeInfo | string | null
 }
 
 export interface InvoiceItemPayload {
@@ -651,7 +679,25 @@ const sanitizeClientPayload = (client: InvoiceClientPayload) => ({
   addressLine2: toStringValue(client.addressLine2) ?? null,
   addressLine3: toStringValue(client.addressLine3) ?? null,
   region: toStringValue(client.region) ?? null,
-  representative: toStringValue(client.representative) ?? null,
+  representative: (() => {
+    const normalized = normalizeRepresentative((client as any).representative)
+    const legacyTitle = toStringValue((client as any).title)
+    if (normalized && !normalized.title && legacyTitle) {
+      return { ...normalized, title: legacyTitle }
+    }
+    if (normalized) return normalized
+
+    // Support legacy payloads where title and representative were sent separately.
+    let legacyName = toStringValue((client as any).representative)
+    if (legacyTitle && legacyName) {
+      const normalizedTitle = legacyTitle.toLowerCase()
+      if (legacyName.toLowerCase().startsWith(normalizedTitle)) {
+        legacyName = legacyName.slice(legacyTitle.length).trimStart()
+      }
+    }
+    if (!legacyTitle && !legacyName) return null
+    return parseRepresentativeString(`${legacyTitle ? `${legacyTitle} ` : ''}${legacyName ?? ''}`.trim())
+  })(),
 })
 
 const sanitizeItemsPayload = (items: InvoiceItemPayload[]): InvoiceItemPayload[] =>
@@ -1080,40 +1126,4 @@ export const renameInvoiceForProject = async (
     throw new Error('Failed to read renamed invoice')
   }
   return buildInvoiceRecord(SINGLE_INVOICE_COLLECTION_ID, newSnap.id, newSnap.data() || {})
-}
-
-export interface InvoiceSummaryResult {
-  invoiceNumber: string | null
-  amount: number | null
-  clientCompany: string | null
-}
-
-export const fetchPrimaryInvoiceSummary = async (
-  year: string,
-  projectId: string,
-): Promise<InvoiceSummaryResult | null> => {
-  const invoices = await fetchInvoicesForProject(year, projectId)
-  if (!invoices.length) {
-    return null
-  }
-  let aggregatedTotal = 0
-  let hasAmount = false
-  invoices.forEach((invoice) => {
-    let value: number | null = null
-    if (typeof invoice.total === "number" && !Number.isNaN(invoice.total)) {
-      value = invoice.total
-    } else if (typeof invoice.amount === "number" && !Number.isNaN(invoice.amount)) {
-      value = invoice.amount
-    }
-    if (value !== null) {
-      aggregatedTotal += value
-      hasAmount = true
-    }
-  })
-  const first = invoices[0]
-  return {
-    invoiceNumber: first.invoiceNumber,
-    amount: hasAmount ? aggregatedTotal : first.total ?? first.amount ?? null,
-    clientCompany: first.companyName ?? null,
-  }
 }

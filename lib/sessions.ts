@@ -33,13 +33,3 @@ export const computeSessionStart = async (
   return d && !isNaN(d.getTime()) ? d : null
 }
 
-export const fmtDate = (d: Date) =>
-  d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  })
-
-export const fmtTime = (d: Date) =>
-  d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-

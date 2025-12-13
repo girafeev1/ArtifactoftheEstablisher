@@ -81,8 +81,9 @@ type ActionHandlers = {
 
 type ClientDetailsFormValues = {
   companyName: string
-  title?: string | null
-  representative?: string | null
+  representativeTitle?: string | null
+  representativeFirstName?: string | null
+  representativeLastName?: string | null
   email?: string | null
   phone?: string | null
   addressLine1?: string | null
@@ -91,10 +92,7 @@ type ClientDetailsFormValues = {
   region?: string | null
 }
 
-type AddClientFormValues = Required<
-  Pick<ClientDetailsFormValues, "companyName" | "title" | "representative" | "email" | "region">
-> &
-  Partial<Pick<ClientDetailsFormValues, "phone" | "addressLine1" | "addressLine2" | "addressLine3">>
+type AddClientFormValues = ClientDetailsFormValues
 
 const directoryCache: { records: ClientAccountRow[] } = { records: [] }
 
@@ -170,8 +168,10 @@ const normalizeRecord = (raw: DirectoryApiRecord, index: number): ClientAccountR
   void index
   const companyName = toNullableString(raw.companyName)
   const companyDisplay = formatDisplayValue(companyName)
-  const honorific = toNullableString(raw.title)
-  const baseName = toNullableString(raw.representative)
+  const honorific = toNullableString(raw.representative?.title ?? null)
+  const baseName = toNullableString(
+    [raw.representative?.firstName, raw.representative?.lastName].filter(Boolean).join(" "),
+  )
   const displayName = composeDisplayName(baseName, honorific, companyDisplay)
   const companyInitial = getCompanyInitial(companyDisplay)
 
@@ -810,8 +810,9 @@ const ClientDetailsDrawer = ({
 
   const hydrateValues = (entry: ClientAccountRow): ClientDetailsFormValues => ({
     companyName: entry.source.companyName ?? entry.company.name,
-    title: entry.source.title ?? entry.honorific ?? null,
-    representative: entry.source.representative ?? entry.baseName ?? null,
+    representativeTitle: entry.source.representative?.title ?? entry.honorific ?? null,
+    representativeFirstName: entry.source.representative?.firstName ?? null,
+    representativeLastName: entry.source.representative?.lastName ?? null,
     email: entry.source.email ?? entry.email ?? null,
     phone: entry.source.phone ?? entry.phone ?? null,
     addressLine1: entry.source.addressLine1 ?? entry.addressLine1 ?? null,
@@ -963,7 +964,11 @@ const ClientDetailsDrawer = ({
                 <Input placeholder="Enter company name" />
               </Form.Item>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                <Form.Item label="Title" name="title" style={{ flex: "0 0 160px", minWidth: 140 }}>
+                <Form.Item
+                  label="Title"
+                  name="representativeTitle"
+                  style={{ flex: "0 0 160px", minWidth: 140 }}
+                >
                   <Select
                     allowClear
                     placeholder="Title"
@@ -975,12 +980,20 @@ const ClientDetailsDrawer = ({
                   />
                 </Form.Item>
                 <Form.Item
-                  label="Representative"
-                  name="representative"
+                  label="First Name"
+                  name="representativeFirstName"
                   style={{ flex: 1, minWidth: 200 }}
-                  rules={[{ required: true, message: "Representative name is required" }]}
+                  rules={[{ required: true, message: "First name is required" }]}
                 >
-                  <Input placeholder="Enter representative name" />
+                  <Input placeholder="Enter first name" />
+                </Form.Item>
+                <Form.Item
+                  label="Last Name"
+                  name="representativeLastName"
+                  style={{ flex: 1, minWidth: 200 }}
+                  rules={[{ required: true, message: "Last name is required" }]}
+                >
+                  <Input placeholder="Enter last name" />
                 </Form.Item>
               </div>
               <Form.Item label="Email" name="email" rules={[{ type: "email", message: "Enter a valid email" }]}> 
@@ -1076,7 +1089,7 @@ const AddClientModal = ({
   useEffect(() => {
     if (open) {
       form.resetFields()
-      form.setFieldsValue({ title: "Mr.", region: "Kowloon" } as Partial<AddClientFormValues>)
+      form.setFieldsValue({ representativeTitle: "Mr.", region: "Kowloon" } as Partial<AddClientFormValues>)
     }
   }, [open, form])
 
@@ -1094,7 +1107,7 @@ const AddClientModal = ({
         layout="vertical"
         form={form}
         onFinish={onSubmit}
-        initialValues={{ title: "Mr.", region: "Kowloon" }}
+        initialValues={{ representativeTitle: "Mr.", region: "Kowloon" }}
       >
         <Form.Item
           label="Company Name"
@@ -1106,7 +1119,7 @@ const AddClientModal = ({
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <Form.Item
             label="Title"
-            name="title"
+            name="representativeTitle"
             style={{ flex: "0 0 160px", minWidth: 140 }}
           >
             <Select
@@ -1118,11 +1131,20 @@ const AddClientModal = ({
             />
           </Form.Item>
           <Form.Item
-            label="Representative"
-            name="representative"
+            label="First Name"
+            name="representativeFirstName"
             style={{ flex: 1, minWidth: 200 }}
+            rules={[{ required: true, message: "First name is required" }]}
           >
-            <Input placeholder="Representative name" />
+            <Input placeholder="First name" />
+          </Form.Item>
+          <Form.Item
+            label="Last Name"
+            name="representativeLastName"
+            style={{ flex: 1, minWidth: 200 }}
+            rules={[{ required: true, message: "Last name is required" }]}
+          >
+            <Input placeholder="Last name" />
           </Form.Item>
         </div>
         <Form.Item label="Email" name="email">
@@ -1317,8 +1339,11 @@ const ClientAccountsContent = () => {
         body: JSON.stringify({
           client: {
             companyName: values.companyName,
-            title: values.title,
-            representative: values.representative,
+            representative: {
+              title: values.representativeTitle ?? null,
+              firstName: values.representativeFirstName ?? null,
+              lastName: values.representativeLastName ?? null,
+            },
             email: values.email,
             phone: values.phone,
             addressLine1: values.addressLine1,
@@ -1356,8 +1381,11 @@ const ClientAccountsContent = () => {
         body: JSON.stringify({
           updates: {
             companyName: values.companyName,
-            title: values.title,
-            representative: values.representative,
+            representative: {
+              title: values.representativeTitle ?? null,
+              firstName: values.representativeFirstName ?? null,
+              lastName: values.representativeLastName ?? null,
+            },
             email: values.email,
             phone: values.phone,
             addressLine1: values.addressLine1,

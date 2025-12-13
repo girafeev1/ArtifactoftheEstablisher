@@ -20,8 +20,6 @@ interface SecretFetchResult {
  */
 export async function loadSecrets(): Promise<SecretFetchResult> {
   const secrets = {
-    OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID || '',
-    OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET || '',
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || '',
     PMS_REFERENCE_LOG_ID: process.env.PMS_REFERENCE_LOG_ID || '',
     NEXTAUTH_URL: process.env.NEXTAUTH_URL || '',

@@ -1,0 +1,100 @@
+{
+  "id": "footer-standard-v1",
+  "name": "Standard Invoice Footer with Totals and FPS",
+  "version": "1.0.0",
+  "type": "footer",
+  "rowCount": 10,
+  "columnWidthsPx": [21, 64, 64, 64, 64, 64, 64, 64, 64, 100, 100, 100, 100, 100],
+  "rows": [
+    {
+      "index": 1,
+      "height": 20,
+      "flexibility": "fixed",
+      "purpose": "content",
+      "removable": false,
+      "_description": "Total amount row"
+    },
+    {
+      "index": 2,
+      "height": 18,
+      "flexibility": "fixed",
+      "purpose": "content",
+      "removable": false,
+      "_description": "Amount in words (English)"
+    },
+    {
+      "index": 3,
+      "height": 18,
+      "flexibility": "fixed",
+      "purpose": "content",
+      "removable": false,
+      "_description": "Amount in words (Chinese)"
+    },
+    {
+      "index": 4,
+      "height": 12,
+      "flexibility": "spacer",
+      "minHeight": 6,
+      "purpose": "whitespace",
+      "removable": true
+    },
+    {
+      "index": 5,
+      "height": 16,
+      "flexibility": "fixed",
+      "purpose": "content",
+      "removable": false,
+      "_description": "Bank details header"
+    },
+    {
+      "index": 6,
+      "height": 14,
+      "flexibility": "fixed",
+      "purpose": "content",
+      "removable": false,
+      "_description": "Bank name and code"
+    },
+    {
+      "index": 7,
+      "height": 14,
+      "flexibility": "fixed",
+      "purpose": "content",
+      "removable": false,
+      "_description": "Account number"
+    },
+    {
+      "index": 8,
+      "height": 60,
+      "flexibility": "fixed",
+      "purpose": "content",
+      "removable": false,
+      "_description": "FPS QR code"
+    },
+    {
+      "index": 9,
+      "height": 10,
+      "flexibility": "spacer",
+      "minHeight": 5,
+      "purpose": "whitespace",
+      "removable": true
+    },
+    {
+      "index": 10,
+      "height": 12,
+      "flexibility": "fixed",
+      "purpose": "signature",
+      "removable": false,
+      "_description": "Signature line or company footer"
+    }
+  ],
+  "cells": {
+    "_comment": "Cells contain: <InvoiceTotalNumeric>, <InvoiceTotalEnglish>, <InvoiceTotalChinese>, <BankName>, <BankAccountNumber>, etc."
+  },
+  "merges": [],
+  "metadata": {
+    "repeatable": false,
+    "pageBreakBefore": false,
+    "pageBreakAfter": false,
+    "description": "Footer section with totals, bank details, FPS QR code, and signature block"
+  }
+}

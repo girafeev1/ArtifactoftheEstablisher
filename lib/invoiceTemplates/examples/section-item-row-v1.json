@@ -1,0 +1,62 @@
+{
+  "id": "item-row-standard-v1",
+  "name": "Standard Item Row (Multi-line with Notes)",
+  "version": "1.0.0",
+  "type": "item-row",
+  "rowCount": 5,
+  "columnWidthsPx": [21, 64, 64, 64, 64, 64, 64, 64, 64, 100, 100, 100, 100, 100],
+  "rows": [
+    {
+      "index": 1,
+      "height": 16,
+      "flexibility": "fixed",
+      "purpose": "content",
+      "removable": false,
+      "_description": "Item title and quantity info"
+    },
+    {
+      "index": 2,
+      "height": 14,
+      "flexibility": "fixed",
+      "purpose": "content",
+      "removable": false,
+      "_description": "Unit price and totals"
+    },
+    {
+      "index": 3,
+      "height": 28,
+      "flexibility": "expandable",
+      "minHeight": 14,
+      "maxHeight": 60,
+      "purpose": "content",
+      "removable": false,
+      "_description": "Item notes - expands based on content length"
+    },
+    {
+      "index": 4,
+      "height": 8,
+      "flexibility": "spacer",
+      "minHeight": 0,
+      "purpose": "whitespace",
+      "removable": true,
+      "_description": "Spacer between items - removed in compact mode"
+    },
+    {
+      "index": 5,
+      "height": 2,
+      "flexibility": "fixed",
+      "purpose": "divider",
+      "removable": false,
+      "_description": "Thin divider line between items"
+    }
+  ],
+  "cells": {
+    "_comment": "Cells would contain: <ItemTitle>, <ItemQuantity>, <ItemUnitPrice>, <ItemNotes>, etc."
+  },
+  "merges": [],
+  "metadata": {
+    "repeatable": true,
+    "maxInstancesPerPage": 5,
+    "description": "Repeatable item row with expandable notes section and optional spacing"
+  }
+}

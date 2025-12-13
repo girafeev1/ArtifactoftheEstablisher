@@ -6,11 +6,6 @@ export const formatMMMDDYYYY = (d: Date): string => {
   })
 }
 
-export const isLastDayOfMonth = (d: Date): boolean => {
-  const test = new Date(d.getFullYear(), d.getMonth() + 1, 0)
-  return d.getDate() === test.getDate()
-}
-
 export const endOfNextMonthAligned = (start: Date): Date => {
   const y = start.getFullYear()
   const m = start.getMonth()

@@ -1,161 +1,168 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import crypto from 'crypto'
-import * as ReactPdf from '@react-pdf/renderer'
-const { pdf } = ReactPdf
-import { doc as docFs, getDoc } from 'firebase/firestore'
-import { fetchInvoicesForProject } from '../../../../../../lib/projectInvoices'
-import {
-  buildClassicInvoiceDocument,
-  type ClassicInvoiceDocInput,
-  type ClassicInvoiceVariant,
-} from '../../../../../../lib/pdfTemplates/classicInvoice'
-import { projectsDb } from '../../../../../../lib/firebase'
-import { fetchSubsidiaryById } from '../../../../../../lib/subsidiaries'
-import { resolveBankAccountIdentifier } from '../../../../../../lib/erlDirectory'
+import chromium from '@sparticuz/chromium'
+import puppeteer from 'puppeteer-core'
+import fs from 'fs'
 
-const VARIANTS: ClassicInvoiceVariant[] = ['bundle', 'A', 'A2', 'B', 'B2']
+/**
+ * HTML-to-PDF endpoint using headless Chromium.
+ *
+ * Renders the invoice preview page in a single, controlled Chromium instance
+ * and returns an A4 portrait PDF. The preview HTML acts as the single source
+ * of truth for layout and fonts.
+ */
 
-const computeHash = (obj: any): string =>
-  crypto.createHash('sha256').update(JSON.stringify(obj)).digest('hex')
-
-const parseVariant = (raw: string | undefined | null): ClassicInvoiceVariant => {
-  if (!raw) return 'bundle'
-  const normalized = raw.trim()
-  return (VARIANTS.includes(normalized as ClassicInvoiceVariant) ? normalized : 'bundle') as ClassicInvoiceVariant
-}
-
-// Helpers for converting different stream outputs to a Node Buffer
-const bufferFromNodeStream = (stream: any): Promise<Buffer> =>
-  new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    stream.on('data', (chunk: Buffer | Uint8Array) => chunks.push(Buffer.from(chunk)))
-    stream.on('end', () => resolve(Buffer.concat(chunks)))
-    stream.on('error', (err: any) => reject(err))
-  })
-
-const bufferFromWebStream = async (webStream: any): Promise<Buffer> => {
-  const reader = webStream.getReader()
-  const chunks: Buffer[] = []
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    if (value) chunks.push(Buffer.from(value))
+async function getExecutablePath() {
+  // 1) Explicit override wins.
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH
   }
-  return Buffer.concat(chunks)
+
+  // 2) Local macOS dev convenience: use system Chrome if available.
+  if (process.platform === 'darwin') {
+    const macChromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    if (fs.existsSync(macChromePath)) {
+      return macChromePath
+    }
+  }
+
+  // 3) Serverless / Linux environments: use sparticuz chromium.
+  try {
+    const p = await chromium.executablePath()
+    if (p) return p
+  } catch {
+    // fall through
+  }
+
+  throw new Error(
+    'No Chromium executable path found. Set PUPPETEER_EXECUTABLE_PATH or configure @sparticuz/chromium for this environment.',
+  )
 }
 
-// ... (keep all helper functions: toStringValue, toNumberValue, etc.)
-
-const handler = async (req: NextApiRequest, res: NextApiResponse) => {
-  const { year, projectId, invoiceNumber, variant: variantQuery } = req.query
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { year, projectId, invoiceNumber } = req.query
 
   if (typeof year !== 'string' || typeof projectId !== 'string' || typeof invoiceNumber !== 'string') {
     return res.status(400).send('Invalid request parameters')
   }
 
   try {
-    // Load project (for subsidiary metadata) — prefer nested path
-    const projectSnap = await getDoc(docFs(projectsDb, 'projects', year, 'projects', projectId))
-    if (!projectSnap.exists()) {
-      // Fall back to legacy root if nested is missing
-      const legacySnap = await getDoc(docFs(projectsDb, year, projectId))
-      if (!legacySnap.exists()) {
-        return res.status(404).send('Project not found')
-      }
+    const protocol = (req.headers['x-forwarded-proto'] as string) || 'http'
+    const host = req.headers.host
+    if (!host) {
+      return res.status(500).send('Missing Host header')
     }
 
-    // Fetch invoices via our library (works with current Firestore layout)
-    const invoices = await fetchInvoicesForProject(year, projectId)
-    const invoice = invoices.find((inv) => inv.invoiceNumber === invoiceNumber)
-    if (!invoice) {
-      return res.status(404).send('Invoice not found')
-    }
+    const projectNumber = typeof req.query.projectNumber === 'string' ? req.query.projectNumber : ''
+    const gridParam = req.query.grid === '1' || req.query.grid === 'true' ? '1' : ''
 
-    const projectData = projectSnap.exists() ? projectSnap.data() : null
-    const subsidiaryId = (projectData as any)?.subsidiaryId || (projectData as any)?.subsidiary || null
-    const subsidiary = subsidiaryId ? await fetchSubsidiaryById(subsidiaryId) : null
-    const bankDetails = invoice.paidTo ? await resolveBankAccountIdentifier(invoice.paidTo) : null
+    const baseUrl = `${protocol}://${host}`
+    const previewPath = `/dashboard/new-ui/projects/show/${encodeURIComponent(
+      projectId,
+    )}/invoice/${encodeURIComponent(invoiceNumber)}/preview?year=${encodeURIComponent(
+      year,
+    )}&projectNumber=${encodeURIComponent(projectNumber)}${
+      gridParam ? '&grid=1' : ''
+    }&pdf=1`
 
-    const invoiceData: ClassicInvoiceDocInput = {
-      // --- Map your invoice and project data here ---
-      invoiceNumber: invoice.invoiceNumber,
-      invoiceDateDisplay: invoice.updatedAt || invoice.createdAt || null,
-      companyName: invoice.companyName,
-      addressLine1: invoice.addressLine1,
-      addressLine2: invoice.addressLine2,
-      addressLine3: invoice.addressLine3,
-      region: invoice.region,
-      representative: invoice.representative,
-      projectTitle: (projectData as any)?.projectTitle ?? (projectData as any)?.projectName ?? null,
-      projectNature: (projectData as any)?.projectNature ?? null,
-      items: invoice.items as any,
-      subtotal: invoice.subtotal ?? null,
-      total: invoice.total ?? invoice.amount ?? null,
-      // --- Map subsidiary and bank details ---
-      subsidiaryEnglishName: subsidiary?.englishName ?? null,
-      subsidiaryChineseName: subsidiary?.chineseName ?? null,
-      // Include all known lines + region to mirror the sheet header block
-      subsidiaryAddressLines: (
-        subsidiary
-          ? [
-              subsidiary.addressLine1 || null,
-              subsidiary.addressLine2 || null,
-              subsidiary.addressLine3 || null,
-              subsidiary.region ? `${subsidiary.region}` : null,
-            ].filter((v): v is string => Boolean(v && v.trim()))
-          : undefined
-      ),
-      subsidiaryPhone: subsidiary?.phone ?? null,
-      subsidiaryEmail: subsidiary?.email ?? null,
-      paidTo: invoice.paidTo ?? null,
-      bankName: bankDetails?.bankName ?? null,
-      bankCode: bankDetails?.bankCode ?? null,
-      bankAccountNumber: bankDetails?.accountNumber ?? null,
-      fpsId: (bankDetails as any)?.fpsId ?? null,
-      sheetData: null, // We are not using live sheet data anymore
-    }
+    const url = `${baseUrl}${previewPath}`
 
-    const variant = parseVariant(variantQuery as string)
-    
-    // --- START DEBUG LOGGING ---
-    console.log('--- PDF GENERATION ---')
-    console.log('Using variant:', variant)
-    console.log('Passing invoice data to document builder:', JSON.stringify(invoiceData, null, 2))
-    // --- END DEBUG LOGGING ---
+    const executablePath = await getExecutablePath()
 
-    const doc = buildClassicInvoiceDocument(invoiceData, { variant })
-    const instance: any = pdf(doc)
+    const browser = await puppeteer.launch(
+      process.platform === 'darwin'
+        ? {
+            executablePath,
+            headless: true,
+          }
+        : {
+            args: chromium.args,
+            defaultViewport: chromium.defaultViewport,
+            headless: true,
+            executablePath,
+          },
+    )
 
-    let buffer: Buffer
     try {
-      const out: any = await (instance.toBuffer?.() ?? instance.toBlob?.())
-      if (out && typeof out.getReader === 'function') {
-        buffer = await bufferFromWebStream(out)
-      } else if (out && typeof out.pipe === 'function') {
-        buffer = await bufferFromNodeStream(out)
-      } else if (Buffer.isBuffer(out)) {
-        buffer = out
-      } else if (typeof instance.toString === 'function') {
-        const str = await instance.toString()
-        buffer = Buffer.from(str, 'binary')
-      } else {
-        throw new Error('Unknown PDF output type')
+      const page = await browser.newPage()
+      // Surface console output from the headless preview page into the Node
+      // logs so we can see what data the Chromium session actually has at
+      // the moment the PDF is generated.
+      page.on('console', (msg) => {
+        // eslint-disable-next-line no-console
+        console.log('[invoice-pdf][console]', msg.type(), msg.text())
+      })
+      page.on('pageerror', (err) => {
+        // eslint-disable-next-line no-console
+        console.error('[invoice-pdf][pageerror]', err)
+      })
+
+      // Propagate the incoming request's cookies into the headless browser so
+      // that authenticated API routes (e.g. /api/projects/by-id/[id]) behave
+      // the same way they do in the user's real browser session. This ensures
+      // the preview loaded under Puppeteer can see the same project,
+      // subsidiary and bank data that the HTML preview uses.
+      const rawCookie = req.headers.cookie
+      if (rawCookie) {
+        const cookieDomain = host.split(':')[0]
+        const parsed = rawCookie.split(';').map((pair) => {
+          const [name, ...rest] = pair.split('=')
+          return {
+            name: name.trim(),
+            value: rest.join('=').trim(),
+            domain: cookieDomain,
+            path: '/',
+          }
+        })
+        if (parsed.length > 0) {
+          await page.setCookie(...parsed)
+        }
       }
-    } catch (e) {
-      console.error('[pdf] Failed to obtain buffer, attempting toString fallback', e)
-      const str = await instance.toString()
-      buffer = Buffer.from(str, 'binary')
+
+      // Ensure that print-specific CSS (@media print) is applied when
+      // rendering the PDF. Without this, Chromium will render in "screen"
+      // mode and still include the surrounding app chrome.
+      await page.emulateMediaType('print')
+      // In dev, Next.js keeps long‑lived connections open, so "networkidle0"
+      // can easily time out. Use "networkidle2" and then explicitly wait for
+      // the preview to settle, and additionally wait for the React invoice
+      // root to signal that all async data (project, subsidiary, bank) has
+      // finished loading via data-ready=\"1\".
+      // eslint-disable-next-line no-console
+      console.log('[invoice-pdf][navigate]', { url })
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 })
+      await page.waitForSelector('#invoice-print-root .scheme-grid', { timeout: 60000 })
+      await page.waitForFunction(
+        () => {
+          const el = document.getElementById('invoice-print-root')
+          return !!el && el.getAttribute('data-ready') === '1'
+        },
+        { timeout: 60000 },
+      )
+
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        landscape: false,
+        margin: {
+          top: '0.2in',
+          bottom: '0.2in',
+          left: '0.3in',
+          right: '0.3in',
+        },
+      })
+
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="invoice-${encodeURIComponent(invoiceNumber)}.pdf"`,
+      )
+      res.setHeader('Content-Length', String(pdfBuffer.length))
+      res.status(200).send(pdfBuffer)
+    } finally {
+      await browser.close()
     }
-
-    res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', `inline; filename="invoice-${invoiceNumber}.pdf"`)
-    res.setHeader('Content-Length', String(buffer.length))
-    res.status(200).send(buffer)
-
   } catch (error) {
-    console.error('Error generating PDF:', error)
+    console.error('Error generating PDF via headless Chromium:', error)
     res.status(500).send('Error generating PDF')
   }
 }
-
-export default handler

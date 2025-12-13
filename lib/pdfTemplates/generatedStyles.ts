@@ -7,9 +7,12 @@ export const generatedStyles = StyleSheet.create({
     fontFamily: 'RobotoMono',
     fontSize: 10,
     color: '#000',
-    paddingTop: 30,
-    paddingBottom: 30,
-    paddingHorizontal: 40,
+    backgroundColor: '#fff',
+    // Use zero padding; absolute grid placement in classicInvoice.tsx
+    // accounts for margins to avoid double offsets and overflow.
+    paddingTop: 0,
+    paddingBottom: 0,
+    paddingHorizontal: 0,
     lineHeight: 1.4,
   },
   headerRow: {

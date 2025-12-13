@@ -83,8 +83,6 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
       }),
     ] as NextAuthOptions['providers']
 
-  // Discord web OAuth removed
-
   return {
     providers,
     pages: {

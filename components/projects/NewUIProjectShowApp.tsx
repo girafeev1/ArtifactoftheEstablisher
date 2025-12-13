@@ -17,6 +17,7 @@ import {
   Empty,
   Input,
   InputNumber,
+  Checkbox,
   Row,
   Select,
   Space,
@@ -36,6 +37,7 @@ import type { ProjectInvoiceRecord } from "../../lib/projectInvoices"
 import dayjs, { type Dayjs } from "dayjs"
 import { resolveBankAccountIdentifier, listBanks, listAccounts, lookupAccount, type BankInfo, type AccountInfo } from "../../lib/erlDirectory"
 import { fetchSubsidiaryById, fetchSubsidiaries, type SubsidiaryDoc } from "../../lib/subsidiaries"
+import { representativeToDisplay, type RepresentativeInfo } from "../../lib/representative"
 import clsx from 'clsx'
 
 import AppShell from "../new-ui/AppShell"
@@ -73,6 +75,8 @@ const ANT_INVOICE_STATUS_OPTIONS = INVOICE_STATUS_OPTIONS.map((option) => ({
   label: option.label,
   value: option.value,
 }))
+
+const IS_DEV_ENV = process.env.NODE_ENV === "development"
 
 const statusToColorKey = (status: string | null | undefined): keyof typeof paymentPalette => {
   if (!status) {
@@ -122,7 +126,7 @@ type InvoiceClientState = {
   addressLine2: string | null
   addressLine3: string | null
   region: string | null
-  representative: string | null
+  representative: RepresentativeInfo | null
 }
 
 type InvoiceDraftState = {
@@ -810,7 +814,7 @@ const ProjectsShowContent = () => {
                   addressLine2: current.addressLine2 ?? (match.addressLine2 ?? null),
                   addressLine3: current.addressLine3 ?? (match.addressLine3 ?? null),
                   region: current.region ?? (match.region ?? (match as any).addressLine5 ?? null),
-                  representative: current.representative ?? ((match.title ? `${match.title} ` : '') + (match.representative ?? '')),
+                  representative: current.representative ?? (match.representative ?? null),
                 },
               }
             })
@@ -1161,8 +1165,12 @@ const ProjectsShowContent = () => {
 
   const handlePreviewInvoice = useCallback(() => {
     if (!project || !activeInvoice) return
-    const url = `/dashboard/new-ui/projects/show/${encodeURIComponent(project.id)}/invoice/${encodeURIComponent(activeInvoice.invoiceNumber)}/preview?year=${encodeURIComponent(project.year)}&projectNumber=${encodeURIComponent(project.projectNumber || '')}`
-    window.open(url, '_self')
+    const url = `/dashboard/new-ui/projects/show/${encodeURIComponent(
+      project.id,
+    )}/invoice/${encodeURIComponent(activeInvoice.invoiceNumber)}/preview?year=${encodeURIComponent(
+      project.year,
+    )}&projectNumber=${encodeURIComponent(project.projectNumber || "")}`
+    window.open(url, "_self")
   }, [activeInvoice, project])
 
   const handleViewPdf = useCallback(() => {
@@ -1290,6 +1298,7 @@ const ProjectsShowContent = () => {
       })
     }
   }, [project])
+
 
   const handleProjectDraftChange = useCallback(
     (
@@ -1785,7 +1794,9 @@ const ProjectsShowContent = () => {
     })
   }, [])
 
-  const handleClientFieldChange = useCallback((field: keyof InvoiceClientState, value: string) => {
+  type InvoiceClientTextField = Exclude<keyof InvoiceClientState, "representative">
+
+  const handleClientFieldChange = useCallback((field: InvoiceClientTextField, value: string) => {
     setDraftInvoice((previous) => {
       if (!previous) {
         return previous
@@ -1799,6 +1810,35 @@ const ProjectsShowContent = () => {
       }
     })
   }, [])
+
+  const handleClientRepresentativeChange = useCallback(
+    (field: keyof RepresentativeInfo, value: string | null | undefined) => {
+      const normalized =
+        typeof value === "string" ? (value.trim().length > 0 ? value.trim() : null) : null
+
+      setDraftInvoice((previous) => {
+        if (!previous) return previous
+
+        const current = previous.client.representative ?? {
+          title: null,
+          firstName: null,
+          lastName: null,
+        }
+
+        const next = { ...current, [field]: normalized } as RepresentativeInfo
+        const hasAny = Boolean(next.title || next.firstName || next.lastName)
+
+        return {
+          ...previous,
+          client: {
+            ...previous.client,
+            representative: hasAny ? next : null,
+          },
+        }
+      })
+    },
+    [],
+  )
 
   const handleSaveInvoice = useCallback(async () => {
     if (!project || !draftInvoice) {
@@ -1815,7 +1855,14 @@ const ProjectsShowContent = () => {
           addressLine3: current.addressLine3 ?? null,
           region: current.region ?? null,
           representative: current.representative ?? null,
-        }) === JSON.stringify(draftInvoice.client)
+        }) === JSON.stringify({
+          companyName: draftInvoice.client.companyName ?? null,
+          addressLine1: draftInvoice.client.addressLine1 ?? null,
+          addressLine2: draftInvoice.client.addressLine2 ?? null,
+          addressLine3: draftInvoice.client.addressLine3 ?? null,
+          region: draftInvoice.client.region ?? null,
+          representative: draftInvoice.client.representative ?? null,
+        })
 
         const sameItems = JSON.stringify((current.items ?? []).map(i => ({
           title: i.title ?? '',
@@ -2501,7 +2548,7 @@ const ProjectsShowContent = () => {
                                 addressLine2: match.addressLine2 ?? null,
                                 addressLine3: match.addressLine3 ?? null,
                                 region: match.region ?? (match as any).addressLine5 ?? null,
-                                representative: (match.title ? `${match.title} ` : '') + (match.representative ?? ''),
+                                representative: match.representative ?? null,
                               },
                             }
                           })
@@ -2558,30 +2605,28 @@ const ProjectsShowContent = () => {
                       <Select
                         placeholder="Title"
                         size="small"
-                        value={(() => {
-                          const rep = editingClient?.representative ?? ''
-                          const m = rep.match(/^(Mr\.|Ms\.|Mrs\.)\s+/i)
-                          return m ? m[1] : undefined
-                        })()}
-                        onChange={(title: string) => {
-                          const current = editingClient?.representative ?? ''
-                          const nameOnly = current.replace(/^(Mr\.|Ms\.|Mrs\.)\s+/i, '').trim()
-                          handleClientFieldChange('representative', `${title} ${nameOnly}`.trim())
-                        }}
+                        value={editingClient?.representative?.title ?? undefined}
+                        onChange={(title: string) => handleClientRepresentativeChange("title", title)}
                         options={[{value:'Mr.',label:'Mr.'},{value:'Ms.',label:'Ms.'},{value:'Mrs.',label:'Mrs.'}]}
                         style={{ width: 100 }}
                         popupMatchSelectWidth={false}
                       />
                       <Input
-                        value={(editingClient?.representative ?? "").replace(/^(Mr\.|Ms\.|Mrs\.)\s+/i, '').trim()}
                         onChange={(event) => {
-                          const newName = event.target.value
-                          const current = editingClient?.representative ?? ''
-                          const titleMatch = current.match(/^(Mr\.|Ms\.|Mrs\.)\s+/i)
-                          const title = titleMatch ? titleMatch[0] : ''
-                          handleClientFieldChange("representative", `${title}${newName}`.trim())
+                          handleClientRepresentativeChange("firstName", event.target.value)
                         }}
-                        placeholder="Attention / Representative"
+                        value={editingClient?.representative?.firstName ?? ''}
+                        placeholder="First name"
+                        variant="borderless"
+                        className="client-input"
+                        style={{ textAlign: 'left' }}
+                      />
+                      <Input
+                        onChange={(event) => {
+                          handleClientRepresentativeChange("lastName", event.target.value)
+                        }}
+                        value={editingClient?.representative?.lastName ?? ''}
+                        placeholder="Last name"
                         variant="borderless"
                         className="client-input"
                         style={{ textAlign: 'left' }}
@@ -2594,9 +2639,12 @@ const ProjectsShowContent = () => {
                     <div className="company-line">{stringOrNA(resolvedClient?.addressLine1)}</div>
                     <div className="company-line">{stringOrNA(resolvedClient?.addressLine2)}</div>
                     <div className="company-line">{stringOrNA(companyLine3)}</div>
-                    {resolvedClient?.representative ? (
+                    {representativeToDisplay(resolvedClient?.representative) ? (
                       <div className="company-line client-attn">
-                        <strong><em>Attn:</em></strong>&nbsp;<strong>{resolvedClient.representative}</strong>
+                        <strong><em>Attn:</em></strong>&nbsp;
+                        <strong>
+                          {representativeToDisplay(resolvedClient?.representative) ?? ""}
+                        </strong>
                       </div>
                     ) : null}
                   </div>

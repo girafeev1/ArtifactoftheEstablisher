@@ -25,25 +25,3 @@ export async function getDriveClient() {
   return google.drive({ version: 'v3', auth: jwt })
 }
 
-export async function ensureYearFolder(rootFolderId: string, year: string): Promise<string> {
-  const drive = await getDriveClient()
-  // Try to find child folder with this name
-  const q = `mimeType = 'application/vnd.google-apps.folder' and '${rootFolderId}' in parents and name = '${year.replace(/'/g, "\\'")}' and trashed = false`
-  const res = await drive.files.list({ q, fields: 'files(id, name)' })
-  const existing = res.data.files?.[0]
-  if (existing?.id) return existing.id
-  const created = await drive.files.create({ requestBody: { name: year, mimeType: 'application/vnd.google-apps.folder', parents: [rootFolderId] }, fields: 'id' })
-  if (!created.data.id) throw new Error('Failed to create year folder')
-  return created.data.id
-}
-
-export async function uploadPdfBuffer(folderId: string, filename: string, buf: Buffer): Promise<{ fileId: string; webViewLink?: string }> {
-  const drive = await getDriveClient()
-  const file = await drive.files.create({
-    requestBody: { name: filename, parents: [folderId], mimeType: 'application/pdf' },
-    media: { mimeType: 'application/pdf', body: Buffer.from(buf) as any },
-    fields: 'id, webViewLink',
-  } as any)
-  return { fileId: file.data.id as string, webViewLink: file.data.webViewLink || undefined }
-}
-
