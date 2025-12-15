@@ -39,6 +39,8 @@ import { resolveBankAccountIdentifier, listBanks, listAccounts, lookupAccount, t
 import { fetchSubsidiaryById, fetchSubsidiaries, type SubsidiaryDoc } from "../../lib/subsidiaries"
 import { representativeToDisplay, type RepresentativeInfo } from "../../lib/representative"
 import clsx from 'clsx'
+import { FileTextOutlined } from '@ant-design/icons'
+import { getPaginationSummary, type InvoiceItem as PaginationItem } from '../../lib/invoiceTemplates/contentHeightCalculator'
 
 import AppShell from "../new-ui/AppShell"
 import {
@@ -1118,24 +1120,47 @@ const ProjectsShowContent = () => {
     return Array.isArray(items) && items.length > 0
   }, [activeInvoice])
 
-  // Estimate items-only page span locally (real-time, without waiting for server)
-  const [itemsPages, setItemsPages] = useState<number | null>(null)
+  // Content-aware page span calculation using actual pixel heights
+  const [paginationInfo, setPaginationInfo] = useState<{
+    pages: number;
+    breakdown: string;
+    warnings: string[];
+    hasLongNotes: boolean;
+  } | null>(null)
   useEffect(() => {
     const items = (invoiceMode !== 'idle' && draftInvoice) ? (draftInvoice.items ?? []) : ((activeInvoice as any)?.items ?? [])
-    if (!Array.isArray(items)) { setItemsPages(null); return }
-    let lines = 0
-    for (const it of items) {
-      lines += 2 // title + calc line baseline
-      if (it?.subQuantity) lines += 1
-      if (it?.feeType) lines += 1
-      if (it?.notes) {
-        const len = String(it.notes).length
-        lines += Math.ceil(len / 80)
-      }
+    if (!Array.isArray(items) || items.length === 0) { setPaginationInfo(null); return }
+
+    // Convert to PaginationItem format for content-aware calculation
+    const paginationItems: PaginationItem[] = items.map(it => ({
+      title: it?.title || '',
+      feeType: it?.feeType,
+      subQuantity: it?.subQuantity,
+      notes: it?.notes,
+      unitPrice: it?.unitPrice,
+      quantity: it?.quantity,
+      quantityUnit: it?.quantityUnit,
+      discount: it?.discount,
+    }))
+
+    try {
+      const summary = getPaginationSummary(paginationItems)
+      setPaginationInfo({
+        pages: summary.totalPages,
+        breakdown: summary.breakdown,
+        warnings: summary.warnings,
+        hasLongNotes: summary.warnings.some(w => w.includes('overflow')),
+      })
+    } catch (e) {
+      // Fallback to simple calculation if content-aware fails
+      const fallbackPages = Math.max(1, Math.ceil(items.length / 5))
+      setPaginationInfo({
+        pages: fallbackPages,
+        breakdown: `Estimated ${fallbackPages} page(s)`,
+        warnings: [],
+        hasLongNotes: false,
+      })
     }
-    const LINES_PER_PAGE = 28
-    const pages = Math.max(1, Math.ceil(lines / LINES_PER_PAGE))
-    setItemsPages(pages)
   }, [invoiceMode, draftInvoice, activeInvoice])
   const currentHashModel = useMemo(() => {
     if (!activeInvoice) return null
@@ -2898,11 +2923,62 @@ const ProjectsShowContent = () => {
                       rowKey="key"
                       className="items-table"
                     />
-                    {itemsPages ? (
-                      <div className="items-span-indicator" style={{ marginTop: 8 }}>
-                        <Tag color="blue" style={{ fontFamily: KARLA_FONT }}>
-                          Items span: ({itemsPages} page{itemsPages > 1 ? 's' : ''})
-                        </Tag>
+                    {paginationInfo ? (
+                      <div className="pagination-indicator" style={{ marginTop: 12, marginBottom: 4 }}>
+                        <Tooltip
+                          title={
+                            <div style={{ fontSize: 12 }}>
+                              <div style={{ fontWeight: 600, marginBottom: 4 }}>Page Layout</div>
+                              <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 11 }}>
+                                {paginationInfo.breakdown}
+                              </div>
+                              {paginationInfo.warnings.length > 0 && (
+                                <div style={{ marginTop: 8, color: '#fbbf24' }}>
+                                  <div style={{ fontWeight: 600 }}>Notes:</div>
+                                  {paginationInfo.warnings.map((w, i) => (
+                                    <div key={i} style={{ fontSize: 10 }}>{w}</div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          }
+                          placement="top"
+                        >
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '4px 10px',
+                            borderRadius: 4,
+                            backgroundColor: paginationInfo.pages > 1 ? '#fef3c7' : '#f0f9ff',
+                            border: `1px solid ${paginationInfo.pages > 1 ? '#fcd34d' : '#bae6fd'}`,
+                            fontFamily: KARLA_FONT,
+                            fontSize: 12,
+                            color: paginationInfo.pages > 1 ? '#92400e' : '#0369a1',
+                            cursor: 'help',
+                          }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              {Array.from({ length: Math.min(paginationInfo.pages, 4) }).map((_, i) => (
+                                <FileTextOutlined
+                                  key={i}
+                                  style={{
+                                    fontSize: 12,
+                                    opacity: i === 0 ? 1 : 0.6 - (i * 0.15),
+                                  }}
+                                />
+                              ))}
+                              {paginationInfo.pages > 4 && (
+                                <span style={{ fontSize: 10, marginLeft: 2 }}>+{paginationInfo.pages - 4}</span>
+                              )}
+                            </span>
+                            <span style={{ fontWeight: 500 }}>
+                              {paginationInfo.pages === 1 ? 'Single page' : `${paginationInfo.pages} pages`}
+                            </span>
+                            {paginationInfo.hasLongNotes && (
+                              <span style={{ fontSize: 10, color: '#dc2626' }} title="Contains long notes">!</span>
+                            )}
+                          </div>
+                        </Tooltip>
                       </div>
                     ) : null}
                     {/* Totals summary panel */}
@@ -4292,8 +4368,13 @@ const ProjectsShowApp = () => (
         list: "/dashboard/new-ui/projects",
         meta: { label: "Projects" },
       },
+      {
+        name: "finance",
+        list: "/dashboard/new-ui/finance",
+        meta: { label: "Finance" },
+      },
     ]}
-    allowedMenuKeys={["dashboard", "client-directory", "projects"]}
+    allowedMenuKeys={["dashboard", "client-directory", "projects", "finance"]}
   >
     <ProjectsShowContent />
   </AppShell>

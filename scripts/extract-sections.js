@@ -139,4 +139,92 @@ extractSection(
   'Full payment footer with bank details, FPS ID, and payment terms'
 );
 
+// ============================================
+// PAYMENT DETAILS PAGE (Full standalone page)
+// ============================================
+extractSection(
+  'page-payment-details',
+  161, 201,
+  'standalone-page',
+  'Full Payment Details page with beneficiary info, bank details, FPS QR code, and Terms & Conditions'
+);
+
+// ============================================
+// PAYMENT INSTRUCTIONS PAGE (Full standalone page)
+// ============================================
+extractSection(
+  'page-payment-instructions',
+  202, 252,
+  'standalone-page',
+  'Full Payment Instructions page with cheque and bank transfer payment methods'
+);
+
+// ============================================
+// ADDITIONAL SECTIONS FOR GRANULAR COMPOSITION
+// ============================================
+
+// Payment Details - Header section
+extractSection(
+  'payment-details-header',
+  161, 172,
+  'page-header',
+  'Payment Details page header with title and subsidiary branding'
+);
+
+// Payment Details - Bank info section
+extractSection(
+  'payment-details-bank-info',
+  173, 190,
+  'payment-info',
+  'Bank details section with beneficiary, bank code, branch, FPS ID, and QR code'
+);
+
+// Payment Details - Terms & Conditions
+extractSection(
+  'payment-details-terms',
+  195, 199,
+  'terms',
+  'Terms & Conditions section in English and Chinese'
+);
+
+// Payment Details - Footer
+extractSection(
+  'payment-details-footer',
+  200, 201,
+  'page-footer',
+  'Payment Details page footer with subsidiary info'
+);
+
+// Payment Instructions - Header section
+extractSection(
+  'payment-instructions-header',
+  202, 210,
+  'page-header',
+  'Payment Instructions page header with title and payment deadline notice'
+);
+
+// Payment Instructions - Cheque method
+extractSection(
+  'payment-instructions-cheque',
+  211, 230,
+  'payment-method',
+  'Payable cheque section with cheque writing guide and amount details'
+);
+
+// Payment Instructions - Transfer method
+extractSection(
+  'payment-instructions-transfer',
+  231, 248,
+  'payment-method',
+  'Bank transfer section with account details, FPS ID, and QR code'
+);
+
+// Payment Instructions - Footer
+extractSection(
+  'payment-instructions-footer',
+  251, 252,
+  'page-footer',
+  'Payment Instructions page footer with subsidiary info'
+);
+
 console.log('✓ All sections extracted successfully!');

@@ -139,6 +139,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         { timeout: 60000 },
       )
 
+      // eslint-disable-next-line no-console
+      console.log('[invoice-pdf][generating] Starting PDF generation...')
+
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,

@@ -4,13 +4,16 @@ import { Button, Space, Typography, Empty, Spin, Switch } from "antd";
 import React, { useEffect, useState } from "react";
 import AppShell from "../../../../../../../../components/new-ui/AppShell";
 import { projectsDataProvider } from "../../../../../../../../components/projects/NewUIProjectsApp";
-import GeneratedInvoice from "../../../../../../../../components/projects/GeneratedInvoice";
+// NOTE: GeneratedInvoice kept for reference - not rendered but code preserved
+// import GeneratedInvoice from "../../../../../../../../components/projects/GeneratedInvoice";
+import DynamicInvoice from "../../../../../../../../components/projects/DynamicInvoice";
 import type { ProjectInvoiceRecord } from "../../../../../../../../lib/projectInvoices";
 import type { ProjectRecord } from "../../../../../../../../lib/projectsDatabase";
 import { fetchSubsidiaryById, type SubsidiaryDoc } from "../../../../../../../../lib/subsidiaries";
 import { resolveBankAccountIdentifier } from "../../../../../../../../lib/erlDirectory";
 import { getAuthOptions } from "../../../../../../../../pages/api/auth/[...nextauth]";
 import { getServerSession } from "next-auth";
+import type { ComposedInvoice } from "../../../../../../../../lib/invoiceTemplates/layoutComposer";
 
 const { Title, Text } = Typography;
 
@@ -30,6 +33,10 @@ export default function InvoicePreviewPage() {
   const [subsidiaryReady, setSubsidiaryReady] = useState(false);
   const [bankReady, setBankReady] = useState(false);
 
+  // State for dynamic rendering
+  const [composedLayout, setComposedLayout] = useState<ComposedInvoice | null>(null);
+  const [dynamicLoading, setDynamicLoading] = useState(false);
+
   const projectNumber = (router.query.projectNumber as string) || '';
   const isPdfPreview = router.query.pdf === '1' || router.query.pdf === 'true';
 
@@ -44,6 +51,7 @@ export default function InvoicePreviewPage() {
     }
   }, [router.isReady, router.query.grid]);
 
+  // Fetch classic invoice data
   useEffect(() => {
     if (!year || !projectId || !invoiceNumber) return;
     setLoading(true);
@@ -57,6 +65,25 @@ export default function InvoicePreviewPage() {
       })
       .catch(() => {
         setLoading(false);
+      });
+  }, [year, projectId, invoiceNumber]);
+
+  // Fetch dynamic invoice layout
+  useEffect(() => {
+    if (!year || !projectId || !invoiceNumber) return;
+
+    setDynamicLoading(true);
+    fetch(`/api/invoices/${encodeURIComponent(year)}/${encodeURIComponent(projectId)}/${encodeURIComponent(invoiceNumber)}/dynamic`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.composedLayout) {
+          setComposedLayout(data.composedLayout);
+        }
+        setDynamicLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch dynamic layout:', err);
+        setDynamicLoading(false);
       });
   }, [year, projectId, invoiceNumber]);
 
@@ -159,14 +186,23 @@ export default function InvoicePreviewPage() {
       subsidiaryChineseName: subsidiary?.chineseName ?? null,
       isPdfPreview,
       showGridOverlay,
+      hasDynamicLayout: !!composedLayout,
     });
-  }, [isReadyForPrint, invoice, project, subsidiary, bankInfo]);
+  }, [isReadyForPrint, invoice, project, subsidiary, bankInfo, composedLayout]);
+
+  const isDynamicReady = !dynamicLoading && !!composedLayout;
+  const canRenderDynamic = isReadyForPrint && isDynamicReady;
 
   return (
     <AppShell
       dataProvider={projectsDataProvider}
-      resources={[{ name: 'projects', list: '/dashboard/new-ui/projects', meta: { label: 'Projects' } }]}
-      allowedMenuKeys={['projects']}
+      resources={[
+        { name: 'dashboard', list: '/dashboard', meta: { label: 'Dashboard' } },
+        { name: 'client-directory', list: '/dashboard/new-ui/client-accounts', meta: { label: 'Client Accounts' } },
+        { name: 'projects', list: '/dashboard/new-ui/projects', meta: { label: 'Projects' } },
+        { name: 'finance', list: '/dashboard/new-ui/finance', meta: { label: 'Finance' } },
+      ]}
+      allowedMenuKeys={['dashboard', 'client-directory', 'projects', 'finance']}
     >
       <div className="preview-page">
         <Head><title>Invoice Preview · #{invoiceNumber}</title></Head>
@@ -191,6 +227,21 @@ export default function InvoicePreviewPage() {
               </Button>
             </Space>
           </Space>
+
+          {/* Dynamic layout status */}
+          {dynamicLoading && (
+            <div style={{ marginBottom: 16, padding: '12px', background: '#f5f5f5', borderRadius: '6px' }}>
+              <Text type="secondary">Loading dynamic layout...</Text>
+            </div>
+          )}
+          {!dynamicLoading && composedLayout && (
+            <div style={{ marginBottom: 16, padding: '12px', background: '#f6ffed', borderRadius: '6px' }}>
+              <Text type="success">
+                Dynamic layout ready: {composedLayout.totalPages} page(s), {composedLayout.metadata.layoutMode}
+              </Text>
+            </div>
+          )}
+
           <div className="viewer-wrap">
             {loading ? (
               <Spin size="large" />
@@ -200,20 +251,34 @@ export default function InvoicePreviewPage() {
               <div
                 className="html-invoice"
                 id="invoice-print-root"
-                data-ready={isReadyForPrint ? '1' : '0'}
+                data-ready={canRenderDynamic ? '1' : '0'}
               >
-                <GeneratedInvoice
-                  invoice={invoice}
-                  scheme={scheme ?? undefined}
-                  project={project ?? undefined}
-                  subsidiary={subsidiary ?? undefined}
-                  showGridOverlay={showGridOverlay}
-                  bankInfo={bankInfo}
-                  // Allow the same grid/labels to render in both the interactive
-                  // preview and the headless Chromium PDF when ?grid=1 so that
-                  // what you see on screen matches the exported PDF.
-                  suppressGridLabels={false}
-                />
+                {canRenderDynamic && composedLayout && (
+                  <DynamicInvoice
+                    invoice={invoice}
+                    composedLayout={composedLayout}
+                    project={project ?? undefined}
+                    subsidiary={subsidiary ?? undefined}
+                    showGridOverlay={showGridOverlay}
+                    bankInfo={bankInfo}
+                    suppressGridLabels={false}
+                  />
+                )}
+
+                {dynamicLoading && (
+                  <div style={{ padding: '40px', textAlign: 'center' }}>
+                    <Spin size="large" />
+                    <div style={{ marginTop: 16 }}>
+                      <Text type="secondary">Generating dynamic layout...</Text>
+                    </div>
+                  </div>
+                )}
+
+                {!dynamicLoading && !composedLayout && (
+                  <div style={{ padding: '40px', textAlign: 'center' }}>
+                    <Text type="warning">Unable to generate dynamic layout</Text>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -257,7 +322,7 @@ export default function InvoicePreviewPage() {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Karla:wght@400;600;700&family=Roboto+Mono:wght@400;700&family=Cormorant+Infant:wght@400;700&family=EB+Garamond:wght@400;700&family=Rampart+One&family=Fascinate&family=Iansui&family=Yuji+Mai&family=Federo&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Karla:wght@400;600;700&family=Roboto+Mono:wght@400;700&family=Cormorant+Infant:wght@400;700&family=EB+Garamond:wght@400;700&family=Rampart+One&family=Fascinate&family=Iansui&family=Yuji+Mai&family=Federo&family=Nanum+Pen+Script&family=Covered+By+Your+Grace&family=Yomogi&family=Ephesis&family=Bungee+Shade&display=swap"
           rel="stylesheet"
         />
       </div>

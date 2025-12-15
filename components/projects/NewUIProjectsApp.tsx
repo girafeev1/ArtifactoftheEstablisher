@@ -148,7 +148,7 @@ if (typeof window === "undefined") {
 
 const { Title } = Typography
 
-const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects"] as const
+const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects", "finance"] as const
 
 const projectsCache: {
   years: string[]
@@ -1238,6 +1238,11 @@ const ProjectsApp = () => (
         name: "projects",
         list: "/dashboard/new-ui/projects",
         meta: { label: "Projects" },
+      },
+      {
+        name: "finance",
+        list: "/dashboard/new-ui/finance",
+        meta: { label: "Finance" },
       },
     ]}
     allowedMenuKeys={ALLOWED_MENU_KEYS}

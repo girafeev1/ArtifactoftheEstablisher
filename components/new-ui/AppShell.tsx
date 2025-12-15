@@ -23,6 +23,7 @@ import {
 import {
   ApartmentOutlined,
   AppstoreOutlined,
+  BankOutlined,
   CalendarOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -68,6 +69,8 @@ const iconForMenu = (name: string) => {
       return <TeamOutlined />
     case "projects":
       return <ProjectOutlined />
+    case "finance":
+      return <BankOutlined />
     case "quotes":
       return <SettingOutlined />
     case "administration":

@@ -6,6 +6,7 @@
  * - Version B multi-page (6+ items with continuation pages)
  * - Aesthetic item distribution
  * - Dynamic spacing based on item count
+ * - Content-aware height calculations for proper pagination
  */
 
 import {
@@ -15,6 +16,17 @@ import {
   distributeItemsAcrossPages,
   calculateNoteRows,
 } from './spacingCalculator';
+
+import {
+  calculateContentHeight,
+  calculatePaginationBreakpoints,
+  calculateItemHeight,
+  getTotalEquivalentItems,
+  calculateSpacing,
+  SECTION_HEIGHTS,
+  PAGE_DIMENSIONS,
+  type InvoiceItem as ContentInvoiceItem,
+} from './contentHeightCalculator';
 
 export interface InvoiceItem {
   title: string;
@@ -27,13 +39,18 @@ export interface InvoiceItem {
   discount?: number;
 }
 
+export interface PageLayoutItem {
+  itemIndex: number;          // 0-based index in the full invoice items array
+  item: InvoiceItem;
+}
+
 export interface PageLayout {
   pageNumber: number;
   type: 'single' | 'first' | 'continuation';
   sections: {
     header: string;           // Section ID
     tableHeader: string;      // Section ID
-    items: InvoiceItem[];     // Items on this page
+    items: PageLayoutItem[];  // Items on this page with their global indices
     totalBox: boolean;        // Include total box?
     footer: string;           // Section ID
   };
@@ -54,9 +71,110 @@ export interface InvoicePaginationResult {
 }
 
 /**
- * Calculate pagination for an invoice
+ * Calculate pagination for an invoice using CONTENT-AWARE height calculations.
+ * This properly accounts for:
+ * - Actual notes content height (line count × line height)
+ * - Fixed section heights (header, footer, total box)
+ * - Dynamic spacing based on item count
  */
 export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
+  const itemCount = items.length;
+
+  // Convert to ContentInvoiceItem for height calculations
+  const contentItems: ContentInvoiceItem[] = items.map(item => ({
+    title: item.title,
+    feeType: item.feeType,
+    subQuantity: item.subQuantity,
+    notes: item.notes,
+    unitPrice: item.unitPrice,
+    quantity: item.quantity,
+    quantityUnit: item.quantityUnit,
+    discount: item.discount,
+  }));
+
+  // Calculate actual content heights
+  const contentHeight = calculateContentHeight(contentItems);
+  const breakpoints = calculatePaginationBreakpoints(contentItems);
+
+  // Calculate spacing based on EQUIVALENT item count (not actual item count)
+  // This ensures spacing rules are coherent with variable-height items
+  const totalEquivalent = getTotalEquivalentItems(contentItems);
+  const equivalentSpacing = calculateSpacing(totalEquivalent);
+
+  // If single page, use simplified logic
+  if (breakpoints.length === 1 && breakpoints[0].includesTotalBox) {
+    return {
+      pages: [{
+        pageNumber: 1,
+        type: 'single',
+        sections: {
+          header: 'header-versionB-full',
+          tableHeader: 'item-table-header',
+          items: items.map((item, idx) => ({ itemIndex: idx, item })),
+          totalBox: true,
+          footer: 'footer-full-payment',
+        },
+        spacing: {
+          preItem: equivalentSpacing.preItem,
+          betweenItems: equivalentSpacing.betweenItems,
+          beforeTotal: equivalentSpacing.beforeTotal,
+        },
+        rowsUsed: Math.ceil(contentHeight.totalContentHeight / PAGE_DIMENSIONS.spacerRowHeight),
+        rowsAvailable: Math.ceil(PAGE_DIMENSIONS.contentHeight / PAGE_DIMENSIONS.spacerRowHeight),
+      }],
+      totalPages: 1,
+      itemDistribution: [itemCount],
+      layoutMode: 'single-page',
+    };
+  }
+
+  // Multi-page scenario using content-aware breakpoints
+  // Use the same equivalent spacing rules across all pages for consistency
+  const pages: PageLayout[] = [];
+
+  breakpoints.forEach((bp, bpIndex) => {
+    const isFirstPage = bpIndex === 0;
+    const pageItems = items.slice(bp.startItemIndex, bp.endItemIndex + 1);
+
+    pages.push({
+      pageNumber: bp.pageNumber,
+      type: isFirstPage ? 'first' : 'continuation',
+      sections: {
+        header: isFirstPage ? 'header-versionB-full' : 'header-continuation-minimal',
+        tableHeader: 'item-table-header',
+        items: pageItems.map((item, idx) => ({
+          itemIndex: bp.startItemIndex + idx,
+          item,
+        })),
+        totalBox: bp.includesTotalBox,
+        footer: bp.includesTotalBox ? 'footer-full-payment' : 'footer-continuation-simple',
+      },
+      spacing: {
+        // Use global equivalent spacing for consistency across pages
+        preItem: equivalentSpacing.preItem,
+        betweenItems: equivalentSpacing.betweenItems,
+        beforeTotal: equivalentSpacing.beforeTotal,
+      },
+      rowsUsed: Math.ceil(bp.contentHeight / PAGE_DIMENSIONS.spacerRowHeight),
+      rowsAvailable: Math.ceil(PAGE_DIMENSIONS.contentHeight / PAGE_DIMENSIONS.spacerRowHeight),
+    });
+  });
+
+  const itemDistribution = pages.map(p => p.sections.items.length);
+
+  return {
+    pages,
+    totalPages: pages.length,
+    itemDistribution,
+    layoutMode: 'multi-page',
+  };
+}
+
+/**
+ * Legacy pagination function for backward compatibility.
+ * Uses row-based calculations (less accurate for long notes).
+ */
+export function paginateInvoiceLegacy(items: InvoiceItem[]): InvoicePaginationResult {
   const itemCount = items.length;
 
   // Calculate item rows (accounting for expanded notes)
@@ -70,40 +188,21 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
   });
 
   // Page 1 available space
-  // Total page: 51 rows
-  // Header: 22 rows
-  // Footer (simple): 2 rows
-  // Available for items: 51 - 22 - 2 = 27 rows
   const page1AvailableRows = 27;
-
-  // Continuation page available space
-  // Total page: 56 rows (from row 52 to row 107)
-  // Header: 10 rows
-  // Footer (full): 10 rows
-  // Total box: 3 rows
-  // Available for items: 56 - 10 - 10 - 3 = 33 rows
   const continuationAvailableRows = 33;
 
-  // Calculate capacity for Page 1 (no total box on Page 1 when multi-page)
   const page1Capacity = calculateItemCapacity(
     page1AvailableRows,
-    3, // rows per item
-    true, // include table header
-    false // NO total box on Page 1 if paginating
+    3,
+    true,
+    false
   );
 
   // Single page scenario
   if (itemCount <= page1Capacity) {
-    // Check if items + total box fit on single page
-    const singlePageCalc = calculateItemSectionRows(
-      itemCount,
-      3,
-      true, // table header
-      true  // total box
-    );
+    const singlePageCalc = calculateItemSectionRows(itemCount, 3, true, true);
 
     if (singlePageCalc.totalRowsNeeded <= page1AvailableRows) {
-      // Single page with total
       const spacing = getSpacingRules(itemCount);
 
       return {
@@ -113,7 +212,7 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
           sections: {
             header: 'header-versionB-full',
             tableHeader: 'item-table-header',
-            items: items,
+            items: items.map((item, idx) => ({ itemIndex: idx, item })),
             totalBox: true,
             footer: 'footer-full-payment',
           },
@@ -122,7 +221,7 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
             betweenItems: spacing.betweenItemSpacing,
             beforeTotal: spacing.beforeTotalSpacing,
           },
-          rowsUsed: 22 + singlePageCalc.totalRowsNeeded + 10, // header + items + footer
+          rowsUsed: 22 + singlePageCalc.totalRowsNeeded + 10,
           rowsAvailable: 51,
         }],
         totalPages: 1,
@@ -134,8 +233,8 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
 
   // Multi-page scenario
   const pages: PageLayout[] = [];
+  let currentItemIndex = 0;
 
-  // Page 1: Pack as many items as possible (no total box)
   const page1ItemCount = Math.min(itemCount, page1Capacity);
   const page1Spacing = getSpacingRules(page1ItemCount);
   const page1Calc = calculateItemSectionRows(page1ItemCount, 3, true, false);
@@ -146,7 +245,10 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
     sections: {
       header: 'header-versionB-full',
       tableHeader: 'item-table-header',
-      items: items.slice(0, page1ItemCount),
+      items: items.slice(0, page1ItemCount).map((item, idx) => ({
+        itemIndex: currentItemIndex + idx,
+        item,
+      })),
       totalBox: false,
       footer: 'footer-continuation-simple',
     },
@@ -158,8 +260,8 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
     rowsUsed: 22 + page1Calc.totalRowsNeeded + 2,
     rowsAvailable: 51,
   });
+  currentItemIndex += page1ItemCount;
 
-  // Continuation pages
   let remainingItems = items.slice(page1ItemCount);
   let pageNumber = 2;
 
@@ -167,20 +269,15 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
     const continuationCapacity = calculateItemCapacity(
       continuationAvailableRows,
       3,
-      true, // table header
-      true  // total box (will be on last page)
+      true,
+      true
     );
 
     const itemsOnThisPage = Math.min(remainingItems.length, continuationCapacity);
     const isLastPage = remainingItems.length <= continuationCapacity;
 
     const spacing = getSpacingRules(itemsOnThisPage);
-    const calc = calculateItemSectionRows(
-      itemsOnThisPage,
-      3,
-      true,
-      isLastPage // total box only on last page
-    );
+    const calc = calculateItemSectionRows(itemsOnThisPage, 3, true, isLastPage);
 
     pages.push({
       pageNumber,
@@ -188,7 +285,10 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
       sections: {
         header: 'header-continuation-minimal',
         tableHeader: 'item-table-header',
-        items: remainingItems.slice(0, itemsOnThisPage),
+        items: remainingItems.slice(0, itemsOnThisPage).map((item, idx) => ({
+          itemIndex: currentItemIndex + idx,
+          item,
+        })),
         totalBox: isLastPage,
         footer: isLastPage ? 'footer-full-payment' : 'footer-continuation-simple',
       },
@@ -201,6 +301,7 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
       rowsAvailable: 56,
     });
 
+    currentItemIndex += itemsOnThisPage;
     remainingItems = remainingItems.slice(itemsOnThisPage);
     pageNumber++;
   }
