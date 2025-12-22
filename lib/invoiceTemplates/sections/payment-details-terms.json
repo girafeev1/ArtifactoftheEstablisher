@@ -1,0 +1,190 @@
+{
+  "id": "payment-details-terms",
+  "name": "Payment Details Terms",
+  "version": "1.0.0",
+  "type": "terms",
+  "rowCount": 5,
+  "columnWidthsPx": [
+    48,
+    25,
+    36,
+    120,
+    30,
+    90,
+    75,
+    75,
+    74,
+    40,
+    35,
+    20,
+    20,
+    128
+  ],
+  "rowHeightsPx": [
+    21,
+    161,
+    21,
+    115,
+    21
+  ],
+  "cells": {
+    "1:1": {
+      "value": "Terms & Conditions",
+      "fontFamily": "Cormorant Infant",
+      "fontSize": 9,
+      "bold": true,
+      "italic": false,
+      "fgColor": null,
+      "bgColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+      },
+      "hAlign": "LEFT",
+      "vAlign": "BOTTOM",
+      "wrapStrategy": "OVERFLOW_CELL",
+      "border": {}
+    },
+    "2:1": {
+      "value": "1.  Acceptance. By continuing to use our services, instructing us to proceed, requesting release of deliverables, failing to object in writing within the dispute period, or paying in whole or in part, the Client is deemed to have agreed to and be bound by these Terms & Conditions. \\n\n2.  Payment Due. Payment is due within seven (7) days after the earlier of (i) the Invoice date; or (ii) the Client’s written request to release final deliverables. Final deliverables will be released only after cleared funds (credited to our designated account) are received. \\n\n3.  Disputes. Any billing disputes must be submitted in writing within three (3) days of receipt of this Invoice; otherwise, the Invoice is deemed accepted. \\n\n4.  Late Charges. If payment is not received when due, a late fee of the greater of HK$150 or 1.5% of the outstanding balance for each 14-day period (or any part thereof) will accrue from the due date until paid in full, unless otherwise agreed in writing. \\n\n5.  Carry-Forward. Accrued late charges (and reasonable collection costs) may be carried forward and added to the Client’s next invoice or project, to the extent permitted by law, without prejudice to any other rights or remedies. \\n\n6.  Suspension / Withholding. We may suspend services and/or withhold deliverables (including current or future projects) while any amount remains unpaid. \\n\n7.  Currency & Fees. Unless stated otherwise, all amounts are in HKD. Bank/remittance charges are for the payer’s account; the net amount received must equal the Invoice total. \\n\n8.  Application of Payments. Unless otherwise agreed in writing, we may apply payments to the oldest outstanding amounts first. \\n",
+      "fontFamily": "Cormorant Infant",
+      "fontSize": 8,
+      "bold": false,
+      "italic": false,
+      "fgColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+      },
+      "bgColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+      },
+      "hAlign": "LEFT",
+      "vAlign": "MIDDLE",
+      "wrapStrategy": "WRAP",
+      "border": {}
+    },
+    "3:1": {
+      "value": "條款及細則",
+      "fontFamily": "Yuji Mai",
+      "fontSize": 8,
+      "bold": false,
+      "italic": false,
+      "fgColor": {
+        "red": 0.2627451,
+        "green": 0.2627451,
+        "blue": 0.2627451
+      },
+      "bgColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+      },
+      "hAlign": "LEFT",
+      "vAlign": "BOTTOM",
+      "wrapStrategy": "OVERFLOW_CELL",
+      "border": {}
+    },
+    "4:1": {
+      "value": "1.  同意與約束力。 客戶如繼續使用本公司服務、指示本公司開展／續行工作、要求發放交付品、於爭議期限內未以書面提出異議，或已全部或部分付款，即視為已同意並受本條款及細則約束。 \\n\n2.  到期付款。 付款須於以下二者中之較早者起計七（7）日內繳清：（i）發票日期；或（ii）客戶以書面要求發放最終交付品之日期。最終交付品將於款項已入賬（存入本公司指定賬戶）後方予發放。 \\n\n3.  爭議。 任何賬單爭議須於收妥本發票後三（3）日內以書面提出；逾期視為已接納本發票。 \\n\n4.  逾期費用。 如未如期付款，將就每一個十四（14）日期（不足十四日亦作一個期計）按較高者收取：港幣一百五十元（HK$150）或欠款金額之1.5%，由到期日起累計至全數清償為止；除非另有書面協議。 \\n\n5.  結轉。 在法律許可範圍內，累積之逾期費用（及合理之追收成本）可結轉並列入同一客戶之下一張發票或下一個項目，並不影響本公司之其他權利或補救。 \\n\n6.  暫停／扣留。 於任何金額未清償期間，本公司可暫停提供服務及／或扣留交付品（包括現行或未來項目）。 \\n\n7.  貨幣及手續費。 除另有說明，所有金額以**港幣（HKD）**計算；銀行╱匯款手續費由付款人承擔，並須確保本公司實收淨額等同發票金額。 \\n\n8.  付款抵銷次序。 除另有書面約定，本公司可將所收款項優先抵銷最早到期之未清款項。 \\n",
+      "fontFamily": "Iansui",
+      "fontSize": 7,
+      "bold": false,
+      "italic": false,
+      "fgColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+      },
+      "bgColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+      },
+      "hAlign": "LEFT",
+      "vAlign": "MIDDLE",
+      "wrapStrategy": "WRAP",
+      "border": {}
+    },
+    "5:1": {
+      "value": ""
+    },
+    "5:2": {
+      "value": ""
+    },
+    "5:3": {
+      "value": ""
+    },
+    "5:4": {
+      "value": ""
+    },
+    "5:5": {
+      "value": ""
+    },
+    "5:6": {
+      "value": ""
+    },
+    "5:7": {
+      "value": ""
+    },
+    "5:8": {
+      "value": ""
+    },
+    "5:9": {
+      "value": ""
+    },
+    "5:10": {
+      "value": ""
+    },
+    "5:11": {
+      "value": ""
+    },
+    "5:12": {
+      "value": ""
+    },
+    "5:13": {
+      "value": ""
+    },
+    "5:14": {
+      "value": ""
+    }
+  },
+  "merges": [
+    {
+      "r1": 1,
+      "c1": 1,
+      "r2": 1,
+      "c2": 14
+    },
+    {
+      "r1": 2,
+      "c1": 1,
+      "r2": 2,
+      "c2": 14
+    },
+    {
+      "r1": 3,
+      "c1": 1,
+      "r2": 3,
+      "c2": 14
+    },
+    {
+      "r1": 4,
+      "c1": 1,
+      "r2": 4,
+      "c2": 14
+    }
+  ],
+  "metadata": {
+    "repeatable": false,
+    "description": "Terms & Conditions section in English and Chinese",
+    "extractedFrom": {
+      "spreadsheetId": "12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0",
+      "sheetId": 403093960,
+      "rows": "195-199",
+      "scannedAt": "2025-12-13T09:52:41.464Z"
+    }
+  }
+}

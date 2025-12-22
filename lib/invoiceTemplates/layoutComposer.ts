@@ -76,12 +76,23 @@ export function loadSection(sectionId: string): InvoiceSection {
   const fs = require('fs');
   const path = require('path');
 
-  const sectionPath = path.join(
+  // Try committed location first, then fall back to tmp for local dev
+  const committedPath = path.join(
+    process.cwd(),
+    'lib',
+    'invoiceTemplates',
+    'sections',
+    `${sectionId}.json`
+  );
+
+  const tmpPath = path.join(
     process.cwd(),
     'tmp',
     'invoice-sections',
     `${sectionId}.json`
   );
+
+  const sectionPath = fs.existsSync(committedPath) ? committedPath : tmpPath;
 
   if (!fs.existsSync(sectionPath)) {
     throw new Error(`Section not found: ${sectionId}`);
@@ -350,19 +361,45 @@ export function composePage(
     currentRow += totalBox.rowCount;
   }
 
-  // 7. Add spacing before footer (if total box present, add 4 rows; otherwise handled by beforeTotal)
-  if (pageLayout.sections.totalBox) {
-    const spacer = createSpacerRows(4);
-    composedRowHeights.push(...spacer.rowHeightsPx);
-    currentRow += 4;
-  }
-
-  // 8. Add footer
+  // 7. Calculate current content height and determine spacer needed before footer
   const footer = sections[pageLayout.sections.footer];
   if (!footer) {
     throw new Error(`Footer section not found: ${pageLayout.sections.footer}`);
   }
 
+  // Target page height based on the Google Sheets template proportions
+  // The template uses ~1100-1200px raw height for full pages
+  // Use 1180px to match PAGE_DIMENSIONS.contentHeight from contentHeightCalculator
+  // This allows 4 standard items (no notes) to fit on a single page
+  const TARGET_PAGE_HEIGHT_PX = 1180;
+
+  // Calculate current content height
+  const currentContentHeight = composedRowHeights.reduce((sum, h) => sum + h, 0);
+  const footerHeight = footer.rowHeightsPx.reduce((sum, h) => sum + h, 0);
+
+  // Calculate remaining space before footer
+  const remainingSpace = TARGET_PAGE_HEIGHT_PX - currentContentHeight - footerHeight;
+
+  // Add spacer rows to push footer to bottom if there's remaining space
+  if (remainingSpace > 0) {
+    // Create spacer rows with 21px each (standard row height)
+    const SPACER_ROW_HEIGHT = 21;
+    const spacerRowCount = Math.max(1, Math.floor(remainingSpace / SPACER_ROW_HEIGHT));
+    const actualSpacerHeight = remainingSpace / spacerRowCount;
+
+    // Add spacer rows with calculated heights
+    for (let i = 0; i < spacerRowCount; i++) {
+      composedRowHeights.push(actualSpacerHeight);
+    }
+    currentRow += spacerRowCount;
+  } else if (pageLayout.sections.totalBox) {
+    // If no remaining space but has total box, still add minimum spacing
+    const spacer = createSpacerRows(4);
+    composedRowHeights.push(...spacer.rowHeightsPx);
+    currentRow += 4;
+  }
+
+  // 8. Add footer (now positioned at bottom)
   Object.entries(footer.cells).forEach(([key, cell]) => {
     const [r, c] = key.split(':').map(Number);
     const absoluteRow = currentRow + r - 1;
