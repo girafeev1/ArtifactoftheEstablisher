@@ -1,8 +1,8 @@
 import {
-  buildAccountsPath,
   buildBankLabel,
   buildAccountLabel,
   listBanks,
+  normalizeCode,
 } from './erlDirectory'
 import { getDocs } from 'firebase/firestore'
 
@@ -13,13 +13,13 @@ jest.mock('firebase/firestore', () => ({
   getDocs: jest.fn(),
 }))
 
-test('buildAccountsPath formats code with parentheses', () => {
-  expect(buildAccountsPath(40)).toEqual(['bankAccount', '(040)', 'accounts'])
+test('normalizeCode formats code with parentheses', () => {
+  expect(normalizeCode(40)).toEqual({ code: '040', raw: '(040)' })
 })
 
-test('buildAccountsPath normalizes string codes', () => {
-  expect(buildAccountsPath('040')).toEqual(['bankAccount', '(040)', 'accounts'])
-  expect(buildAccountsPath('(040)')).toEqual(['bankAccount', '(040)', 'accounts'])
+test('normalizeCode normalizes string codes', () => {
+  expect(normalizeCode('040')).toEqual({ code: '040', raw: '(040)' })
+  expect(normalizeCode('(040)')).toEqual({ code: '040', raw: '(040)' })
 })
 
 test('buildBankLabel formats bank name and code', () => {
