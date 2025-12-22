@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from "react"
+import { useMemo, useState, type ReactNode, type MouseEvent } from "react"
+import { navigateWithModifier } from "../../lib/navigation"
 import {
   Refine,
   useMenu,
@@ -33,6 +34,8 @@ import {
   ThunderboltFilled,
   UnorderedListOutlined,
   BellOutlined,
+  ReadOutlined,
+  ToolOutlined,
 } from "@ant-design/icons"
 
 type NavigationItem = {
@@ -71,6 +74,10 @@ const iconForMenu = (name: string) => {
       return <ProjectOutlined />
     case "finance":
       return <BankOutlined />
+    case "coaching-sessions":
+      return <ReadOutlined />
+    case "tools":
+      return <ToolOutlined />
     case "quotes":
       return <SettingOutlined />
     case "administration":
@@ -124,10 +131,10 @@ const NavigationSider = ({
     [navigationItems],
   )
 
-  const handleMenuClick = (event: { key: string }) => {
-    const target = navigationItems.find((item) => item.key === event.key)
+  const handleMenuClick = (info: { key: string; domEvent: MouseEvent<HTMLElement> }) => {
+    const target = navigationItems.find((item) => item.key === info.key)
     if (target?.route && typeof window !== "undefined") {
-      window.location.href = target.route
+      navigateWithModifier(info.domEvent, target.route)
     }
   }
 

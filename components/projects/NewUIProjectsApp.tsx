@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react"
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type MouseEvent } from "react"
 import { useRouter } from "next/router"
+import { navigateWithModifier } from "../../lib/navigation"
 import {
   type BaseRecord,
   type CrudFilters,
@@ -148,7 +149,7 @@ if (typeof window === "undefined") {
 
 const { Title } = Typography
 
-const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects", "finance"] as const
+const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects", "finance", "coaching-sessions", "tools"] as const
 
 const projectsCache: {
   years: string[]
@@ -649,12 +650,16 @@ const ProjectsContent = () => {
   }
 
   const navigateToDetails = useCallback(
-    (record: ProjectRow) => {
+    (record: ProjectRow, event?: MouseEvent) => {
       if (!record?.id) {
         return
       }
-      const target = `/dashboard/new-ui/projects/show/${encodeURIComponent(record.id)}`
-      void router.push(target)
+      const target = `/dashboard/projects/${encodeURIComponent(record.id)}`
+      if (event) {
+        navigateWithModifier(event, target, router)
+      } else {
+        router.push(target)
+      }
     },
     [router],
   )
@@ -779,7 +784,7 @@ const ProjectsContent = () => {
       const created = body.project
       if (created?.id) {
         // Navigate straight to the new project details
-        void router.push(`/dashboard/new-ui/projects/show/${encodeURIComponent(created.id)}`)
+        void router.push(`/dashboard/projects/${encodeURIComponent(created.id)}`)
       } else {
         setCreateYear(undefined)
         createForm.resetFields()
@@ -946,7 +951,7 @@ const ProjectsContent = () => {
                 aria-label="View project details"
                 onClick={(event) => {
                   event.stopPropagation()
-                  navigateToDetails(record)
+                  navigateToDetails(record, event)
                 }}
               />
               {deleteDisabled ? (
@@ -1086,7 +1091,7 @@ const ProjectsContent = () => {
             columns={columns}
             pagination={false}
             onRow={(record) => ({
-              onClick: () => navigateToDetails(record),
+              onClick: (event) => navigateToDetails(record, event),
               style: { cursor: "pointer" },
             })}
           />
@@ -1231,18 +1236,28 @@ const ProjectsApp = () => (
       { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
       {
         name: "client-directory",
-        list: "/dashboard/new-ui/client-accounts",
+        list: "/dashboard/client-accounts",
         meta: { label: "Client Accounts" },
       },
       {
         name: "projects",
-        list: "/dashboard/new-ui/projects",
+        list: "/dashboard/projects",
         meta: { label: "Projects" },
       },
       {
         name: "finance",
-        list: "/dashboard/new-ui/finance",
+        list: "/dashboard/finance",
         meta: { label: "Finance" },
+      },
+      {
+        name: "coaching-sessions",
+        list: "/dashboard/coaching-sessions",
+        meta: { label: "Coaching Sessions" },
+      },
+      {
+        name: "tools",
+        list: "/dashboard/tools",
+        meta: { label: "Tools" },
       },
     ]}
     allowedMenuKeys={ALLOWED_MENU_KEYS}

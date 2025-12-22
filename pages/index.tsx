@@ -1,13 +1,14 @@
 // pages/index.tsx
+// Redirects to /dashboard for the new UI
+// Preserves OCBC OAuth callback handling for the implicit flow
 
 import { GetServerSideProps } from 'next';
 import { getSession } from 'next-auth/react';
 import { Box, Typography, CircularProgress } from '@mui/material';
-import SidebarLayout from '../components/SidebarLayout';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 
-export default function MainPage({ firstName }: { firstName: string }) {
+export default function MainPage() {
   const router = useRouter();
   const [isProcessingOAuth, setIsProcessingOAuth] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
@@ -16,7 +17,10 @@ export default function MainPage({ firstName }: { firstName: string }) {
   // Token is returned in URL fragment: #access_token=xxx&token_type=Bearer&expires_in=3600
   useEffect(() => {
     const hash = window.location.hash;
+
+    // If no OAuth hash, redirect to dashboard
     if (!hash || !hash.includes('access_token=')) {
+      router.replace('/dashboard');
       return;
     }
 
@@ -51,7 +55,7 @@ export default function MainPage({ firstName }: { firstName: string }) {
         }
         // Clear the hash and redirect to finance page
         window.history.replaceState(null, '', '/');
-        router.push('/dashboard/new-ui/finance?ocbc_connected=true');
+        router.push('/dashboard/finance?ocbc_connected=true');
       })
       .catch((err) => {
         console.error('[index] OAuth callback error:', err);
@@ -62,44 +66,37 @@ export default function MainPage({ firstName }: { firstName: string }) {
       });
   }, [router]);
 
-  // Show loading state while processing OAuth callback
+  // Show loading state while processing OAuth callback or redirecting
   if (isProcessingOAuth) {
     return (
-      <SidebarLayout>
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-          <CircularProgress />
-          <Typography variant="body1">Connecting to OCBC...</Typography>
-        </Box>
-      </SidebarLayout>
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: '100vh', justifyContent: 'center' }}>
+        <CircularProgress />
+        <Typography variant="body1">Connecting to OCBC...</Typography>
+      </Box>
     );
   }
 
   // Show error if OAuth failed
   if (oauthError) {
     return (
-      <SidebarLayout>
-        <Box sx={{ p: 3 }}>
-          <Typography variant="h5" color="error" gutterBottom>
-            OCBC Connection Failed
-          </Typography>
-          <Typography variant="body1">{oauthError}</Typography>
-          <Typography variant="body2" sx={{ mt: 2 }}>
-            <a href="/dashboard/new-ui/finance">Go to Finance</a>
-          </Typography>
-        </Box>
-      </SidebarLayout>
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h5" color="error" gutterBottom>
+          OCBC Connection Failed
+        </Typography>
+        <Typography variant="body1">{oauthError}</Typography>
+        <Typography variant="body2" sx={{ mt: 2 }}>
+          <a href="/dashboard/finance">Go to Finance</a>
+        </Typography>
+      </Box>
     );
   }
 
+  // Show loading while redirecting to dashboard
   return (
-    <SidebarLayout>
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          Welcome, {firstName}
-        </Typography>
-        <Typography variant="body1">Please select an option from the sidebar.</Typography>
-      </Box>
-    </SidebarLayout>
+    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: '100vh', justifyContent: 'center' }}>
+      <CircularProgress />
+      <Typography variant="body1">Loading...</Typography>
+    </Box>
   );
 }
 
@@ -108,6 +105,5 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session) {
     return { redirect: { destination: '/auth/signin', permanent: false } };
   }
-  const firstName = session.user?.name?.split(' ')[0] || '';
-  return { props: { firstName } };
+  return { props: {} };
 };

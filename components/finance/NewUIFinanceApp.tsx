@@ -531,13 +531,13 @@ const FinanceContent: React.FC<FinanceContentProps> = () => {
     if (ocbcConnected === 'true') {
       message.success('Successfully connected to OCBC!')
       // Clean up URL
-      window.history.replaceState(null, '', '/dashboard/new-ui/finance')
+      window.history.replaceState(null, '', '/dashboard/finance')
     }
 
     if (oauthError) {
       message.error(`OCBC connection failed: ${oauthError}`)
       // Clean up URL
-      window.history.replaceState(null, '', '/dashboard/new-ui/finance')
+      window.history.replaceState(null, '', '/dashboard/finance')
     }
   }, [message])
 
@@ -800,7 +800,7 @@ const FinanceContent: React.FC<FinanceContentProps> = () => {
 // App Shell Wrapper
 // ============================================================================
 
-const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects", "finance"] as const
+const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects", "finance", "coaching-sessions", "tools"] as const
 
 const NewUIFinanceApp: React.FC = () => {
   return (
@@ -810,18 +810,28 @@ const NewUIFinanceApp: React.FC = () => {
         { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
         {
           name: "client-directory",
-          list: "/dashboard/new-ui/client-accounts",
+          list: "/dashboard/client-accounts",
           meta: { label: "Client Accounts" },
         },
         {
           name: "projects",
-          list: "/dashboard/new-ui/projects",
+          list: "/dashboard/projects",
           meta: { label: "Projects" },
         },
         {
           name: "finance",
-          list: "/dashboard/new-ui/finance",
+          list: "/dashboard/finance",
           meta: { label: "Finance" },
+        },
+        {
+          name: "coaching-sessions",
+          list: "/dashboard/coaching-sessions",
+          meta: { label: "Coaching Sessions" },
+        },
+        {
+          name: "tools",
+          list: "/dashboard/tools",
+          meta: { label: "Tools" },
         },
       ]}
       allowedMenuKeys={ALLOWED_MENU_KEYS}

@@ -5,8 +5,10 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type MouseEvent,
 } from "react"
 import { useRouter } from "next/router"
+import { navigateWithModifier } from "../../lib/navigation"
 import {
   App as AntdApp,
   Button,
@@ -745,8 +747,8 @@ const ProjectsShowContent = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project])
 
-  const handleBack = useCallback(() => {
-    void router.push("/dashboard/new-ui/projects")
+  const handleBack = useCallback((event: MouseEvent) => {
+    navigateWithModifier(event, "/dashboard/projects", router)
   }, [router])
 
   const isInvoiceDetailsEditable = isEditingInvoiceDetails || invoiceMode === "create"
@@ -795,13 +797,20 @@ const ProjectsShowContent = () => {
       if (invoiceMode === "idle") return
       const name = draftInvoice?.client?.companyName?.trim()
       if (!name) return
+
+      // Skip if this is the same company we just matched (from onSelect)
+      // This prevents the effect from running redundantly after onSelect already populated the fields
+      const lowerName = name.toLowerCase()
+      if (lastMatchedCompanyRef.current === lowerName) {
+        return
+      }
+
       try {
         const list = clientsDirectory ?? (await fetchClientsDirectory())
         if (!clientsDirectory) setClientsDirectory(list)
-        const lower = name.toLowerCase()
         const match = list.find((c) => {
-          const byName = typeof c.companyName === "string" && c.companyName.trim().toLowerCase() === lower
-          const byId = typeof (c as any).documentId === "string" && (c as any).documentId.trim().toLowerCase() === lower
+          const byName = typeof c.companyName === "string" && c.companyName.trim().toLowerCase() === lowerName
+          const byId = typeof (c as any).documentId === "string" && (c as any).documentId.trim().toLowerCase() === lowerName
           return byName || byId
         })
           if (match) {
@@ -828,7 +837,8 @@ const ProjectsShowContent = () => {
             })
           } else {
           // If previously matched but now no longer matches, clear autofilled fields.
-          if (lastMatchedCompanyRef.current) {
+          // Only clear if the user has typed something different (not just re-triggered by state update)
+          if (lastMatchedCompanyRef.current && lastMatchedCompanyRef.current !== lowerName) {
             lastMatchedCompanyRef.current = null
             setDraftInvoice((prev) => {
               if (!prev) return prev
@@ -1190,7 +1200,7 @@ const ProjectsShowContent = () => {
 
   const handlePreviewInvoice = useCallback(() => {
     if (!project || !activeInvoice) return
-    const url = `/dashboard/new-ui/projects/show/${encodeURIComponent(
+    const url = `/dashboard/projects/${encodeURIComponent(
       project.id,
     )}/invoice/${encodeURIComponent(activeInvoice.invoiceNumber)}/preview?year=${encodeURIComponent(
       project.year,
@@ -2323,7 +2333,7 @@ const ProjectsShowContent = () => {
                         })
                         if (!res.ok) throw new Error('Delete failed')
                         message.success('Project deleted')
-                        void router.push('/dashboard/new-ui/projects')
+                        void router.push('/dashboard/projects')
                       } catch (e) {
                         message.error(e instanceof Error ? e.message : 'Delete failed')
                       }
@@ -2506,7 +2516,7 @@ const ProjectsShowContent = () => {
                     Billing &amp; Payments
                   </Title>
                   {/* Removed redundant items span indicator from header; single indicator remains below the items table */}
-                  {(invoiceMode === "idle" || isProjectEditing || isManagingInvoices) ? (
+                  {(invoiceMode === "idle" || isProjectEditing || isManagingInvoices || draftInvoice) ? (
                     <div className="billing-header-actions">
                       <Button
                         className="btn-outline manage-invoices"
@@ -4360,21 +4370,31 @@ const ProjectsShowApp = () => (
       { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
       {
         name: "client-directory",
-        list: "/dashboard/new-ui/client-accounts",
+        list: "/dashboard/client-accounts",
         meta: { label: "Client Accounts" },
       },
       {
         name: "projects",
-        list: "/dashboard/new-ui/projects",
+        list: "/dashboard/projects",
         meta: { label: "Projects" },
       },
       {
         name: "finance",
-        list: "/dashboard/new-ui/finance",
+        list: "/dashboard/finance",
         meta: { label: "Finance" },
       },
+      {
+        name: "coaching-sessions",
+        list: "/dashboard/coaching-sessions",
+        meta: { label: "Coaching Sessions" },
+      },
+      {
+        name: "tools",
+        list: "/dashboard/tools",
+        meta: { label: "Tools" },
+      },
     ]}
-    allowedMenuKeys={["dashboard", "client-directory", "projects", "finance"]}
+    allowedMenuKeys={["dashboard", "client-directory", "projects", "finance", "coaching-sessions", "tools"]}
   >
     <ProjectsShowContent />
   </AppShell>
