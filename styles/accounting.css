@@ -1,0 +1,36 @@
+/* Accounting page styles */
+
+/* Resizable columns for accounting tables */
+.accounting-table .ant-table-thead > tr > th {
+  position: relative;
+  background-clip: padding-box;
+}
+
+/* Resize handle */
+.accounting-table .ant-table-thead > tr > th::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 60%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.accounting-table .ant-table-thead > tr > th:hover::after {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* Enable text selection for double-click to work */
+.accounting-table .ant-table-thead > tr > th {
+  user-select: none;
+}
+
+/* Column width persistence hint */
+.accounting-table .ant-table-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

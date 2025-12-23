@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 
 import { updateProjectInDatabase } from '../../../../lib/projectsDatabase'
-import { deleteProjectRecursively } from '../../../../lib/projectsAdmin'
+import { softDeleteProject } from '../../../../lib/projectsAdmin'
+import { handleInvoiceDeleted } from '../../../../lib/accounting/invoiceHook'
 import { getAuthOptions } from '../../auth/[...nextauth]'
 
 type ErrorResponse = { error: string }
@@ -46,8 +47,36 @@ export default async function handler(
 
   try {
     if (req.method === 'DELETE') {
-      // Use Admin SDK recursive delete to remove subcollections (avoids console ghost docs)
-      const result = await deleteProjectRecursively(year, projectId)
+      // Soft delete project and all invoices (maintains GL audit trail)
+      const result = await softDeleteProject(year, projectId, editedBy)
+
+      // Void GL entries for all deleted invoices
+      if (result.deleted && result.invoicePaths) {
+        const voidResults: { path: string; voided: string[] }[] = []
+        for (const invoicePath of result.invoicePaths) {
+          // Extract invoice number from path (e.g., projects/2024/projects/123/invoice/2024-001)
+          const invoiceNumber = invoicePath.split('/').pop()
+          if (invoiceNumber) {
+            try {
+              const voidResult = await handleInvoiceDeleted({
+                year,
+                projectId,
+                invoiceNumber,
+                deletedBy: editedBy,
+              })
+              voidResults.push({ path: invoicePath, voided: voidResult.voidedEntries })
+            } catch (voidError) {
+              console.error(`[api/projects] Failed to void GL for ${invoicePath}:`, voidError)
+            }
+          }
+        }
+        console.info('[api/projects] Soft deleted project with GL voids', {
+          projectPath: result.projectPath,
+          invoiceCount: result.invoicePaths.length,
+          voidResults,
+        })
+      }
+
       return res.status(200).json(result)
     }
 

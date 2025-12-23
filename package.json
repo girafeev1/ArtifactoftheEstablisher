@@ -49,10 +49,12 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:ocbc": "node scripts/ocbc-dev.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "ocbc:proxy": "node scripts/ocbc-proxy.js",
     "test:e2e:ci": "cypress run --browser chrome --headless",
     "test:e2e:open": "cypress open",
     "sheet:scan-template": "node scripts/scan-invoice-template.js --id 12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0 --gid 598129981",

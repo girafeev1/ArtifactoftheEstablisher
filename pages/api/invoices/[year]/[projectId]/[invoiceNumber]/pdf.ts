@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const gridParam = req.query.grid === '1' || req.query.grid === 'true' ? '1' : ''
 
     const baseUrl = `${protocol}://${host}`
-    const previewPath = `/dashboard/new-ui/projects/show/${encodeURIComponent(
+    const previewPath = `/projects/${encodeURIComponent(
       projectId,
     )}/invoice/${encodeURIComponent(invoiceNumber)}/preview?year=${encodeURIComponent(
       year,

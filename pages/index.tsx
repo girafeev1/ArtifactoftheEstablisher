@@ -55,7 +55,7 @@ export default function MainPage() {
         }
         // Clear the hash and redirect to finance page
         window.history.replaceState(null, '', '/');
-        router.push('/dashboard/finance?ocbc_connected=true');
+        router.push('/finance?ocbc_connected=true');
       })
       .catch((err) => {
         console.error('[index] OAuth callback error:', err);
@@ -85,7 +85,7 @@ export default function MainPage() {
         </Typography>
         <Typography variant="body1">{oauthError}</Typography>
         <Typography variant="body2" sx={{ mt: 2 }}>
-          <a href="/dashboard/finance">Go to Finance</a>
+          <a href="/finance">Go to Finance</a>
         </Typography>
       </Box>
     );

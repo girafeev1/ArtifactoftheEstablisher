@@ -7,9 +7,15 @@ import {
   fetchInvoicesForProject,
   type InvoiceClientPayload,
   type InvoiceItemPayload,
+  type ProjectInvoiceRecord,
   updateInvoiceForProject,
   deleteInvoiceForProject,
 } from "../../../../../../lib/projectInvoices"
+import {
+  handleInvoiceCreated,
+  handleInvoiceUpdated,
+  handleInvoiceDeleted,
+} from "../../../../../../lib/accounting/invoiceHook"
 import { getAuthOptions } from "../../../../auth/[...nextauth]"
 
 const toStringValue = (value: unknown): string | null => {
@@ -170,6 +176,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         invoiceNumber: created.invoiceNumber,
       })
 
+      // Post to GL if applicable
+      try {
+        const postingResult = await handleInvoiceCreated({
+          year: project.year,
+          projectId: project.id,
+          invoice: created,
+          changedBy: identity,
+        })
+        if (postingResult.issuedEntry?.created || postingResult.paidEntry?.created) {
+          console.info("[api/projects/:id/invoices] GL entries created", {
+            invoiceNumber: created.invoiceNumber,
+            issued: postingResult.issuedEntry,
+            paid: postingResult.paidEntry,
+          })
+        }
+      } catch (postingError) {
+        console.error("[api/projects/:id/invoices] GL posting failed (non-blocking)", postingError)
+      }
+
       return respondWithInvoices(res, project, 201)
     }
 
@@ -182,6 +207,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!collectionId || !invoiceNumber) {
         return res.status(400).json({ error: "collectionId and invoiceNumber are required" })
       }
+
+      // Fetch existing invoice to get old payment status for GL posting
+      const existingInvoices = await fetchInvoicesForProject(project.year, project.id)
+      const lookupNumber = originalInvoiceNumber ?? invoiceNumber
+      const existingInvoice = existingInvoices.find(
+        (inv) => inv.invoiceNumber === lookupNumber || inv.invoiceNumber === invoiceNumber
+      )
+      const oldPaymentStatus = existingInvoice?.paymentStatus ?? null
 
       const client = normalizeClientPayload(body.client, project.clientCompany)
       const items = normalizeItemsPayload(body.items)
@@ -212,6 +245,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         invoiceNumber: updated.invoiceNumber,
       })
 
+      // Post to GL if payment status changed
+      try {
+        const postingResult = await handleInvoiceUpdated({
+          year: project.year,
+          projectId: project.id,
+          invoice: updated,
+          oldPaymentStatus,
+          changedBy: identity,
+        })
+        if (postingResult.issuedEntry?.created || postingResult.paidEntry?.created) {
+          console.info("[api/projects/:id/invoices] GL entries created on update", {
+            invoiceNumber: updated.invoiceNumber,
+            oldStatus: oldPaymentStatus,
+            newStatus: updated.paymentStatus,
+            issued: postingResult.issuedEntry,
+            paid: postingResult.paidEntry,
+          })
+        }
+      } catch (postingError) {
+        console.error("[api/projects/:id/invoices] GL posting failed on update (non-blocking)", postingError)
+      }
+
       return respondWithInvoices(res, project, 200)
     }
 
@@ -222,13 +277,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!collectionId || !invoiceNumber) {
         return res.status(400).json({ error: "collectionId and invoiceNumber are required" })
       }
-      await deleteInvoiceForProject({
+
+      // Soft delete the invoice
+      const deleteResult = await deleteInvoiceForProject({
         year: project.year,
         projectId: project.id,
         collectionId,
         invoiceNumber: invoiceNumber!,
         editedBy: identity,
       })
+
+      // Void related GL entries
+      try {
+        const voidResult = await handleInvoiceDeleted({
+          year: project.year,
+          projectId: project.id,
+          invoiceNumber: invoiceNumber!,
+          deletedBy: identity,
+        })
+        if (voidResult.voidedEntries.length > 0) {
+          console.info("[api/projects/:id/invoices] GL entries voided", {
+            invoiceNumber,
+            voidedEntries: voidResult.voidedEntries,
+          })
+        }
+      } catch (voidError) {
+        console.error("[api/projects/:id/invoices] GL voiding failed (non-blocking)", voidError)
+      }
+
+      console.info("[api/projects/:id/invoices] Invoice soft-deleted", {
+        user: identity,
+        projectId,
+        invoiceNumber,
+        invoicePath: deleteResult.invoicePath,
+      })
+
       return respondWithInvoices(res, project, 200)
     }
 

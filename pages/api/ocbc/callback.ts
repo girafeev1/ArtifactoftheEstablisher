@@ -28,7 +28,7 @@ export default async function handler(
         error_description,
       })
       return res.redirect(
-        `/dashboard/new-ui/finance?error=${encodeURIComponent(
+        `/finance?error=${encodeURIComponent(
           String(error_description || error)
         )}`
       )
@@ -37,7 +37,7 @@ export default async function handler(
     if (!code || typeof code !== 'string') {
       console.error('[api/ocbc/callback] Missing authorization code')
       return res.redirect(
-        '/dashboard/new-ui/finance?error=Missing%20authorization%20code'
+        '/finance?error=Missing%20authorization%20code'
       )
     }
 
@@ -57,7 +57,7 @@ export default async function handler(
 
     if (!session?.user?.email) {
       console.error('[api/ocbc/callback] No authenticated session')
-      return res.redirect('/api/auth/signin?callbackUrl=/dashboard/new-ui/finance')
+      return res.redirect('/api/auth/signin?callbackUrl=/finance')
     }
 
     const userId = session.user.email
@@ -69,13 +69,13 @@ export default async function handler(
         actual: userId,
       })
       return res.redirect(
-        '/dashboard/new-ui/finance?error=Session%20mismatch'
+        '/finance?error=Session%20mismatch'
       )
     }
 
     // Exchange authorization code for tokens
     // Must match exactly what was registered in OCBC portal
-    const redirectUri = process.env.OCBC_REDIRECT_URI || 'http://localhost:8080'
+    const redirectUri = process.env.OCBC_REDIRECT_URI || 'http://localhost:3000'
 
     console.log('[api/ocbc/callback] Exchanging code for tokens', {
       userId,
@@ -93,7 +93,7 @@ export default async function handler(
     })
 
     // Redirect back to finance page with success
-    return res.redirect('/dashboard/new-ui/finance?ocbc_connected=true')
+    return res.redirect('/finance?ocbc_connected=true')
 
   } catch (error) {
     console.error('[api/ocbc/callback] Error:', error)
@@ -104,7 +104,7 @@ export default async function handler(
         : 'Failed to connect OCBC'
 
     return res.redirect(
-      `/dashboard/new-ui/finance?error=${encodeURIComponent(errorMessage)}`
+      `/finance?error=${encodeURIComponent(errorMessage)}`
     )
   }
 }

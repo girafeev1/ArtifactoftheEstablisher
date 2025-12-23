@@ -95,12 +95,26 @@ export const TYPOGRAPHY = {
 
 // Page dimensions
 export const PAGE_DIMENSIONS = {
-  // A4 at print scaling (scaled to ~1100px width)
-  // The content area needs to accommodate:
-  // - Header (476px) + Table Header (25px) + Items + Total (78px) + Footer (195px)
-  // - For 5 items with full spacing: ~400px items + ~315px spacing
-  // Total single-page with 5 items: ~1489px
-  contentHeight: 1500,     // Usable height for content (excluding margins)
+  // A4 at 96dpi: 794px × 1123px
+  // With Google Sheets margins (0.2" top/bottom, 0.3" left/right):
+  // - Usable width: 736px
+  // - Usable height: 1085px
+  //
+  // Template raw width: 816px
+  // Scale for width: 736 / 816 = 0.902
+  // Maximum raw height that fits A4 height after scaling: 1085 / 0.902 ≈ 1203px
+  //
+  // We use 1180px as the content height limit with a small safety margin.
+  // This allows 4 standard items (no notes) to fit on a single page.
+  //
+  // Fixed sections consume:
+  // - Header full: 476px
+  // - Table header: 25px
+  // - Footer full: 195px
+  // - Total: 696px (leaving ~484px for items + total box + spacing)
+  //
+  // This ensures pagination triggers when content overflows A4 page.
+  contentHeight: 1180,     // Usable height for content (matches A4 proportions)
   contentWidth: 816,       // Content width before scaling
 
   // Spacing row height (from spacingCalculator)
@@ -225,6 +239,10 @@ export function getTotalEquivalentItems(items: InvoiceItem[]): number {
  *
  * IMPORTANT: Uses EQUIVALENT item count, not actual item count.
  * This ensures spacing rules remain coherent when items have varying heights.
+ *
+ * Updated spacing rules (optimized to fit more content on single pages):
+ * - Reduced afterTotal from 4 to 2 rows (saves 42px)
+ * - Reduced betweenItems for 4+ items from 2 to 1 row (saves 21px per gap)
  */
 export function calculateSpacing(equivalentItemCount: number): {
   preItem: number;
@@ -237,29 +255,29 @@ export function calculateSpacing(equivalentItemCount: number): {
   let preItem = 0;
   let betweenItems = 0;
   let beforeTotal = 0;
-  const afterTotal = 4; // Fixed 4 rows between total and footer
+  const afterTotal = 2; // Reduced from 4 to 2 rows between total and footer
 
   if (equivalentItemCount === 1) {
     preItem = 3;
     betweenItems = 0;
-    beforeTotal = 4;
+    beforeTotal = 3;
   } else if (equivalentItemCount === 2) {
-    preItem = 3;
-    betweenItems = 3;
-    beforeTotal = 4;
-  } else if (equivalentItemCount === 3) {
     preItem = 2;
     betweenItems = 2;
     beforeTotal = 3;
-  } else if (equivalentItemCount === 4) {
+  } else if (equivalentItemCount === 3) {
     preItem = 1;
     betweenItems = 2;
+    beforeTotal = 2;
+  } else if (equivalentItemCount === 4) {
+    preItem = 1;
+    betweenItems = 1; // Reduced from 2 to 1 row
     beforeTotal = 2;
   } else {
     // 5+ equivalent items (packed mode)
     preItem = 1;
-    betweenItems = 2;
-    beforeTotal = 2;
+    betweenItems = 1; // Reduced from 2 to 1 row
+    beforeTotal = 1;
   }
 
   // Note: totalSpacingRows calculation uses actual item count for between-items

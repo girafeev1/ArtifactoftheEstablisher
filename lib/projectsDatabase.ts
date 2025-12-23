@@ -65,6 +65,8 @@ interface ListCollectionIdsResponse {
   error?: { message?: string }
 }
 
+export type RecordStatus = 'active' | 'deleted'
+
 export interface ProjectRecord {
   id: string
   year: string
@@ -83,6 +85,10 @@ export interface ProjectRecord {
   projectNumber: string
   projectTitle: string | null
   subsidiary: string | null
+  // Soft delete fields
+  recordStatus?: RecordStatus
+  deletedAt?: string | null
+  deletedBy?: string | null
 }
 
 export interface ProjectsDatabaseResult {
@@ -370,7 +376,14 @@ const listYearCollections = async (): Promise<string[]> => {
   }
 }
 
-export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResult> => {
+export interface FetchProjectsOptions {
+  includeDeleted?: boolean
+}
+
+export const fetchProjectsFromDatabase = async (
+  options?: FetchProjectsOptions
+): Promise<ProjectsDatabaseResult> => {
+  const { includeDeleted = false } = options || {}
   const yearIds = await listYearCollections()
   const projects: ProjectRecord[] = []
   const yearsWithData = new Set<string>()
@@ -387,6 +400,10 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
       if (snapshot && !snapshot.empty) {
         snapshot.forEach((doc) => {
           const data = doc.data() as Record<string, unknown>
+          // Skip deleted records unless includeDeleted is true
+          if (!includeDeleted && data.recordStatus === 'deleted') {
+            return
+          }
           projects.push(buildProjectRecord(year, doc.id, data))
           yearsWithData.add(year)
         })
@@ -395,6 +412,10 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
         const legacy = await getDocs(collection(projectsDb, year))
         legacy.forEach((doc) => {
           const data = doc.data() as Record<string, unknown>
+          // Skip deleted records unless includeDeleted is true
+          if (!includeDeleted && data.recordStatus === 'deleted') {
+            return
+          }
           projects.push(buildProjectRecord(year, doc.id, data))
           yearsWithData.add(year)
         })
@@ -415,7 +436,11 @@ export const fetchProjectsFromDatabase = async (): Promise<ProjectsDatabaseResul
   }
 }
 
-export const fetchProjectsForYear = async (year: string): Promise<ProjectRecord[]> => {
+export const fetchProjectsForYear = async (
+  year: string,
+  options?: FetchProjectsOptions
+): Promise<ProjectRecord[]> => {
+  const { includeDeleted = false } = options || {}
   const trimmed = year.trim()
   if (!YEAR_ID_PATTERN.test(trimmed)) {
     return []
@@ -427,12 +452,20 @@ export const fetchProjectsForYear = async (year: string): Promise<ProjectRecord[
     if (!snap.empty) {
       snap.forEach((doc) => {
         const data = doc.data() as Record<string, unknown>
+        // Skip deleted records unless includeDeleted is true
+        if (!includeDeleted && data.recordStatus === 'deleted') {
+          return
+        }
         list.push(buildProjectRecord(trimmed, doc.id, data))
       })
     } else {
       const legacy = await getDocs(collection(projectsDb, trimmed))
       legacy.forEach((doc) => {
         const data = doc.data() as Record<string, unknown>
+        // Skip deleted records unless includeDeleted is true
+        if (!includeDeleted && data.recordStatus === 'deleted') {
+          return
+        }
         list.push(buildProjectRecord(trimmed, doc.id, data))
       })
     }

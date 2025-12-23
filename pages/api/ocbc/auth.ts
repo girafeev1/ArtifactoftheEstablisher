@@ -67,7 +67,7 @@ export default async function handler(
 
         // Generate OAuth URL for OCBC Implicit Grant Flow
         // OCBC requires redirect_uri to match exactly what's registered in their portal
-        const redirectUri = process.env.OCBC_REDIRECT_URI || 'http://localhost:8080'
+        const redirectUri = process.env.OCBC_REDIRECT_URI || 'http://localhost:3000'
 
         // OCBC OAuth URL (Implicit Flow - token returned in URL fragment)
         const authUrl = buildOAuthUrl(redirectUri)

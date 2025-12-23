@@ -195,9 +195,57 @@ const DynamicInvoice: React.FC<DynamicInvoiceProps> = ({
   const renderPage = (page: ComposedPage) => {
     const { columnWidthsPx, rowHeightsPx, cells, merges } = page;
 
-    const TARGET_CONTENT_WIDTH_PX = 1100;
+    // A4 page dimensions at 96dpi with Google Sheets margins (0.2" top/bottom, 0.3" left/right)
+    // A4: 794px × 1123px
+    // Usable width: 794 - (2 × 28.8) = 736.4px
+    // Usable height: 1123 - (2 × 19.2) = 1084.6px
+    const A4_USABLE_WIDTH_PX = 736;
+    const A4_USABLE_HEIGHT_PX = 1085;
+
+    // Calculate raw dimensions from template
     const rawWidth = columnWidthsPx.reduce((acc, w) => acc + (w || 0), 0) || 1;
-    const scaleUniform = TARGET_CONTENT_WIDTH_PX / rawWidth;
+    const rawHeight = rowHeightsPx.reduce((acc, h) => acc + (h || 0), 0) || 1;
+
+    // We need to scale content to fit A4 width
+    // Calculate scale factor for width - this is the primary constraint
+    const scaleForWidth = A4_USABLE_WIDTH_PX / rawWidth;
+
+    // Calculate what height would be at this width scale
+    const heightAtWidthScale = rawHeight * scaleForWidth;
+
+    // Determine if this page is "oversized" (height exceeds A4 at width scale)
+    // For oversized pages, we use width-only scaling and rely on CSS page breaks
+    // For normal pages, we use uniform scaling to fit both dimensions
+    const isOversizedPage = heightAtWidthScale > A4_USABLE_HEIGHT_PX * 1.1; // 10% tolerance
+
+    // For normal pages that fit A4, use uniform scaling
+    // For oversized pages (e.g., 28 session notes), use width-only scaling
+    // so the page renders at full width instead of shrinking horizontally
+    let scaleToFitA4: number;
+    if (isOversizedPage) {
+      // Oversized page: use width scaling only
+      // This keeps the invoice at full A4 width even if content is tall
+      // CSS print styles will handle page breaks for the overflow
+      scaleToFitA4 = scaleForWidth;
+    } else {
+      // Normal page: use the smaller scale to fit both dimensions
+      const scaleForHeight = A4_USABLE_HEIGHT_PX / rawHeight;
+      scaleToFitA4 = Math.min(scaleForWidth, scaleForHeight);
+    }
+
+    // For screen display, we render at a larger size for better quality
+    // Target 1100px wide for good visual quality
+    const TARGET_CONTENT_WIDTH_PX = 1100;
+    const scaleForScreen = TARGET_CONTENT_WIDTH_PX / rawWidth;
+
+    // Use the smaller of screen scale and fit-to-A4 scale
+    // This ensures content always fits on one A4 page when printed
+    const scaleUniform = Math.min(scaleForScreen, scaleToFitA4);
+
+    // Actual rendered dimensions
+    const renderedWidth = rawWidth * scaleUniform;
+    const renderedHeight = rawHeight * scaleUniform;
+
     const colTemplate = columnWidthsPx.map((w) => `${w || 0}px`).join(' ');
 
     const mergeInfo = new Map<string, { rowSpan: number; colSpan: number; hidden: boolean }>();
@@ -229,25 +277,48 @@ const DynamicInvoice: React.FC<DynamicInvoiceProps> = ({
       })
       .sort((a, b) => (a.r === b.r ? a.c - b.c : a.r - b.r));
 
-    const totalHeight = rowHeightsPx.reduce((acc, h) => acc + (h || 0), 0);
+    // Page dimensions are already calculated above as renderedWidth and renderedHeight
 
     return (
-      <div key={page.pageNumber} className="invoice-page" style={{ marginBottom: '40px', overflow: 'hidden' }}>
-        <div className="scheme-wrapper" style={{
-          transformOrigin: 'top left',
-          transform: `scale(${scaleUniform})`,
-          width: `${rawWidth * scaleUniform}px`,
-          height: `${totalHeight * scaleUniform}px`,
+      <div
+        key={page.pageNumber}
+        className="invoice-page"
+        style={{
+          // Set to RENDERED dimensions (after scaling) - this is what fits on A4
+          width: `${renderedWidth}px`,
+          height: `${renderedHeight}px`,
           position: 'relative',
+          // DO NOT use overflow:hidden here - it clips content before transform is applied
+          // Print CSS handles overflow clipping appropriately
+          overflow: 'visible',
+          // Screen margin for visual separation (overridden in print CSS)
+          marginBottom: '40px',
+        }}
+      >
+        {/* Clip wrapper - clips the TRANSFORMED content, not the raw layout */}
+        <div style={{
+          width: `${renderedWidth}px`,
+          height: `${renderedHeight}px`,
           overflow: 'hidden',
+          position: 'absolute',
+          top: 0,
+          left: 0,
         }}>
+          <div className="scheme-wrapper" style={{
+            // Transform scales the RAW content down to fit the rendered dimensions
+            transformOrigin: 'top left',
+            transform: `scale(${scaleUniform})`,
+            // Wrapper must be RAW dimensions so grid fits without clipping BEFORE transform
+            width: `${rawWidth}px`,
+            height: `${rawHeight}px`,
+            position: 'relative',
+          }}>
           <div className="scheme-grid" style={{
             display: 'grid',
             gridTemplateColumns: colTemplate,
             gridTemplateRows: rowTemplate,
             width: `${rawWidth}px`,
             position: 'relative',
-            overflow: 'hidden',
             boxSizing: 'content-box',
           }}>
             {entries.map(({ key, r, c, meta }) => {
@@ -498,7 +569,7 @@ const DynamicInvoice: React.FC<DynamicInvoiceProps> = ({
                 isNotesCell = true;
                 const lines = displayValue.replace(/\r\n/g, '\n').split('\n');
                 content = (
-                  <span style={{ lineHeight: 1.4 }}>
+                  <span style={{ lineHeight: 1.3}}>
                     {lines.map((line: string, lineIdx: number) => {
                       // Split line into CJK and Latin segments for proper font handling
                       const segments = line
@@ -527,16 +598,36 @@ const DynamicInvoice: React.FC<DynamicInvoiceProps> = ({
                 handled = true;
               }
 
-              // Calculate line height based on content (matching GeneratedInvoice)
-              // Use 1.4 for notes cells, 1.0 for other cells to match the hardcoded grid
-              const lineHeight = isNotesCell ? 1.4 : 1.0;
-
               // Wrapping strategy from sheet metadata (like GeneratedInvoice)
               const wrapStrategy = meta.wrapStrategy || '';
               const shouldWrap =
                 !wrapStrategy ||
                 wrapStrategy === 'WRAP' ||
                 wrapStrategy === 'WRAP_STRATEGY_UNSPECIFIED';
+
+              // Calculate line height based on content type
+              // Different line heights for:
+              // 1. Explicit line breaks (\n) - tighter spacing (1.0) like header/footer addresses
+              // 2. Auto-wrap text - slightly more spacing (1.2) for readability
+              // 3. Notes cells - moderate spacing (1.3) for long session lists
+              // 4. Single-line cells - tightest (0.9) to match Google Sheets
+              const hasExplicitLineBreaks = displayValue.includes('\n') || rawValue.includes('\\n');
+              const isMultiLineCell = hasExplicitLineBreaks || shouldWrap;
+
+              let lineHeight: number;
+              if (isNotesCell) {
+                // Item notes (session dates, etc.) - need moderate spacing for readability
+                lineHeight = 1.0;
+              } else if (hasExplicitLineBreaks) {
+                // Cells with explicit line breaks (footer address, header info) - tight
+                lineHeight = 0.6;
+              } else if (shouldWrap) {
+                // Auto-wrap cells - slightly more spacing
+                lineHeight = 1.15;
+              } else {
+                // Single-line cells - tightest
+                lineHeight = 1.0;
+              }
 
               // Notes cells should never overflow - they should expand to fit content
               // Other overflow cells can overflow if needed
@@ -545,12 +636,15 @@ const DynamicInvoice: React.FC<DynamicInvoiceProps> = ({
               let whiteSpace: React.CSSProperties['whiteSpace'] = shouldWrap || isNotesCell ? 'pre-wrap' : 'pre';
               let overflowWrap: React.CSSProperties['overflowWrap'] = shouldWrap || isNotesCell ? 'break-word' : 'normal';
               let wordBreak: React.CSSProperties['wordBreak'] = shouldWrap || isNotesCell ? 'break-word' : 'normal';
-              // CRITICAL: Notes cells must NOT overflow - content is contained by row height
-              let cellOverflow: React.CSSProperties['overflow'] = isNotesCell ? 'hidden' : (isOverflowCell ? 'visible' : 'hidden');
+              // Notes cells: use undefined to let CSS media queries control overflow
+              // This allows print styles to enable overflow for page breaking
+              // Screen styles will set overflow: hidden via the notes-cell class
+              let cellOverflow: React.CSSProperties['overflow'] = isNotesCell ? undefined : (isOverflowCell ? 'visible' : 'hidden');
 
               return (
                 <div
                   key={key}
+                  className={isNotesCell ? 'notes-cell' : undefined}
                   style={{
                     gridRow: `${r} / span ${rowSpan}`,
                     gridColumn: `${c} / span ${colSpan}`,
@@ -588,7 +682,162 @@ const DynamicInvoice: React.FC<DynamicInvoiceProps> = ({
               );
             })}
           </div>
+          {/* Grid lines overlay - inside scheme-wrapper so it scales with the grid */}
+          {showGridOverlay && (() => {
+            // Calculate row offsets from row heights
+            const rowOffsets: number[] = [];
+            let accY = 0;
+            rowHeightsPx.forEach((h) => {
+              rowOffsets.push(accY);
+              accY += h || 0;
+            });
+
+            // Column offsets
+            const colOffsets: number[] = [];
+            let accX = 0;
+            columnWidthsPx.forEach((w) => {
+              colOffsets.push(accX);
+              accX += w || 0;
+            });
+
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: `${rawWidth}px`,
+                  height: `${rawHeight}px`,
+                  pointerEvents: 'none',
+                }}
+              >
+                {/* Horizontal lines */}
+                {rowHeightsPx.map((_, idx) => (
+                  <div
+                    key={`h-${idx}`}
+                    style={{
+                      position: 'absolute',
+                      top: rowOffsets[idx],
+                      left: 0,
+                      width: '100%',
+                      height: '1px',
+                      borderTop: '1px dashed rgba(255, 0, 0, 0.25)',
+                    }}
+                  />
+                ))}
+                {/* Vertical lines */}
+                {columnWidthsPx.map((_, idx) => (
+                  <div
+                    key={`v-${idx}`}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: colOffsets[idx],
+                      width: '1px',
+                      height: '100%',
+                      borderLeft: '1px dashed rgba(255, 0, 0, 0.25)',
+                    }}
+                  />
+                ))}
+              </div>
+            );
+          })()}
         </div>
+        </div>{/* Close clip wrapper */}
+        {/* Grid labels - outside clip wrapper to avoid being clipped */}
+        {showGridOverlay && !suppressGridLabels && (() => {
+          // Calculate scaled row offsets
+          const rowOffsets: number[] = [];
+          let accY = 0;
+          rowHeightsPx.forEach((h) => {
+            rowOffsets.push(accY * scaleUniform);
+            accY += h || 0;
+          });
+          const scaledRowHeights = rowHeightsPx.map(h => h * scaleUniform);
+
+          // Calculate scaled column offsets
+          const colOffsets: number[] = [];
+          let accX = 0;
+          columnWidthsPx.forEach((w) => {
+            colOffsets.push(accX * scaleUniform);
+            accX += w || 0;
+          });
+          const scaledColWidths = columnWidthsPx.map(w => w * scaleUniform);
+
+          return (
+            <>
+              {/* Row labels on the left */}
+              <div
+                className="grid-row-labels"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: -28,
+                  width: '26px',
+                  height: `${renderedHeight}px`,
+                  pointerEvents: 'none',
+                }}
+              >
+                {scaledRowHeights.map((h, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      position: 'absolute',
+                      top: rowOffsets[idx],
+                      height: h,
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '8px',
+                      fontWeight: 700,
+                      color: 'rgba(255, 0, 0, 0.8)',
+                      fontFamily: '"Roboto Mono", monospace',
+                      borderTop: '1px dashed rgba(255, 0, 0, 0.4)',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    {idx + 1}
+                  </div>
+                ))}
+              </div>
+              {/* Column labels at top */}
+              <div
+                className="grid-col-labels"
+                style={{
+                  position: 'absolute',
+                  top: -18,
+                  left: 0,
+                  width: `${renderedWidth}px`,
+                  height: '16px',
+                  pointerEvents: 'none',
+                  display: 'flex',
+                }}
+              >
+                {scaledColWidths.map((w, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      width: `${w}px`,
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '8px',
+                      fontWeight: 700,
+                      color: 'rgba(255, 0, 0, 0.8)',
+                      fontFamily: '"Roboto Mono", monospace',
+                      borderLeft: '1px dashed rgba(255, 0, 0, 0.4)',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    {String.fromCharCode(65 + idx)}
+                  </div>
+                ))}
+              </div>
+            </>
+          );
+        })()}
       </div>
     );
   };
@@ -604,18 +853,70 @@ const DynamicInvoice: React.FC<DynamicInvoiceProps> = ({
           width: 100%;
         }
         .invoice-page {
-          page-break-after: always;
-          page-break-inside: avoid;
-          break-after: page;
-          break-inside: avoid;
-        }
-        .invoice-page:last-child {
-          page-break-after: auto;
-          break-after: auto;
+          /* Screen: allow natural sizing */
+          box-sizing: border-box;
         }
         .scheme-grid {
           font-size: 8px;
           line-height: 1.0;
+        }
+        /* Print-specific styles - CRITICAL for proper page breaks */
+        @media print {
+          .dynamic-invoice-container {
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .invoice-page {
+            /* CRITICAL: Treat each page as an indivisible unit */
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            /* Force page break after each page */
+            page-break-after: always !important;
+            break-after: page !important;
+            /* Reset margins for print */
+            margin: 0 !important;
+            padding: 0 !important;
+            /* Use inline dimensions (set by JS to fit A4) */
+            /* Do not override width/height - let JS control */
+            /* Clip any overflow (content should be scaled to fit) */
+            overflow: hidden !important;
+            /* Position at top of print page */
+            position: relative !important;
+          }
+          .invoice-page:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
+          }
+          .scheme-wrapper {
+            /* Keep scale transform, clip overflow */
+            overflow: hidden !important;
+          }
+          .scheme-grid {
+            overflow: hidden !important;
+          }
+          .notes-cell {
+            overflow: hidden !important;
+          }
+          /* Hide grid overlay labels during print */
+          .grid-row-labels,
+          .grid-col-labels {
+            display: none !important;
+          }
+        }
+        /* Screen display: constrain overflow for clean preview */
+        @media screen {
+          .invoice-page {
+            overflow: hidden;
+            /* Visual separation between pages on screen */
+            margin-bottom: 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          }
+          .scheme-wrapper {
+            overflow: hidden;
+          }
+          .notes-cell {
+            overflow: hidden;
+          }
         }
       `}</style>
 

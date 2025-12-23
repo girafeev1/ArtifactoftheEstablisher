@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "chrome": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-server-chrome"]
+    }
+  }
+}

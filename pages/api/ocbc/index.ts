@@ -1,7 +1,7 @@
 /**
  * OCBC OAuth Root Handler
- * This handles the case where OCBC redirects to http://localhost:8080
- * instead of http://localhost:8080/api/ocbc/callback
+ * This handles the case where OCBC redirects to http://localhost:3000
+ * instead of http://localhost:3000/api/ocbc/callback
  *
  * It simply forwards the OAuth params to the actual callback handler
  */

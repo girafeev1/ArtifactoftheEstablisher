@@ -102,16 +102,12 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
             email: typedUser.email,
             image: typedUser.image,
           }
-          token.firebase = typedUser.firebase
-          token.google = typedUser.google
         }
         return token
       },
       async session({ session, token }) {
         const typedSession = session as any
         typedSession.user = token.user ?? session.user
-        typedSession.firebase = token.firebase ?? null
-        typedSession.google = token.google ?? null
         return session
       },
     },

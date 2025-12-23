@@ -4,7 +4,7 @@ import type { GetServerSideProps } from "next"
 import { getSession } from "next-auth/react"
 
 const DashboardApp = dynamic(
-  () => import("../../components/dashboard/NewUIDashboardApp"),
+  () => import("../../components/dashboard/DashboardApp"),
   { ssr: false }
 )
 

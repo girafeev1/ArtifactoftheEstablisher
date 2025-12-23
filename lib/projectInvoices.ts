@@ -389,6 +389,8 @@ export interface ProjectInvoiceItemRecord {
   quantityUnit: string | null
 }
 
+export type InvoiceRecordStatus = 'active' | 'deleted'
+
 export interface ProjectInvoiceRecord {
   collectionId: string
   invoiceNumber: string
@@ -416,6 +418,10 @@ export interface ProjectInvoiceRecord {
   pdfFileId?: string | null
   pdfHash?: string | null
   pdfGeneratedAt?: string | null
+  // Soft delete fields
+  recordStatus?: InvoiceRecordStatus
+  deletedAt?: string | null
+  deletedBy?: string | null
 }
 
 const computeRecordLineTotal = (item: ProjectInvoiceItemRecord) => {
@@ -601,10 +607,17 @@ const extractBaseInvoiceNumber = (invoiceNumber: string) => {
   return invoiceNumber
 }
 
+export interface FetchInvoicesOptions {
+  includeDeleted?: boolean
+}
+
 export const fetchInvoicesForProject = async (
   year: string,
   projectId: string,
+  options?: FetchInvoicesOptions,
 ): Promise<(ProjectInvoiceRecord & InvoicePdfMeta)[]> => {
+  const { includeDeleted = false } = options || {}
+
   // Prefer nested doc; fallback to legacy path
   const nestedRef = doc(projectsDb, PROJECTS_ROOT, year, PROJECTS_SUBCOLLECTION, projectId)
   let projectRef = nestedRef
@@ -622,7 +635,12 @@ export const fetchInvoicesForProject = async (
     const collectionRef = collection(projectRef, SINGLE_INVOICE_COLLECTION_ID)
     const snapshot = await getDocs(collectionRef)
     snapshot.forEach((document) => {
-      invoices.push(buildInvoiceRecord(SINGLE_INVOICE_COLLECTION_ID, document.id, document.data()) as any)
+      const data = document.data()
+      // Skip deleted records unless includeDeleted is true
+      if (!includeDeleted && data.recordStatus === 'deleted') {
+        return
+      }
+      invoices.push(buildInvoiceRecord(SINGLE_INVOICE_COLLECTION_ID, document.id, data) as any)
     })
   } catch (error) {
     console.warn("[projectInvoices] Failed to fetch invoices from unified collection", {
@@ -1041,9 +1059,18 @@ export interface DeleteInvoiceInput {
   editedBy: string
 }
 
+export interface DeleteInvoiceResult {
+  invoicePath: string
+  previousStatus: InvoiceRecordStatus | undefined
+}
+
+/**
+ * Soft delete an invoice (marks as deleted instead of permanent erasure).
+ * Returns the invoice path for GL voiding by the caller.
+ */
 export const deleteInvoiceForProject = async (
   input: DeleteInvoiceInput,
-): Promise<void> => {
+): Promise<DeleteInvoiceResult> => {
   // Prefer nested; fallback to legacy path
   let projectRef = doc(projectsDb, PROJECTS_ROOT, input.year, PROJECTS_SUBCOLLECTION, input.projectId)
   try {
@@ -1068,7 +1095,27 @@ export const deleteInvoiceForProject = async (
     }
   }
 
-  await deleteDoc(documentRef)
+  const existingData = existing.data() as ProjectInvoiceRecord
+  const previousStatus = existingData?.recordStatus
+
+  // Soft delete: mark as deleted instead of erasing
+  await updateDoc(documentRef, {
+    recordStatus: 'deleted',
+    deletedAt: new Date().toISOString(),
+    deletedBy: input.editedBy,
+    updatedAt: new Date().toISOString(),
+  })
+
+  // Log the deletion to updateLogs
+  await logInvoiceChanges(documentRef, [
+    { field: 'recordStatus', before: previousStatus || 'active', after: 'deleted' },
+  ], input.editedBy)
+
+  // Return the invoice path for GL voiding
+  return {
+    invoicePath: documentRef.path,
+    previousStatus,
+  }
 }
 
 export interface RenameInvoiceInput {

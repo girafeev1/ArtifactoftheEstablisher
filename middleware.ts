@@ -26,7 +26,7 @@ export function middleware(request: NextRequest) {
     console.log('[middleware] OAuth error at root:', { error, errorDescription })
 
     // Redirect to finance page with error
-    const financeUrl = new URL('/dashboard/new-ui/finance', request.url)
+    const financeUrl = new URL('/finance', request.url)
     financeUrl.searchParams.set('error', errorDescription || error || 'OAuth failed')
     return NextResponse.redirect(financeUrl)
   }
