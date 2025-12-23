@@ -72,6 +72,11 @@ export type ClassicInvoiceScheme = {
 export const CLASSIC_SCHEME_FILENAME = 'classic-instruction-scheme.json'
 
 export function getClassicSchemePath (): string {
+  // Check committed location first, then fall back to tmp for local dev
+  const committedPath = path.join(process.cwd(), 'lib', 'pdfTemplates', CLASSIC_SCHEME_FILENAME)
+  if (fs.existsSync(committedPath)) {
+    return committedPath
+  }
   return path.join(process.cwd(), 'tmp', CLASSIC_SCHEME_FILENAME)
 }
 
