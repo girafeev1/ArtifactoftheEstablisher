@@ -55,6 +55,9 @@ async function createIndex(accessToken, collectionId, fields) {
 async function main() {
   console.log('🔧 Creating Firestore indexes via REST API...\n');
 
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+  console.log(`Using service account: ${clientEmail}\n`);
+
   const accessToken = await getAccessToken();
 
   const indexes = [
@@ -105,9 +108,9 @@ async function main() {
     } else if (result.data?.error?.status === 'ALREADY_EXISTS') {
       console.log('⏭️  Already exists');
     } else if (result.status === 403) {
-      console.log(`❌ Permission denied`);
+      console.log(`❌ Permission denied: ${result.data?.error?.message || ''}`);
     } else {
-      console.log(`❌ Error: ${result.data?.error?.message || JSON.stringify(result.data)}`);
+      console.log(`❌ Error (${result.status}): ${result.data?.error?.message || JSON.stringify(result.data)}`);
     }
   }
 

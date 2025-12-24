@@ -60,8 +60,35 @@ interface InvoiceData {
   companyName: string
   subsidiaryId?: string
   invoiceDate: Timestamp | Date | string
-  amountDue: number
+  totalAmount: number
   paymentStatus: string
+}
+
+/**
+ * Calculate invoice total from item fields (item1UnitPrice, item1Quantity, etc.)
+ */
+function calculateInvoiceTotal(invData: Record<string, any>): number {
+  let subtotal = 0
+  let totalDiscount = 0
+  const itemsCount = invData.itemsCount || 10 // Default to checking up to 10 items
+
+  for (let i = 1; i <= itemsCount; i++) {
+    const unitPrice = parseFloat(invData[`item${i}UnitPrice`]) || 0
+    const quantity = parseFloat(invData[`item${i}Quantity`]) || 0
+    const discount = parseFloat(invData[`item${i}Discount`]) || 0
+
+    subtotal += unitPrice * quantity
+    totalDiscount += discount
+  }
+
+  // Apply tax/discount percentage if present
+  const taxOrDiscountPercent = parseFloat(invData.taxOrDiscountPercent) || 0
+  if (taxOrDiscountPercent !== 0) {
+    // Positive = tax, negative = discount
+    subtotal = subtotal * (1 + taxOrDiscountPercent / 100)
+  }
+
+  return subtotal - totalDiscount
 }
 
 async function deleteAllJournalEntries(): Promise<number> {
@@ -151,6 +178,9 @@ async function fetchAllInvoices(): Promise<InvoiceData[]> {
           continue
         }
 
+        // Calculate total from item fields
+        const totalAmount = calculateInvoiceTotal(invData)
+
         invoices.push({
           invoiceNumber: invoiceDoc.id,
           projectId,
@@ -158,7 +188,7 @@ async function fetchAllInvoices(): Promise<InvoiceData[]> {
           companyName: projectData.companyName || invData.companyName || 'Unknown Client',
           subsidiaryId: projectData.subsidiaryIdentifier || projectData.subsidiary || 'erl',
           invoiceDate: invData.invoiceDate || invData.createdAt,
-          amountDue: invData.amountDue || 0,
+          totalAmount,
           paymentStatus,
         })
       }
@@ -210,14 +240,14 @@ async function createJournalEntry(invoice: InvoiceData): Promise<string> {
     lines: [
       {
         accountCode: ACCOUNTS_RECEIVABLE,
-        debit: invoice.amountDue,
+        debit: invoice.totalAmount,
         credit: 0,
         memo: `AR - ${invoice.companyName}`,
       },
       {
         accountCode: SERVICE_REVENUE,
         debit: 0,
-        credit: invoice.amountDue,
+        credit: invoice.totalAmount,
         memo: `Revenue - ${invoice.invoiceNumber}`,
       },
     ],
