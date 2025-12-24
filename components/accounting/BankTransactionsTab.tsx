@@ -38,12 +38,19 @@ import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
   SyncOutlined,
+  FilterOutlined,
 } from "@ant-design/icons"
 import type { ColumnsType } from "antd/es/table"
 import type { UploadFile } from "antd/es/upload/interface"
 import { Resizable, ResizeCallbackData } from "react-resizable"
 import dayjs from "dayjs"
 import MatchInvoiceModal from "./MatchInvoiceModal"
+import {
+  parseBankAccountId,
+  getPaymentMethodDisplay,
+  formatAmountWithSign,
+  ACCOUNT_TYPE_COLORS,
+} from "@/lib/accounting/bankAccountUtils"
 
 // ============================================================================
 // Types
@@ -60,7 +67,10 @@ interface BankTransaction {
   referenceNumber?: string
   payerName: string
   payerReference?: string
-  status: "unmatched" | "matched" | "partial"
+  displayName?: string
+  originalDescription?: string
+  accountCode?: string
+  status: "unmatched" | "matched" | "partial" | "categorized"
   matchedInvoices?: {
     invoiceNumber: string
     projectId: string
@@ -130,6 +140,8 @@ const getStatusColor = (status: string) => {
       return "success"
     case "partial":
       return "warning"
+    case "categorized":
+      return "processing"
     case "unmatched":
       return "default"
     default:
@@ -143,6 +155,8 @@ const getStatusIcon = (status: string) => {
       return <CheckCircleOutlined />
     case "partial":
       return <SyncOutlined />
+    case "categorized":
+      return <BankOutlined />
     case "unmatched":
       return <ExclamationCircleOutlined />
     default:
@@ -576,14 +590,7 @@ const CSVImportModal: React.FC<{
           </Col>
         </Row>
 
-        {isClaudeImport ? (
-          <Alert
-            type="info"
-            message="Claude Import reads bank account from CSV"
-            description="The BankAccount column in your CSV (e.g., ERL-OCBC-S, ERL-DSB-S) will be used to identify which bank account each transaction belongs to."
-            style={{ marginBottom: 16 }}
-          />
-        ) : (
+        {!isClaudeImport && (
           <Form.Item
             name="bankAccountId"
             label="Bank Account"
@@ -608,12 +615,6 @@ const CSVImportModal: React.FC<{
             />
           </Form.Item>
         )}
-
-        <Alert
-          type="info"
-          message="Payment method is auto-detected from transaction descriptions (e.g., CHEQUE → Check, FPS/TRANSFER → Bank Transfer, CASH → Cash)"
-          style={{ marginBottom: 16 }}
-        />
 
         <Form.Item label="CSV File">
           <Upload
@@ -777,13 +778,19 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
   const [matchModalOpen, setMatchModalOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<BankTransaction | null>(null)
 
+  // Bank account filter for Balance column
+  const [bankAccountFilter, setBankAccountFilter] = useState<string | null>(null)
+
   // Column widths
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
-    date: 120,
-    payer: 200,
-    amount: 130,
+    date: 100,
+    payerPayee: 180,
+    amount: 120,
+    method: 80,
     status: 100,
-    bankAccount: 150,
+    bank: 60,
+    accountType: 80,
+    balance: 110,
     actions: 120,
   })
 
@@ -911,6 +918,30 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
     await fetchData()
   }
 
+  // Get unique bank accounts for filter dropdown
+  const uniqueBankAccountIds = [...new Set(transactions.map((t) => t.bankAccountId))]
+
+  // Calculate running balance for filtered transactions
+  const getRunningBalance = (index: number, filteredTxs: BankTransaction[]) => {
+    // Sort by date ascending for balance calculation
+    const sorted = [...filteredTxs].sort((a, b) => {
+      const aTime = a.transactionDate?._seconds || a.transactionDate?.seconds || 0
+      const bTime = b.transactionDate?._seconds || b.transactionDate?.seconds || 0
+      return aTime - bTime
+    })
+    let balance = 0
+    for (let i = 0; i <= index; i++) {
+      const tx = sorted[i]
+      balance += tx.isDebit ? -tx.amount : tx.amount
+    }
+    return balance
+  }
+
+  // Filter transactions by bank account for balance calculation
+  const filteredForBalance = bankAccountFilter
+    ? transactions.filter((t) => t.bankAccountId === bankAccountFilter)
+    : transactions
+
   // Table columns
   const columns: ColumnsType<BankTransaction> = [
     {
@@ -920,9 +951,9 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
       width: columnWidths.date,
       render: formatDate,
       sorter: (a, b) => {
-        const aTime = a.transactionDate?._seconds || 0
-        const bTime = b.transactionDate?._seconds || 0
-        return bTime - aTime
+        const aTime = a.transactionDate?._seconds || a.transactionDate?.seconds || 0
+        const bTime = b.transactionDate?._seconds || b.transactionDate?.seconds || 0
+        return aTime - bTime
       },
       defaultSortOrder: "ascend",
       onHeaderCell: () => ({
@@ -931,14 +962,19 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
       }),
     },
     {
-      title: "Payer",
+      title: "Payer/Payee",
       dataIndex: "payerName",
-      key: "payer",
-      width: columnWidths.payer,
+      key: "payerPayee",
+      width: columnWidths.payerPayee,
       ellipsis: true,
+      render: (payerName: string, record: BankTransaction) => (
+        <Tooltip title={record.originalDescription || record.memo || payerName}>
+          <span>{record.displayName || payerName}</span>
+        </Tooltip>
+      ),
       onHeaderCell: () => ({
-        width: columnWidths.payer,
-        onResize: handleResize("payer"),
+        width: columnWidths.payerPayee,
+        onResize: handleResize("payerPayee"),
       }),
     },
     {
@@ -947,15 +983,83 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
       key: "amount",
       width: columnWidths.amount,
       align: "right",
-      render: (amount: number, record: BankTransaction) => (
-        <strong style={{ color: record.isDebit ? "#cf1322" : "#389e0d" }}>
-          {record.isDebit ? "-" : "+"}{formatCurrency(amount, record.currency)}
-        </strong>
-      ),
-      sorter: (a, b) => a.amount - b.amount,
+      render: (amount: number, record: BankTransaction) => {
+        const { display, color } = formatAmountWithSign(amount, record.isDebit ?? false, record.currency)
+        return <strong style={{ color }}>{display}</strong>
+      },
+      sorter: (a, b) => {
+        const aVal = a.isDebit ? -a.amount : a.amount
+        const bVal = b.isDebit ? -b.amount : b.amount
+        return aVal - bVal
+      },
       onHeaderCell: () => ({
         width: columnWidths.amount,
         onResize: handleResize("amount"),
+      }),
+    },
+    {
+      title: "Method",
+      dataIndex: "paymentMethod",
+      key: "method",
+      width: columnWidths.method,
+      render: (method: string, record: BankTransaction) => (
+        <Tag>{getPaymentMethodDisplay(method, record.originalDescription || record.memo)}</Tag>
+      ),
+      filters: [
+        { text: "Transfer", value: "bank_transfer" },
+        { text: "Cheque", value: "check" },
+        { text: "Cash", value: "cash" },
+        { text: "Card", value: "credit_card" },
+        { text: "Other", value: "other" },
+      ],
+      onFilter: (value, record) => record.paymentMethod === value,
+      onHeaderCell: () => ({
+        width: columnWidths.method,
+        onResize: handleResize("method"),
+      }),
+    },
+    {
+      title: "Bank",
+      key: "bank",
+      width: columnWidths.bank,
+      render: (_, record: BankTransaction) => {
+        const parsed = parseBankAccountId(record.bankAccountId)
+        return (
+          <Tooltip title={parsed.bankFullName}>
+            <span>{parsed.bankAbbr}</span>
+          </Tooltip>
+        )
+      },
+      filters: uniqueBankAccountIds.map((id) => {
+        const parsed = parseBankAccountId(id)
+        return { text: parsed.bankAbbr, value: parsed.bank }
+      }).filter((v, i, a) => a.findIndex(t => t.value === v.value) === i),
+      onFilter: (value, record) => parseBankAccountId(record.bankAccountId).bank === value,
+      onHeaderCell: () => ({
+        width: columnWidths.bank,
+        onResize: handleResize("bank"),
+      }),
+    },
+    {
+      title: "Account",
+      key: "accountType",
+      width: columnWidths.accountType,
+      render: (_, record: BankTransaction) => {
+        const parsed = parseBankAccountId(record.bankAccountId)
+        return (
+          <Tag color={ACCOUNT_TYPE_COLORS[parsed.accountType] || "default"}>
+            {parsed.accountTypeLabel}
+          </Tag>
+        )
+      },
+      filters: [
+        { text: "Savings", value: "S" },
+        { text: "Current", value: "C" },
+      ],
+      onFilter: (value, record) => parseBankAccountId(record.bankAccountId).accountType === value,
+      onHeaderCell: () => ({
+        width: columnWidths.accountType,
+        onResize: handleResize("accountType"),
       }),
     },
     {
@@ -972,6 +1076,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
         { text: "Unmatched", value: "unmatched" },
         { text: "Matched", value: "matched" },
         { text: "Partial", value: "partial" },
+        { text: "Categorized", value: "categorized" },
       ],
       onFilter: (value, record) => record.status === value,
       onHeaderCell: () => ({
@@ -979,21 +1084,29 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
         onResize: handleResize("status"),
       }),
     },
-    {
-      title: "Bank Account",
-      dataIndex: "bankAccountId",
-      key: "bankAccount",
-      width: columnWidths.bankAccount,
-      ellipsis: true,
-      render: (id: string) => {
-        const account = bankAccounts.find((a) => a.id === id)
-        return account?.displayName || id
-      },
-      onHeaderCell: () => ({
-        width: columnWidths.bankAccount,
-        onResize: handleResize("bankAccount"),
-      }),
-    },
+    // Balance column - only show when filtered to single bank account
+    ...(bankAccountFilter
+      ? [
+          {
+            title: "Balance",
+            key: "balance",
+            width: columnWidths.balance,
+            align: "right" as const,
+            render: (_: any, record: BankTransaction, index: number) => {
+              const balance = getRunningBalance(index, filteredForBalance)
+              return (
+                <span style={{ color: balance >= 0 ? "#389e0d" : "#cf1322" }}>
+                  {formatCurrency(Math.abs(balance), record.currency)}
+                </span>
+              )
+            },
+            onHeaderCell: () => ({
+              width: columnWidths.balance,
+              onResize: handleResize("balance"),
+            }),
+          },
+        ]
+      : []),
     {
       title: "Actions",
       key: "actions",
@@ -1089,7 +1202,30 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
       )}
 
       {/* Actions */}
-      <div style={{ marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Space>
+          <FilterOutlined style={{ color: "#8c8c8c" }} />
+          <Select
+            placeholder="Filter by Bank Account"
+            allowClear
+            style={{ width: 200 }}
+            value={bankAccountFilter}
+            onChange={(value) => setBankAccountFilter(value || null)}
+            options={[
+              { value: null, label: "All Bank Accounts" },
+              ...uniqueBankAccountIds.map((id) => {
+                const parsed = parseBankAccountId(id)
+                return {
+                  value: id,
+                  label: `${parsed.bankAbbr} ${parsed.accountTypeLabel}`,
+                }
+              }),
+            ]}
+          />
+          {bankAccountFilter && (
+            <Tag color="blue">Balance column enabled</Tag>
+          )}
+        </Space>
         <Space>
           <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
             Import CSV

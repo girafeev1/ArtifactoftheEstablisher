@@ -95,6 +95,22 @@ function buildPaidEntry(context: PostingContext): JournalEntryInput {
 export async function postInvoiceEvent(
   context: PostingContext
 ): Promise<{ created: boolean; journalId?: string; skipped?: string }> {
+  // Validate required data - don't create entries with missing/unknown values
+  if (!context.companyName || context.companyName === 'Unknown Client' || context.companyName === 'Unknown') {
+    console.warn(`[postInvoiceEvent] Skipping ${context.event} entry for ${context.invoicePath}: missing or unknown company name`)
+    return { created: false, skipped: 'Missing or unknown company name' }
+  }
+
+  if (!context.invoiceNumber || context.invoiceNumber === 'Unknown') {
+    console.warn(`[postInvoiceEvent] Skipping ${context.event} entry for ${context.invoicePath}: missing or unknown invoice number`)
+    return { created: false, skipped: 'Missing or unknown invoice number' }
+  }
+
+  if (!context.amount || context.amount <= 0) {
+    console.warn(`[postInvoiceEvent] Skipping ${context.event} entry for ${context.invoicePath}: invalid amount ${context.amount}`)
+    return { created: false, skipped: 'Invalid or zero amount' }
+  }
+
   // Check if already posted (idempotent)
   const alreadyPosted = await hasJournalEntryForEvent(context.invoicePath, context.event)
   if (alreadyPosted) {

@@ -89,7 +89,7 @@ export interface JournalEntryInput {
 
 export type PaymentMethod = 'bank_transfer' | 'check' | 'cash' | 'credit_card' | 'other'
 
-export type TransactionStatus = 'unmatched' | 'matched' | 'partial'
+export type TransactionStatus = 'unmatched' | 'matched' | 'partial' | 'categorized'
 
 export type TransactionSource = 'manual' | 'csv_import'
 
@@ -124,6 +124,11 @@ export interface BankTransaction {
   payerName: string
   payerReference?: string // Customer's reference if any
 
+  // Display & categorization
+  displayName?: string // User-editable display name
+  originalDescription?: string // Original description from import (for tooltip)
+  accountCode?: string // GL account code for expense/revenue categorization
+
   // Matching
   status: TransactionStatus
   matchedInvoices?: MatchedInvoice[]
@@ -152,6 +157,9 @@ export interface BankTransactionInput {
   referenceNumber?: string
   payerName: string
   payerReference?: string
+  displayName?: string // User-editable display name
+  originalDescription?: string // Original description from import
+  accountCode?: string // GL account for categorization
   subsidiaryId: string
   memo?: string
   supportingDocument?: string

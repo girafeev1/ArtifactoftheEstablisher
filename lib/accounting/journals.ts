@@ -111,7 +111,8 @@ export async function createJournalEntry(input: JournalEntryInput): Promise<Jour
     journalData.description = input.description
   }
   if (input.subsidiaryId) {
-    journalData.subsidiaryId = input.subsidiaryId
+    // Normalize to lowercase for consistent filtering
+    journalData.subsidiaryId = input.subsidiaryId.toLowerCase()
   }
 
   const docRef = await addDoc(journalsCol, journalData)
@@ -162,7 +163,8 @@ export async function listJournalEntries(options?: {
   }
 
   if (options?.subsidiaryId && options.subsidiaryId !== 'all') {
-    constraints.push(where('subsidiaryId', '==', options.subsidiaryId))
+    // Normalize to lowercase for consistent filtering
+    constraints.push(where('subsidiaryId', '==', options.subsidiaryId.toLowerCase()))
   }
 
   constraints.push(orderBy('postingDate', 'desc'))

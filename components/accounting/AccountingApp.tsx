@@ -368,8 +368,12 @@ const formatDescription = (description: string, event?: string): React.ReactNode
 
   // Build styled output
   invoiceMatches.forEach((inv, i) => {
-    // Text before this invoice number
-    const beforeText = description.slice(currentIndex, inv.index)
+    // Check if there's a # immediately before the invoice number
+    const hasHashBefore = inv.index > 0 && description.charAt(inv.index - 1) === "#"
+
+    // Text before this invoice number (exclude the # if present, as it will be part of the invoice display)
+    const beforeEndIndex = hasHashBefore ? inv.index - 1 : inv.index
+    const beforeText = description.slice(currentIndex, beforeEndIndex)
 
     // Check if beforeText contains client name
     if (clientName && beforeText.includes(clientName)) {
@@ -385,11 +389,10 @@ const formatDescription = (description: string, event?: string): React.ReactNode
       processText(beforeText)
     }
 
-    // Style invoice number: bold with # prefix
-    const displayInv = inv.match.startsWith("#") ? inv.match : `#${inv.match}`
+    // Style invoice number: bold with # prefix (always include #)
     parts.push(
       <span key={key++} style={{ fontWeight: "bold" }}>
-        {displayInv}
+        #{inv.match}
       </span>
     )
 
@@ -601,7 +604,8 @@ const ChartOfAccounts: React.FC<{
   onUpdateAccount: (code: string, updates: Partial<Account>) => Promise<void>
   onRefresh: () => void
   bankAccountNames?: Record<string, string>
-}> = ({ accounts, loading, onUpdateAccount, onRefresh, bankAccountNames = {} }) => {
+  editMode?: boolean
+}> = ({ accounts, loading, onUpdateAccount, onRefresh, bankAccountNames = {}, editMode = false }) => {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Partial<Account>>({})
   const [saving, setSaving] = useState(false)
@@ -755,40 +759,45 @@ const ChartOfAccounts: React.FC<{
         )
       },
     },
-    {
-      title: "Action",
-      key: "action",
-      width: 120,
-      render: (_, record: Account) => {
-        if (isEditing(record)) {
-          return (
-            <Space size="small">
-              <Button
-                type="primary"
-                size="small"
-                onClick={() => handleSave(record.code)}
-                loading={saving}
-              >
-                Save
-              </Button>
-              <Button size="small" onClick={handleCancel}>
-                Cancel
-              </Button>
-            </Space>
-          )
-        }
-        return (
-          <Button
-            type="link"
-            size="small"
-            onClick={() => handleEdit(record)}
-            disabled={editingKey !== null}
-          >
-            Edit
-          </Button>
-        )
-      },
-    },
+    // Action column - only show when editMode is true
+    ...(editMode
+      ? [
+          {
+            title: "Action",
+            key: "action",
+            width: 120,
+            render: (_: any, record: Account) => {
+              if (isEditing(record)) {
+                return (
+                  <Space size="small">
+                    <Button
+                      type="primary"
+                      size="small"
+                      onClick={() => handleSave(record.code)}
+                      loading={saving}
+                    >
+                      Save
+                    </Button>
+                    <Button size="small" onClick={handleCancel}>
+                      Cancel
+                    </Button>
+                  </Space>
+                )
+              }
+              return (
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => handleEdit(record)}
+                  disabled={editingKey !== null}
+                >
+                  Edit
+                </Button>
+              )
+            },
+          },
+        ]
+      : []),
   ]
 
   // Use resizable columns hook
@@ -984,7 +993,7 @@ const JournalEntriesTable: React.FC<{
       title: "Date",
       dataIndex: "postingDate",
       key: "date",
-      width: 120,
+      width: 100,
       render: (date) => formatDate(date),
       sorter: (a, b) => {
         const aTime = a.postingDate?._seconds || 0
@@ -992,6 +1001,22 @@ const JournalEntriesTable: React.FC<{
         return bTime - aTime
       },
       defaultSortOrder: "ascend",
+    },
+    {
+      title: "Subsidiary",
+      dataIndex: "subsidiaryId",
+      key: "subsidiary",
+      width: 80,
+      render: (subsidiaryId: string) => {
+        const abbr = subsidiaryId?.toUpperCase() || "-"
+        return <Tag>{abbr}</Tag>
+      },
+      filters: [
+        { text: "ERL", value: "erl" },
+        { text: "EHL", value: "ehl" },
+      ],
+      onFilter: (value, record) =>
+        record.subsidiaryId?.toLowerCase() === String(value).toLowerCase(),
     },
     {
       title: "Description",
@@ -1007,7 +1032,7 @@ const JournalEntriesTable: React.FC<{
     {
       title: "Status",
       key: "status",
-      width: 100,
+      width: 80,
       render: (_, record) => {
         // If voided, show VOID tag
         if (record.status === "void") {
@@ -1035,23 +1060,19 @@ const JournalEntriesTable: React.FC<{
       },
     },
     {
-      title: "Debit",
-      key: "debit",
-      width: 130,
+      title: "Amount",
+      key: "amount",
+      width: 120,
       align: "right",
       render: (_, record) => {
+        // Show total debit amount (which equals credit in balanced entries)
         const total = record.lines.reduce((sum, line) => sum + (line.debit || 0), 0)
-        return total > 0 ? <Text>{formatCurrency(total)}</Text> : "-"
+        return total > 0 ? <Text strong>{formatCurrency(total)}</Text> : "-"
       },
-    },
-    {
-      title: "Credit",
-      key: "credit",
-      width: 130,
-      align: "right",
-      render: (_, record) => {
-        const total = record.lines.reduce((sum, line) => sum + (line.credit || 0), 0)
-        return total > 0 ? <Text>{formatCurrency(total)}</Text> : "-"
+      sorter: (a, b) => {
+        const aTotal = a.lines.reduce((sum, line) => sum + (line.debit || 0), 0)
+        const bTotal = b.lines.reduce((sum, line) => sum + (line.debit || 0), 0)
+        return aTotal - bTotal
       },
     },
   ]
@@ -1880,6 +1901,8 @@ const AccountingContent: React.FC = () => {
   const [availableSubsidiaries, setAvailableSubsidiaries] = useState<SubsidiaryInfo[]>([])
   // Bank account display names for COA (dynamically fetched)
   const [bankAccountNames, setBankAccountNames] = useState<Record<string, string>>({})
+  // Chart of Accounts edit mode (show/hide action column)
+  const [coaEditMode, setCoaEditMode] = useState(false)
 
   // Compute subsidiary display
   const subsidiaryDisplay = useMemo(
@@ -2044,14 +2067,22 @@ const AccountingContent: React.FC = () => {
       ),
       children: (
         <div>
-          <div style={{ marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setAddAccountModalOpen(true)}
-            >
-              Add Account
-            </Button>
+          <div style={{ marginBottom: 16, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Tooltip title={coaEditMode ? "Exit Edit Mode" : "Edit Accounts"}>
+              <Button
+                icon={<SettingOutlined />}
+                onClick={() => setCoaEditMode(!coaEditMode)}
+                type={coaEditMode ? "primary" : "default"}
+              />
+            </Tooltip>
+            <Tooltip title="Add Account">
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setAddAccountModalOpen(true)}
+                shape="circle"
+              />
+            </Tooltip>
           </div>
           <ChartOfAccounts
             accounts={accounts}
@@ -2059,6 +2090,7 @@ const AccountingContent: React.FC = () => {
             onUpdateAccount={updateAccount}
             onRefresh={handleRefresh}
             bankAccountNames={bankAccountNames}
+            editMode={coaEditMode}
           />
           <AddAccountModal
             open={addAccountModalOpen}
