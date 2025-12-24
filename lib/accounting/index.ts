@@ -53,3 +53,34 @@ export {
   generateBalanceSheet,
   generateARAgingReport,
 } from './reports'
+
+// Description generator
+export {
+  generateDescription,
+  getDescriptionParts,
+  hasStructuredMetadata,
+} from './descriptionGenerator'
+
+// Bank transactions
+export {
+  createTransaction,
+  createTransactionsBatch,
+  getTransaction,
+  listTransactions,
+  updateTransaction,
+  deleteTransaction,
+  matchTransactionToInvoices,
+  unmatchTransaction,
+  findTransactionsForInvoice,
+  getTotalPaidForInvoice,
+  getTransactionStats,
+  getPayerNames,
+} from './transactions'
+
+// CSV parsing
+export {
+  parseCSV,
+  validateCSV,
+  getCSVHeaders,
+  getCSVPreview,
+} from './csvParser'

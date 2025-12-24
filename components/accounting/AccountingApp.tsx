@@ -3,7 +3,7 @@
  * Main component for the Accounting tab
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Card,
   Table,
@@ -30,6 +30,7 @@ import {
   Form,
   Input,
 } from "antd"
+import { Resizable, ResizeCallbackData } from "react-resizable"
 import {
   ReloadOutlined,
   DollarOutlined,
@@ -50,6 +51,8 @@ import type { DataProvider, BaseRecord, GetListResponse } from "@refinedev/core"
 import dayjs from "dayjs"
 
 import AppShell from "../layout/AppShell"
+import BankTransactionsTab from "./BankTransactionsTab"
+import { generateDescription } from "../../lib/accounting/descriptionGenerator"
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -79,14 +82,18 @@ interface JournalLine {
 interface JournalEntry {
   id: string
   postingDate: any
-  description: string
+  description?: string
   status: "posted" | "void"
   source: {
     type: "invoice" | "manual" | "migration"
     path?: string
     event?: "ISSUED" | "PAID" | "ADJUSTMENT" | "VOID"
+    invoiceNumber?: string
+    companyName?: string
+    projectId?: string
   }
   lines: JournalLine[]
+  subsidiaryId?: string
   createdAt: any
   createdBy: string
 }
@@ -414,6 +421,165 @@ const formatDescription = (description: string, event?: string): React.ReactNode
 }
 
 // ============================================================================
+// Resizable Column Components
+// ============================================================================
+
+interface ResizableTitleProps {
+  width: number
+  onResize: (e: React.SyntheticEvent, data: ResizeCallbackData) => void
+  onDoubleClick?: () => void
+  children?: React.ReactNode
+  [key: string]: any
+}
+
+const ResizableTitle: React.FC<ResizableTitleProps> = ({
+  onResize,
+  onDoubleClick,
+  width,
+  ...restProps
+}) => {
+  if (!width) {
+    return <th {...restProps} />
+  }
+
+  return (
+    <Resizable
+      width={width}
+      height={0}
+      handle={
+        <span
+          className="react-resizable-handle"
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            onDoubleClick?.()
+          }}
+          style={{
+            position: "absolute",
+            right: -5,
+            bottom: 0,
+            width: 10,
+            height: "100%",
+            cursor: "col-resize",
+            zIndex: 1,
+          }}
+        />
+      }
+      onResize={onResize}
+      draggableOpts={{ enableUserSelectHack: false }}
+    >
+      <th {...restProps} />
+    </Resizable>
+  )
+}
+
+// Hook for managing resizable columns
+const useResizableColumns = <T extends Record<string, any>>(
+  initialColumns: T[],
+  tableRef: React.RefObject<HTMLDivElement | null>
+) => {
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    const widths: Record<string, number> = {}
+    initialColumns.forEach((col) => {
+      const key = String(col.key || col.dataIndex || "")
+      if (key && typeof col.width === "number") {
+        widths[key] = col.width
+      }
+    })
+    return widths
+  })
+
+  const handleResize = useCallback(
+    (key: string) =>
+      (_: React.SyntheticEvent, { size }: ResizeCallbackData) => {
+        setColumnWidths((prev) => ({
+          ...prev,
+          [key]: size.width,
+        }))
+      },
+    []
+  )
+
+  const handleDoubleClick = useCallback(
+    (key: string) => () => {
+      if (!tableRef.current) return
+
+      // Find all cells in this column and calculate max content width
+      const colIndex = initialColumns.findIndex((c) => String(c.key || c.dataIndex) === key) + 1
+      const cells = tableRef.current.querySelectorAll(
+        `td[class*="ant-table-cell"]:nth-child(${colIndex})`
+      )
+
+      let maxWidth = 80 // Minimum width
+      cells.forEach((cell) => {
+        const content = cell as HTMLElement
+        // Create a temporary span to measure text width
+        const span = document.createElement("span")
+        span.style.visibility = "hidden"
+        span.style.position = "absolute"
+        span.style.whiteSpace = "nowrap"
+        span.style.font = window.getComputedStyle(content).font
+        span.textContent = content.textContent || ""
+        document.body.appendChild(span)
+        const textWidth = span.offsetWidth + 32 // Add padding
+        document.body.removeChild(span)
+        maxWidth = Math.max(maxWidth, textWidth)
+      })
+
+      // Also check header width
+      const header = tableRef.current.querySelector(
+        `th[class*="ant-table-cell"]:nth-child(${colIndex})`
+      )
+      if (header) {
+        const span = document.createElement("span")
+        span.style.visibility = "hidden"
+        span.style.position = "absolute"
+        span.style.whiteSpace = "nowrap"
+        span.style.font = window.getComputedStyle(header as HTMLElement).font
+        span.textContent = header.textContent || ""
+        document.body.appendChild(span)
+        const headerWidth = span.offsetWidth + 40
+        document.body.removeChild(span)
+        maxWidth = Math.max(maxWidth, headerWidth)
+      }
+
+      setColumnWidths((prev) => ({
+        ...prev,
+        [key]: Math.min(maxWidth, 400), // Cap at 400px
+      }))
+    },
+    [initialColumns, tableRef]
+  )
+
+  const resizableColumns = useMemo(() => {
+    return initialColumns.map((col) => {
+      const key = String(col.key || col.dataIndex || "")
+      const width = columnWidths[key] || (typeof col.width === "number" ? col.width : undefined)
+      return {
+        ...col,
+        width,
+        onHeaderCell: () => ({
+          width,
+          onResize: handleResize(key),
+          onDoubleClick: handleDoubleClick(key),
+        }),
+      }
+    })
+  }, [initialColumns, columnWidths, handleResize, handleDoubleClick])
+
+  const tableComponents = useMemo(
+    () => ({
+      header: {
+        cell: ResizableTitle,
+      },
+    }),
+    []
+  )
+
+  return { resizableColumns, tableComponents }
+}
+
+// ============================================================================
 // Chart of Accounts Component
 // ============================================================================
 
@@ -440,6 +606,7 @@ const ChartOfAccounts: React.FC<{
   const [editValues, setEditValues] = useState<Partial<Account>>({})
   const [saving, setSaving] = useState(false)
   const { message } = AntdApp.useApp()
+  const tableRef = useRef<HTMLDivElement>(null)
 
   const isEditing = (record: Account) => record.code === editingKey
 
@@ -472,19 +639,21 @@ const ChartOfAccounts: React.FC<{
     }
   }
 
-  const columns: ColumnsType<Account> = [
+  const baseColumns: ColumnsType<Account> = [
     {
       title: "Code",
       dataIndex: "code",
       key: "code",
       width: 100,
       sorter: (a, b) => a.code.localeCompare(b.code),
+      render: (code: string) => <span style={{ fontWeight: 500 }}>{code}</span>,
     },
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
-      ellipsis: false,
+      width: 300,
+      ellipsis: true,
       render: (name: string, record: Account) => {
         if (isEditing(record)) {
           return (
@@ -622,23 +791,29 @@ const ChartOfAccounts: React.FC<{
     },
   ]
 
+  // Use resizable columns hook
+  const { resizableColumns, tableComponents } = useResizableColumns(baseColumns, tableRef)
+
   return (
-    <Table
-      dataSource={accounts}
-      columns={columns}
-      rowKey="code"
-      loading={loading}
-      pagination={false}
-      scroll={{ x: 900 }}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="No accounts found"
-          />
-        ),
-      }}
-    />
+    <div ref={tableRef} className="accounting-table">
+      <Table
+        dataSource={accounts}
+        columns={resizableColumns}
+        components={tableComponents}
+        rowKey="code"
+        loading={loading}
+        pagination={false}
+        scroll={{ x: 900 }}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="No accounts found"
+            />
+          ),
+        }}
+      />
+    </div>
   )
 }
 
@@ -802,8 +977,9 @@ const JournalEntriesTable: React.FC<{
   onRefresh: () => void
 }> = ({ entries, loading, onRefresh }) => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([])
+  const tableRef = useRef<HTMLDivElement>(null)
 
-  const columns: ColumnsType<JournalEntry> = [
+  const baseColumns: ColumnsType<JournalEntry> = [
     {
       title: "Date",
       dataIndex: "postingDate",
@@ -819,10 +995,14 @@ const JournalEntriesTable: React.FC<{
     },
     {
       title: "Description",
-      dataIndex: "description",
       key: "description",
-      ellipsis: false,
-      render: (desc: string, record: JournalEntry) => formatDescription(desc, record.source.event),
+      width: 350,
+      ellipsis: true,
+      render: (_, record: JournalEntry) => {
+        // Generate description from structured metadata, fall back to stored description
+        const desc = generateDescription(record as any) || record.description || "Journal Entry"
+        return formatDescription(desc, record.source?.event)
+      },
     },
     {
       title: "Status",
@@ -855,13 +1035,23 @@ const JournalEntriesTable: React.FC<{
       },
     },
     {
-      title: "Total",
-      key: "total",
+      title: "Debit",
+      key: "debit",
       width: 130,
       align: "right",
       render: (_, record) => {
-        const total = record.lines.reduce((sum, line) => sum + line.debit, 0)
-        return <Text strong>{formatCurrency(total)}</Text>
+        const total = record.lines.reduce((sum, line) => sum + (line.debit || 0), 0)
+        return total > 0 ? <Text>{formatCurrency(total)}</Text> : "-"
+      },
+    },
+    {
+      title: "Credit",
+      key: "credit",
+      width: 130,
+      align: "right",
+      render: (_, record) => {
+        const total = record.lines.reduce((sum, line) => sum + (line.credit || 0), 0)
+        return total > 0 ? <Text>{formatCurrency(total)}</Text> : "-"
       },
     },
   ]
@@ -910,28 +1100,34 @@ const JournalEntriesTable: React.FC<{
     )
   }
 
+  // Use resizable columns hook
+  const { resizableColumns, tableComponents } = useResizableColumns(baseColumns, tableRef)
+
   return (
-    <Table
-      dataSource={entries}
-      columns={columns}
-      rowKey="id"
-      loading={loading}
-      expandable={{
-        expandedRowRender,
-        expandedRowKeys,
-        onExpandedRowsChange: (keys) => setExpandedRowKeys(keys as string[]),
-      }}
-      pagination={{ pageSize: 20, showSizeChanger: true }}
-      scroll={{ x: 900 }}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="No journal entries found"
-          />
-        ),
-      }}
-    />
+    <div ref={tableRef} className="accounting-table">
+      <Table
+        dataSource={entries}
+        columns={resizableColumns}
+        components={tableComponents}
+        rowKey="id"
+        loading={loading}
+        expandable={{
+          expandedRowRender,
+          expandedRowKeys,
+          onExpandedRowsChange: (keys) => setExpandedRowKeys(keys as string[]),
+        }}
+        pagination={{ pageSize: 20, showSizeChanger: true }}
+        scroll={{ x: 900 }}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="No journal entries found"
+            />
+          ),
+        }}
+      />
+    </div>
   )
 }
 
@@ -1704,9 +1900,17 @@ const AccountingContent: React.FC = () => {
     setLoading(true)
     setError(null)
     try {
+      // Get current subsidiary for filtering (use selectedSubsidiaries if set, otherwise fetch all)
+      const subsidiaryFilter = selectedSubsidiaries.length > 0 && !selectedSubsidiaries.includes("all")
+        ? selectedSubsidiaries[0]
+        : ""
+      const journalsUrl = subsidiaryFilter
+        ? `/api/accounting/journals?limit=100&subsidiaryId=${encodeURIComponent(subsidiaryFilter)}`
+        : "/api/accounting/journals?limit=100"
+
       const [accountsRes, journalsRes, settingsRes, subsidiariesRes] = await Promise.all([
         fetch("/api/accounting/accounts", { credentials: "include" }),
-        fetch("/api/accounting/journals?limit=100", { credentials: "include" }),
+        fetch(journalsUrl, { credentials: "include" }),
         fetch("/api/accounting/settings", { credentials: "include" }),
         fetch("/api/accounting/subsidiaries", { credentials: "include" }),
       ])
@@ -1767,7 +1971,7 @@ const AccountingContent: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [selectedSubsidiaries.length])
+  }, [selectedSubsidiaries])
 
   const saveSettings = useCallback(async (newSettings: AccountingSettings) => {
     const response = await fetch("/api/accounting/settings", {
@@ -1879,6 +2083,20 @@ const AccountingContent: React.FC = () => {
           entries={journalEntries}
           loading={loading}
           onRefresh={handleRefresh}
+        />
+      ),
+    },
+    {
+      key: "transactions",
+      label: (
+        <span>
+          <BankOutlined style={{ marginRight: 8 }} />
+          Bank Transactions
+        </span>
+      ),
+      children: (
+        <BankTransactionsTab
+          subsidiaryId={selectedSubsidiaries[0] || "erl"}
         />
       ),
     },

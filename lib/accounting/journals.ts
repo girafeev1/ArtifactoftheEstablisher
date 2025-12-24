@@ -97,14 +97,21 @@ export async function createJournalEntry(input: JournalEntryInput): Promise<Jour
 
   const journalsCol = getJournalsCollection()
 
-  const journalData = {
+  const journalData: Record<string, any> = {
     postingDate: toTimestamp(input.postingDate),
-    description: input.description,
     status: 'posted' as JournalStatus,
     source: input.source,
     lines: input.lines,
     createdAt: serverTimestamp(),
     createdBy: input.createdBy,
+  }
+
+  // Add optional fields only if they have values
+  if (input.description) {
+    journalData.description = input.description
+  }
+  if (input.subsidiaryId) {
+    journalData.subsidiaryId = input.subsidiaryId
   }
 
   const docRef = await addDoc(journalsCol, journalData)
@@ -136,6 +143,7 @@ export async function listJournalEntries(options?: {
   sourceType?: JournalSource['type']
   sourcePath?: string
   status?: JournalStatus
+  subsidiaryId?: string
   limitCount?: number
 }): Promise<JournalEntry[]> {
   const journalsCol = getJournalsCollection()
@@ -151,6 +159,10 @@ export async function listJournalEntries(options?: {
 
   if (options?.status) {
     constraints.push(where('status', '==', options.status))
+  }
+
+  if (options?.subsidiaryId && options.subsidiaryId !== 'all') {
+    constraints.push(where('subsidiaryId', '==', options.subsidiaryId))
   }
 
   constraints.push(orderBy('postingDate', 'desc'))

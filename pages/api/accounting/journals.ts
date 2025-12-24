@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     if (req.method === 'GET') {
-      const { id, startDate, endDate, sourceType, status, limit } = req.query
+      const { id, startDate, endDate, sourceType, status, subsidiaryId, limit } = req.query
 
       if (id && typeof id === 'string') {
         const entry = await getJournalEntry(id)
@@ -36,6 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         endDate: endDate ? new Date(endDate as string) : undefined,
         sourceType: sourceType as any,
         status: status as any,
+        subsidiaryId: subsidiaryId as string | undefined,
         limitCount: limit ? parseInt(limit as string, 10) : undefined,
       })
 
@@ -45,17 +46,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'POST') {
       const body = req.body
 
-      if (!body.postingDate || !body.description || !body.lines || !Array.isArray(body.lines)) {
+      if (!body.postingDate || !body.lines || !Array.isArray(body.lines)) {
         return res.status(400).json({
-          error: 'postingDate, description, and lines array are required',
+          error: 'postingDate and lines array are required',
         })
       }
 
       const input: JournalEntryInput = {
         postingDate: new Date(body.postingDate),
-        description: body.description,
+        description: body.description, // Optional - can be generated from source metadata
         source: body.source ?? { type: 'manual' },
         lines: body.lines,
+        subsidiaryId: body.subsidiaryId,
         createdBy: identity,
       }
 

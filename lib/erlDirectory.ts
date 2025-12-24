@@ -166,6 +166,64 @@ export function buildBankLabel(b: BankInfo): string {
   return b.bankCode
 }
 
+/**
+ * List all bank accounts from the directory database.
+ * Returns an array of bank account identifiers with their display info.
+ */
+export async function listAllBankAccounts(): Promise<
+  Array<{
+    id: string
+    bankName: string
+    bankCode: string
+    accountType: string | null
+    displayName: string
+  }>
+> {
+  try {
+    const snap = await getDocs(collection(dbDirectory, 'bankAccount'))
+    const accounts: Array<{
+      id: string
+      bankName: string
+      bankCode: string
+      accountType: string | null
+      displayName: string
+    }> = []
+
+    for (const d of snap.docs) {
+      const data = d.data() as any
+      const bankName = data.bankName || ''
+      const bankCode = String(data.bankCode || '').replace(/[^0-9]/g, '').padStart(3, '0')
+      const accountType = data.accountType || null
+
+      // Build display name: BankName (AccountType) or just BankName
+      let displayName = bankName
+      if (accountType) {
+        displayName = `${bankName} (${accountType})`
+      }
+
+      accounts.push({
+        id: d.id,
+        bankName,
+        bankCode,
+        accountType,
+        displayName,
+      })
+    }
+
+    // Sort by bank name, then account type
+    return accounts.sort((a, b) => {
+      const nameCompare = a.bankName.localeCompare(b.bankName)
+      if (nameCompare !== 0) return nameCompare
+      return (a.accountType || '').localeCompare(b.accountType || '')
+    })
+  } catch (e) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('listAllBankAccounts failed', e)
+    }
+    return []
+  }
+}
+
 export function maskAccountNumber(num?: string): string | undefined {
   if (!num) return undefined
   const digits = String(num).replace(/[^0-9]/g, '')

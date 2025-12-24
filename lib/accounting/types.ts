@@ -48,6 +48,11 @@ export interface JournalSource {
   type: JournalSourceType
   path?: string // Firestore path to source document (e.g., invoice)
   event?: JournalSourceEvent
+  // Structured fields for dynamic description generation
+  invoiceNumber?: string // e.g., "2025-016-0924"
+  companyName?: string // e.g., "Ksana Productions Limited"
+  projectId?: string // For linking back to project
+  transactionId?: string // For PAID entries, links to the bank transaction
 }
 
 export interface JournalLine {
@@ -60,20 +65,98 @@ export interface JournalLine {
 export interface JournalEntry {
   id?: string // Document ID (set after creation)
   postingDate: Timestamp
-  description: string
+  description?: string // Optional - generated from source metadata at display time
   status: JournalStatus
   source: JournalSource
   lines: JournalLine[]
+  subsidiaryId?: string // Which subsidiary this entry belongs to (e.g., "erl")
   createdAt: Timestamp
   createdBy: string
 }
 
 export interface JournalEntryInput {
   postingDate: Date
-  description: string
+  description?: string // Optional - can be generated from source metadata
   source: JournalSource
   lines: JournalLine[]
+  subsidiaryId?: string
   createdBy: string
+}
+
+// ============================================================================
+// Bank Transaction Types (Evidence-Based Payments)
+// ============================================================================
+
+export type PaymentMethod = 'bank_transfer' | 'check' | 'cash' | 'credit_card' | 'other'
+
+export type TransactionStatus = 'unmatched' | 'matched' | 'partial'
+
+export type TransactionSource = 'manual' | 'csv_import'
+
+export interface MatchedInvoice {
+  invoiceNumber: string
+  projectId: string
+  year: string
+  amount: number // Amount applied to this invoice
+}
+
+export interface ImportBatch {
+  filename: string
+  importedAt: Timestamp
+  importedBy: string
+}
+
+export interface BankTransaction {
+  id?: string
+
+  // Transaction details
+  transactionDate: Timestamp
+  amount: number
+  isDebit: boolean // true = outgoing (debit), false = incoming (credit)
+  currency: string // "HKD", "USD", etc.
+
+  // Bank details
+  bankAccountId: string // Which account received it (e.g., "ERL-DBS-S")
+  paymentMethod: PaymentMethod
+  referenceNumber?: string // Bank reference, check #, transaction ID
+
+  // Payer info
+  payerName: string
+  payerReference?: string // Customer's reference if any
+
+  // Matching
+  status: TransactionStatus
+  matchedInvoices?: MatchedInvoice[]
+
+  // Source tracking
+  source: TransactionSource
+  importBatch?: ImportBatch
+
+  // Audit fields
+  subsidiaryId: string
+  memo?: string
+  supportingDocument?: string // File path/URL to uploaded proof
+  createdAt: Timestamp
+  createdBy: string
+  updatedAt?: Timestamp
+  updatedBy?: string
+}
+
+export interface BankTransactionInput {
+  transactionDate: Date
+  amount: number
+  isDebit?: boolean // true = outgoing (debit), false = incoming (credit)
+  currency: string
+  bankAccountId: string
+  paymentMethod: PaymentMethod
+  referenceNumber?: string
+  payerName: string
+  payerReference?: string
+  subsidiaryId: string
+  memo?: string
+  supportingDocument?: string
+  source: TransactionSource
+  importBatch?: Omit<ImportBatch, 'importedAt'> & { importedAt?: Date }
 }
 
 // ============================================================================
@@ -190,6 +273,7 @@ export const DEFAULT_SETTINGS: AccountingSettingsInput = {
 export const ACCOUNTING_COLLECTION = 'accounting'
 export const ACCOUNTS_SUBCOLLECTION = 'accounts'
 export const JOURNALS_SUBCOLLECTION = 'journals'
+export const TRANSACTIONS_SUBCOLLECTION = 'transactions'
 export const SETTINGS_DOC_ID = 'settings'
 export const SETTINGS_MAIN_DOC_ID = 'main'
 

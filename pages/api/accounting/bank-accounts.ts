@@ -7,7 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth'
 import { getAuthOptions } from '../auth/[...nextauth]'
-import { resolveBankAccountIdentifier } from '../../../lib/erlDirectory'
+import { resolveBankAccountIdentifier, listAllBankAccounts } from '../../../lib/erlDirectory'
 import { fetchSubsidiaries } from '../../../lib/subsidiaries'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -23,10 +23,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const { ids } = req.query
+
+    // If no specific IDs requested, return all bank accounts from directory
     if (!ids || typeof ids !== 'string') {
-      return res.status(400).json({ error: 'ids query parameter required' })
+      const allAccounts = await listAllBankAccounts()
+      const bankAccounts: Record<string, {
+        bankName: string
+        accountType: string | null
+        displayName: string
+      }> = {}
+
+      for (const acc of allAccounts) {
+        bankAccounts[acc.id] = {
+          bankName: acc.bankName,
+          accountType: acc.accountType,
+          displayName: acc.displayName,
+        }
+      }
+
+      return res.status(200).json({ bankAccounts })
     }
 
+    // Specific IDs requested - resolve each one
     const identifiers = ids.split(',').map((id) => id.trim()).filter(Boolean)
     if (identifiers.length === 0) {
       return res.status(200).json({ bankAccounts: {} })

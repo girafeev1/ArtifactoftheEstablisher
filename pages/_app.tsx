@@ -15,6 +15,8 @@ const fascinate = Fascinate({ subsets: ['latin'], weight: '400' });
 import '../styles/antd-reset.css';
 import '../styles/studentDialog.css';
 import '../styles/project-dialog.css';
+import '../styles/accounting.css';
+import 'react-resizable/css/styles.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../lib/theme';
