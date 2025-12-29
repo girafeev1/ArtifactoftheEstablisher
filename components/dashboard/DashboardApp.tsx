@@ -13,8 +13,6 @@ import {
   Col,
   Card,
   Typography,
-  Space,
-  Statistic,
 } from "antd"
 import {
   TeamOutlined,
@@ -34,7 +32,6 @@ interface DashboardCard {
   icon: React.ReactNode
   href: string
   color: string
-  stats?: { label: string; value: string | number }[]
 }
 
 const dashboardCards: DashboardCard[] = [
@@ -45,9 +42,6 @@ const dashboardCards: DashboardCard[] = [
     icon: <TeamOutlined style={{ fontSize: 48 }} />,
     href: "/client-accounts",
     color: "#1890ff",
-    stats: [
-      { label: "Active Clients", value: "—" },
-    ],
   },
   {
     key: "projects",
@@ -56,9 +50,6 @@ const dashboardCards: DashboardCard[] = [
     icon: <ProjectOutlined style={{ fontSize: 48 }} />,
     href: "/projects",
     color: "#52c41a",
-    stats: [
-      { label: "Active Projects", value: "—" },
-    ],
   },
   {
     key: "finance",
@@ -67,9 +58,6 @@ const dashboardCards: DashboardCard[] = [
     icon: <BankOutlined style={{ fontSize: 48 }} />,
     href: "/finance",
     color: "#722ed1",
-    stats: [
-      { label: "Pending Invoices", value: "—" },
-    ],
   },
   {
     key: "coaching-sessions",
@@ -78,9 +66,6 @@ const dashboardCards: DashboardCard[] = [
     icon: <ReadOutlined style={{ fontSize: 48 }} />,
     href: "/coaching-sessions",
     color: "#fa8c16",
-    stats: [
-      { label: "Active Students", value: "—" },
-    ],
   },
   {
     key: "tools",
@@ -179,21 +164,6 @@ export default function DashboardApp() {
                 >
                   {card.description}
                 </Paragraph>
-
-                {card.stats && (
-                  <div style={{ marginBottom: 16 }}>
-                    <Space size={24}>
-                      {card.stats.map((stat, idx) => (
-                        <Statistic
-                          key={idx}
-                          title={stat.label}
-                          value={stat.value}
-                          valueStyle={{ fontSize: 20, fontWeight: 600 }}
-                        />
-                      ))}
-                    </Space>
-                  </div>
-                )}
 
                 <div
                   style={{

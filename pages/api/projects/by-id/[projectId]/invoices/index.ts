@@ -16,6 +16,10 @@ import {
   handleInvoiceUpdated,
   handleInvoiceDeleted,
 } from "../../../../../../lib/accounting/invoiceHook"
+import {
+  getInvoicePaymentInfo,
+  getInvoiceAmountPaidFromTransactions,
+} from "../../../../../../lib/accounting/transactions"
 import { getAuthOptions } from "../../../../auth/[...nextauth]"
 
 const toStringValue = (value: unknown): string | null => {
@@ -102,13 +106,73 @@ const normalizeItemsPayload = (value: unknown): InvoiceItemPayload[] => {
     .filter((item): item is InvoiceItemPayload => Boolean(item))
 }
 
+/**
+ * Enrich invoices with payment data derived from transactions.
+ * Payment status is determined by:
+ * - Stored status (Draft, Due) from invoice
+ * - Derived status (Cleared, Partial) from transaction amounts
+ */
+const enrichInvoicesWithPaymentData = async (
+  invoices: ProjectInvoiceRecord[],
+  year: string,
+  projectId: string,
+): Promise<ProjectInvoiceRecord[]> => {
+  const enriched: ProjectInvoiceRecord[] = []
+
+  for (const invoice of invoices) {
+    // Get payment info from transactions
+    const paymentInfo = await getInvoicePaymentInfo(
+      invoice.invoiceNumber,
+      projectId,
+      year,
+    )
+
+    if (paymentInfo && paymentInfo.amountPaid > 0) {
+      const total = invoice.total ?? 0
+      const isFullyPaid = Math.abs(paymentInfo.amountPaid - total) < 0.01
+
+      // Derive payment status from transactions
+      let derivedStatus = invoice.paymentStatus
+      if (isFullyPaid) {
+        derivedStatus = 'Cleared'
+      } else if (paymentInfo.amountPaid > 0) {
+        // Partial payment - keep as Due but include amountPaid
+        derivedStatus = 'Due' // UI will show as "Partial" based on amountPaid
+      }
+
+      enriched.push({
+        ...invoice,
+        paymentStatus: derivedStatus,
+        amountPaid: paymentInfo.amountPaid,
+        paidOnIso: paymentInfo.paidOn.toISOString(),
+        paidOnDisplay: paymentInfo.paidOn.toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }),
+        paidTo: paymentInfo.paidTo,
+        paid: isFullyPaid,
+      })
+    } else {
+      // No payment from transactions - use stored values
+      enriched.push({
+        ...invoice,
+        amountPaid: 0,
+      })
+    }
+  }
+
+  return enriched
+}
+
 const respondWithInvoices = async (
   res: NextApiResponse,
   project: ProjectRecord,
   status: number,
 ) => {
   const invoices = await fetchInvoicesForProject(project.year, project.id)
-  return res.status(status).json({ invoices })
+  const enrichedInvoices = await enrichInvoicesWithPaymentData(invoices, project.year, project.id)
+  return res.status(status).json({ invoices: enrichedInvoices })
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -154,8 +218,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const items = normalizeItemsPayload(body.items)
       const taxOrDiscountPercent = toNumberValue(body.taxOrDiscountPercent)
       const paymentStatus = toStringValue(body.paymentStatus)
-      const paidTo = toStringValue(body.paidTo)
-      const paidOn = toStringValue(body.paidOn) ?? (body.paidOn ?? null)
+      // Note: paidTo and paidOn are now derived from transactions, not stored on invoice
 
       const created = await createInvoiceForProject({
         year: project.year,
@@ -165,8 +228,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         items,
         taxOrDiscountPercent,
         paymentStatus,
-        paidTo,
-        paidOn,
         editedBy: identity,
       })
 
@@ -220,8 +281,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const items = normalizeItemsPayload(body.items)
       const taxOrDiscountPercent = toNumberValue(body.taxOrDiscountPercent)
       const paymentStatus = toStringValue(body.paymentStatus)
-      const paidTo = toStringValue(body.paidTo)
-      const paidOn = toStringValue(body.paidOn) ?? (body.paidOn ?? null)
+      // Note: paidTo and paidOn are now derived from transactions, not stored on invoice
+
+      // Block manual Cleared status - must be set via transaction matching
+      if (paymentStatus?.toLowerCase() === 'cleared') {
+        // Check if invoice has payments from transactions
+        const amountPaid = existingInvoice
+          ? await getInvoiceAmountPaidFromTransactions(
+              existingInvoice.invoiceNumber,
+              project.id,
+              project.year
+            )
+          : 0
+        if (amountPaid <= 0) {
+          return res.status(400).json({
+            error: 'Cannot manually set status to Cleared. Match to a bank transaction instead.',
+          })
+        }
+      }
 
       const updated = await updateInvoiceForProject({
         year: project.year,
@@ -234,8 +311,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         items,
         taxOrDiscountPercent,
         paymentStatus,
-        paidTo,
-        paidOn,
         editedBy: identity,
       })
 

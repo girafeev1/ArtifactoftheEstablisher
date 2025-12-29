@@ -3,9 +3,12 @@
  *
  * Uses Firebase Admin SDK for server-side scripts.
  * This module mirrors the client-side operations but uses the Admin SDK.
+ *
+ * Note: Journal entries are now DERIVED from invoices and transactions on-the-fly.
+ * No journal entries are stored in Firestore.
  */
 
-import { Firestore, Timestamp, FieldValue } from '@google-cloud/firestore'
+import { Firestore, FieldValue } from '@google-cloud/firestore'
 import type {
   Account,
   AccountInput,
@@ -13,21 +16,15 @@ import type {
   NormalBalance,
   AccountingSettings,
   AccountingSettingsInput,
-  JournalEntry,
-  JournalEntryInput,
-  JournalLine,
-  JournalStatus,
 } from './types'
 import {
   ACCOUNTING_COLLECTION,
   ACCOUNTS_SUBCOLLECTION,
-  JOURNALS_SUBCOLLECTION,
   SETTINGS_DOC_ID,
   SETTINGS_MAIN_DOC_ID,
   SEED_ACCOUNTS,
   DEFAULT_SETTINGS,
 } from './types'
-
 // ============================================================================
 // Admin Firestore Client
 // ============================================================================
@@ -37,6 +34,7 @@ let _db: Firestore | null = null
 function getAdminDb(): Firestore {
   if (_db) return _db
 
+  // Read credentials from environment variables
   const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
   const privateKeyRaw = process.env.FIREBASE_ADMIN_PRIVATE_KEY
@@ -73,11 +71,8 @@ function getNormalBalance(type: AccountType): NormalBalance {
 }
 
 function getAccountsCollection() {
-  return getAdminDb().collection(ACCOUNTING_COLLECTION).doc(SETTINGS_DOC_ID).collection(ACCOUNTS_SUBCOLLECTION)
-}
-
-function getJournalsCollection() {
-  return getAdminDb().collection(ACCOUNTING_COLLECTION).doc(JOURNALS_SUBCOLLECTION).collection('entries')
+  // Path: accounting/accounts/entries/{accountCode}
+  return getAdminDb().collection(ACCOUNTING_COLLECTION).doc(ACCOUNTS_SUBCOLLECTION).collection('entries')
 }
 
 function getSettingsDocRef() {
@@ -195,170 +190,4 @@ export async function initializeAccounting(): Promise<{
   const settings = await initializeSettings()
   const accounts = await seedAccounts()
   return { settings, accounts }
-}
-
-// ============================================================================
-// Journal Operations
-// ============================================================================
-
-function validateJournalBalance(lines: JournalLine[]): {
-  isBalanced: boolean
-  totalDebits: number
-  totalCredits: number
-} {
-  const totalDebits = lines.reduce((sum, line) => sum + (line.debit || 0), 0)
-  const totalCredits = lines.reduce((sum, line) => sum + (line.credit || 0), 0)
-  const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01
-  return { isBalanced, totalDebits, totalCredits }
-}
-
-export async function createJournalEntry(input: JournalEntryInput): Promise<JournalEntry> {
-  const balance = validateJournalBalance(input.lines)
-  if (!balance.isBalanced) {
-    throw new Error(
-      `Journal entry is not balanced. Debits: ${balance.totalDebits}, Credits: ${balance.totalCredits}`
-    )
-  }
-
-  const journalData = {
-    postingDate: Timestamp.fromDate(input.postingDate),
-    description: input.description,
-    status: 'posted' as JournalStatus,
-    source: input.source,
-    lines: input.lines,
-    createdAt: FieldValue.serverTimestamp(),
-    createdBy: input.createdBy,
-  }
-
-  const docRef = await getJournalsCollection().add(journalData)
-  const created = await docRef.get()
-  return { ...created.data(), id: created.id } as JournalEntry
-}
-
-export async function listJournalEntries(options?: {
-  startDate?: Date
-  endDate?: Date
-  status?: JournalStatus
-}): Promise<JournalEntry[]> {
-  let query = getJournalsCollection().orderBy('postingDate', 'desc')
-
-  if (options?.startDate) {
-    query = query.where('postingDate', '>=', Timestamp.fromDate(options.startDate))
-  }
-  if (options?.endDate) {
-    query = query.where('postingDate', '<=', Timestamp.fromDate(options.endDate))
-  }
-  if (options?.status) {
-    query = query.where('status', '==', options.status)
-  }
-
-  const snapshot = await query.get()
-  return snapshot.docs.map((d) => ({ ...d.data(), id: d.id } as JournalEntry))
-}
-
-export async function hasJournalEntryForEvent(
-  sourcePath: string,
-  event: string
-): Promise<boolean> {
-  const entries = await listJournalEntries()
-  return entries.some(
-    (e) => e.source.path === sourcePath && e.source.event === event && e.status === 'posted'
-  )
-}
-
-// ============================================================================
-// Migration Helper
-// ============================================================================
-
-import { ACCOUNT_CODES, BANK_ACCOUNT_TO_GL } from './types'
-
-export interface InvoiceForMigration {
-  path: string
-  invoiceNumber: string
-  companyName: string
-  amount: number
-  onDate: Date
-  paidOn?: Date
-  paidTo?: string
-  paymentStatus: string
-}
-
-export async function migrateInvoiceToGL(
-  invoice: InvoiceForMigration,
-  migratedBy: string
-): Promise<{
-  issuedEntry?: { created: boolean; journalId?: string; skipped?: string }
-  paidEntry?: { created: boolean; journalId?: string; skipped?: string }
-}> {
-  const results: {
-    issuedEntry?: { created: boolean; journalId?: string; skipped?: string }
-    paidEntry?: { created: boolean; journalId?: string; skipped?: string }
-  } = {}
-
-  const status = invoice.paymentStatus.toLowerCase().trim()
-  const isCleared = ['cleared', 'paid', 'received', 'complete'].includes(status)
-  const isDue = ['due', 'issued', 'pending', 'unpaid'].includes(status)
-
-  if (!isCleared && !isDue) {
-    return results // Skip drafts
-  }
-
-  // Create ISSUED entry
-  const issuedExists = await hasJournalEntryForEvent(invoice.path, 'ISSUED')
-  if (issuedExists) {
-    results.issuedEntry = { created: false, skipped: 'ISSUED entry already exists' }
-  } else {
-    const issuedEntry = await createJournalEntry({
-      postingDate: invoice.onDate,
-      description: `Invoice ${invoice.invoiceNumber} issued to ${invoice.companyName}`,
-      source: {
-        type: 'migration',
-        path: invoice.path,
-        event: 'ISSUED',
-      },
-      lines: [
-        { accountCode: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE, debit: invoice.amount, credit: 0, memo: `AR - ${invoice.companyName}` },
-        { accountCode: ACCOUNT_CODES.SERVICE_REVENUE, debit: 0, credit: invoice.amount, memo: `Revenue - ${invoice.invoiceNumber}` },
-      ],
-      createdBy: migratedBy,
-    })
-    results.issuedEntry = { created: true, journalId: issuedEntry.id }
-  }
-
-  // Create PAID entry for cleared invoices
-  if (isCleared) {
-    if (!invoice.paidOn || !invoice.paidTo) {
-      results.paidEntry = { created: false, skipped: 'Missing paidOn or paidTo' }
-      return results
-    }
-
-    const bankCode = BANK_ACCOUNT_TO_GL[invoice.paidTo]
-    if (!bankCode) {
-      results.paidEntry = { created: false, skipped: `Unknown bank account: ${invoice.paidTo}` }
-      return results
-    }
-
-    const paidExists = await hasJournalEntryForEvent(invoice.path, 'PAID')
-    if (paidExists) {
-      results.paidEntry = { created: false, skipped: 'PAID entry already exists' }
-    } else {
-      const paidEntry = await createJournalEntry({
-        postingDate: invoice.paidOn,
-        description: `Payment received for Invoice ${invoice.invoiceNumber} from ${invoice.companyName}`,
-        source: {
-          type: 'migration',
-          path: invoice.path,
-          event: 'PAID',
-        },
-        lines: [
-          { accountCode: bankCode, debit: invoice.amount, credit: 0, memo: `Payment received` },
-          { accountCode: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE, debit: 0, credit: invoice.amount, memo: `AR cleared` },
-        ],
-        createdBy: migratedBy,
-      })
-      results.paidEntry = { created: true, journalId: paidEntry.id }
-    }
-  }
-
-  return results
 }

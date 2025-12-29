@@ -60,9 +60,11 @@ export function getNormalBalance(type: AccountType): NormalBalance {
 
 /**
  * Get the Firestore collection reference for accounts.
+ * Path: accounting/accounts/entries/{accountCode}
+ * (Same level as journals: accounting/journals/entries/{id})
  */
 function getAccountsCollection() {
-  return collection(projectsDb, ACCOUNTING_COLLECTION, SETTINGS_DOC_ID, ACCOUNTS_SUBCOLLECTION)
+  return collection(projectsDb, ACCOUNTING_COLLECTION, ACCOUNTS_SUBCOLLECTION, 'entries')
 }
 
 /**

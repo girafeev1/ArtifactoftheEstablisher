@@ -48,8 +48,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'POST') {
-      // Handle match/unmatch operations
-      const { action, invoices } = req.body
+      // Handle match/unmatch/assign-account operations
+      const { action, invoices, accountCode } = req.body
 
       if (action === 'match') {
         if (!invoices || !Array.isArray(invoices)) {
@@ -69,7 +69,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ transaction })
       }
 
-      return res.status(400).json({ error: 'Invalid action. Use "match" or "unmatch"' })
+      if (action === 'assign-account') {
+        if (!accountCode || typeof accountCode !== 'string') {
+          return res.status(400).json({ error: 'accountCode is required for account assignment' })
+        }
+
+        // Update transaction with account code and set status to 'categorized'
+        const transaction = await updateTransaction(
+          id,
+          { accountCode, status: 'categorized' },
+          session.user.email || 'unknown'
+        )
+        return res.status(200).json({ transaction })
+      }
+
+      return res.status(400).json({ error: 'Invalid action. Use "match", "unmatch", or "assign-account"' })
     }
 
     res.setHeader('Allow', 'GET, PATCH, DELETE, POST')

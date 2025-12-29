@@ -29,6 +29,7 @@ import {
   Modal,
   Form,
   Input,
+  Checkbox,
 } from "antd"
 import { Resizable, ResizeCallbackData } from "react-resizable"
 import {
@@ -45,6 +46,7 @@ import {
   SettingOutlined,
   PlusOutlined,
   FilterOutlined,
+  SyncOutlined,
 } from "@ant-design/icons"
 import type { ColumnsType } from "antd/es/table"
 import type { DataProvider, BaseRecord, GetListResponse } from "@refinedev/core"
@@ -91,6 +93,10 @@ interface JournalEntry {
     invoiceNumber?: string
     companyName?: string
     projectId?: string
+    presenter?: string
+    workType?: string
+    projectTitle?: string
+    projectNature?: string
   }
   lines: JournalLine[]
   subsidiaryId?: string
@@ -289,12 +295,31 @@ const getAccountTypeColor = (type: string) => {
   }
 }
 
+// Helper to extract year and projectId from invoice path
+// Format: projects/{year}/projects/{projectId}/invoice/{invoiceNumber}
+const parseInvoicePath = (path?: string): { year?: string; projectId?: string } => {
+  if (!path) return {}
+  const match = path.match(/projects\/(\d{4})\/projects\/([^/]+)\/invoice/)
+  if (match) {
+    return { year: match[1], projectId: match[2] }
+  }
+  return {}
+}
+
 // Format journal entry description with styled segments
-const formatDescription = (description: string, event?: string): React.ReactNode => {
+const formatDescription = (
+  description: string,
+  event?: string,
+  source?: { path?: string; projectId?: string; invoiceNumber?: string; presenter?: string; workType?: string; projectTitle?: string; projectNature?: string; companyName?: string }
+): React.ReactNode => {
   if (!description) return "-"
 
   const parts: React.ReactNode[] = []
   let key = 0
+
+  // Extract year and projectId from source for creating links
+  const { year, projectId } = parseInvoicePath(source?.path)
+  const sourceProjectId = source?.projectId || projectId
 
   // Tokenize the description to handle styling
   // Invoice number patterns (various formats)
@@ -326,8 +351,8 @@ const formatDescription = (description: string, event?: string): React.ReactNode
   // Helper to style text between currentIndex and targetIndex
   const processText = (text: string) => {
     // Check for action keywords
-    // Style "Payment received" in green
-    const paidMatch = text.match(/^(Payment received)/i)
+    // Style "Payment received" or "Received Payment" in green
+    const paidMatch = text.match(/^(Payment received|Received Payment)/i)
     if (paidMatch && isPaid) {
       parts.push(
         <span key={key++} style={{ color: "#52c41a" }}>
@@ -368,33 +393,101 @@ const formatDescription = (description: string, event?: string): React.ReactNode
 
   // Build styled output
   invoiceMatches.forEach((inv, i) => {
-    // Check if there's a # immediately before the invoice number
-    const hasHashBefore = inv.index > 0 && description.charAt(inv.index - 1) === "#"
+    // Check how many # characters are immediately before the invoice number
+    // This handles cases where source.invoiceNumber might already contain a #
+    let hashCount = 0
+    let checkIndex = inv.index - 1
+    while (checkIndex >= currentIndex && description.charAt(checkIndex) === "#") {
+      hashCount++
+      checkIndex--
+    }
 
-    // Text before this invoice number (exclude the # if present, as it will be part of the invoice display)
-    const beforeEndIndex = hasHashBefore ? inv.index - 1 : inv.index
+    // Text before this invoice number (exclude all # if present)
+    const beforeEndIndex = inv.index - hashCount
     const beforeText = description.slice(currentIndex, beforeEndIndex)
 
     // Check if beforeText contains client name
     if (clientName && beforeText.includes(clientName)) {
       const clientIdx = beforeText.indexOf(clientName)
       processText(beforeText.slice(0, clientIdx))
-      parts.push(
-        <span key={key++} style={{ color: clientColor }}>
-          {clientName}
-        </span>
-      )
+      // Make client name clickable if we have project info
+      if (year && sourceProjectId) {
+        parts.push(
+          <Tooltip key={key++} title="View project details">
+            <a
+              href={`/projects/${sourceProjectId}?year=${year}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="journal-client-link"
+              style={{ color: clientColor }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {clientName}
+            </a>
+          </Tooltip>
+        )
+      } else {
+        parts.push(
+          <span key={key++} style={{ color: clientColor }}>
+            {clientName}
+          </span>
+        )
+      }
       processText(beforeText.slice(clientIdx + clientName.length))
     } else {
       processText(beforeText)
     }
 
-    // Style invoice number: bold with # prefix (always include #)
-    parts.push(
-      <span key={key++} style={{ fontWeight: "bold" }}>
-        #{inv.match}
-      </span>
-    )
+    // Extract year from invoice number if not available from source
+    // Invoice format: YYYY-XXX-XXXX
+    const invoiceYear = year || inv.match.split("-")[0]
+
+    // Create clickable link if we have year and projectId (opens in new tab)
+    if (invoiceYear && sourceProjectId) {
+      // Build tooltip content with project details
+      const presenterWorkType = source?.presenter || source?.workType
+      const projectTitle = source?.projectTitle
+      const projectNature = source?.projectNature
+
+      // Tooltip shows project details with click hint
+      const hasProjectDetails = presenterWorkType || projectTitle || projectNature
+      const tooltipContent = (
+        <div style={{ fontSize: '12px' }}>
+          {presenterWorkType && <div>{presenterWorkType}</div>}
+          {projectTitle && <div style={{ fontWeight: 'bold' }}>{projectTitle}</div>}
+          {projectNature && <div style={{ fontStyle: 'italic' }}>{projectNature}</div>}
+          <div style={{ marginTop: hasProjectDetails ? 6 : 0, fontStyle: 'italic', color: 'rgba(255,255,255,0.65)', fontSize: '11px' }}>
+            Click to view invoice
+          </div>
+        </div>
+      )
+
+      const linkElement = (
+        <a
+          href={`/projects/${sourceProjectId}?year=${invoiceYear}&invoice=${inv.match}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="journal-invoice-link"
+          style={{ fontWeight: "bold", color: "#1890ff" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          #{inv.match}
+        </a>
+      )
+
+      parts.push(
+        <Tooltip key={key++} title={tooltipContent}>
+          {linkElement}
+        </Tooltip>
+      )
+    } else {
+      // Fallback to non-clickable bold text
+      parts.push(
+        <span key={key++} style={{ fontWeight: "bold" }}>
+          #{inv.match}
+        </span>
+      )
+    }
 
     currentIndex = inv.index + inv.match.length
   })
@@ -406,11 +499,29 @@ const formatDescription = (description: string, event?: string): React.ReactNode
     if (clientName && remainingText.includes(clientName)) {
       const clientIdx = remainingText.indexOf(clientName)
       processText(remainingText.slice(0, clientIdx))
-      parts.push(
-        <span key={key++} style={{ color: clientColor }}>
-          {clientName}
-        </span>
-      )
+      // Make client name clickable if we have project info
+      if (year && sourceProjectId) {
+        parts.push(
+          <Tooltip key={key++} title="View project details">
+            <a
+              href={`/projects/${sourceProjectId}?year=${year}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="journal-client-link"
+              style={{ color: clientColor }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {clientName}
+            </a>
+          </Tooltip>
+        )
+      } else {
+        parts.push(
+          <span key={key++} style={{ color: clientColor }}>
+            {clientName}
+          </span>
+        )
+      }
       const afterClient = remainingText.slice(clientIdx + clientName.length)
       if (afterClient) {
         processText(afterClient)
@@ -603,9 +714,9 @@ const ChartOfAccounts: React.FC<{
   loading: boolean
   onUpdateAccount: (code: string, updates: Partial<Account>) => Promise<void>
   onRefresh: () => void
-  bankAccountNames?: Record<string, string>
+  bankAccountInfo?: Record<string, { displayName: string; accountType: string | null }>
   editMode?: boolean
-}> = ({ accounts, loading, onUpdateAccount, onRefresh, bankAccountNames = {}, editMode = false }) => {
+}> = ({ accounts, loading, onUpdateAccount, onRefresh, bankAccountInfo = {}, editMode = false }) => {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Partial<Account>>({})
   const [saving, setSaving] = useState(false)
@@ -675,16 +786,15 @@ const ChartOfAccounts: React.FC<{
           )
         }
         // Use dynamic bank account name if available, otherwise fall back to stored name
-        const displayName = record.linkedBankAccount && bankAccountNames[record.linkedBankAccount]
-          ? bankAccountNames[record.linkedBankAccount]
-          : name
-        // Append linked bank tag if present (aligned right)
-        if (record.linkedBankAccount) {
+        const info = record.linkedBankAccount ? bankAccountInfo[record.linkedBankAccount] : null
+        const displayName = info?.displayName || name
+        // Append account type tag if linked to a bank account
+        if (record.linkedBankAccount && info) {
           return (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>{displayName}</span>
               <Tag icon={<BankOutlined />} style={{ marginLeft: 8, flexShrink: 0 }}>
-                {record.linkedBankAccount}
+                {info.accountType || "Account"}
               </Tag>
             </div>
           )
@@ -859,22 +969,66 @@ const getNextAvailableCode = (accounts: Account[], type: string): string => {
   return "" // No available codes
 }
 
+interface BankAccountOption {
+  id: string
+  displayName: string
+  accountType: string | null
+}
+
 const AddAccountModal: React.FC<{
   open: boolean
   onClose: () => void
   accounts: Account[]
-  onCreateAccount: (account: { code: string; name: string; type: string }) => Promise<void>
+  onCreateAccount: (account: { code: string; name: string; type: string; linkedBankAccount?: string }) => Promise<void>
   onRefresh: () => void
 }> = ({ open, onClose, accounts, onCreateAccount, onRefresh }) => {
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
   const [selectedType, setSelectedType] = useState<string | null>(null)
+  const [linkBankAccount, setLinkBankAccount] = useState(false)
+  const [bankAccountOptions, setBankAccountOptions] = useState<BankAccountOption[]>([])
+  const [loadingBankAccounts, setLoadingBankAccounts] = useState(false)
   const { message } = AntdApp.useApp()
+
+  // Fetch available bank accounts when linking is enabled
+  useEffect(() => {
+    if (linkBankAccount && bankAccountOptions.length === 0) {
+      setLoadingBankAccounts(true)
+      fetch('/api/accounting/bank-accounts', { credentials: 'include' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.bankAccounts) {
+            // Get already-linked bank account IDs
+            const linkedIds = new Set(
+              accounts
+                .filter((a) => a.linkedBankAccount)
+                .map((a) => a.linkedBankAccount)
+            )
+            // Filter out already-linked accounts
+            const options: BankAccountOption[] = Object.entries(data.bankAccounts)
+              .filter(([id]) => !linkedIds.has(id))
+              .map(([id, info]) => ({
+                id,
+                displayName: (info as any).displayName || id,
+                accountType: (info as any).accountType || null,
+              }))
+            setBankAccountOptions(options)
+          }
+        })
+        .catch((err) => {
+          console.error('[AddAccountModal] Failed to fetch bank accounts:', err)
+        })
+        .finally(() => {
+          setLoadingBankAccounts(false)
+        })
+    }
+  }, [linkBankAccount, bankAccountOptions.length, accounts])
 
   useEffect(() => {
     if (open) {
       form.resetFields()
       setSelectedType(null)
+      setLinkBankAccount(false)
     }
   }, [open, form])
 
@@ -888,7 +1042,11 @@ const AddAccountModal: React.FC<{
     try {
       const values = await form.validateFields()
       setSaving(true)
-      await onCreateAccount(values)
+      // Include linkedBankAccount if linking is enabled
+      const accountData = linkBankAccount && values.linkedBankAccount
+        ? { ...values, linkedBankAccount: values.linkedBankAccount }
+        : { code: values.code, name: values.name, type: values.type }
+      await onCreateAccount(accountData)
       message.success("Account created successfully")
       onClose()
       onRefresh()
@@ -898,6 +1056,14 @@ const AddAccountModal: React.FC<{
       }
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Update account name when bank account is selected
+  const handleBankAccountChange = (bankAccountId: string) => {
+    const selectedBank = bankAccountOptions.find((b) => b.id === bankAccountId)
+    if (selectedBank) {
+      form.setFieldsValue({ name: selectedBank.displayName })
     }
   }
 
@@ -971,6 +1137,50 @@ const AddAccountModal: React.FC<{
         >
           <Input placeholder="e.g., Bank - HSBC Savings" />
         </Form.Item>
+
+        <Divider style={{ margin: '16px 0' }} />
+
+        <Form.Item>
+          <Checkbox
+            checked={linkBankAccount}
+            onChange={(e) => setLinkBankAccount(e.target.checked)}
+          >
+            Link to existing bank account
+          </Checkbox>
+        </Form.Item>
+
+        {linkBankAccount && (
+          <Form.Item
+            name="linkedBankAccount"
+            label="Bank Account"
+            rules={[{ required: linkBankAccount, message: "Please select a bank account" }]}
+            extra="Selecting a bank account will auto-fill the account name"
+          >
+            <Select
+              placeholder="Select a bank account"
+              loading={loadingBankAccounts}
+              onChange={handleBankAccountChange}
+              options={bankAccountOptions.map((acc) => ({
+                value: acc.id,
+                label: (
+                  <Space>
+                    <span>{acc.displayName}</span>
+                    {acc.accountType && (
+                      <Tag size="small">{acc.accountType}</Tag>
+                    )}
+                  </Space>
+                ),
+              }))}
+              showSearch
+              filterOption={(input, option) =>
+                bankAccountOptions
+                  .find((acc) => acc.id === option?.value)
+                  ?.displayName.toLowerCase()
+                  .includes(input.toLowerCase()) ?? false
+              }
+            />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   )
@@ -984,7 +1194,8 @@ const JournalEntriesTable: React.FC<{
   entries: JournalEntry[]
   loading: boolean
   onRefresh: () => void
-}> = ({ entries, loading, onRefresh }) => {
+  subsidiaries?: SubsidiaryInfo[]
+}> = ({ entries, loading, onRefresh, subsidiaries = [] }) => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([])
   const tableRef = useRef<HTMLDivElement>(null)
 
@@ -996,25 +1207,39 @@ const JournalEntriesTable: React.FC<{
       width: 100,
       render: (date) => formatDate(date),
       sorter: (a, b) => {
-        const aTime = a.postingDate?._seconds || 0
-        const bTime = b.postingDate?._seconds || 0
-        return bTime - aTime
+        const getTime = (dateValue: any): number => {
+          if (!dateValue) return 0
+          if (typeof dateValue._seconds === "number") return dateValue._seconds * 1000
+          if (typeof dateValue.seconds === "number") return dateValue.seconds * 1000
+          if (dateValue instanceof Date) return dateValue.getTime()
+          if (typeof dateValue === "string") return new Date(dateValue).getTime() || 0
+          return 0
+        }
+        return getTime(a.postingDate) - getTime(b.postingDate)
       },
-      defaultSortOrder: "ascend",
+      defaultSortOrder: "descend",
     },
     {
       title: "Subsidiary",
       dataIndex: "subsidiaryId",
       key: "subsidiary",
-      width: 80,
+      width: 140,
       render: (subsidiaryId: string) => {
-        const abbr = subsidiaryId?.toUpperCase() || "-"
-        return <Tag>{abbr}</Tag>
+        const sub = subsidiaries.find((s) => s.id.toLowerCase() === subsidiaryId?.toLowerCase())
+        const displayName = sub?.name || subsidiaryId?.toUpperCase() || "-"
+        const abbr = sub?.abbr || subsidiaryId?.toUpperCase() || "-"
+        return (
+          <Tooltip title={sub?.abbr ? `${sub.abbr} - ${sub.name}` : undefined}>
+            <Tag>{displayName}</Tag>
+          </Tooltip>
+        )
       },
-      filters: [
-        { text: "ERL", value: "erl" },
-        { text: "EHL", value: "ehl" },
-      ],
+      filters: subsidiaries.length > 0
+        ? subsidiaries.map((s) => ({ text: s.name, value: s.id }))
+        : [
+            { text: "ERL", value: "erl" },
+            { text: "EHL", value: "ehl" },
+          ],
       onFilter: (value, record) =>
         record.subsidiaryId?.toLowerCase() === String(value).toLowerCase(),
     },
@@ -1026,7 +1251,7 @@ const JournalEntriesTable: React.FC<{
       render: (_, record: JournalEntry) => {
         // Generate description from structured metadata, fall back to stored description
         const desc = generateDescription(record as any) || record.description || "Journal Entry"
-        return formatDescription(desc, record.source?.event)
+        return formatDescription(desc, record.source?.event, record.source)
       },
     },
     {
@@ -1097,7 +1322,12 @@ const JournalEntriesTable: React.FC<{
         key: "debit",
         width: 130,
         align: "right",
-        render: (val: number) => (val > 0 ? formatCurrency(val) : "-"),
+        render: (val: number) =>
+          val > 0 ? (
+            <span style={{ color: "#cf1322" }}>{formatCurrency(val)}</span>
+          ) : (
+            "-"
+          ),
       },
       {
         title: "Credit",
@@ -1105,7 +1335,12 @@ const JournalEntriesTable: React.FC<{
         key: "credit",
         width: 130,
         align: "right",
-        render: (val: number) => (val > 0 ? formatCurrency(val) : "-"),
+        render: (val: number) =>
+          val > 0 ? (
+            <span style={{ color: "#389e0d" }}>{formatCurrency(val)}</span>
+          ) : (
+            "-"
+          ),
       },
     ]
 
@@ -1126,6 +1361,22 @@ const JournalEntriesTable: React.FC<{
 
   return (
     <div ref={tableRef} className="accounting-table">
+      <style>{`
+        .journal-invoice-link {
+          text-decoration: none;
+          transition: text-decoration 0.2s;
+        }
+        .journal-invoice-link:hover {
+          text-decoration: underline;
+        }
+        .journal-client-link {
+          cursor: pointer;
+          transition: text-decoration 0.2s;
+        }
+        .journal-client-link:hover {
+          text-decoration: underline;
+        }
+      `}</style>
       <Table
         dataSource={entries}
         columns={resizableColumns}
@@ -1136,7 +1387,13 @@ const JournalEntriesTable: React.FC<{
           expandedRowRender,
           expandedRowKeys,
           onExpandedRowsChange: (keys) => setExpandedRowKeys(keys as string[]),
+          expandRowByClick: true,
+          showExpandColumn: false,
         }}
+        onRow={(record) => ({
+          style: { cursor: "pointer" },
+          // Note: Removed native title to prevent conflict with cell-specific Tooltips
+        })}
         pagination={{ pageSize: 20, showSizeChanger: true }}
         scroll={{ x: 900 }}
         locale={{
@@ -1795,7 +2052,8 @@ const SettingsModal: React.FC<{
 }> = ({ open, onClose, settings, onSave }) => {
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
-  const { message } = AntdApp.useApp()
+  const [scanning, setScanning] = useState(false)
+  const { message, modal } = AntdApp.useApp()
 
   useEffect(() => {
     if (open && settings) {
@@ -1817,6 +2075,72 @@ const SettingsModal: React.FC<{
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleScanInvoices = async () => {
+    modal.confirm({
+      title: "Scan Invoices for Journal Entries",
+      content: (
+        <div>
+          <p>This will scan all existing invoices and generate journal entries for them.</p>
+          <p style={{ marginTop: 8, color: "#8c8c8c" }}>
+            • Entries that already exist will be skipped<br />
+            • Only invoices with valid data will be processed<br />
+            • This may take a few minutes for large datasets
+          </p>
+        </div>
+      ),
+      okText: "Start Scan",
+      cancelText: "Cancel",
+      onOk: async () => {
+        setScanning(true)
+        try {
+          const response = await fetch("/api/accounting/scan-invoices", {
+            method: "POST",
+            credentials: "include",
+          })
+          const data = await response.json()
+
+          if (data.error) {
+            throw new Error(data.error)
+          }
+
+          message.success(data.message || "Invoice scan completed successfully")
+
+          if (data.results) {
+            modal.info({
+              title: "Scan Results",
+              content: (
+                <div>
+                  <p><strong>Total invoices found:</strong> {data.results.total}</p>
+                  <p><strong>Processed:</strong> {data.results.processed}</p>
+                  <p><strong>ISSUED entries created:</strong> {data.results.issuedCreated}</p>
+                  <p><strong>PAID entries created:</strong> {data.results.paidCreated}</p>
+                  <p><strong>Skipped:</strong> {data.results.skipped}</p>
+                  {data.results.errors?.length > 0 && (
+                    <div style={{ marginTop: 8, color: "#cf1322" }}>
+                      <strong>Errors:</strong>
+                      <ul style={{ marginTop: 4, paddingLeft: 20 }}>
+                        {data.results.errors.slice(0, 5).map((err: string, i: number) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                        {data.results.errors.length > 5 && (
+                          <li>...and {data.results.errors.length - 5} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ),
+            })
+          }
+        } catch (err) {
+          message.error(err instanceof Error ? err.message : "Failed to scan invoices")
+        } finally {
+          setScanning(false)
+        }
+      },
+    })
   }
 
   return (
@@ -1875,6 +2199,24 @@ const SettingsModal: React.FC<{
           <Select options={MONTH_OPTIONS} />
         </Form.Item>
       </Form>
+
+      <Divider />
+
+      <div style={{ marginBottom: 16 }}>
+        <strong>Data Management</strong>
+      </div>
+
+      <Button
+        icon={<SyncOutlined spin={scanning} />}
+        onClick={handleScanInvoices}
+        loading={scanning}
+        block
+      >
+        {scanning ? "Scanning Invoices..." : "Scan Invoices for Journal Entries"}
+      </Button>
+      <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
+        Scan all existing invoices and generate journal entries for those that don't have entries yet.
+      </div>
     </Modal>
   )
 }
@@ -1899,8 +2241,8 @@ const AccountingContent: React.FC = () => {
   // Subsidiary filter - default to all (will be set after fetch)
   const [selectedSubsidiaries, setSelectedSubsidiaries] = useState<string[]>([])
   const [availableSubsidiaries, setAvailableSubsidiaries] = useState<SubsidiaryInfo[]>([])
-  // Bank account display names for COA (dynamically fetched)
-  const [bankAccountNames, setBankAccountNames] = useState<Record<string, string>>({})
+  // Bank account info for COA (dynamically fetched) - includes displayName and accountType
+  const [bankAccountInfo, setBankAccountInfo] = useState<Record<string, { displayName: string; accountType: string | null }>>({})
   // Chart of Accounts edit mode (show/hide action column)
   const [coaEditMode, setCoaEditMode] = useState(false)
 
@@ -1963,25 +2305,25 @@ const AccountingContent: React.FC = () => {
           )
           const bankJson = await bankRes.json()
           if (bankJson.bankAccounts) {
-            const names: Record<string, string> = {}
-            for (const [id, info] of Object.entries(bankJson.bankAccounts)) {
-              const bankInfo = info as { displayName: string }
-              names[id] = bankInfo.displayName
+            const info: Record<string, { displayName: string; accountType: string | null }> = {}
+            for (const [id, bankData] of Object.entries(bankJson.bankAccounts)) {
+              const bankInfo = bankData as { displayName: string; accountType: string | null }
+              info[id] = { displayName: bankInfo.displayName, accountType: bankInfo.accountType }
             }
-            setBankAccountNames(names)
+            setBankAccountInfo(info)
           }
         } catch (bankErr) {
-          console.warn("[AccountingApp] Failed to fetch bank account names:", bankErr)
+          console.warn("[AccountingApp] Failed to fetch bank account info:", bankErr)
         }
       }
       setJournalEntries(journalsJson.entries || [])
 
-      // Set subsidiaries - default to first one if available
+      // Set subsidiaries - default to "all"
       const subs = subsidiariesJson.subsidiaries || []
       setAvailableSubsidiaries(subs)
-      if (subs.length > 0 && selectedSubsidiaries.length === 0) {
-        // Default to first subsidiary (usually ERL)
-        setSelectedSubsidiaries([subs[0].id])
+      if (selectedSubsidiaries.length === 0) {
+        // Default to all subsidiaries
+        setSelectedSubsidiaries(["all"])
       }
 
       // Set settings and update basis from settings
@@ -2089,7 +2431,7 @@ const AccountingContent: React.FC = () => {
             loading={loading}
             onUpdateAccount={updateAccount}
             onRefresh={handleRefresh}
-            bankAccountNames={bankAccountNames}
+            bankAccountInfo={bankAccountInfo}
             editMode={coaEditMode}
           />
           <AddAccountModal
@@ -2115,6 +2457,7 @@ const AccountingContent: React.FC = () => {
           entries={journalEntries}
           loading={loading}
           onRefresh={handleRefresh}
+          subsidiaries={availableSubsidiaries}
         />
       ),
     },
@@ -2129,6 +2472,7 @@ const AccountingContent: React.FC = () => {
       children: (
         <BankTransactionsTab
           subsidiaryId={selectedSubsidiaries[0] || "erl"}
+          accounts={accounts}
         />
       ),
     },

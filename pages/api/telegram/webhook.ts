@@ -197,6 +197,7 @@ async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]>
           projectNumber: typeof d.projectNumber === 'string' ? d.projectNumber : doc.id,
           projectTitle: typeof d.projectTitle === 'string' ? d.projectTitle : null,
           subsidiary: typeof d.subsidiary === 'string' ? d.subsidiary : null,
+          workStatus: typeof d.workStatus === 'string' ? d.workStatus as any : 'active',
         })
       })
       out.sort((a, b) => a.projectNumber.localeCompare(b.projectNumber, undefined, { numeric: true }))
@@ -227,6 +228,7 @@ async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]>
         projectNumber: typeof d.projectNumber === 'string' ? d.projectNumber : doc.id,
         projectTitle: typeof d.projectTitle === 'string' ? d.projectTitle : null,
         subsidiary: typeof d.subsidiary === 'string' ? d.subsidiary : null,
+        workStatus: typeof d.workStatus === 'string' ? d.workStatus as any : 'active',
       })
     })
     out.sort((a, b) => a.projectNumber.localeCompare(b.projectNumber, undefined, { numeric: true }))
@@ -1370,7 +1372,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         representative: (edit.draft.repTitle ? `${edit.draft.repTitle} ` : '') + (edit.draft.representative ?? ''),
       }
       try {
-        const created = await createInvoiceForProject({ year, projectId, baseInvoiceNumber, client, items: [], taxOrDiscountPercent: null, paymentStatus: 'Due', paidTo: null, paidOn: null, editedBy: `tg:${userId}` })
+        const created = await createInvoiceForProject({ year, projectId, baseInvoiceNumber, client, items: [], taxOrDiscountPercent: null, paymentStatus: 'Due', editedBy: `tg:${userId}` })
         await clearPendingEdit(chatId, userId)
         // Show the newly created invoice details
         await clearInvoiceBubblesExcept(chatId, msgId)
@@ -1798,7 +1800,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         await updateInvoiceForProject({
           year, projectId, collectionId: 'invoice', invoiceNumber: invNum, baseInvoiceNumber: extractBaseFromInvoice(invNum), editedBy: `tg:${userId}`,
-          items, client, taxOrDiscountPercent: current.taxOrDiscountPercent ?? null, paymentStatus: current.paymentStatus ?? null, paidTo: current.paidTo ?? null, paidOn: current.paidOnIso ?? null, onDate: current.paidOnIso ?? null,
+          items, client, taxOrDiscountPercent: current.taxOrDiscountPercent ?? null, paymentStatus: current.paymentStatus ?? null, onDate: current.paidOnIso ?? null,
         })
         // Transform preview into controller
         const keepMsgId = edit.controllerMessageId
@@ -2010,8 +2012,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             client,
             taxOrDiscountPercent: current.taxOrDiscountPercent ?? null,
             paymentStatus: (current as any).paymentStatus || 'Due',
-            paidTo: (current as any).paidTo || null,
-            paidOn: current.paidOnIso || null,
             onDate: current.paidOnIso || null,
           })
           await clearInvoiceBubblesExcept(chatId, edit.controllerMessageId)

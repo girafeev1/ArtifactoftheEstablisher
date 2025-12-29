@@ -21,7 +21,27 @@ export function generateDescription(entry: JournalEntry): string {
     return entry.description || 'Journal Entry'
   }
 
-  // Generate description based on event type
+  // If source has invoiceNumber and companyName, use them directly
+  if (source.invoiceNumber && source.companyName) {
+    switch (source.event) {
+      case 'ISSUED':
+        return generateIssuedDescription(source)
+      case 'PAID':
+        return generatePaidDescription(source)
+      case 'ADJUSTMENT':
+        return generateAdjustmentDescription(source)
+      case 'VOID':
+        return generateVoidDescription(source)
+    }
+  }
+
+  // Fallback: Try to extract from the stored description
+  // This handles legacy entries created before source metadata was added
+  if (entry.description) {
+    return entry.description
+  }
+
+  // Last resort: use what we have in source with Unknown fallbacks
   switch (source.event) {
     case 'ISSUED':
       return generateIssuedDescription(source)

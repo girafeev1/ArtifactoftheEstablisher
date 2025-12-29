@@ -1,7 +1,10 @@
 // lib/config.ts
+// DEPRECATED: Use @/lib/config instead for centralized configuration
+// This file is kept for backwards compatibility
 
-export const serviceAccountCredentials = {
-  project_id: process.env.GOOGLE_PROJECT_ID || '',
-  client_email: process.env.GOOGLE_CLIENT_EMAIL || '',
-  private_key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-};
+import { googleConfig } from './config/integrations'
+
+/**
+ * @deprecated Use `import { googleConfig } from '@/lib/config'` instead
+ */
+export const serviceAccountCredentials = googleConfig.credentials

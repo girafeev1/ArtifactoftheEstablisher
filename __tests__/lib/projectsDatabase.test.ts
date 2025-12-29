@@ -43,6 +43,7 @@ describe('projectsDatabase payment helpers', () => {
       projectNumber: '2025-001',
       projectTitle: null,
       subsidiary: null,
+      workStatus: 'active',
     }
 
     expect(isProjectOverdue({ ...baseProject, paid: true })).toBe(false)

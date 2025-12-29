@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 
 import { updateProjectInDatabase } from '../../../../lib/projectsDatabase'
-import { softDeleteProject } from '../../../../lib/projectsAdmin'
+import { deleteProject } from '../../../../lib/projectsAdmin'
 import { handleInvoiceDeleted } from '../../../../lib/accounting/invoiceHook'
 import { getAuthOptions } from '../../auth/[...nextauth]'
 
@@ -47,11 +47,18 @@ export default async function handler(
 
   try {
     if (req.method === 'DELETE') {
-      // Soft delete project and all invoices (maintains GL audit trail)
-      const result = await softDeleteProject(year, projectId, editedBy)
+      // Delete project and all invoices
+      // - Hard delete if no issued invoices (all drafts or no invoices)
+      // - Soft delete if any invoice has been issued (maintains GL audit trail)
+      const result = await deleteProject(year, projectId, editedBy)
 
-      // Void GL entries for all deleted invoices
-      if (result.deleted && result.invoicePaths) {
+      if (result.hardDeleted) {
+        // Hard delete: project and all draft invoices permanently removed
+        console.info('[api/projects] Hard deleted project (no issued invoices)', {
+          projectPath: result.projectPath,
+        })
+      } else if (result.deleted && result.invoicePaths) {
+        // Soft delete: void GL entries for all deleted invoices
         const voidResults: { path: string; voided: string[] }[] = []
         for (const invoicePath of result.invoicePaths) {
           // Extract invoice number from path (e.g., projects/2024/projects/123/invoice/2024-001)

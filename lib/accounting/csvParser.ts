@@ -95,13 +95,17 @@ const BANK_PRESETS: Record<BankPreset, ColumnMapping> = {
     reference: 4,
   },
   generic: {
+    // New format with DisplayName and Method columns
+    // Date, Description, DisplayName, Amount, Type, Method, Balance, Reference, BankAccount
     date: 0,
     description: 1,
-    amount: 2,
-    type: 3,    // "Credit" or "Debit"
-    balance: 4,
-    reference: 5,
-    bankAccount: 6, // Bank account identifier (e.g., "ERL-OCBC-S")
+    // displayName: 2, // Not used by parser, for display only
+    amount: 3,
+    type: 4,    // "Credit" or "Debit"
+    // method: 5, // Not used by parser, inferred from description
+    balance: 6,
+    reference: 7,
+    bankAccount: 8, // Bank account identifier (e.g., "ERL-OCBC-S")
   },
 }
 
@@ -146,17 +150,26 @@ export function parseCSV(csvContent: string, options: CSVParseOptions): ParseRes
       // Store absolute amount - debits are negative in parsed.amount
       const isDebit = parsed.amount < 0
 
+      // Use bankAccountId from CSV if available, otherwise from options
+      const effectiveBankAccountId = parsed.bankAccountId || options.bankAccountId
+
+      // Extract subsidiaryId from bankAccountId (format: "ERL-OCBC-S" -> "erl")
+      // Only use this if the CSV contains a bankAccount column
+      const extractedSubsidiaryId = parsed.bankAccountId
+        ? parsed.bankAccountId.split('-')[0]?.toLowerCase()
+        : null
+
       const transaction: BankTransactionInput = {
         transactionDate: parsed.transactionDate,
         amount: Math.abs(parsed.amount),
         isDebit,
         currency: options.defaultCurrency || 'HKD',
-        bankAccountId: parsed.bankAccountId || options.bankAccountId,
+        bankAccountId: effectiveBankAccountId,
         paymentMethod: inferPaymentMethod(parsed.description, options.defaultPaymentMethod),
         referenceNumber: parsed.reference,
         payerName: extractPayerName(parsed.description),
         payerReference: parsed.reference,
-        subsidiaryId: options.subsidiaryId,
+        subsidiaryId: extractedSubsidiaryId || options.subsidiaryId,
         memo: parsed.description,
         source: 'csv_import' as TransactionSource,
       }

@@ -2,37 +2,20 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
 
-const privateKey = `-----BEGIN PRIVATE KEY-----
-MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCVGBY3DcFUsRLs
-fz8YmDsKCprkpai9XYG9cM43ZfWwETai5HMrt+cwoV1Dv87qxuGyh6i6cAfJzigk
-vRxqbnZB6YxWNXhGZBNA5qON4wQ2NGp6NbsiRTfazbL0lLmsLlFE8+w2q57ezuGC
-RpVQrFVGQ+r/x4MjCj+w0Ax8SFj84kou2x74pxE1RqeiFsiK4f3M2E34tDMXyhCX
-lrUyhLdcCFc7PosR0OOWBGbfOUkpSXcbEIbp3mFzhNXtGHxlfjl2vT6mJU6VyLZM
-lmgv0fWSOBEhy7FDhEslTqzVN8JnFK2+v8+uXSXYLV6XkdANve87kQswLuLYcW2/
-UTBxs2U3AgMBAAECggEAOu+vFGs1Edf/jYpNdFj0+aawjRLpLZYRi8PUWLTO1p8v
-VFvvJQiI9MHM3tOrJUaiAFM9ARn5Ei6S0tcIrQ/mYm7CgW+YkGbN75lcbOGhEBZP
-QukLhOQMzMsEY0eJUAVtLc8ogIH+BsCMB1YEf0PoX6LIefyxm3/ZJnlPfi+RMcFd
-pBv/SJ1X40FUBiQvbJaL0S3UziAFGGNSGaOyhlHYO7NTR28p/+FiOXiGZIK62nao
-cBSRNpj8EkuPUe1UJIyncOgFoDLsh+FbXS8DAVNMKK1orfhzWaepHm+GHoPLCn0t
-n6wvzGH7hu3Lx3YO12H/1DQwtdrFuAoTmxFw4eAodQKBgQDIiyfT0sdUfsS2KQ2P
-XwuoSCkr9T9gky55/BkP4Iju1K5M3hk5nAu7e2cKYd6F6cTBOFy8LPsoChbPuZ5M
-Q3qU59miZ2ym3HoZWznTOLUjTaO819IkYFKfySOMLqcFCfB4j0xS7BJZolft9Arv
-yTv0iq40phzyCB7uWxKOsX47uwKBgQC+Urp6hQiMa42G2sdYrSJvEzdVFR8gSvGp
-sv8UWIbImPILuFMe2Hg4wtA7y7XPGWtf87fxvT8O3k8iBy5gAEAg9AYMNlYRdv3+
-7eOzxysnp+PFArYy0dyGqdZOuUCl5uPY4chs+ipY3Ljwa9rjHnrIhkkyyNLspoZU
-oc/jYwXetQKBgBiul85ISOQrXgaVcufMaODjUL3qR0yZkMTOtD7yAahzYKhxRWWD
-wSXoADyU4xBUPzUQvMkkOB0rcLdMPyFfxLyC9JQ6anL2+8gXJDzM4+5eZeKeJWz4
-tfKYjNl5/HBwUrpj2J70EyYZBv1wZdAxUkG8t8gfEbzwJu5rIxOQ4Np1AoGAZVKR
-qGxukqMno2WRvyndLRkj2g32ljCP23JJzkEa8GxMX+Tvi3pe9ojwZwUac3jq6xhL
-E01W5sl/g3QjQkSf32tKVPIQfBfHPRLUqH8eAGynG9lHumJzbtW4HA0P18LGBk6d
-bzb3mHtZkdU5oLQ3Vc335it37zjwRtomXL35AAkCgYA/R7umTObYJnmb/r6g3PNc
-+cCOw1hzedirxYeuMI1j04gDlRBQThgqrsU5wi+lFL/OUQXfnCBfsIHGiTfs5mU8
-9cFBoDMtQZLO/sd9swj6Kjx8PXsLA5gwQGpQJpb5IptvVT37CuMLqnXfEzt5slEF
-yHHGbVRJVC6CsWeppFWehg==
------END PRIVATE KEY-----`;
+// Load environment variables from .env.local
+require('dotenv').config({ path: path.join(process.cwd(), '.env.local') });
+
+// Get credentials from environment variables
+const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+
+if (!privateKey || !clientEmail) {
+  console.error('Error: GOOGLE_PRIVATE_KEY and GOOGLE_CLIENT_EMAIL must be set in .env.local');
+  process.exit(1);
+}
 
 const auth = new google.auth.JWT({
-  email: 'service@aote-pms.iam.gserviceaccount.com',
+  email: clientEmail,
   key: privateKey,
   scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
 });

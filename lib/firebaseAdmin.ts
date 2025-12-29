@@ -18,6 +18,8 @@ const stripWrappingQuotes = (value: string): string => {
   return value
 }
 
+// Read directly from process.env to avoid circular dependencies
+// Note: For other modules, use @/lib/config instead
 const envProjectId = process.env.FIREBASE_ADMIN_PROJECT_ID
 const envClientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
 const envPrivateKeyRaw = process.env.FIREBASE_ADMIN_PRIVATE_KEY

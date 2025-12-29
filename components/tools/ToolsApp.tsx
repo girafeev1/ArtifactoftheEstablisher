@@ -223,6 +223,7 @@ const mockProject: ProjectRecord = {
   projectNumber: "PRJ-2024-001",
   projectTitle: "Sample Project for Invoice Testing",
   subsidiary: "mock-sub",
+  workStatus: "active",
 }
 
 // Data provider for Refine (stub - this page doesn't use Refine data features)

@@ -20,18 +20,19 @@ import type {
   OCBCAddBeneficiaryResponse,
   OCBCApiError,
 } from './types'
+import { ocbcConfig } from '../config/integrations'
 
 // ============================================================================
-// Configuration
+// Configuration (from centralized config)
 // ============================================================================
 
-const OCBC_BASE_URL = process.env.OCBC_API_BASE_URL || 'https://api.ocbc.com'
-const OCBC_CLIENT_ID = process.env.OCBC_CLIENT_ID || ''
-const OCBC_CLIENT_SECRET = process.env.OCBC_CLIENT_SECRET || ''
-
-// Rate limiting: OCBC allows 10 calls per minute
-const RATE_LIMIT_WINDOW_MS = 60 * 1000
-const RATE_LIMIT_MAX_CALLS = 10
+const {
+  baseUrl: OCBC_BASE_URL,
+  clientId: OCBC_CLIENT_ID,
+  clientSecret: OCBC_CLIENT_SECRET,
+  rateLimitWindowMs: RATE_LIMIT_WINDOW_MS,
+  rateLimitMaxCalls: RATE_LIMIT_MAX_CALLS,
+} = ocbcConfig
 
 // ============================================================================
 // Rate Limiter

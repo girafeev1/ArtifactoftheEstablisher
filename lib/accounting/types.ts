@@ -53,6 +53,11 @@ export interface JournalSource {
   companyName?: string // e.g., "Ksana Productions Limited"
   projectId?: string // For linking back to project
   transactionId?: string // For PAID entries, links to the bank transaction
+  // Project details for tooltip display
+  presenter?: string // e.g., "John Doe"
+  workType?: string // e.g., "Photography"
+  projectTitle?: string // e.g., "Annual Report 2024"
+  projectNature?: string // e.g., "Event Photography"
 }
 
 export interface JournalLine {
@@ -91,19 +96,26 @@ export type PaymentMethod = 'bank_transfer' | 'check' | 'cash' | 'credit_card' |
 
 export type TransactionStatus = 'unmatched' | 'matched' | 'partial' | 'categorized'
 
-export type TransactionSource = 'manual' | 'csv_import'
+export type TransactionSource = 'manual' | 'csv_import' | 'api_import'
+
+// API import source providers
+export type ApiImportProvider = 'airwallex' | 'ocbc' | 'gcp_billing'
 
 export interface MatchedInvoice {
   invoiceNumber: string
   projectId: string
   year: string
   amount: number // Amount applied to this invoice
+  paidJournalId?: string // Journal entry ID for voiding on unmatch
 }
 
 export interface ImportBatch {
   filename: string
   importedAt: Timestamp
   importedBy: string
+  // For API imports
+  provider?: ApiImportProvider
+  syncId?: string // Unique ID for this sync operation
 }
 
 export interface BankTransaction {
@@ -243,6 +255,8 @@ export interface PostingContext {
   event: InvoiceEvent
   eventDate: Date
   bankAccountCode?: string // For PAID events, which bank GL account
+  subsidiaryId?: string // Which subsidiary this entry belongs to
+  transactionId?: string // For PAID events, the linked bank transaction ID
   createdBy: string
 }
 
@@ -299,4 +313,5 @@ export const BANK_ACCOUNT_TO_GL: Record<string, string> = {
   'ERL-OCBC-S': '1002',
   'ERL-OCBC-C': '1003',
   'ERL-FBO-C': '1004',
+  'ERL-AWX-S': '1005', // Airwallex
 }

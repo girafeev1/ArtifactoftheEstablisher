@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type MouseEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from "react"
 import { useRouter } from "next/router"
 import { navigateWithModifier } from "../../lib/navigation"
 import {
@@ -29,7 +29,8 @@ import {
 import { EyeOutlined, PlusOutlined, SearchOutlined, DeleteOutlined } from "@ant-design/icons"
 import debounce from "lodash.debounce"
 
-import type { ProjectRecord } from "../../lib/projectsDatabase"
+import type { ProjectRecord, WorkStatus } from "../../lib/projectsDatabase"
+import { WORK_STATUS_COLORS, WORK_STATUS_LABELS, WORK_STATUS_DESCRIPTIONS } from "../../lib/projectsDatabase"
 import AppShell from "../layout/AppShell"
 import {
   amountText,
@@ -522,6 +523,8 @@ const ProjectsContent = () => {
   } = tableHook as ProjectsTableHook
   const [createForm] = Form.useForm()
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [statusDropdownOpenId, setStatusDropdownOpenId] = useState<string | null>(null)
+  const statusDropdownJustClosedRef = useRef(false)
   const [createYear, setCreateYear] = useState<string | undefined>(undefined)
   const [createNumbersLoading, setCreateNumbersLoading] = useState(false)
   const [createSubmitting, setCreateSubmitting] = useState(false)
@@ -651,6 +654,13 @@ const ProjectsContent = () => {
 
   const navigateToDetails = useCallback(
     (record: ProjectRow, event?: MouseEvent) => {
+      // If status dropdown is open or was just closed, don't navigate
+      // (the click was meant to close the dropdown, not to navigate)
+      if (statusDropdownOpenId !== null || statusDropdownJustClosedRef.current) {
+        setStatusDropdownOpenId(null)
+        statusDropdownJustClosedRef.current = false
+        return
+      }
       if (!record?.id) {
         return
       }
@@ -661,7 +671,7 @@ const ProjectsContent = () => {
         router.push(target)
       }
     },
-    [router],
+    [router, statusDropdownOpenId],
   )
 
   const handleCreateCancel = useCallback(() => {
@@ -838,13 +848,108 @@ const ProjectsContent = () => {
         title: <span style={tableHeadingStyle}>Project</span>,
         dataIndex: "projectTitle",
         sorter: true,
-        render: (_: string | null, record: ProjectRow) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={captionRowTextStyle}>{stringOrNA(record.presenterWorkType)}</span>
-            <span style={{ ...primaryRowTextStyle, lineHeight: 1.2 }}>{stringOrNA(record.projectTitle)}</span>
-            <span style={italicDescriptorStyle}>{stringOrNA(record.projectNature)}</span>
-          </div>
-        ),
+        render: (_: string | null, record: ProjectRow & { workStatus?: WorkStatus; _invoiceSummary?: { label: string } }) => {
+          // Override workStatus to 'completed' if all invoices are cleared
+          const paymentLabel = record._invoiceSummary?.label
+          const workStatus: WorkStatus = paymentLabel === 'All Clear' ? 'completed' : (record.workStatus || 'active')
+          const barColor = WORK_STATUS_COLORS[workStatus]
+
+          return (
+            <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
+              {/* Colored bar - clickable to change status */}
+              <Tooltip
+                open={statusDropdownOpenId === record.id}
+                onOpenChange={(open) => {
+                  if (!open && statusDropdownOpenId === record.id) {
+                    // Mark that dropdown was just closed to prevent navigation
+                    statusDropdownJustClosedRef.current = true
+                    // Reset the flag after a short delay
+                    setTimeout(() => { statusDropdownJustClosedRef.current = false }, 100)
+                  }
+                  setStatusDropdownOpenId(open ? record.id : null)
+                }}
+                trigger="click"
+                placement="right"
+                overlayInnerStyle={{ padding: 0, backgroundColor: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                overlayStyle={{ maxWidth: 'none' }}
+                color="white"
+                destroyTooltipOnHide
+                overlay={
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 8, backgroundColor: 'white' }}>
+                    {(['active', 'completed', 'on_hold', 'cancelled'] as WorkStatus[]).map((status) => (
+                      <Tooltip
+                        key={status}
+                        title={`${WORK_STATUS_LABELS[status]}: ${WORK_STATUS_DESCRIPTIONS[status]}`}
+                        placement="right"
+                      >
+                        <div
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            setStatusDropdownOpenId(null)  // Close dropdown immediately
+                            try {
+                              const res = await fetch(`/api/projects/${encodeURIComponent(record.year)}/${encodeURIComponent(record.id)}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'include',
+                                body: JSON.stringify({ updates: { workStatus: status } }),
+                              })
+                              if (!res.ok) throw new Error('Failed to update status')
+                              // Refresh by triggering a filter change (forces re-fetch)
+                              setFilters((prev: CrudFilters) => [...(prev || [])])
+                              message.success('Status updated')
+                            } catch (err) {
+                              message.error(err instanceof Error ? err.message : 'Failed to update status')
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '4px 8px',
+                            cursor: 'pointer',
+                            borderRadius: 4,
+                            backgroundColor: workStatus === status ? '#f0f0f0' : 'transparent',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 4,
+                              height: 20,
+                              borderRadius: 2,
+                              backgroundColor: WORK_STATUS_COLORS[status],
+                              border: workStatus === status ? '1px solid #1890ff' : 'none',
+                            }}
+                          />
+                          <span style={{ fontSize: 12, color: '#374151' }}>{WORK_STATUS_LABELS[status]}</span>
+                        </div>
+                      </Tooltip>
+                    ))}
+                  </div>
+                }
+              >
+                {/* Wrapper with larger clickable area */}
+                <div
+                  className="work-status-bar-wrapper"
+                  onClick={(e) => e.stopPropagation()}
+                  title={`${WORK_STATUS_LABELS[workStatus]} (click to change)`}
+                  style={{ alignSelf: 'stretch', marginRight: 6 }}
+                >
+                  {/* Visible bar - expands on hover */}
+                  <div
+                    className="work-status-bar-inner"
+                    style={{ backgroundColor: barColor }}
+                  />
+                </div>
+              </Tooltip>
+              {/* Text column - all text aligns vertically */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span style={captionRowTextStyle}>{stringOrNA(record.presenterWorkType)}</span>
+                <span style={{ ...primaryRowTextStyle, lineHeight: 1.2 }}>{stringOrNA(record.projectTitle)}</span>
+                <span style={italicDescriptorStyle}>{stringOrNA(record.projectNature)}</span>
+              </div>
+            </div>
+          )
+        },
       },
       {
         key: "amount",
@@ -1096,6 +1201,43 @@ const ProjectsContent = () => {
             })}
           />
         )}
+        {/* All styles consolidated here to avoid nested styled-jsx error */}
+        <style jsx global>{`
+          .work-status-bar-wrapper {
+            display: flex;
+            align-items: stretch;
+            padding: 0 6px;
+            margin-left: -6px;
+            cursor: pointer;
+          }
+          .work-status-bar-wrapper:hover .work-status-bar-inner {
+            width: 6px !important;
+            opacity: 0.85;
+          }
+          .work-status-bar-inner {
+            width: 4px;
+            border-radius: 2px;
+            transition: width 0.15s ease, opacity 0.15s ease;
+            min-height: 60px;
+            flex-shrink: 0;
+            opacity: 1;
+          }
+          @keyframes soft-blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.45; }
+            100% { opacity: 1; }
+          }
+          .spinner {
+            width: 14px;
+            height: 14px;
+            border-radius: 9999px;
+            border: 2px solid #cbd5e1;
+            border-top-color: #94a3b8;
+            display: inline-block;
+            animation: spin 0.8s linear infinite;
+          }
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        `}</style>
         <Modal
           title="Create Project"
           open={createModalOpen}
@@ -1206,23 +1348,6 @@ const ProjectsContent = () => {
             </Form.Item>
             {/* Client Company moved to invoice scope; removed from project create */}
           </Form>
-          <style jsx>{`
-            @keyframes soft-blink {
-              0% { opacity: 1; }
-              50% { opacity: 0.45; }
-              100% { opacity: 1; }
-            }
-            .spinner {
-              width: 14px;
-              height: 14px;
-              border-radius: 9999px;
-              border: 2px solid #cbd5e1;
-              border-top-color: #94a3b8;
-              display: inline-block;
-              animation: spin 0.8s linear infinite;
-            }
-            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-          `}</style>
         </Modal>
       </div>
     </div>

@@ -2,6 +2,7 @@
  * Accounting Module
  *
  * Double-entry general ledger for the invoicing system.
+ * Journal entries are now DERIVED from invoices and transactions on-the-fly.
  */
 
 // Types
@@ -24,27 +25,11 @@ export {
   initializeAccounting,
 } from './accounts'
 
-// Journal operations
+// Derived journal entries (computed on-the-fly, not stored)
 export {
-  validateJournalBalance,
-  createJournalEntry,
-  getJournalEntry,
-  listJournalEntries,
-  findJournalEntriesForSource,
-  hasJournalEntryForEvent,
-  voidJournalEntry,
-  getAccountBalances,
-  getLedgerTotals,
-} from './journals'
-
-// Posting engine
-export {
-  postInvoiceEvent,
-  resolveBankAccountCode,
-  handleInvoiceStatusChange,
-  migrateInvoiceToGL,
-  getInvoiceJournalEntries,
-} from './posting'
+  getDerivedJournalEntries,
+  getDerivedJournalEntry,
+} from './derivedJournals'
 
 // Reports
 export {
@@ -75,7 +60,10 @@ export {
   getTotalPaidForInvoice,
   getTransactionStats,
   getPayerNames,
+  getInvoiceAmountPaidFromTransactions,
+  syncProjectWorkStatuses,
 } from './transactions'
+export type { TransactionStats } from './transactions'
 
 // CSV parsing
 export {

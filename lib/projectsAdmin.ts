@@ -17,30 +17,69 @@ async function resolveProjectDoc(fs: Firestore, year: string, projectId: string)
   return null
 }
 
-interface SoftDeleteResult {
+interface DeleteProjectResult {
   deleted: boolean
   projectPath?: string
   invoicePaths?: string[]
+  hardDeleted: boolean
 }
 
 /**
- * Soft delete a project and all its invoices.
- * Marks records as deleted instead of permanent erasure.
+ * Delete a project and all its invoices.
+ * - If no invoices are issued (all are drafts or no invoices), hard delete the entire project.
+ * - If any invoice has been issued, soft delete everything (marks as deleted instead of permanent erasure).
  */
-export async function softDeleteProject(
+export async function deleteProject(
   year: string,
   projectId: string,
   deletedBy: string
-): Promise<SoftDeleteResult> {
+): Promise<DeleteProjectResult> {
   const fs = getAdminFirestore(process.env.NEXT_PUBLIC_PROJECTS_FIRESTORE_DATABASE_ID)
   const ref = await resolveProjectDoc(fs as any, year, projectId)
-  if (!ref) return { deleted: false }
+  if (!ref) return { deleted: false, hardDeleted: false }
 
   const now = new Date().toISOString()
   const invoicePaths: string[] = []
 
-  // Soft delete all invoices in the project
+  // First pass: check if any invoice is issued (not draft)
+  let hasIssuedInvoice = false
   const collections = await ref.listCollections()
+
+  for (const coll of collections) {
+    // Skip updateLogs collection
+    if (coll.id === UPDATE_LOG_COLLECTION) continue
+
+    const invoiceDocs = await coll.listDocuments()
+    for (const invoiceDoc of invoiceDocs) {
+      const invoiceSnap = await invoiceDoc.get()
+      if (invoiceSnap.exists) {
+        const data = invoiceSnap.data() || {}
+        // Skip already-deleted invoices when checking for issued status
+        if (data.recordStatus === 'deleted') continue
+
+        const paymentStatus = (data.paymentStatus || '').toLowerCase()
+        // Invoice is considered issued if it has a paymentStatus other than 'draft' or empty
+        if (paymentStatus && paymentStatus !== 'draft') {
+          hasIssuedInvoice = true
+          break
+        }
+      }
+    }
+    if (hasIssuedInvoice) break
+  }
+
+  if (!hasIssuedInvoice) {
+    // Hard delete: no issued invoices, permanently remove everything
+    await recursiveDeleteDoc(fs as any, ref)
+    return {
+      deleted: true,
+      projectPath: ref.path,
+      invoicePaths: [],
+      hardDeleted: true,
+    }
+  }
+
+  // Soft delete: at least one issued invoice exists
   for (const coll of collections) {
     // Skip updateLogs collection
     if (coll.id === UPDATE_LOG_COLLECTION) continue
@@ -101,7 +140,20 @@ export async function softDeleteProject(
     deleted: true,
     projectPath: ref.path,
     invoicePaths,
+    hardDeleted: false,
   }
+}
+
+/**
+ * @deprecated Use deleteProject instead.
+ * Soft delete a project and all its invoices.
+ */
+export async function softDeleteProject(
+  year: string,
+  projectId: string,
+  deletedBy: string
+): Promise<DeleteProjectResult> {
+  return deleteProject(year, projectId, deletedBy)
 }
 
 /**

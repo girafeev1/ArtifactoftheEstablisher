@@ -2,13 +2,21 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 import { getAuthOptions } from '../auth/[...nextauth]'
 import {
-  listJournalEntries,
-  getJournalEntry,
-  createJournalEntry,
-  voidJournalEntry,
-} from '../../../lib/accounting'
-import type { JournalEntryInput } from '../../../lib/accounting'
+  getDerivedJournalEntries,
+  getDerivedJournalEntry,
+} from '../../../lib/accounting/derivedJournals'
 
+/**
+ * Journal Entries API
+ *
+ * Journal entries are now DERIVED from invoices and transactions, not stored.
+ * This provides:
+ * - Simplicity: No create/void cycle
+ * - Consistency: Always reflects current state
+ * - Flexibility: Re-matching doesn't require journal management
+ *
+ * POST and DELETE are no longer supported as entries are computed on-the-fly.
+ */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const authOptions = await getAuthOptions()
   const session = await getServerSession(req, res, authOptions)
@@ -17,72 +25,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const identity = session.user.email ?? session.user.name ?? 'unknown'
-
   try {
     if (req.method === 'GET') {
-      const { id, startDate, endDate, sourceType, status, subsidiaryId, limit } = req.query
+      const { id, subsidiaryId, limit } = req.query
 
+      // Get single entry by ID
       if (id && typeof id === 'string') {
-        const entry = await getJournalEntry(id)
+        const entry = await getDerivedJournalEntry(id)
         if (!entry) {
           return res.status(404).json({ error: 'Journal entry not found' })
         }
         return res.status(200).json({ entry })
       }
 
-      const entries = await listJournalEntries({
-        startDate: startDate ? new Date(startDate as string) : undefined,
-        endDate: endDate ? new Date(endDate as string) : undefined,
-        sourceType: sourceType as any,
-        status: status as any,
+      // Get all derived entries
+      const entries = await getDerivedJournalEntries({
         subsidiaryId: subsidiaryId as string | undefined,
-        limitCount: limit ? parseInt(limit as string, 10) : undefined,
+        limit: limit ? parseInt(limit as string, 10) : undefined,
       })
 
       return res.status(200).json({ entries })
     }
 
-    if (req.method === 'POST') {
-      const body = req.body
-
-      if (!body.postingDate || !body.lines || !Array.isArray(body.lines)) {
-        return res.status(400).json({
-          error: 'postingDate and lines array are required',
-        })
-      }
-
-      const input: JournalEntryInput = {
-        postingDate: new Date(body.postingDate),
-        description: body.description, // Optional - can be generated from source metadata
-        source: body.source ?? { type: 'manual' },
-        lines: body.lines,
-        subsidiaryId: body.subsidiaryId,
-        createdBy: identity,
-      }
-
-      const entry = await createJournalEntry(input)
-      return res.status(201).json({ entry })
-    }
-
-    if (req.method === 'DELETE') {
-      // Void a journal entry (creates reversing entry)
-      const { id } = req.query
-      const { reason } = req.body ?? {}
-
-      if (!id || typeof id !== 'string') {
-        return res.status(400).json({ error: 'Journal entry ID is required' })
-      }
-
-      const result = await voidJournalEntry(id, identity, reason)
-      return res.status(200).json({
-        message: 'Journal entry voided',
-        original: result.original,
-        reversal: result.reversal,
+    // POST and DELETE are no longer supported - entries are derived
+    if (req.method === 'POST' || req.method === 'DELETE') {
+      return res.status(400).json({
+        error: 'Journal entries are now derived from invoices and transactions. Manual creation/deletion is not supported.',
       })
     }
 
-    res.setHeader('Allow', 'GET, POST, DELETE')
+    res.setHeader('Allow', 'GET')
     return res.status(405).json({ error: 'Method Not Allowed' })
   } catch (error) {
     console.error('[api/accounting/journals] Error:', error)

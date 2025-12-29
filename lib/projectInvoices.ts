@@ -391,6 +391,18 @@ export interface ProjectInvoiceItemRecord {
 
 export type InvoiceRecordStatus = 'active' | 'deleted'
 
+/**
+ * @deprecated Payment data is now derived from transactions at API time.
+ * This type is kept for backwards compatibility but is no longer stored on invoices.
+ * See enrichInvoicesWithPaymentData() in the invoice API.
+ */
+export interface LinkedTransaction {
+  transactionId: string    // ID in accounting/transactions/entries
+  amount: number           // Amount applied from this transaction
+  linkedAt: string         // ISO timestamp
+  linkedBy: string         // User who performed match
+}
+
 export interface ProjectInvoiceRecord {
   collectionId: string
   invoiceNumber: string
@@ -422,6 +434,10 @@ export interface ProjectInvoiceRecord {
   recordStatus?: InvoiceRecordStatus
   deletedAt?: string | null
   deletedBy?: string | null
+  // Payment fields - DERIVED from transactions at API time, not stored on invoice
+  // See enrichInvoicesWithPaymentData() in invoice API
+  linkedTransactions?: LinkedTransaction[]  // Deprecated - no longer stored
+  amountPaid?: number  // Derived from transaction matchedInvoices
 }
 
 const computeRecordLineTotal = (item: ProjectInvoiceItemRecord) => {
@@ -592,6 +608,8 @@ const buildInvoiceRecord = (
     pdfFileId: toStringValue((data as any).pdfFileId),
     pdfHash: toStringValue((data as any).pdfHash),
     pdfGeneratedAt: toIsoString((data as any).pdfGeneratedAt),
+    // Note: linkedTransactions and amountPaid are now derived from transactions
+    // at the API layer, not stored on invoices. See enrichInvoicesWithPaymentData()
   }
 }
 
@@ -686,8 +704,7 @@ interface InvoiceWritePayload {
   items: InvoiceItemPayload[]
   taxOrDiscountPercent: number | null
   paymentStatus: string | null
-  paidTo?: string | null
-  paidOn?: unknown
+  // Note: paidTo and paidOn are now derived from transactions, not stored on invoice
   onDate?: unknown
 }
 
@@ -776,23 +793,8 @@ const buildInvoiceWritePayload = (
     paymentStatus,
   }
 
-  // Optional: paidTo (identifier) and paidOn (date)
-  if (typeof payload.paidTo === "string") {
-    const trimmed = payload.paidTo.trim()
-    result.paidTo = trimmed.length > 0 ? trimmed : null
-  } else if (payload.paidTo === null) {
-    result.paidTo = null
-  }
-
-  const paidOnIso = toIsoString(payload.paidOn as any)
-  if (paidOnIso) {
-    const dt = new Date(paidOnIso)
-    if (!Number.isNaN(dt.getTime())) {
-      result.paidOn = dt
-    }
-  } else if (payload.paidOn === null) {
-    result.paidOn = null
-  }
+  // Note: paidTo and paidOn are no longer stored on invoices.
+  // Payment info is now derived from matched transactions.
 
   const onDateIso = toIsoString(payload.onDate as any)
   if (onDateIso) {
@@ -896,9 +898,7 @@ export const createInvoiceForProject = async (
     items: input.items,
     taxOrDiscountPercent: input.taxOrDiscountPercent,
     paymentStatus: input.paymentStatus,
-    paidTo: input.paidTo,
-    paidOn: input.paidOn,
-    onDate: input.onDate ?? input.paidOn,
+    onDate: input.onDate,
   })
 
   payload.invoiceNumber = invoiceNumber
@@ -1022,9 +1022,7 @@ export const updateInvoiceForProject = async (
       items: input.items,
       taxOrDiscountPercent: input.taxOrDiscountPercent,
       paymentStatus: input.paymentStatus,
-      paidTo: input.paidTo,
-      paidOn: input.paidOn,
-      onDate: input.onDate ?? input.paidOn,
+      onDate: input.onDate,
     },
     existingCount,
     { removeAggregates: true },
@@ -1062,10 +1060,13 @@ export interface DeleteInvoiceInput {
 export interface DeleteInvoiceResult {
   invoicePath: string
   previousStatus: InvoiceRecordStatus | undefined
+  hardDeleted: boolean
 }
 
 /**
- * Soft delete an invoice (marks as deleted instead of permanent erasure).
+ * Delete an invoice.
+ * - If the invoice is not issued (paymentStatus is "Draft" or null), hard delete it.
+ * - If the invoice has been issued, soft delete it (marks as deleted instead of permanent erasure).
  * Returns the invoice path for GL voiding by the caller.
  */
 export const deleteInvoiceForProject = async (
@@ -1097,8 +1098,30 @@ export const deleteInvoiceForProject = async (
 
   const existingData = existing.data() as ProjectInvoiceRecord
   const previousStatus = existingData?.recordStatus
+  const paymentStatus = existingData?.paymentStatus?.toLowerCase() || null
 
-  // Soft delete: mark as deleted instead of erasing
+  // Check if invoice is a draft (not issued)
+  const isDraft = !paymentStatus || paymentStatus === 'draft'
+
+  if (isDraft) {
+    // Hard delete: permanently remove the invoice document and its subcollections
+    // First delete updateLogs subcollection
+    const updateLogsRef = collection(documentRef, UPDATE_LOG_COLLECTION)
+    const updateLogsDocs = await getDocs(updateLogsRef)
+    for (const logDoc of updateLogsDocs.docs) {
+      await deleteDoc(logDoc.ref)
+    }
+    // Then delete the invoice document itself
+    await deleteDoc(documentRef)
+
+    return {
+      invoicePath: documentRef.path,
+      previousStatus,
+      hardDeleted: true,
+    }
+  }
+
+  // Soft delete: mark as deleted instead of erasing (for issued invoices)
   await updateDoc(documentRef, {
     recordStatus: 'deleted',
     deletedAt: new Date().toISOString(),
@@ -1115,6 +1138,7 @@ export const deleteInvoiceForProject = async (
   return {
     invoicePath: documentRef.path,
     previousStatus,
+    hardDeleted: false,
   }
 }
 

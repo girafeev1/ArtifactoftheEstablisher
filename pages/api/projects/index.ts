@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next"
 
 import { fetchProjectsFromDatabase } from "../../../lib/projectsDatabase"
 import { fetchInvoicesForProject } from "../../../lib/projectInvoices"
+import { getInvoicePaymentInfo } from "../../../lib/accounting/transactions"
 import { getAuthOptions } from "../auth/[...nextauth]"
 
 const isNonEmptyString = (value: unknown): value is string =>
@@ -79,9 +80,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             try {
               const invoices = await fetchInvoicesForProject(project.year, project.id)
               if (invoices && invoices.length > 0) {
-                const cleared = invoices.filter((i) => i.paid === true).length
+                // Check each invoice for payment from transactions
+                let cleared = 0
+                let lastPaidIso: string | null = null
+                let lastPaidDisplay: string | null = null
+                let lastTs = Number.NEGATIVE_INFINITY
+
+                for (const inv of invoices) {
+                  // Derive payment status from transactions
+                  const paymentInfo = await getInvoicePaymentInfo(
+                    inv.invoiceNumber,
+                    project.id,
+                    project.year,
+                  )
+
+                  const invoiceTotal = inv.total ?? 0
+                  const amountPaid = paymentInfo?.amountPaid ?? 0
+                  const isFullyPaid = invoiceTotal > 0 && Math.abs(amountPaid - invoiceTotal) < 0.01
+
+                  if (isFullyPaid) {
+                    cleared++
+                    if (paymentInfo?.paidOn) {
+                      const ts = paymentInfo.paidOn.getTime()
+                      if (!Number.isNaN(ts) && ts >= lastTs) {
+                        lastTs = ts
+                        lastPaidIso = paymentInfo.paidOn.toISOString()
+                        lastPaidDisplay = paymentInfo.paidOn.toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      }
+                    }
+                  }
+                }
+
                 const total = invoices.length
                 const outstanding = Math.max(total - cleared, 0)
+
                 // Aggregate totals
                 let aggregatedTotal = 0
                 let hasAmount = false
@@ -97,20 +133,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     hasAmount = true
                   }
                 })
-                // Latest paid-on
-                let lastPaidIso: string | null = null
-                let lastPaidDisplay: string | null = null
-                let lastTs = Number.NEGATIVE_INFINITY
-                invoices.forEach((inv) => {
-                  if (inv.paid === true && inv.paidOnIso) {
-                    const ts = new Date(inv.paidOnIso).getTime()
-                    if (!Number.isNaN(ts) && ts >= lastTs) {
-                      lastTs = ts
-                      lastPaidIso = inv.paidOnIso
-                      lastPaidDisplay = inv.paidOnDisplay ?? inv.paidOnIso
-                    }
-                  }
-                })
+
                 const label =
                   cleared === 0
                     ? "Due"

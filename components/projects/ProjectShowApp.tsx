@@ -30,11 +30,12 @@ import {
   AutoComplete,
   Tooltip,
 } from "antd"
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, CloseOutlined } from "@ant-design/icons"
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, CloseOutlined, LinkOutlined } from "@ant-design/icons"
 import { fetchClientsDirectory } from "../../lib/clientDirectory"
 
 import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
-import type { ProjectRecord } from "../../lib/projectsDatabase"
+import type { ProjectRecord, WorkStatus } from "../../lib/projectsDatabase"
+import { WORK_STATUS_COLORS, WORK_STATUS_LABELS, WORK_STATUS_DESCRIPTIONS } from "../../lib/projectsDatabase"
 import type { ProjectInvoiceRecord } from "../../lib/projectInvoices"
 import dayjs, { type Dayjs } from "dayjs"
 import { resolveBankAccountIdentifier, listBanks, listAccounts, lookupAccount, type BankInfo, type AccountInfo } from "../../lib/erlDirectory"
@@ -62,17 +63,19 @@ const { Title, Text } = Typography
 const KARLA_FONT = "'Karla', sans-serif"
 const IANSUI_FONT = "'Iansui', 'Karla', sans-serif"
 const YUJI_MAI_FONT = "'Yuji Mai', 'Karla', serif"
-const STATUS_STEPS = ["Project Saved", "Invoice Drafted", "Payment Received"] as const
+// Invoice progress bar steps
+const STATUS_STEPS = ["Pending", "Drafted", "Issued", "Cleared"] as const
 const paymentPalette = {
   green: { backgroundColor: "#dcfce7", color: "#166534" },
   red: { backgroundColor: "#fee2e2", color: "#b91c1c" },
+  orange: { backgroundColor: "#ffedd5", color: "#c2410c" },  // For Partial status
   default: { backgroundColor: "#e2e8f0", color: "#1f2937" },
 } as const
 
+// Cleared is NOT manually selectable - only set via transaction matching
 const INVOICE_STATUS_OPTIONS = [
   { label: "Draft", value: "Draft" },
   { label: "Due", value: "Due" },
-  { label: "Cleared", value: "Cleared" },
 ] as const
 
 const ANT_INVOICE_STATUS_OPTIONS = INVOICE_STATUS_OPTIONS.map((option) => ({
@@ -89,6 +92,9 @@ const statusToColorKey = (status: string | null | undefined): keyof typeof payme
   const normalized = status.trim().toLowerCase()
   if (normalized === "cleared" || normalized === "paid" || normalized === "received") {
     return "green"
+  }
+  if (normalized === "partial") {
+    return "orange"
   }
   if (
     normalized === "due" ||
@@ -917,16 +923,27 @@ const ProjectsShowContent = () => {
     return project?.paid ?? null
   }, [outstandingCount, project?.paid, totalInvoiceCount])
 
+  // Progress bar logic: Pending → Drafted → Issued → Cleared
   const paymentStatusIndex = useMemo(() => {
-    let index = 0
-    if (hasInvoices) {
-      index = 1
-    }
-    if (projectPaidState === true) {
-      index = 2
-    }
-    return index
-  }, [hasInvoices, projectPaidState])
+    // 0 = Pending (no invoices)
+    if (!hasInvoices) return 0
+
+    // Check invoice statuses
+    const statuses = invoices.map(inv => (inv.paymentStatus || '').toLowerCase())
+    const hasDraft = statuses.some(s => s === 'draft' || s === '')
+    const hasDue = statuses.some(s => s === 'due')
+    const hasCleared = statuses.some(s => s === 'cleared' || s === 'paid')
+    const allCleared = statuses.every(s => s === 'cleared' || s === 'paid')
+
+    // 3 = Cleared (all invoices are cleared)
+    if (allCleared && invoices.length > 0) return 3
+
+    // 2 = Issued (at least one is Due or Cleared)
+    if (hasDue || hasCleared) return 2
+
+    // 1 = Drafted (has invoices, but all are Draft)
+    return 1
+  }, [hasInvoices, invoices])
 
   const baseInvoiceNumber = useMemo(() => {
     if (draftInvoice?.baseInvoiceNumber) {
@@ -989,10 +1006,21 @@ const ProjectsShowContent = () => {
 
       const isActiveRow = invoiceMode !== "idle" && index === activeInvoiceIndex
       const draftStatus = draftInvoice?.paymentStatus ?? null
-      const derivedStatus =
-        isActiveRow && draftInvoice
-          ? draftStatus ?? (draftInvoice.invoiceNumber ? "Draft" : null)
-          : invoice.paymentStatus ?? paymentChipLabel(invoice.paid)
+
+      // Derive status with Partial support
+      const deriveInvoiceStatus = () => {
+        if (isActiveRow && draftInvoice) {
+          return draftStatus ?? (draftInvoice.invoiceNumber ? "Draft" : null)
+        }
+        // Check for Partial status: amountPaid > 0 but < total
+        const amountPaid = invoice.amountPaid ?? 0
+        const invoiceTotal = invoice.total ?? 0
+        if (amountPaid > 0 && invoiceTotal > 0 && amountPaid < invoiceTotal) {
+          return "Partial"
+        }
+        return invoice.paymentStatus ?? paymentChipLabel(invoice.paid)
+      }
+      const derivedStatus = deriveInvoiceStatus()
       const statusColor = statusToColorKey(derivedStatus)
 
       let amountValue = rawAmount
@@ -1044,6 +1072,7 @@ const ProjectsShowContent = () => {
         collectionId: invoice.collectionId,
         displayBankName,
         index,
+        linkedTransactions: invoice.linkedTransactions,
       }
     })
 
@@ -1099,6 +1128,7 @@ const ProjectsShowContent = () => {
         displayBankName: pendingDisplayBankName,
         collectionId: draftInvoice.collectionId,
         index: invoices.length,
+        linkedTransactions: undefined,
       })
     }
 
@@ -1198,8 +1228,8 @@ const ProjectsShowContent = () => {
   const pdfMeta = activeInvoice ? { fileId: (activeInvoice as any).pdfFileId as string | undefined, hash: (activeInvoice as any).pdfHash as string | undefined } : { fileId: undefined, hash: undefined }
 
   const canViewPdf = !!pdfMeta.fileId && !!pdfMeta.hash
-  // Since computing exact hash client-side is non-trivial (needs stable canonicalization), we conservatively show Export if no pdfHash or if editing
-  const shouldShowExport = !canViewPdf || invoiceMode !== 'idle'
+  // Only show Export when in idle mode (not editing) and no PDF exists yet
+  const shouldShowExport = !canViewPdf && invoiceMode === 'idle'
 
   const handlePreviewInvoice = useCallback(() => {
     if (!project || !activeInvoice) return
@@ -1878,6 +1908,87 @@ const ProjectsShowContent = () => {
     [],
   )
 
+  // Helper to perform the actual save with the chosen status
+  const performInvoiceSave = useCallback(async (statusToSave: string) => {
+    if (!project || !draftInvoice) {
+      return
+    }
+    const normalizedPaidTo = draftInvoice.paidTo ? draftInvoice.paidTo.trim() : ""
+    const normalizedInvoiceNumber = (draftInvoice.invoiceNumber ?? '').replace(/^#/, '').trim()
+    try {
+      setSavingInvoice(true)
+      const endpoint = `/api/projects/by-id/${encodeURIComponent(project.id)}/invoices`
+      const method = invoiceMode === "create" ? "POST" : "PATCH"
+      const payload =
+        invoiceMode === "create"
+          ? {
+              baseInvoiceNumber: draftInvoice.baseInvoiceNumber,
+              client: draftInvoice.client,
+              items: draftInvoice.items,
+              taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
+              paymentStatus: statusToSave,
+              paidTo: normalizedPaidTo.length > 0 ? normalizedPaidTo : null,
+              paidOn: draftInvoice.paidOnIso ?? null,
+              onDate: draftInvoice.paidOnIso ?? null,
+            }
+          : {
+              collectionId: draftInvoice.collectionId,
+              invoiceNumber: normalizedInvoiceNumber,
+              originalInvoiceNumber: draftInvoice.originalInvoiceNumber ?? (invoices[activeInvoiceIndex]?.invoiceNumber ?? undefined),
+              client: draftInvoice.client,
+              items: draftInvoice.items,
+              taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
+              paymentStatus: statusToSave,
+              paidTo: normalizedPaidTo.length > 0 ? normalizedPaidTo : null,
+              paidOn: draftInvoice.paidOnIso ?? null,
+              onDate: draftInvoice.paidOnIso ?? null,
+            }
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      })
+
+      const body = (await response.json().catch(() => ({}))) as {
+        invoices?: ProjectInvoiceRecord[]
+        error?: string
+      }
+
+      if (!response.ok) {
+        throw new Error(body.error ?? "Failed to save invoice")
+      }
+
+      const updatedInvoices = Array.isArray(body.invoices) ? body.invoices : []
+      setInvoices(updatedInvoices)
+      updateProjectFromInvoices(updatedInvoices)
+
+      // Update active index to point to the saved invoice
+      if (invoiceMode === "create") {
+        const targetIndex = updatedInvoices.findIndex(
+          (entry) => entry.invoiceNumber === draftInvoice.invoiceNumber,
+        )
+        setActiveInvoiceIndex(targetIndex >= 0 ? targetIndex : Math.max(updatedInvoices.length - 1, 0))
+      } else {
+        const targetIndex = updatedInvoices.findIndex(
+          (entry) => entry.invoiceNumber === draftInvoice.invoiceNumber,
+        )
+        setActiveInvoiceIndex(targetIndex >= 0 ? targetIndex : 0)
+      }
+
+      setInvoiceMode("idle")
+      setDraftInvoice(null)
+      itemIdRef.current = 0
+      message.success(statusToSave === 'Due' ? 'Invoice issued' : 'Invoice saved as draft')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to save invoice"
+      message.error(errorMessage)
+    } finally {
+      setSavingInvoice(false)
+    }
+  }, [project, draftInvoice, invoiceMode, invoices, activeInvoiceIndex, message, updateProjectFromInvoices])
+
   const handleSaveInvoice = useCallback(async () => {
     if (!project || !draftInvoice) {
       return
@@ -1928,82 +2039,36 @@ const ProjectsShowContent = () => {
         }
       }
     } catch {}
-    const normalizedPaidTo = draftInvoice.paidTo ? draftInvoice.paidTo.trim() : ""
-    // Ensure invoiceNumber to save has no leading '#'
-    const normalizedInvoiceNumber = (draftInvoice.invoiceNumber ?? '').replace(/^#/, '').trim()
-    try {
-      setSavingInvoice(true)
-      const endpoint = `/api/projects/by-id/${encodeURIComponent(project.id)}/invoices`
-      const method = invoiceMode === "create" ? "POST" : "PATCH"
-      const payload =
-        invoiceMode === "create"
-          ? {
-              baseInvoiceNumber: draftInvoice.baseInvoiceNumber,
-              client: draftInvoice.client,
-              items: draftInvoice.items,
-              taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
-              paymentStatus: draftInvoice.paymentStatus,
-              paidTo: normalizedPaidTo.length > 0 ? normalizedPaidTo : null,
-              paidOn: draftInvoice.paidOnIso ?? null,
-              onDate: draftInvoice.paidOnIso ?? null,
-            }
-          : {
-              collectionId: draftInvoice.collectionId,
-              invoiceNumber: normalizedInvoiceNumber,
-              originalInvoiceNumber: draftInvoice.originalInvoiceNumber ?? (invoices[activeInvoiceIndex]?.invoiceNumber ?? undefined),
-              client: draftInvoice.client,
-              items: draftInvoice.items,
-              taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
-              paymentStatus: draftInvoice.paymentStatus,
-              paidTo: normalizedPaidTo.length > 0 ? normalizedPaidTo : null,
-              paidOn: draftInvoice.paidOnIso ?? null,
-              onDate: draftInvoice.paidOnIso ?? null,
-            }
 
-      const response = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(payload),
-      })
-
-      const body = (await response.json().catch(() => ({}))) as {
-        invoices?: ProjectInvoiceRecord[]
-        error?: string
-      }
-
-      if (!response.ok) {
-        throw new Error(body.error ?? "Failed to save invoice")
-      }
-
-      const updatedInvoices = Array.isArray(body.invoices) ? body.invoices : []
-      setInvoices(updatedInvoices)
-      updateProjectFromInvoices(updatedInvoices)
-
-      if (invoiceMode === "create") {
-        const targetIndex = updatedInvoices.findIndex(
-          (entry) => entry.invoiceNumber === draftInvoice.invoiceNumber,
-        )
-        setActiveInvoiceIndex(targetIndex >= 0 ? targetIndex : Math.max(updatedInvoices.length - 1, 0))
-        message.success("Invoice created")
-      } else {
-        const targetIndex = updatedInvoices.findIndex(
-          (entry) => entry.invoiceNumber === draftInvoice.invoiceNumber,
-        )
-        setActiveInvoiceIndex(targetIndex >= 0 ? targetIndex : 0)
-        message.success("Invoice updated")
-      }
-
-      setInvoiceMode("idle")
-      setDraftInvoice(null)
-      itemIdRef.current = 0
-    } catch (error) {
-      const description = error instanceof Error ? error.message : "Unable to save invoice"
-      message.error(description)
-    } finally {
-      setSavingInvoice(false)
+    // Check if invoice is already Due or Cleared - don't prompt, just save
+    const currentStatus = (draftInvoice.paymentStatus ?? '').toLowerCase()
+    if (currentStatus === 'due' || currentStatus === 'cleared') {
+      await performInvoiceSave(draftInvoice.paymentStatus ?? 'Due')
+      return
     }
-  }, [draftInvoice, invoiceMode, message, project, updateProjectFromInvoices])
+
+    // For Draft invoices or new invoices, show the prompt
+    Modal.confirm({
+      title: 'Save Invoice',
+      content: (
+        <div style={{ marginTop: 16 }}>
+          <p style={{ marginBottom: 12 }}>Would you like to issue this invoice now?</p>
+          <ul style={{ paddingLeft: 20, color: '#666' }}>
+            <li><strong>Save as Draft</strong> - Save changes but keep as draft</li>
+            <li><strong>Save & Issue</strong> - Mark as issued and ready for payment</li>
+          </ul>
+        </div>
+      ),
+      okText: 'Save & Issue',
+      cancelText: 'Save as Draft',
+      onOk: async () => {
+        await performInvoiceSave('Due')
+      },
+      onCancel: async () => {
+        await performInvoiceSave('Draft')
+      },
+    })
+  }, [draftInvoice, invoiceMode, invoices, activeInvoiceIndex, performInvoiceSave])
 
   const handleDeleteInvoice = useCallback(async (collectionId: string, invoiceNumber: string) => {
     if (!project) return
@@ -2427,6 +2492,75 @@ const ProjectsShowContent = () => {
           </div>
           </div>
           <div className="title-row">
+            {/* Work Status Bar - clickable to change status */}
+            <Tooltip
+              trigger="click"
+              placement="left"
+              overlayInnerStyle={{ padding: 0 }}
+              overlay={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 8 }}>
+                  {(['active', 'completed', 'on_hold', 'cancelled'] as WorkStatus[]).map((status) => (
+                    <Tooltip
+                      key={status}
+                      title={`${WORK_STATUS_LABELS[status]}: ${WORK_STATUS_DESCRIPTIONS[status]}`}
+                      placement="right"
+                    >
+                      <div
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/projects/${encodeURIComponent(project.year)}/${encodeURIComponent(project.id)}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
+                              body: JSON.stringify({ updates: { workStatus: status } }),
+                            })
+                            if (!res.ok) throw new Error('Failed to update status')
+                            setProject(prev => prev ? { ...prev, workStatus: status } : prev)
+                            message.success('Status updated')
+                          } catch (err) {
+                            message.error(err instanceof Error ? err.message : 'Failed to update status')
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 24,
+                          height: 24,
+                          cursor: 'pointer',
+                          borderRadius: 4,
+                          backgroundColor: project.workStatus === status ? '#f0f0f0' : 'transparent',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            backgroundColor: WORK_STATUS_COLORS[status],
+                            border: project.workStatus === status ? '2px solid #1890ff' : 'none',
+                          }}
+                        />
+                      </div>
+                    </Tooltip>
+                  ))}
+                </div>
+              }
+            >
+              <div
+                className="work-status-bar"
+                style={{
+                  width: 4,
+                  backgroundColor: WORK_STATUS_COLORS[project.workStatus || 'active'],
+                  borderRadius: 2,
+                  minHeight: 80,
+                  cursor: 'pointer',
+                  marginRight: 12,
+                  flexShrink: 0,
+                }}
+                title={`Status: ${WORK_STATUS_LABELS[project.workStatus || 'active']} (click to change)`}
+              />
+            </Tooltip>
             <div className="title-content">
               {isProjectEditing ? (
               <Input
@@ -2500,7 +2634,7 @@ const ProjectsShowContent = () => {
               <button
                 key={label}
                 type="button"
-                className={`status-button ${index === 0 ? "first" : ""} ${ index === STATUS_STEPS.length - 1 ? "last" : ""} ${ index <= paymentStatusIndex ? "done" : ""}`}
+                className={`status-button step-${index} ${index === 0 ? "first" : ""} ${index === STATUS_STEPS.length - 1 ? "last" : ""} ${index <= paymentStatusIndex ? "done" : ""}`}
                 ref={(el) => {
                   statusButtonRefs.current[index] = el
                 }}
@@ -2807,17 +2941,37 @@ const ProjectsShowContent = () => {
                                         onClick={(event) => event.stopPropagation()}
                                         onKeyDown={(event) => event.stopPropagation()}
                                       >
-                                          <Select
-                                            value={draftInvoice.paymentStatus ?? undefined}
-                                            onChange={handleInvoiceStatusChange}
-                                            options={ANT_INVOICE_STATUS_OPTIONS}
-                                            className="invoice-status-select"
-                                            popupMatchSelectWidth={false}
-                                            style={{ width: 'auto', minWidth: 90 }}
-                                          />
+                                          {draftInvoice.paymentStatus?.toLowerCase() === 'cleared' ? (
+                                            <Tooltip title={`Paid via ${entry.linkedTransactions?.length || 1} transaction(s)`}>
+                                              <Tag color="green" style={{ cursor: 'default' }}>
+                                                <LinkOutlined style={{ marginRight: 4 }} />
+                                                Cleared
+                                              </Tag>
+                                            </Tooltip>
+                                          ) : (
+                                            <Select
+                                              value={draftInvoice.paymentStatus ?? undefined}
+                                              onChange={handleInvoiceStatusChange}
+                                              options={ANT_INVOICE_STATUS_OPTIONS}
+                                              className="invoice-status-select"
+                                              popupMatchSelectWidth={false}
+                                              style={{ width: 'auto', minWidth: 90 }}
+                                            />
+                                          )}
                                       </div>
                                     ) : entry.pending ? (
                                       <span className="draft-pill">Draft</span>
+                                    ) : entry.statusLabel?.toLowerCase() === 'cleared' && entry.linkedTransactions?.length ? (
+                                      <Tooltip title={`Paid via ${entry.linkedTransactions.length} transaction(s)`}>
+                                        <Tag
+                                          color={paymentPalette[entry.statusColor].backgroundColor}
+                                          className="status-chip"
+                                          style={{ color: paymentPalette[entry.statusColor].color }}
+                                        >
+                                          <LinkOutlined style={{ marginRight: 4 }} />
+                                          {entry.statusLabel}
+                                        </Tag>
+                                      </Tooltip>
                                     ) : (
                                       <Tag
                                         color={paymentPalette[entry.statusColor].backgroundColor}
@@ -3150,6 +3304,15 @@ const ProjectsShowContent = () => {
           flex-wrap: wrap;
         }
 
+        .work-status-bar {
+          transition: width 0.15s ease, opacity 0.15s ease;
+        }
+
+        .work-status-bar:hover {
+          width: 6px !important;
+          opacity: 0.8;
+        }
+
         .title-content {
           display: flex;
           flex-direction: column;
@@ -3358,39 +3521,32 @@ const ProjectsShowContent = () => {
           border: none;
           background: #e2e8f0;
           color: #334155;
-          padding: 10px 28px;
+          padding: 10px 28px 10px 38px;
+          margin-left: -10px; /* Overlap to reduce gap by ~70% */
           font-family: ${KARLA_FONT};
           font-weight: 600;
           cursor: default;
+          clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%);
         }
 
         .status-button.first {
           border-radius: 999px 0 0 999px;
+          padding-left: 24px;
+          margin-left: 0;
+          clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
         }
 
         .status-button.last {
           border-radius: 0 999px 999px 0;
+          padding-right: 24px;
+          clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%);
         }
 
-        .status-button:not(.last)::after {
-          content: "";
-          position: absolute;
-          top: 0;
-          right: -28px;
-          width: 28px;
-          height: 100%;
-          clip-path: polygon(0 0, 100% 50%, 0 100%);
-          background: inherit;
-        }
-
-        .status-button.done {
-          background: #2f8f9d;
-          color: #ffffff;
-        }
-
-        .status-button.done:not(.last)::after {
-          background: #2f8f9d;
-        }
+        /* Teal gradient: original teal → lighter shades as progress advances */
+        .status-button.done.step-0 { background: #2f8f9d; color: #ffffff; }
+        .status-button.done.step-1 { background: #4db3bf; color: #ffffff; }
+        .status-button.done.step-2 { background: #6fcfda; color: #1a5c64; }
+        .status-button.done.step-3 { background: #a0e4eb; color: #1a5c64; }
 
         .details-card {
           border-radius: 24px;

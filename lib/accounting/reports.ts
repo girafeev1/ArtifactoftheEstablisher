@@ -15,7 +15,7 @@ import type {
   JournalEntry,
 } from './types'
 import { listAccounts, getNormalBalance } from './accounts'
-import { listJournalEntries, getAccountBalances } from './journals'
+import { getDerivedJournalEntries } from './derivedJournals'
 
 // ============================================================================
 // Helper Functions
@@ -61,6 +61,17 @@ function buildAccountBalance(
 // ============================================================================
 
 /**
+ * Helper to convert a Timestamp or Date to milliseconds.
+ */
+function toMillis(val: any): number {
+  if (!val) return 0
+  if (typeof val.toMillis === 'function') return val.toMillis()
+  if (typeof val.getTime === 'function') return val.getTime()
+  if (typeof val === 'number') return val
+  return new Date(val).getTime()
+}
+
+/**
  * Generate a Trial Balance report.
  * Lists all accounts with their debit/credit totals.
  */
@@ -75,10 +86,14 @@ export async function generateTrialBalance(options?: {
   const accounts = await listAccounts({ activeOnly: true })
   const accountMap = new Map(accounts.map((a) => [a.code, a]))
 
-  // Get journal entries up to asOf date
-  let entries = await listJournalEntries({
-    endDate: asOf,
-    status: 'posted',
+  // Get all derived journal entries
+  const allEntries = await getDerivedJournalEntries()
+
+  // Filter to entries up to asOf date and posted status
+  let entries = allEntries.filter((e) => {
+    if (e.status !== 'posted') return false
+    const postingMillis = toMillis(e.postingDate)
+    return postingMillis <= asOf.getTime()
   })
 
   // For cash basis, only include entries where the source event is PAID
@@ -152,11 +167,14 @@ export async function generateProfitAndLoss(options: {
   const accounts = await listAccounts({ activeOnly: true })
   const accountMap = new Map(accounts.map((a) => [a.code, a]))
 
-  // Get journal entries in date range
-  let entries = await listJournalEntries({
-    startDate,
-    endDate,
-    status: 'posted',
+  // Get all derived journal entries
+  const allEntries = await getDerivedJournalEntries()
+
+  // Filter to entries in date range and posted status
+  let entries = allEntries.filter((e) => {
+    if (e.status !== 'posted') return false
+    const postingMillis = toMillis(e.postingDate)
+    return postingMillis >= startDate.getTime() && postingMillis <= endDate.getTime()
   })
 
   // For cash basis, only include PAID events for invoices
@@ -232,10 +250,14 @@ export async function generateBalanceSheet(options?: {
   const accounts = await listAccounts({ activeOnly: true })
   const accountMap = new Map(accounts.map((a) => [a.code, a]))
 
-  // Get all journal entries up to asOf date
-  let entries = await listJournalEntries({
-    endDate: asOf,
-    status: 'posted',
+  // Get all derived journal entries
+  const allEntries = await getDerivedJournalEntries()
+
+  // Filter to entries up to asOf date and posted status
+  let entries = allEntries.filter((e) => {
+    if (e.status !== 'posted') return false
+    const postingMillis = toMillis(e.postingDate)
+    return postingMillis <= asOf.getTime()
   })
 
   // For cash basis, only include PAID events for invoices
@@ -365,10 +387,14 @@ export interface ARAgingReport {
 export async function generateARAgingReport(asOf?: Date): Promise<ARAgingReport> {
   const reportDate = asOf ?? new Date()
 
-  // Get all journal entries for invoices
-  const entries = await listJournalEntries({
-    endDate: reportDate,
-    status: 'posted',
+  // Get all derived journal entries
+  const allEntries = await getDerivedJournalEntries()
+
+  // Filter to entries up to reportDate and posted status
+  const entries = allEntries.filter((e) => {
+    if (e.status !== 'posted') return false
+    const postingMillis = toMillis(e.postingDate)
+    return postingMillis <= reportDate.getTime()
   })
 
   // Filter to invoice-related entries

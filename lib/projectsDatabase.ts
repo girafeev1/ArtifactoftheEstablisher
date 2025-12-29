@@ -67,6 +67,29 @@ interface ListCollectionIdsResponse {
 
 export type RecordStatus = 'active' | 'deleted'
 
+export type WorkStatus = 'active' | 'completed' | 'on_hold' | 'cancelled'
+
+export const WORK_STATUS_COLORS: Record<WorkStatus, string> = {
+  active: '#1890ff',      // Ant Design Blue
+  completed: '#52c41a',   // Bright Green
+  on_hold: '#faad14',     // Yellow/Amber
+  cancelled: '#ff4d4f',   // Red
+}
+
+export const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
+  active: 'Active',
+  completed: 'Completed',
+  on_hold: 'On Hold',
+  cancelled: 'Cancelled',
+}
+
+export const WORK_STATUS_DESCRIPTIONS: Record<WorkStatus, string> = {
+  active: 'Work is ongoing',
+  completed: 'Work is finished',
+  on_hold: 'Work is paused',
+  cancelled: 'Work was cancelled',
+}
+
 export interface ProjectRecord {
   id: string
   year: string
@@ -85,6 +108,8 @@ export interface ProjectRecord {
   projectNumber: string
   projectTitle: string | null
   subsidiary: string | null
+  // Work status
+  workStatus: WorkStatus
   // Soft delete fields
   recordStatus?: RecordStatus
   deletedAt?: string | null
@@ -270,6 +295,14 @@ const buildProjectRecord = (
       null,
   )
 
+  // Parse workStatus with fallback to 'active'
+  const rawWorkStatus = toStringValue(data.workStatus)
+  const workStatus: WorkStatus =
+    rawWorkStatus === 'active' || rawWorkStatus === 'completed' ||
+    rawWorkStatus === 'on_hold' || rawWorkStatus === 'cancelled'
+      ? rawWorkStatus
+      : 'active'
+
   return {
     id,
     year,
@@ -288,6 +321,7 @@ const buildProjectRecord = (
     projectNumber,
     projectTitle: toStringValue(data.projectTitle),
     subsidiary: toStringValue(data.subsidiary),
+    workStatus,
   }
 }
 
@@ -596,6 +630,7 @@ export const createProjectInDatabase = async ({
     paid: sanitized.paid ?? false,
     projectDate: sanitized.projectDate ?? null,
     onDate: sanitized.onDate ?? null,
+    workStatus: sanitized.workStatus ?? 'active',
     createdBy,
     createdAt: timestamp,
   }

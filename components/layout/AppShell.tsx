@@ -24,6 +24,7 @@ import {
 import {
   ApartmentOutlined,
   AppstoreOutlined,
+  AuditOutlined,
   BankOutlined,
   CalendarOutlined,
   DollarOutlined,
@@ -43,7 +44,8 @@ type NavigationItem = {
   key: string
   icon: ReactNode
   label: ReactNode
-  route: string
+  route?: string
+  children?: { key: string; icon: ReactNode; label: ReactNode; route: string }[]
 }
 
 type AppShellProps = {
@@ -108,12 +110,27 @@ const NavigationSider = ({
   const navigationItems = useMemo(() => {
     return menuItems
       .filter((item) => allowedMenuKeys.has((item.name as string | undefined) ?? ""))
+      .filter((item) => item.name !== "accounting") // Accounting is now a sub-menu of Finance
       .map((item) => {
         const key = item.key ?? item.name
         const route = item.route ?? item.list
         if (!route) {
           return null
         }
+
+        // Finance has sub-menu with Bank Access and Accounting
+        if (item.name === "finance") {
+          return {
+            key: String(key ?? ""),
+            icon: <DollarOutlined />,
+            label: item.label,
+            children: [
+              { key: "bank-access", icon: <BankOutlined />, label: "Bank Access", route: "/finance" },
+              { key: "accounting", icon: <AuditOutlined />, label: "Accounting", route: "/accounting" },
+            ],
+          }
+        }
+
         return {
           key: String(key ?? ""),
           icon: iconForMenu(String(item.name ?? "")),
@@ -130,14 +147,32 @@ const NavigationSider = ({
         key: item.key,
         icon: item.icon,
         label: item.label,
+        children: item.children?.map((child) => ({
+          key: child.key,
+          icon: child.icon,
+          label: child.label,
+        })),
       })),
     [navigationItems],
   )
 
   const handleMenuClick = (info: { key: string; domEvent: MouseEvent<HTMLElement> }) => {
+    // Check top-level items first
     const target = navigationItems.find((item) => item.key === info.key)
     if (target?.route && typeof window !== "undefined") {
       navigateWithModifier(info.domEvent, target.route)
+      return
+    }
+
+    // Check sub-menu items
+    for (const item of navigationItems) {
+      if (item.children) {
+        const child = item.children.find((c) => c.key === info.key)
+        if (child?.route && typeof window !== "undefined") {
+          navigateWithModifier(info.domEvent, child.route)
+          return
+        }
+      }
     }
   }
 
@@ -146,12 +181,16 @@ const NavigationSider = ({
       <div
         style={{
           height: HEADER_HEIGHT,
+          minHeight: HEADER_HEIGHT,
+          maxHeight: HEADER_HEIGHT,
+          boxSizing: "border-box",
           display: "flex",
           alignItems: "center",
           gap: 12,
           padding: `0 ${HEADER_HORIZONTAL_PADDING}px`,
           borderBottom: "1px solid #e5e7eb",
           overflow: "hidden",
+          flexShrink: 0,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
@@ -198,12 +237,13 @@ const NavigationSider = ({
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => onCollapse(!collapsed)}
             style={{
-              fontFamily: "'Karla', sans-serif",
-              fontWeight: 600,
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
-          >
-            {collapsed ? "Expand" : "Collapse"}
-          </Button>
+          />
         </div>
       </div>
     </div>
@@ -251,45 +291,25 @@ const NavigationSider = ({
   )
 }
 
-const TopHeader = ({
-  collapsed,
-  onToggle,
-  isMobile,
-}: {
-  collapsed: boolean
-  onToggle: () => void
-  isMobile: boolean
-}) => (
+const TopHeader = () => (
   <Header
     style={{
       background: "#fff",
+      boxSizing: "border-box",
       display: "flex",
       alignItems: "center",
-      justifyContent: "space-between",
+      justifyContent: "flex-end",
       padding: `0 ${HEADER_HORIZONTAL_PADDING}px`,
       position: "sticky",
       top: 0,
       zIndex: 1000,
       height: HEADER_HEIGHT,
+      minHeight: HEADER_HEIGHT,
+      maxHeight: HEADER_HEIGHT,
+      lineHeight: `${HEADER_HEIGHT}px`,
       borderBottom: "1px solid #e5e7eb",
     }}
   >
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      {!isMobile ? (
-        <Button
-          type="text"
-          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          onClick={onToggle}
-          style={{
-            width: 36,
-            height: 36,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        />
-      ) : null}
-    </div>
     <Space size="large" align="center">
       <Tooltip title="Notifications">
         <Badge dot>
@@ -353,8 +373,8 @@ const AppShell = ({
               allowedMenuKeys={allowedKeys}
               isMobile={isMobile}
             />
-            <Layout style={{ background: "#fff" }}>
-              <TopHeader collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} isMobile={isMobile} />
+            <Layout style={{ background: "#fff", margin: 0 }}>
+              <TopHeader />
               <Content>{children}</Content>
             </Layout>
           </Layout>

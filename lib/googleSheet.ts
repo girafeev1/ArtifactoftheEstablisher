@@ -69,6 +69,7 @@ export async function fetchClassicScheme(): Promise<ClassicInvoiceScheme | null>
     }
   }
 
+  // Read credentials from environment variables
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
   const privateKey = process.env.GOOGLE_PRIVATE_KEY;
   if (!clientEmail || !privateKey) {
