@@ -284,10 +284,11 @@ export function getSpacingRules(equivalentItemCount: number): SpacingRules {
   } else if (equivalentItemCount === 3) {
     return { preItem: 1, betweenItems: 2, beforeTotal: 2, afterTotal: 2 };
   } else if (equivalentItemCount === 4) {
-    return { preItem: 1, betweenItems: 1, beforeTotal: 2, afterTotal: 1 };
+    // Tight spacing to fit 4 items + total box on single page (419px in 427px available)
+    return { preItem: 1, betweenItems: 1, beforeTotal: 1, afterTotal: 0 };
   } else {
     // 5+ items (packed mode)
-    return { preItem: 1, betweenItems: 1, beforeTotal: 1, afterTotal: 1 };
+    return { preItem: 1, betweenItems: 1, beforeTotal: 1, afterTotal: 0 };
   }
 }
 
