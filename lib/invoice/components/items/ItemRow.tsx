@@ -186,7 +186,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({ item, index, debug }) => {
         hAlign="center"
         debug={debug}
       >
-        <span style={{ ...monoStyle, fontSize: '18px' }}>
+        <span style={{ ...monoStyle, fontSize: '16pt' }}>
           {formatCurrency(lineTotal)}
         </span>
       </FlexCell>
