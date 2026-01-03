@@ -77,6 +77,19 @@ function formatCurrency(value: number): string {
 }
 
 /**
+ * Get progressive font size for item title based on character length
+ * Title spans columns A-H, so it has more room than narrower cells
+ */
+function getTitleFontSize(title: string): string {
+  const len = title.length;
+  if (len <= 35) return '21px';  // Normal size
+  if (len <= 45) return '18px';
+  if (len <= 55) return '16px';
+  if (len <= 70) return '14px';
+  return '12px';                  // Very long titles
+}
+
+/**
  * ItemRow - Renders a single invoice item
  *
  * Layout from JSON with merges:
@@ -109,7 +122,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({ item, index, debug }) => {
       <FlexCell columns="A-H" height={35} vAlign="bottom" hAlign="left" debug={debug}>
         <span style={{
           ...monoStyle,
-          fontSize: '21px', // 19 + 2
+          fontSize: getTitleFontSize(item.title || ''),
           fontWeight: 700,
           fontStyle: 'italic',
         }}>
