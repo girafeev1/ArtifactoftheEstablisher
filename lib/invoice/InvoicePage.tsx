@@ -226,7 +226,13 @@ export const InvoicePage: React.FC<InvoicePageProps> = ({
           </InvoiceGrid>
 
           {/* Flexible spacer - pushes footer to bottom */}
-          <div style={{ flex: '1 1 auto', minHeight: '0px' }} />
+          {/* On last page (with total box): cap at 4 rows (84px) to keep total box close to footer */}
+          {/* On other pages: unlimited to ensure footer stays at page bottom */}
+          <div style={{
+            flex: '1 1 auto',
+            minHeight: '0px',
+            maxHeight: isLastPage ? '84px' : undefined, // 4 rows × 21px = 84px max gap
+          }} />
 
           {/* Footer grid - always at bottom of page */}
           {/* Footer type depends on variant:

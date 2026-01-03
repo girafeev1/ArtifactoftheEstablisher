@@ -58,9 +58,18 @@ export interface PageLayout {
     preItem: number;          // Rows before first item
     betweenItems: number;     // Rows between items
     beforeTotal: number;      // Rows before total/footer
+    afterTotal: number;       // Rows after total box
   };
+  spacingPx: {
+    preItemPx: number;        // Pixels before first item
+    betweenItemsPx: number;   // Pixels between items
+    beforeTotalPx: number;    // Pixels before total/footer
+    afterTotalPx: number;     // Pixels after total box
+  };
+  dynamicSpacing: boolean;    // Whether spacing was dynamically distributed
   rowsUsed: number;
   rowsAvailable: number;
+  remainingSpacePx: number;   // Remaining space on this page in pixels
 }
 
 export interface InvoicePaginationResult {
@@ -71,11 +80,67 @@ export interface InvoicePaginationResult {
 }
 
 /**
+ * Calculate dynamic spacing distribution for a page.
+ * When there's remaining space, distribute it evenly among spacing slots.
+ */
+function calculateDynamicSpacing(
+  pageItemCount: number,
+  hasTotalBox: boolean,
+  remainingSpacePx: number,
+  baseSpacing: { preItem: number; betweenItems: number; beforeTotal: number; afterTotal: number }
+): {
+  preItemPx: number;
+  betweenItemsPx: number;
+  beforeTotalPx: number;
+  afterTotalPx: number;
+  dynamicSpacing: boolean;
+} {
+  const spacerRowHeight = PAGE_DIMENSIONS.spacerRowHeight; // 21px
+
+  // Base spacing in pixels
+  const basePreItemPx = baseSpacing.preItem * spacerRowHeight;
+  const baseBetweenItemsPx = baseSpacing.betweenItems * spacerRowHeight;
+  const baseBeforeTotalPx = baseSpacing.beforeTotal * spacerRowHeight;
+  const baseAfterTotalPx = baseSpacing.afterTotal * spacerRowHeight;
+
+  // If no remaining space or negative, use base spacing
+  if (remainingSpacePx <= 0) {
+    return {
+      preItemPx: basePreItemPx,
+      betweenItemsPx: baseBetweenItemsPx,
+      beforeTotalPx: baseBeforeTotalPx,
+      afterTotalPx: baseAfterTotalPx,
+      dynamicSpacing: false,
+    };
+  }
+
+  // Count spacing slots:
+  // - 1 preItem slot
+  // - (itemCount - 1) betweenItems slots
+  // - 1 beforeTotal slot (always present - before total box or before footer on non-final pages)
+  // - 1 afterTotal slot (only on pages with total box)
+  const betweenItemsSlots = Math.max(0, pageItemCount - 1);
+  const totalSlots = 1 + betweenItemsSlots + 1 + (hasTotalBox ? 1 : 0);
+
+  // Distribute remaining space evenly among slots
+  const extraPerSlot = Math.floor(remainingSpacePx / totalSlots);
+
+  return {
+    preItemPx: basePreItemPx + extraPerSlot,
+    betweenItemsPx: baseBetweenItemsPx + extraPerSlot,
+    beforeTotalPx: baseBeforeTotalPx + extraPerSlot,
+    afterTotalPx: baseAfterTotalPx + (hasTotalBox ? extraPerSlot : 0),
+    dynamicSpacing: extraPerSlot > 0,
+  };
+}
+
+/**
  * Calculate pagination for an invoice using CONTENT-AWARE height calculations.
  * This properly accounts for:
  * - Actual notes content height (line count × line height)
  * - Fixed section heights (header, footer, total box)
  * - Dynamic spacing based on item count
+ * - Dynamic spacing distribution when pages have remaining space
  */
 export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
   const itemCount = items.length;
@@ -100,9 +165,17 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
   // This ensures spacing rules are coherent with variable-height items
   const totalEquivalent = getTotalEquivalentItems(contentItems);
   const equivalentSpacing = calculateSpacing(totalEquivalent);
+  const spacerRowHeight = PAGE_DIMENSIONS.spacerRowHeight;
 
-  // If single page, use simplified logic
+  // If single page, use simplified logic (no dynamic spacing needed)
   if (breakpoints.length === 1 && breakpoints[0].includesTotalBox) {
+    const baseSpacingPx = {
+      preItemPx: equivalentSpacing.preItem * spacerRowHeight,
+      betweenItemsPx: equivalentSpacing.betweenItems * spacerRowHeight,
+      beforeTotalPx: equivalentSpacing.beforeTotal * spacerRowHeight,
+      afterTotalPx: equivalentSpacing.afterTotal * spacerRowHeight,
+    };
+
     return {
       pages: [{
         pageNumber: 1,
@@ -118,9 +191,13 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
           preItem: equivalentSpacing.preItem,
           betweenItems: equivalentSpacing.betweenItems,
           beforeTotal: equivalentSpacing.beforeTotal,
+          afterTotal: equivalentSpacing.afterTotal,
         },
-        rowsUsed: Math.ceil(contentHeight.totalContentHeight / PAGE_DIMENSIONS.spacerRowHeight),
-        rowsAvailable: Math.ceil(PAGE_DIMENSIONS.contentHeight / PAGE_DIMENSIONS.spacerRowHeight),
+        spacingPx: baseSpacingPx,
+        dynamicSpacing: false,
+        rowsUsed: Math.ceil(contentHeight.totalContentHeight / spacerRowHeight),
+        rowsAvailable: Math.ceil(PAGE_DIMENSIONS.contentHeight / spacerRowHeight),
+        remainingSpacePx: Math.max(0, PAGE_DIMENSIONS.contentHeight - contentHeight.totalContentHeight),
       }],
       totalPages: 1,
       itemDistribution: [itemCount],
@@ -129,12 +206,26 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
   }
 
   // Multi-page scenario using content-aware breakpoints
-  // Use the same equivalent spacing rules across all pages for consistency
+  // Calculate dynamic spacing to fill remaining space on each page
   const pages: PageLayout[] = [];
 
   breakpoints.forEach((bp, bpIndex) => {
     const isFirstPage = bpIndex === 0;
     const pageItems = items.slice(bp.startItemIndex, bp.endItemIndex + 1);
+    const pageItemCount = pageItems.length;
+
+    // Calculate dynamic spacing for this page
+    const dynamicSpacingResult = calculateDynamicSpacing(
+      pageItemCount,
+      bp.includesTotalBox,
+      bp.remainingSpace,
+      {
+        preItem: equivalentSpacing.preItem,
+        betweenItems: equivalentSpacing.betweenItems,
+        beforeTotal: equivalentSpacing.beforeTotal,
+        afterTotal: equivalentSpacing.afterTotal,
+      }
+    );
 
     pages.push({
       pageNumber: bp.pageNumber,
@@ -150,13 +241,17 @@ export function paginateInvoice(items: InvoiceItem[]): InvoicePaginationResult {
         footer: bp.includesTotalBox ? 'footer-full-payment' : 'footer-continuation-simple',
       },
       spacing: {
-        // Use global equivalent spacing for consistency across pages
+        // Keep row-based spacing for backward compatibility
         preItem: equivalentSpacing.preItem,
         betweenItems: equivalentSpacing.betweenItems,
         beforeTotal: equivalentSpacing.beforeTotal,
+        afterTotal: equivalentSpacing.afterTotal,
       },
-      rowsUsed: Math.ceil(bp.contentHeight / PAGE_DIMENSIONS.spacerRowHeight),
-      rowsAvailable: Math.ceil(PAGE_DIMENSIONS.contentHeight / PAGE_DIMENSIONS.spacerRowHeight),
+      spacingPx: dynamicSpacingResult,
+      dynamicSpacing: dynamicSpacingResult.dynamicSpacing,
+      rowsUsed: Math.ceil(bp.contentHeight / spacerRowHeight),
+      rowsAvailable: Math.ceil(PAGE_DIMENSIONS.contentHeight / spacerRowHeight),
+      remainingSpacePx: bp.remainingSpace,
     });
   });
 
@@ -204,6 +299,7 @@ export function paginateInvoiceLegacy(items: InvoiceItem[]): InvoicePaginationRe
 
     if (singlePageCalc.totalRowsNeeded <= page1AvailableRows) {
       const spacing = getSpacingRules(itemCount);
+      const spacerRowHeight = 21;
 
       return {
         pages: [{
@@ -220,9 +316,18 @@ export function paginateInvoiceLegacy(items: InvoiceItem[]): InvoicePaginationRe
             preItem: spacing.preItemSpacing,
             betweenItems: spacing.betweenItemSpacing,
             beforeTotal: spacing.beforeTotalSpacing,
+            afterTotal: 0,
           },
+          spacingPx: {
+            preItemPx: spacing.preItemSpacing * spacerRowHeight,
+            betweenItemsPx: spacing.betweenItemSpacing * spacerRowHeight,
+            beforeTotalPx: spacing.beforeTotalSpacing * spacerRowHeight,
+            afterTotalPx: 0,
+          },
+          dynamicSpacing: false,
           rowsUsed: 22 + singlePageCalc.totalRowsNeeded + 10,
           rowsAvailable: 51,
+          remainingSpacePx: 0,
         }],
         totalPages: 1,
         itemDistribution: [itemCount],
@@ -234,6 +339,7 @@ export function paginateInvoiceLegacy(items: InvoiceItem[]): InvoicePaginationRe
   // Multi-page scenario
   const pages: PageLayout[] = [];
   let currentItemIndex = 0;
+  const spacerRowHeight = 21;
 
   const page1ItemCount = Math.min(itemCount, page1Capacity);
   const page1Spacing = getSpacingRules(page1ItemCount);
@@ -256,9 +362,18 @@ export function paginateInvoiceLegacy(items: InvoiceItem[]): InvoicePaginationRe
       preItem: page1Spacing.preItemSpacing,
       betweenItems: page1Spacing.betweenItemSpacing,
       beforeTotal: page1Spacing.beforeTotalSpacing,
+      afterTotal: 0,
     },
+    spacingPx: {
+      preItemPx: page1Spacing.preItemSpacing * spacerRowHeight,
+      betweenItemsPx: page1Spacing.betweenItemSpacing * spacerRowHeight,
+      beforeTotalPx: page1Spacing.beforeTotalSpacing * spacerRowHeight,
+      afterTotalPx: 0,
+    },
+    dynamicSpacing: false,
     rowsUsed: 22 + page1Calc.totalRowsNeeded + 2,
     rowsAvailable: 51,
+    remainingSpacePx: 0,
   });
   currentItemIndex += page1ItemCount;
 
@@ -296,9 +411,18 @@ export function paginateInvoiceLegacy(items: InvoiceItem[]): InvoicePaginationRe
         preItem: spacing.preItemSpacing,
         betweenItems: spacing.betweenItemSpacing,
         beforeTotal: spacing.beforeTotalSpacing,
+        afterTotal: 0,
       },
+      spacingPx: {
+        preItemPx: spacing.preItemSpacing * spacerRowHeight,
+        betweenItemsPx: spacing.betweenItemSpacing * spacerRowHeight,
+        beforeTotalPx: spacing.beforeTotalSpacing * spacerRowHeight,
+        afterTotalPx: 0,
+      },
+      dynamicSpacing: false,
       rowsUsed: 10 + calc.totalRowsNeeded + (isLastPage ? 10 : 2),
       rowsAvailable: 56,
+      remainingSpacePx: 0,
     });
 
     currentItemIndex += itemsOnThisPage;
@@ -331,6 +455,8 @@ export function visualizePagination(result: InvoicePaginationResult): string {
     lines.push(`┌─ Page ${page.pageNumber} (${page.type}) ─┐`);
     lines.push(`│ Rows Available: ${page.rowsAvailable}`);
     lines.push(`│ Rows Used: ${page.rowsUsed}`);
+    lines.push(`│ Remaining Space: ${page.remainingSpacePx}px`);
+    lines.push(`│ Dynamic Spacing: ${page.dynamicSpacing ? 'YES' : 'NO'}`);
     lines.push(`│`);
     lines.push(`│ Sections:`);
     lines.push(`│   Header: ${page.sections.header}`);
@@ -339,10 +465,11 @@ export function visualizePagination(result: InvoicePaginationResult): string {
     lines.push(`│   Total Box: ${page.sections.totalBox ? 'YES' : 'NO'}`);
     lines.push(`│   Footer: ${page.sections.footer}`);
     lines.push(`│`);
-    lines.push(`│ Spacing:`);
-    lines.push(`│   Pre-item: ${page.spacing.preItem} rows`);
-    lines.push(`│   Between items: ${page.spacing.betweenItems} rows`);
-    lines.push(`│   Before total: ${page.spacing.beforeTotal} rows`);
+    lines.push(`│ Spacing (rows / pixels):`);
+    lines.push(`│   Pre-item: ${page.spacing.preItem} rows / ${page.spacingPx.preItemPx}px`);
+    lines.push(`│   Between items: ${page.spacing.betweenItems} rows / ${page.spacingPx.betweenItemsPx}px`);
+    lines.push(`│   Before total: ${page.spacing.beforeTotal} rows / ${page.spacingPx.beforeTotalPx}px`);
+    lines.push(`│   After total: ${page.spacing.afterTotal} rows / ${page.spacingPx.afterTotalPx}px`);
     lines.push(`└─────────────────────────┘\n`);
   });
 
