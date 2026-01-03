@@ -91,7 +91,17 @@ export const PaymentDetailsPage: React.FC<PaymentDetailsPageProps> = ({
     '173:H': subsidiary.brNumber || (subsidiary as unknown as { br?: string })?.br || '',
 
     // Bank Info: Bank name + code (row 174 col D, merge D-H)
-    '174:D': `${bankInfo.bankName}${bankInfo.bankCode ? ` (${bankInfo.bankCode})` : ''}`,
+    // Bank code is intentionally smaller (10pt) than bank name
+    '174:D': {
+      value: (
+        <span>
+          {bankInfo.bankName}
+          {bankInfo.bankCode && (
+            <span style={{ fontSize: '10pt' }}> ({bankInfo.bankCode})</span>
+          )}
+        </span>
+      ),
+    },
 
     // Bank Info: Branch Code (row 175 col D)
     '175:D': branchCode,
