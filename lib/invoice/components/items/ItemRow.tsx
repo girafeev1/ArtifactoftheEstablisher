@@ -78,28 +78,24 @@ function formatCurrency(value: number): string {
 
 /**
  * Get font size and layout for item title
- * - Short titles: 21px, no wrap
- * - Medium titles: 18px, no wrap
- * - Long titles: 18px with wrap, expanded row height
+ * - Short/medium titles: 19pt, no wrap
+ * - Long titles: 19pt with wrap, expanded row height
  */
 function getTitleLayout(title: string): { fontSize: string; needsWrap: boolean; rowHeight: number } {
   const len = title.length;
 
-  // Short titles - normal size, single line
-  if (len <= 35) return { fontSize: '21px', needsWrap: false, rowHeight: 35 };
+  // Short/medium titles - 19pt, single line
+  if (len <= 45) return { fontSize: '19pt', needsWrap: false, rowHeight: 35 };
 
-  // Medium titles - slightly smaller, single line
-  if (len <= 45) return { fontSize: '18px', needsWrap: false, rowHeight: 35 };
-
-  // Long titles - 18px with wrapping, calculate height needed
-  // At 18px font, approx 30 chars fit in A-H columns width
-  const charsPerLine = 30;
+  // Long titles - 19pt with wrapping, calculate height needed
+  // At 19pt (~25px), approx 28 chars fit in A-H columns width
+  const charsPerLine = 28;
   const lines = Math.ceil(len / charsPerLine);
-  const lineHeight = 18 * 1.3; // 18px font with 1.3 line-height
+  const lineHeight = 25 * 1.3; // ~25px font with 1.3 line-height
   const calculatedHeight = Math.ceil(lines * lineHeight) + 4; // +4 for padding
   const rowHeight = Math.max(35, calculatedHeight);
 
-  return { fontSize: '18px', needsWrap: true, rowHeight };
+  return { fontSize: '19pt', needsWrap: true, rowHeight };
 }
 
 /**

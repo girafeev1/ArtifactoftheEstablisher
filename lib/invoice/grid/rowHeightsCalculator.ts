@@ -51,13 +51,15 @@ export function calculateItemRowHeights(item: InvoiceItem): number[] {
   const rows: number[] = [];
 
   // Title row height (variable based on title length)
+  // Title is 19pt (~25px)
   const titleLen = (item.title || '').length;
   let titleRowHeight = 35; // default
   if (titleLen > 45) {
     // Long titles wrap - calculate expanded height
-    const charsPerLine = 30;
+    // At 19pt (~25px), approx 28 chars fit in A-H columns width
+    const charsPerLine = 28;
     const lines = Math.ceil(titleLen / charsPerLine);
-    const lineHeight = 18 * 1.3;
+    const lineHeight = 25 * 1.3; // ~25px font with 1.3 line-height
     titleRowHeight = Math.max(35, Math.ceil(lines * lineHeight) + 4);
   }
   rows.push(titleRowHeight);
