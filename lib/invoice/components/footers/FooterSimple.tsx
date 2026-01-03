@@ -40,8 +40,8 @@ function spacify(text: string | undefined | null): string {
 
 /**
  * Format phone number with mixed font sizes
- * "+(852)" area code in 9pt (12px), rest of phone number in 10pt (13px)
- * The area code is 1pt smaller than the phone number
+ * "+(852)" country code in 7px, rest of phone number in 11px
+ * The country code is intentionally smaller than the phone number
  */
 function formatPhone(phone: string | undefined | null): React.ReactNode {
   if (!phone) return null;
@@ -54,21 +54,21 @@ function formatPhone(phone: string | undefined | null): React.ReactNode {
   const match = spacified.match(/^(\+\s*)?(\(\s*8\s*5\s*2\s*\))(.*)/);
 
   if (match) {
-    const plus = match[1] || ''; // "+" part - smaller (7px for testing)
-    const areaCode = match[2]; // "(852)" part - smaller (7px for testing)
-    const rest = match[3]; // rest of number - 10pt (13px)
+    const plus = match[1] || ''; // "+" part - smaller
+    const countryCode = match[2]; // "(852)" part - smaller (7px)
+    const rest = match[3]; // rest of number (11px)
 
     return (
       <>
-        {plus && <span style={{ fontSize: '9px' }}>{plus}</span>}
-        <span style={{ fontSize: '9px' }}>{areaCode}</span>
-        <span style={{ fontSize: '13px' }}>{rest}</span>
+        {plus && <span style={{ fontSize: '7px' }}>{plus}</span>}
+        <span style={{ fontSize: '7px' }}>{countryCode}</span>
+        <span style={{ fontSize: '11px' }}>{rest}</span>
       </>
     );
   }
 
   // No country code detected, just return spacified
-  return <span style={{ fontSize: '13px' }}>{spacified}</span>;
+  return <span style={{ fontSize: '11px' }}>{spacified}</span>;
 }
 
 /**
@@ -136,7 +136,7 @@ export const FooterSimple: React.FC<FooterSimpleProps> = ({
           lineHeight: 1.2,
         }}>
           {subsidiary?.phone && <div>{formatPhone(subsidiary.phone)}</div>}
-          {subsidiary?.email && <div style={{ fontSize: '13px' }}>{spacify(subsidiary.email)}</div>}
+          {subsidiary?.email && <div style={{ fontSize: '11px' }}>{spacify(subsidiary.email)}</div>}
         </div>
       </FlexCell>
     </>

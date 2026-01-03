@@ -36,6 +36,15 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
   const [rowInfo, setRowInfo] = useState<Array<{ top: number; height: number }>>([]);
+  const [mergedCells, setMergedCells] = useState<Array<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+    columns: string;
+    colSpan: number;
+    rowSpan: number;
+  }>>([]);
 
   // Calculate row info for debug overlay
   // When explicit rowHeights are provided, use them directly
@@ -126,10 +135,58 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
     return () => observer.disconnect();
   }, [showGrid, children, rowHeights]);
 
-  // Generate gridTemplateRows from explicit row heights if provided
-  const gridTemplateRows = rowHeights
-    ? rowHeights.map(h => `${h}px`).join(' ')
-    : undefined;
+  // Detect merged cells (cells spanning multiple columns or rows)
+  useLayoutEffect(() => {
+    if (!showGrid || !gridRef.current) {
+      setMergedCells([]);
+      return;
+    }
+
+    const detectMergedCells = () => {
+      const grid = gridRef.current;
+      if (!grid) return;
+
+      const cells = Array.from(grid.children).filter(
+        (child) => child instanceof HTMLElement && !child.hasAttribute('data-grid-overlay')
+      ) as HTMLElement[];
+
+      const gridRect = grid.getBoundingClientRect();
+      const merged: typeof mergedCells = [];
+
+      cells.forEach((cell) => {
+        const colSpanAttr = cell.getAttribute('data-col-span');
+        const rowSpanAttr = cell.getAttribute('data-row-span');
+        const columnsAttr = cell.getAttribute('data-columns');
+        const colSpan = colSpanAttr ? parseInt(colSpanAttr, 10) : 1;
+        const rowSpan = rowSpanAttr ? parseInt(rowSpanAttr, 10) : 1;
+
+        // Only track cells that span multiple columns or rows
+        if (colSpan > 1 || rowSpan > 1) {
+          const rect = cell.getBoundingClientRect();
+          merged.push({
+            top: Math.round(rect.top - gridRect.top),
+            left: Math.round(rect.left - gridRect.left),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            columns: columnsAttr || '',
+            colSpan,
+            rowSpan,
+          });
+        }
+      });
+
+      setMergedCells(merged);
+    };
+
+    detectMergedCells();
+    const observer = new ResizeObserver(detectMergedCells);
+    observer.observe(gridRef.current);
+    return () => observer.disconnect();
+  }, [showGrid, children]);
+
+  // Note: rowHeights are only used for the debug overlay visualization
+  // They should NOT be applied to gridTemplateRows as that would break the content flow
+  // The actual content layout is controlled by individual cell heights
 
   return (
     <div
@@ -138,7 +195,7 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
       style={{
         display: 'grid',
         gridTemplateColumns: getGridTemplateColumns(),
-        gridTemplateRows,
+        // gridTemplateRows intentionally NOT set - cells control their own heights
         width: `${TOTAL_WIDTH}px`,
         position: 'relative',
         boxSizing: 'border-box',
@@ -269,6 +326,51 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
                 }}
               >
                 {idx + 1}
+              </div>
+            ))}
+          </div>
+          {/* Merged cell overlays - highlight cells spanning multiple columns/rows */}
+          <div
+            data-grid-overlay="merged-cells"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              pointerEvents: 'none',
+            }}
+          >
+            {mergedCells.map((cell, idx) => (
+              <div
+                key={idx}
+                style={{
+                  position: 'absolute',
+                  top: cell.top,
+                  left: cell.left,
+                  width: cell.width,
+                  height: cell.height,
+                  border: '2px solid rgba(0, 128, 0, 0.5)',
+                  backgroundColor: 'rgba(0, 128, 0, 0.05)',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'flex-start',
+                  padding: '2px',
+                }}
+              >
+                <span style={{
+                  fontSize: '8px',
+                  fontWeight: 700,
+                  color: 'rgba(0, 128, 0, 0.8)',
+                  fontFamily: '"Roboto Mono", monospace',
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                  padding: '1px 3px',
+                  borderRadius: '2px',
+                }}>
+                  {cell.columns}
+                  {cell.rowSpan > 1 ? ` ×${cell.rowSpan}r` : ''}
+                </span>
               </div>
             ))}
           </div>

@@ -31,6 +31,8 @@ export const Cell: React.FC<CellProps> = ({
   return (
     <div
       className={`invoice-cell ${className || ''}`}
+      data-columns={columns}
+      data-col-span={colSpan > 1 ? colSpan : undefined}
       data-row-span={rowSpan > 1 ? rowSpan : undefined}
       style={{
         gridColumn: `${startCol} / span ${colSpan}`,
@@ -108,6 +110,8 @@ export const FlexCell: React.FC<FlexCellProps> = ({
   return (
     <div
       className={`invoice-cell invoice-cell-flex ${className || ''}`}
+      data-columns={columns}
+      data-col-span={colSpan > 1 ? colSpan : undefined}
       data-row-span={rowSpan > 1 ? rowSpan : undefined}
       style={{
         gridColumn: `${startCol} / span ${colSpan}`,
