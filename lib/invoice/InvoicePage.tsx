@@ -6,13 +6,18 @@
  * Applies scaling to fit A4 page dimensions, matching DynamicInvoice behavior.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { InvoiceGrid, Spacer } from './grid';
 import { InvoiceHeaderFull, InvoiceHeaderFullVersionA, InvoiceHeaderContinuation } from './components/headers';
 import { ItemTableHeader, ItemRow } from './components/items';
 import { TotalBox } from './components/totals';
 import { FooterFull, FooterSimple } from './components/footers';
 import { TOTAL_WIDTH } from './grid/gridConstants';
+import {
+  calculateInvoiceContentRowHeights,
+  getFooterRowHeights,
+  TOTAL_BOX_ROW_HEIGHTS,
+} from './grid/rowHeightsCalculator';
 import type { ProjectInvoiceRecord, ProjectRecord, SubsidiaryDoc, BankInfo, InvoiceItem, InvoiceVariant } from './types';
 
 export interface InvoicePageProps {
@@ -114,6 +119,17 @@ export const InvoicePage: React.FC<InvoicePageProps> = ({
   const debugPaddingTop = debug ? 24 : 0;
   const debugPaddingLeft = debug ? 32 : 0;
 
+  // Calculate explicit row heights for accurate grid debug overlay
+  const contentRowHeights = useMemo(() =>
+    calculateInvoiceContentRowHeights(isFirstPage, isLastPage, items, spacing, variant),
+    [isFirstPage, isLastPage, items, spacing, variant]
+  );
+
+  const footerRowHeights = useMemo(() =>
+    getFooterRowHeights(isLastPage, variant),
+    [isLastPage, variant]
+  );
+
   return (
     <div
       className="invoice-page"
@@ -150,7 +166,7 @@ export const InvoicePage: React.FC<InvoicePageProps> = ({
           flexDirection: 'column',
         }}>
           {/* Main content grid */}
-          <InvoiceGrid showGrid={debug} style={{ flex: '0 0 auto' }}>
+          <InvoiceGrid showGrid={debug} style={{ flex: '0 0 auto' }} rowHeights={contentRowHeights}>
             {/* === Header === */}
             {isFirstPage ? (
               // Version A/A2 use different header layout (Invoice title on left, Logo on right)
@@ -211,7 +227,7 @@ export const InvoicePage: React.FC<InvoicePageProps> = ({
 
           {/* === Total Box (last page only) - anchored to bottom === */}
           {isLastPage && (
-            <InvoiceGrid showGrid={debug} style={{ flex: '0 0 auto' }}>
+            <InvoiceGrid showGrid={debug} style={{ flex: '0 0 auto' }} rowHeights={TOTAL_BOX_ROW_HEIGHTS}>
               <TotalBox
                 total={total}
                 totalEnglish={totalEnglish}
@@ -232,7 +248,7 @@ export const InvoicePage: React.FC<InvoicePageProps> = ({
               - Version B/B2: Last page shows FooterFull (with bank info)
               - Version A/A2: Last page shows FooterSimple (bank info on separate Payment Details page)
               - All other pages: FooterSimple */}
-          <InvoiceGrid showGrid={debug} style={{ flex: '0 0 auto' }}>
+          <InvoiceGrid showGrid={debug} style={{ flex: '0 0 auto' }} rowHeights={footerRowHeights}>
             {isLastPage && (variant === 'B' || variant === 'B2') ? (
               <FooterFull
                 subsidiary={subsidiary}

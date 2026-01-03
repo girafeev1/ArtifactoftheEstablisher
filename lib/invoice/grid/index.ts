@@ -45,3 +45,17 @@ export type {
 
 export { SchemePageRenderer } from './SchemePageRenderer';
 export type { SchemePageRendererProps, ValueOverride } from './SchemePageRenderer';
+
+export {
+  HEADER_FULL_ROW_HEIGHTS,
+  HEADER_FULL_VERSION_A_ROW_HEIGHTS,
+  HEADER_CONTINUATION_ROW_HEIGHTS,
+  ITEM_TABLE_HEADER_ROW_HEIGHTS,
+  FOOTER_SIMPLE_ROW_HEIGHTS,
+  FOOTER_FULL_ROW_HEIGHTS,
+  TOTAL_BOX_ROW_HEIGHTS,
+  SPACER_ROW_HEIGHT,
+  calculateItemRowHeights,
+  calculateInvoiceContentRowHeights,
+  getFooterRowHeights,
+} from './rowHeightsCalculator';
