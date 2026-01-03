@@ -77,16 +77,29 @@ function formatCurrency(value: number): string {
 }
 
 /**
- * Get progressive font size for item title based on character length
- * Title spans columns A-H, so it has more room than narrower cells
+ * Get font size and layout for item title
+ * - Short titles: 21px, no wrap
+ * - Medium titles: 18px, no wrap
+ * - Long titles: 18px with wrap, expanded row height
  */
-function getTitleFontSize(title: string): string {
+function getTitleLayout(title: string): { fontSize: string; needsWrap: boolean; rowHeight: number } {
   const len = title.length;
-  if (len <= 35) return '21px';  // Normal size
-  if (len <= 45) return '18px';
-  if (len <= 55) return '16px';
-  if (len <= 70) return '14px';
-  return '12px';                  // Very long titles
+
+  // Short titles - normal size, single line
+  if (len <= 35) return { fontSize: '21px', needsWrap: false, rowHeight: 35 };
+
+  // Medium titles - slightly smaller, single line
+  if (len <= 45) return { fontSize: '18px', needsWrap: false, rowHeight: 35 };
+
+  // Long titles - 18px with wrapping, calculate height needed
+  // At 18px font, approx 30 chars fit in A-H columns width
+  const charsPerLine = 30;
+  const lines = Math.ceil(len / charsPerLine);
+  const lineHeight = 18 * 1.3; // 18px font with 1.3 line-height
+  const calculatedHeight = Math.ceil(lines * lineHeight) + 4; // +4 for padding
+  const rowHeight = Math.max(35, calculatedHeight);
+
+  return { fontSize: '18px', needsWrap: true, rowHeight };
 }
 
 /**
@@ -112,19 +125,25 @@ export const ItemRow: React.FC<ItemRowProps> = ({ item, index, debug }) => {
 
   const monoStyle = { fontFamily: '"Roboto Mono", monospace' };
 
+  // Get title layout (font size, wrap, row height)
+  const titleLayout = getTitleLayout(item.title || '');
+  const titleRowHeight = titleLayout.rowHeight;
+
   // Combined height for row-spanning cells (row 1 + row 2)
-  const combinedRowHeight = 35 + 24; // 59px
+  const combinedRowHeight = titleRowHeight + 24;
 
   return (
     <>
-      {/* === Row 1 (35px): Title + Price Info === */}
+      {/* === Row 1 (variable height): Title + Price Info === */}
       {/* Title + SubQuantity in columns A-H (merge: r1=1, c1=1, r2=1, c2=8) */}
-      <FlexCell columns="A-H" height={35} vAlign="bottom" hAlign="left" debug={debug}>
+      <FlexCell columns="A-H" height={titleRowHeight} vAlign="bottom" hAlign="left" debug={debug}>
         <span style={{
           ...monoStyle,
-          fontSize: getTitleFontSize(item.title || ''),
+          fontSize: titleLayout.fontSize,
           fontWeight: 700,
           fontStyle: 'italic',
+          whiteSpace: titleLayout.needsWrap ? 'normal' : 'nowrap',
+          lineHeight: titleLayout.needsWrap ? 1.3 : undefined,
         }}>
           {item.title}
           {item.subQuantity && (
@@ -135,10 +154,10 @@ export const ItemRow: React.FC<ItemRowProps> = ({ item, index, debug }) => {
         </span>
       </FlexCell>
       {/* Column I is empty (between title and unit price) */}
-      <Cell columns="I" height={35} debug={debug} />
+      <Cell columns="I" height={titleRowHeight} debug={debug} />
 
       {/* Unit Price in columns J-K (row 1 only) */}
-      <FlexCell columns="J-K" height={35} vAlign="bottom" hAlign="right" debug={debug}>
+      <FlexCell columns="J-K" height={titleRowHeight} vAlign="bottom" hAlign="right" debug={debug}>
         <span style={{ ...monoStyle, fontSize: '10px' }}>
           {formatCurrency(item.unitPrice || 0)}
         </span>

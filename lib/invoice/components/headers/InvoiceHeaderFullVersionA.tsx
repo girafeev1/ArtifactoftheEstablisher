@@ -273,7 +273,7 @@ export const InvoiceHeaderFullVersionA: React.FC<InvoiceHeaderFullVersionAProps>
         </span>
       </FlexCell>
       <FlexCell columns="B-K" height={ROW_HEIGHTS[12]} vAlign="bottom" debug={debug}>
-        <span style={{ ...googleSansStyle, fontSize: '12px' }}> {/* 9pt converted to px */}
+        <span style={{ ...googleSansStyle, fontSize: '12px', fontWeight: 700 }}> {/* 9pt converted to px, bold */}
           {repTitle} {repName}
         </span>
       </FlexCell>
