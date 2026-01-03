@@ -80,7 +80,7 @@ export const FooterFull: React.FC<FooterFullProps> = ({
         <span style={labelStyle}>Cheque Payable To :</span>
       </FlexCell>
       <Cell columns="E-F" height={16} debug={debug} />
-      <FlexCell columns="G-N" height={16} vAlign="top" hAlign="right" debug={debug}>
+      <FlexCell columns="G-N" height={16} vAlign="bottom" hAlign="right" debug={debug}>
         <span style={labelStyle}>For the amount of:</span>
       </FlexCell>
 
@@ -98,7 +98,7 @@ export const FooterFull: React.FC<FooterFullProps> = ({
         <span style={labelStyle}>Bank:</span>
       </FlexCell>
       <Cell columns="E-M" height={16} debug={debug} />
-      <FlexCell columns="N" height={16} vAlign="top" hAlign="right" debug={debug}>
+      <FlexCell columns="N" height={16} vAlign="bottom" hAlign="right" debug={debug}>
         <span style={{
           fontFamily: '"Yuji Mai", serif',
           fontSize: '9px', // 7 + 2
