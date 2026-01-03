@@ -218,7 +218,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const items = normalizeItemsPayload(body.items)
       const taxOrDiscountPercent = toNumberValue(body.taxOrDiscountPercent)
       const paymentStatus = toStringValue(body.paymentStatus)
-      // Note: paidTo and paidOn are now derived from transactions, not stored on invoice
+      // payTo: bank account identifier for payment instructions (where client should pay)
+      // UI sends this as "paidTo" for backwards compatibility
+      const payTo = toStringValue(body.paidTo ?? body.payTo)
 
       const created = await createInvoiceForProject({
         year: project.year,
@@ -228,6 +230,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         items,
         taxOrDiscountPercent,
         paymentStatus,
+        payTo,
         editedBy: identity,
       })
 
@@ -281,7 +284,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const items = normalizeItemsPayload(body.items)
       const taxOrDiscountPercent = toNumberValue(body.taxOrDiscountPercent)
       const paymentStatus = toStringValue(body.paymentStatus)
-      // Note: paidTo and paidOn are now derived from transactions, not stored on invoice
+      // payTo: bank account identifier for payment instructions (where client should pay)
+      // UI sends this as "paidTo" for backwards compatibility
+      const payTo = toStringValue(body.paidTo ?? body.payTo)
 
       // Block manual Cleared status - must be set via transaction matching
       if (paymentStatus?.toLowerCase() === 'cleared') {
@@ -311,6 +316,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         items,
         taxOrDiscountPercent,
         paymentStatus,
+        payTo,
         editedBy: identity,
       })
 

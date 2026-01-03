@@ -457,7 +457,7 @@ const MatchInvoiceModal: React.FC<MatchInvoiceModalProps> = ({
             max={record.amountDue}
             precision={2}
             value={matchAmounts[record.invoiceNumber] || null}
-            onChange={(val) => handleAmountChange(record.invoiceNumber, val)}
+            onChange={(val: number | null) => handleAmountChange(record.invoiceNumber, val)}
             style={{ width: 90 }}
             placeholder="0.00"
           />
@@ -548,7 +548,7 @@ const MatchInvoiceModal: React.FC<MatchInvoiceModalProps> = ({
         placeholder="Search by invoice number, project title, or presenter..."
         prefix={<SearchOutlined />}
         value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
         style={{ marginBottom: 8 }}
         allowClear
       />

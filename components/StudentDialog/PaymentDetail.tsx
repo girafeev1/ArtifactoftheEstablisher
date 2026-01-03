@@ -1,19 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import {
-  Box,
-  Typography,
-  Button,
-  Checkbox,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TableSortLabel,
-  CircularProgress,
-  TextField,
-  MenuItem,
-} from '@mui/material'
+import { Typography, Button, Checkbox, Table, Spin, Input, Select } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+
+const { Text } = Typography
 import {
   doc,
   setDoc,
@@ -475,17 +464,92 @@ export default function PaymentDetail({
     }
   }
 
+  const labelStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 200 }
+  const valueStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }
+
+  interface SessionRow {
+    id: string
+    ordinal?: number
+    date?: string
+    time?: string
+    rate?: number
+    rateDisplay?: string
+    startMs?: number
+    assignedPaymentId?: string
+    retainerId?: string
+    paymentId?: string
+  }
+
+  const tableColumns: ColumnsType<SessionRow> = [
+    {
+      title: 'Session #',
+      dataIndex: 'ordinal',
+      key: 'ordinal',
+      width: widths['ordinal'],
+      sorter: true,
+      sortOrder: sortField === 'ordinal' ? (sortAsc ? 'ascend' : 'descend') : undefined,
+      render: (v: number | undefined, r: SessionRow) => {
+        const isAvail = available.some((a) => a.id === r.id)
+        if (isAvail) {
+          return (
+            <>
+              <Checkbox
+                checked={selected.includes(r.id)}
+                onChange={() => toggle(r.id)}
+                disabled={
+                  assigning ||
+                  (!selected.includes(r.id) &&
+                    (r.rate || 0) > Math.max(0, remaining - totalSelected))
+                }
+                style={{ padding: 0, marginRight: 8 }}
+              />
+              <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{v ?? '-'}</span>
+            </>
+          )
+        }
+        return <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{v ?? '-'}</span>
+      },
+    },
+    {
+      title: 'Date',
+      dataIndex: 'date',
+      key: 'date',
+      width: widths['date'],
+      sorter: true,
+      sortOrder: sortField === 'date' ? (sortAsc ? 'ascend' : 'descend') : undefined,
+      render: (v: string) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{v || '-'}</span>,
+    },
+    {
+      title: 'Time',
+      dataIndex: 'time',
+      key: 'time',
+      width: widths['time'],
+      sorter: true,
+      sortOrder: sortField === 'time' ? (sortAsc ? 'ascend' : 'descend') : undefined,
+      render: (v: string) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{v || '-'}</span>,
+    },
+    {
+      title: 'Rate',
+      dataIndex: 'rate',
+      key: 'rate',
+      width: widths['rate'],
+      sorter: true,
+      sortOrder: sortField === 'rate' ? (sortAsc ? 'ascend' : 'descend') : undefined,
+      render: (v: number) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{formatCurrency(Number(v) || 0)}</span>,
+    },
+  ]
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ flexGrow: 1, overflow: 'auto', padding: 16, paddingBottom: 64 }}>
         {needsCascade ? (
-          <Box
-            sx={{
+          <div
+            style={{
               display: 'grid',
               gridTemplateColumns: 'auto 1fr',
-              columnGap: 2,
-              rowGap: 1,
-              mb: 2,
+              columnGap: 16,
+              rowGap: 8,
+              marginBottom: 16,
             }}
           >
             {(() => {
@@ -501,40 +565,32 @@ export default function PaymentDetail({
                 {
                   label: 'Method',
                   value: (
-                    <TextField
-                      select
+                    <Select
                       size="small"
-                      value={methodVal}
-                      onChange={(e) => setMethodVal(e.target.value)}
-                      inputProps={{
-                        'data-testid': 'detail-method-select',
-                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                      }}
-                    >
-                      {['FPS', 'Bank Transfer', 'Cheque'].map((m) => (
-                        <MenuItem key={m} value={m}>
-                          {m}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                      value={methodVal || undefined}
+                      onChange={(val: string) => setMethodVal(val)}
+                      style={{ minWidth: 150, fontFamily: 'Newsreader', fontWeight: 500 }}
+                      data-testid="detail-method-select"
+                      options={['FPS', 'Bank Transfer', 'Cheque'].map((m) => ({ label: m, value: m }))}
+                      placeholder="Select method"
+                    />
                   ),
                 },
                 {
                   label: 'Entity',
                   value: (
-                    <TextField
-                      select
+                    <Select
                       size="small"
-                      value={entityVal}
-                      onChange={(e) => setEntityVal(e.target.value)}
-                      inputProps={{
-                        'data-testid': 'detail-entity-select',
-                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                      }}
-                    >
-                      <MenuItem value="Music Establish (ERL)">Music Establish (ERL)</MenuItem>
-                      <MenuItem value="Personal">Personal</MenuItem>
-                    </TextField>
+                      value={entityVal || undefined}
+                      onChange={(val: string) => setEntityVal(val)}
+                      style={{ minWidth: 180, fontFamily: 'Newsreader', fontWeight: 500 }}
+                      data-testid="detail-entity-select"
+                      options={[
+                        { label: 'Music Establish (ERL)', value: 'Music Establish (ERL)' },
+                        { label: 'Personal', value: 'Personal' },
+                      ]}
+                      placeholder="Select entity"
+                    />
                   ),
                 },
               ]
@@ -542,51 +598,38 @@ export default function PaymentDetail({
                 fields.push({
                   label: 'Bank',
                   value: (
-                    <TextField
-                      select
+                    <Select
                       size="small"
-                      value={selectedBank ? selectedBank.rawCodeSegment : ''}
-                      onChange={(e) => {
-                        const b = banks.find(
-                          (bk) => bk.rawCodeSegment === e.target.value,
-                        )
+                      value={selectedBank ? selectedBank.rawCodeSegment : undefined}
+                      onChange={(val: string) => {
+                        const b = banks.find((bk) => bk.rawCodeSegment === val)
                         setSelectedBank(b || null)
                       }}
-                      inputProps={{
-                        'data-testid': 'detail-bank-select',
-                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                      }}
-                    >
-                      {banks.map((b) => (
-                        <MenuItem
-                          key={`${b.bankName}-${b.rawCodeSegment}`}
-                          value={b.rawCodeSegment}
-                        >
-                          {buildBankLabel(b)}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                      style={{ minWidth: 200, fontFamily: 'Newsreader', fontWeight: 500 }}
+                      data-testid="detail-bank-select"
+                      options={banks.map((b) => ({
+                        label: buildBankLabel(b),
+                        value: b.rawCodeSegment,
+                      }))}
+                      placeholder="Select bank"
+                    />
                   ),
                 })
                 fields.push({
                   label: 'Bank Account',
                   value: (
-                    <TextField
-                      select
+                    <Select
                       size="small"
-                      value={accountIdVal}
-                      onChange={(e) => setAccountIdVal(e.target.value)}
-                      inputProps={{
-                        'data-testid': 'detail-bank-account-select',
-                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                      }}
-                    >
-                      {accounts.map((a) => (
-                        <MenuItem key={a.accountDocId} value={a.accountDocId}>
-                          {buildAccountLabel(a)}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                      value={accountIdVal || undefined}
+                      onChange={(val: string) => setAccountIdVal(val)}
+                      style={{ minWidth: 200, fontFamily: 'Newsreader', fontWeight: 500 }}
+                      data-testid="detail-bank-account-select"
+                      options={accounts.map((a) => ({
+                        label: buildAccountLabel(a),
+                        value: a.accountDocId,
+                      }))}
+                      placeholder="Select account"
+                    />
                   ),
                 })
               }
@@ -602,7 +645,7 @@ export default function PaymentDetail({
                         <Button
                           size="small"
                           onClick={() => setShowAllSessions((s) => !s)}
-                          sx={{ ml: 1 }}
+                          style={{ marginLeft: 8 }}
                         >
                           {showAllSessions ? 'Hide' : 'View all'}
                         </Button>
@@ -614,14 +657,12 @@ export default function PaymentDetail({
               fields.push({
                 label: 'Reference #',
                 value: (
-                  <TextField
+                  <Input
                     size="small"
                     value={refVal}
-                    onChange={(e) => setRefVal(e.target.value)}
-                    inputProps={{
-                      'data-testid': 'detail-ref-input',
-                      style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                    }}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRefVal(e.target.value)}
+                    data-testid="detail-ref-input"
+                    style={{ fontFamily: 'Newsreader', fontWeight: 500, maxWidth: 200 }}
                   />
                 ),
               })
@@ -635,86 +676,68 @@ export default function PaymentDetail({
               })
               return fields.map((f) => (
                 <React.Fragment key={f.label}>
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-                  >
-                    {f.label}:
-                  </Typography>
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                  >
-                    {f.value}
-                  </Typography>
+                  <Text style={labelStyle}>{f.label}:</Text>
+                  <Text style={valueStyle}>{f.value}</Text>
                 </React.Fragment>
               ))
             })()}
             {bankError && (
-              <Typography
-                variant="body2"
-                color="error"
-                sx={{ gridColumn: '1 / span 2', mt: 1 }}
-              >
+              <Text type="danger" style={{ gridColumn: '1 / span 2', marginTop: 8 }}>
                 {bankError}
-              </Typography>
+              </Text>
             )}
             {acctError && !bankError && (
-              <Typography
-                variant="body2"
-                color="error"
-                sx={{ gridColumn: '1 / span 2', mt: 1 }}
-              >
+              <Text type="danger" style={{ gridColumn: '1 / span 2', marginTop: 8 }}>
                 {acctError}
-              </Typography>
+              </Text>
             )}
             {acctEmpty && !acctError && (
-              <Typography variant="body2" sx={{ gridColumn: '1 / span 2', mt: 1 }}>
+              <Text style={{ gridColumn: '1 / span 2', marginTop: 8 }}>
                 No accounts found.{' '}
                 <Button size="small" onClick={retryAccounts}>
                   Retry
                 </Button>
-              </Typography>
+              </Text>
             )}
-          </Box>
+          </div>
         ) : (
           <>
-            <Box data-testid="payment-summary-block" sx={{ mb: 2 }}>
-              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+            <div data-testid="payment-summary-block" style={{ marginBottom: 16 }}>
+              <Text style={{ fontFamily: 'Newsreader', fontWeight: 500, display: 'block' }}>
                 Payment made by –
-              </Typography>
-              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+              </Text>
+              <Text style={{ fontFamily: 'Newsreader', fontWeight: 500, display: 'block' }}>
                 {(studentName.first || 'N/A')}, {(studentName.last || 'N/A')}
-              </Typography>
-              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+              </Text>
+              <Text style={{ fontFamily: 'Newsreader', fontWeight: 500, display: 'block' }}>
                 on {(() => { const d = payment.paymentMade?.toDate ? payment.paymentMade.toDate() : new Date(payment.paymentMade); return isNaN(d.getTime()) ? '-' : formatMMMDDYYYY(d) })()} thru {payment.method || 'N/A'}
-              </Typography>
-              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+              </Text>
+              <Text style={{ fontFamily: 'Newsreader', fontWeight: 500, display: 'block' }}>
                 to Establish Records Limited:
-              </Typography>
-              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+              </Text>
+              <Text style={{ fontFamily: 'Newsreader', fontWeight: 500, display: 'block' }}>
                 {(acctInfo?.bankName || 'N/A')} ({acctInfo?.bankCode || 'N/A'})
-              </Typography>
-              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+              </Text>
+              <Text style={{ fontFamily: 'Newsreader', fontWeight: 500, display: 'block' }}>
                 {acctInfo?.accountType || 'N/A'}
-              </Typography>
-              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+              </Text>
+              <Text style={{ fontFamily: 'Newsreader', fontWeight: 500, display: 'block' }}>
                 {maskAccountNumber(acctInfo?.accountNumber) || 'N/A'}
-              </Typography>
-              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+              </Text>
+              <Text style={{ fontFamily: 'Newsreader', fontWeight: 500, display: 'block' }}>
                 for
-              </Typography>
-              <Typography sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+              </Text>
+              <Text style={{ fontFamily: 'Newsreader', fontWeight: 500, display: 'block' }}>
                 {formatCurrency(amount)}
-              </Typography>
-            </Box>
-            <Box
-              sx={{
+              </Text>
+            </div>
+            <div
+              style={{
                 display: 'grid',
                 gridTemplateColumns: 'auto 1fr',
-                columnGap: 2,
-                rowGap: 1,
-                mb: 2,
+                columnGap: 16,
+                rowGap: 8,
+                marginBottom: 16,
               }}
             >
               {(() => {
@@ -724,14 +747,12 @@ export default function PaymentDetail({
                   value: payment.refNumber ? (
                     payment.refNumber
                   ) : (
-                    <TextField
+                    <Input
                       size="small"
                       value={refVal}
-                      onChange={(e) => setRefVal(e.target.value)}
-                      inputProps={{
-                        'data-testid': 'detail-ref-input',
-                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                      }}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRefVal(e.target.value)}
+                      data-testid="detail-ref-input"
+                      style={{ fontFamily: 'Newsreader', fontWeight: 500, maxWidth: 200 }}
                     />
                   ),
                 })
@@ -745,329 +766,50 @@ export default function PaymentDetail({
                 })
                 return fields.map((f) => (
                   <React.Fragment key={f.label}>
-                    <Typography
-                      variant="subtitle2"
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-                    >
-                      {f.label}:
-                    </Typography>
-                    <Typography
-                      variant="h6"
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                    >
-                      {f.value}
-                    </Typography>
+                    <Text style={labelStyle}>{f.label}:</Text>
+                    <Text style={valueStyle}>{f.value}</Text>
                   </React.Fragment>
                 ))
               })()}
-            </Box>
+            </div>
           </>
         )}
 
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
-          For session:
-        </Typography>
-        <Table
-          ref={tableRef}
-          size="small"
-          sx={{
-            mt: 1,
-            tableLayout: 'fixed',
-            width: 'max-content',
-            '& td, & th': {
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            },
-            '& th .MuiTableSortLabel-root': {
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            },
-          }}
-        >
-          <TableHead>
-            <TableRow>
-              <TableCell
-                data-col="ordinal"
-                data-col-header
-                title="Session #"
-                sx={{
-                  fontFamily: 'Cantata One',
-                  fontWeight: 'bold',
-                  position: 'relative',
-                  width: widths['ordinal'],
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                <TableSortLabel
-                  active={sortField === 'ordinal'}
-                  direction={sortField === 'ordinal' && sortAsc ? 'asc' : 'desc'}
-                  onClick={() => {
-                    if (sortField === 'ordinal') setSortAsc((s) => !s)
-                    else {
-                      setSortField('ordinal')
-                      setSortAsc(true)
-                    }
-                  }}
-                >
-                  Session #
-                </TableSortLabel>
-                <Box
-                  className="col-resizer"
-                  aria-label="Resize column Session #"
-                  role="separator"
-                  tabIndex={0}
-                  onMouseDown={(e) => startResize('ordinal', e)}
-                  onDoubleClick={() =>
-                    dblClickResize('ordinal', tableRef.current || undefined)
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowLeft') keyResize('ordinal', 'left')
-                    if (e.key === 'ArrowRight') keyResize('ordinal', 'right')
-                  }}
-                />
-              </TableCell>
-              <TableCell
-                data-col="date"
-                data-col-header
-                title="Date"
-                sx={{
-                  fontFamily: 'Cantata One',
-                  fontWeight: 'bold',
-                  position: 'relative',
-                  width: widths['date'],
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                <TableSortLabel
-                  active={sortField === 'date'}
-                  direction={sortField === 'date' && sortAsc ? 'asc' : 'desc'}
-                  onClick={() => {
-                    if (sortField === 'date') setSortAsc((s) => !s)
-                    else {
-                      setSortField('date')
-                      setSortAsc(true)
-                    }
-                  }}
-                >
-                  Date
-                </TableSortLabel>
-                <Box
-                  className="col-resizer"
-                  aria-label="Resize column Date"
-                  role="separator"
-                  tabIndex={0}
-                  onMouseDown={(e) => startResize('date', e)}
-                  onDoubleClick={() =>
-                    dblClickResize('date', tableRef.current || undefined)
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowLeft') keyResize('date', 'left')
-                    if (e.key === 'ArrowRight') keyResize('date', 'right')
-                  }}
-                />
-              </TableCell>
-              <TableCell
-                data-col="time"
-                data-col-header
-                title="Time"
-                sx={{
-                  fontFamily: 'Cantata One',
-                  fontWeight: 'bold',
-                  position: 'relative',
-                  width: widths['time'],
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                <TableSortLabel
-                  active={sortField === 'time'}
-                  direction={sortField === 'time' && sortAsc ? 'asc' : 'desc'}
-                  onClick={() => {
-                    if (sortField === 'time') setSortAsc((s) => !s)
-                    else {
-                      setSortField('time')
-                      setSortAsc(true)
-                    }
-                  }}
-                >
-                  Time
-                </TableSortLabel>
-                <Box
-                  className="col-resizer"
-                  aria-label="Resize column Time"
-                  role="separator"
-                  tabIndex={0}
-                  onMouseDown={(e) => startResize('time', e)}
-                  onDoubleClick={() =>
-                    dblClickResize('time', tableRef.current || undefined)
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowLeft') keyResize('time', 'left')
-                    if (e.key === 'ArrowRight') keyResize('time', 'right')
-                  }}
-                />
-              </TableCell>
-              <TableCell
-                data-col="rate"
-                data-col-header
-                title="Rate"
-                sx={{
-                  fontFamily: 'Cantata One',
-                  fontWeight: 'bold',
-                  position: 'relative',
-                  width: widths['rate'],
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                <TableSortLabel
-                  active={sortField === 'rate'}
-                  direction={sortField === 'rate' && sortAsc ? 'asc' : 'desc'}
-                  onClick={() => {
-                    if (sortField === 'rate') setSortAsc((s) => !s)
-                    else {
-                      setSortField('rate')
-                      setSortAsc(true)
-                    }
-                  }}
-                >
-                  Rate
-                </TableSortLabel>
-                <Box
-                  className="col-resizer"
-                  aria-label="Resize column Rate"
-                  role="separator"
-                  tabIndex={0}
-                  onMouseDown={(e) => startResize('rate', e)}
-                  onDoubleClick={() =>
-                    dblClickResize('rate', tableRef.current || undefined)
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowLeft') keyResize('rate', 'left')
-                    if (e.key === 'ArrowRight') keyResize('rate', 'right')
-                  }}
-                />
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {!bill ? (
-              <TableRow>
-                <TableCell colSpan={4} align="center">
-                  <CircularProgress size={16} />
-                </TableCell>
-              </TableRow>
-            ) : (
-              <>
-                {sortRows(assigned).map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell
-                      data-col="ordinal"
-                      title={String(s.ordinal ?? '-')}
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                    >
-                      {s.ordinal ?? '-'}
-                    </TableCell>
-                    <TableCell
-                      data-col="date"
-                      title={s.date || '-'}
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                    >
-                      {s.date || '-'}
-                    </TableCell>
-                    <TableCell
-                      data-col="time"
-                      title={s.time || '-'}
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                    >
-                      {s.time || '-'}
-                    </TableCell>
-                    <TableCell
-                      data-col="rate"
-                      title={formatCurrency(Number(s.rate) || 0)}
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                    >
-                      {formatCurrency(Number(s.rate) || 0)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {sortRows(available).map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell
-                      data-col="ordinal"
-                      title={String(s.ordinal ?? '-')}
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                    >
-                      <Checkbox
-                        checked={selected.includes(s.id)}
-                        onChange={() => toggle(s.id)}
-                        disabled={
-                          assigning ||
-                          (!selected.includes(s.id) &&
-                            (s.rate || 0) >
-                              Math.max(0, remaining - totalSelected))
-                        }
-                        sx={{ p: 0, mr: 1 }}
-                      />
-                      {s.ordinal ?? '-'}
-                    </TableCell>
-                    <TableCell
-                      data-col="date"
-                      title={s.date || '-'}
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                    >
-                      {s.date || '-'}
-                    </TableCell>
-                    <TableCell
-                      data-col="time"
-                      title={s.time || '-'}
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                    >
-                      {s.time || '-'}
-                    </TableCell>
-                    <TableCell
-                      data-col="rate"
-                      title={formatCurrency(Number(s.rate) || 0)}
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                    >
-                      {formatCurrency(Number(s.rate) || 0)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {assigned.length === 0 && available.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                      data-testid="assignment-zero"
-                    >
-                      No sessions available.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </>
-            )}
-          </TableBody>
-        </Table>
-      </Box>
-      <Box
+        <Text style={{ fontFamily: 'Newsreader', fontWeight: 200 }}>For session:</Text>
+        {!bill ? (
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <Spin size="small" />
+          </div>
+        ) : (
+          <Table
+            size="small"
+            columns={tableColumns}
+            dataSource={[...sortRows(assigned), ...sortRows(available)]}
+            rowKey="id"
+            pagination={false}
+            style={{ marginTop: 8 }}
+            onChange={(_: any, __: any, sorter: any) => {
+              if (sorter.field) {
+                const field = sorter.field as 'ordinal' | 'date' | 'time' | 'rate'
+                if (sortField === field) {
+                  setSortAsc(sorter.order === 'ascend')
+                } else {
+                  setSortField(field)
+                  setSortAsc(sorter.order === 'ascend')
+                }
+              }
+            }}
+            locale={{ emptyText: <span data-testid="assignment-zero">No sessions available.</span> }}
+          />
+        )}
+      </div>
+      <div
         className="dialog-footer"
         data-testid="dialog-footer"
-        sx={{ p: 1, display: 'flex', justifyContent: 'space-between', gap: 1 }}
+        style={{ padding: 8, display: 'flex', justifyContent: 'space-between', gap: 8 }}
       >
         <Button
-          variant="text"
+          type="text"
           onClick={() => {
             onBack()
             onTitleChange?.(null)
@@ -1077,10 +819,10 @@ export default function PaymentDetail({
         >
           ← Back
         </Button>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
           {needsMeta && (
             <Button
-              variant="contained"
+              type="primary"
               onClick={saveMetaDetails}
               disabled={!methodVal || !entityVal || (isErl && !accountIdVal)}
               data-testid="detail-save"
@@ -1090,7 +832,7 @@ export default function PaymentDetail({
           )}
           {remaining > 0 && (
             <Button
-              variant="contained"
+              type="primary"
               onClick={handleAssign}
               disabled={
                 assigning || totalSelected === 0 || totalSelected > remaining
@@ -1099,9 +841,9 @@ export default function PaymentDetail({
               Assign
             </Button>
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   )
 }
 

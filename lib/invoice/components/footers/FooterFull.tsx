@@ -93,12 +93,12 @@ export const FooterFull: React.FC<FooterFullProps> = ({
         <span style={valueStyle}>{totalEnglish}</span>
       </FlexCell>
 
-      {/* === Row 3 (16px): Bank Label + Chinese Label - A-D + gap + G-I === */}
+      {/* === Row 3 (16px): Bank Label + Chinese Label - A-D + gap + N === */}
       <FlexCell columns="A-D" height={16} vAlign="top" hAlign="left" debug={debug}>
         <span style={labelStyle}>Bank:</span>
       </FlexCell>
-      <Cell columns="E-F" height={16} debug={debug} />
-      <FlexCell columns="G-I" height={16} vAlign="top" hAlign="right" debug={debug}>
+      <Cell columns="E-M" height={16} debug={debug} />
+      <FlexCell columns="N" height={16} vAlign="top" hAlign="right" debug={debug}>
         <span style={{
           fontFamily: '"Yuji Mai", serif',
           fontSize: '9px', // 7 + 2
@@ -109,7 +109,6 @@ export const FooterFull: React.FC<FooterFullProps> = ({
           茲付金額:
         </span>
       </FlexCell>
-      <Cell columns="J-N" height={16} debug={debug} />
 
       {/* === Row 4 (24px): Bank Name + Chinese Total - A-G + gap === */}
       <FlexCell columns="A-G" height={24} vAlign="bottom" hAlign="left" debug={debug}>

@@ -462,7 +462,7 @@ export async function generateARAgingReport(asOf?: Date): Promise<ARAgingReport>
     buckets[agingBucket] += amount
 
     // Extract invoice number and company from description
-    const descMatch = issued.description.match(/Invoice (.+?) issued to (.+)/)
+    const descMatch = issued.description?.match(/Invoice (.+?) issued to (.+)/)
     const invoiceNumber = descMatch?.[1] ?? path.split('/').pop() ?? 'Unknown'
     const companyName = descMatch?.[2] ?? 'Unknown'
 

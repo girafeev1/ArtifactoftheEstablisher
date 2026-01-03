@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from 'next'
 import type { NextAuthOptions } from 'next-auth'
 import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
@@ -7,6 +8,12 @@ import {
   firebaseAdminConfigStatus,
 } from '../../../lib/firebaseAdmin'
 import { loadSecrets } from '../../../lib/server/secretManager'
+import {
+  getOrCreateUserProfile,
+  getUserCustomClaims,
+  CREATE_PROFILES_WHEN_DISABLED,
+} from '../../../lib/rbac'
+import type { UserRole, UserStatus } from '../../../lib/rbac/types'
 
 async function buildAuthOptions(): Promise<NextAuthOptions> {
   const { secrets } = await loadSecrets()
@@ -29,6 +36,9 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
               name: 'Dev User',
               email: 'dev@example.com',
               image: null,
+              // RBAC: dev user is admin
+              role: 'admin' as UserRole,
+              status: 'active' as UserStatus,
               firebase: {
                 claims: { devBypass: true },
                 idToken: credentials?.idToken ?? null,
@@ -57,11 +67,60 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
               .getUser(decoded.uid)
               .catch(() => null)
 
+            // Get or create RBAC user profile
+            let role: UserRole = 'pending'
+            let status: UserStatus = 'pending'
+            let vendorProjectIds: string[] | undefined
+            let vendorExpiresAt: number | undefined
+
+            if (CREATE_PROFILES_WHEN_DISABLED) {
+              try {
+                const { profile, created } = await getOrCreateUserProfile({
+                  uid: decoded.uid,
+                  email: userRecord?.email ?? decoded.email ?? '',
+                  displayName: userRecord?.displayName ?? decoded.name ?? null,
+                  photoURL: userRecord?.photoURL ?? decoded.picture ?? null,
+                })
+
+                role = profile.role
+                status = profile.status
+
+                if (profile.role === 'vendor' && profile.vendorAccess) {
+                  vendorProjectIds = profile.vendorAccess.projectIds
+                  if (profile.vendorAccess.expiresAt) {
+                    vendorExpiresAt = profile.vendorAccess.expiresAt.toMillis()
+                  }
+                }
+
+                if (created) {
+                  console.log(`[auth] Created new user profile for ${decoded.uid}`)
+                }
+              } catch (profileError) {
+                console.error('[auth] Failed to get/create user profile:', profileError)
+                // Continue with default pending status
+              }
+            } else {
+              // Try to get existing claims
+              const claims = await getUserCustomClaims(decoded.uid)
+              if (claims) {
+                role = claims.role
+                status = claims.status
+                vendorProjectIds = claims.vendorProjectIds
+                vendorExpiresAt = claims.vendorExpiresAt
+              }
+            }
+
             return {
               id: decoded.uid,
               name: userRecord?.displayName ?? decoded.name ?? null,
               email: userRecord?.email ?? decoded.email ?? null,
               image: userRecord?.photoURL ?? decoded.picture ?? null,
+              // RBAC fields
+              role,
+              status,
+              vendorProjectIds,
+              vendorExpiresAt,
+              // Legacy fields
               firebase: {
                 claims: decoded,
                 idToken: credentials.idToken,
@@ -98,16 +157,32 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
           const typedUser = user as any
           token.user = {
             id: typedUser.id,
-            name: typedUser.name,
-            email: typedUser.email,
-            image: typedUser.image,
+            name: typedUser.name ?? null,
+            email: typedUser.email ?? null,
+            image: typedUser.image ?? null,
+            // RBAC fields - use null instead of undefined for serialization
+            role: typedUser.role ?? null,
+            status: typedUser.status ?? null,
+            vendorProjectIds: typedUser.vendorProjectIds ?? null,
+            vendorExpiresAt: typedUser.vendorExpiresAt ?? null,
           }
         }
         return token
       },
       async session({ session, token }) {
-        const typedSession = session as any
-        typedSession.user = token.user ?? session.user
+        if (token.user) {
+          session.user = {
+            id: token.user.id,
+            name: token.user.name ?? null,
+            email: token.user.email ?? null,
+            image: token.user.image ?? null,
+            // RBAC fields - use null instead of undefined for serialization
+            role: token.user.role ?? null,
+            status: token.user.status ?? null,
+            vendorProjectIds: token.user.vendorProjectIds ?? null,
+            vendorExpiresAt: token.user.vendorExpiresAt ?? null,
+          }
+        }
         return session
       },
     },
@@ -125,7 +200,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
   return cachedOptions
 }
 
-export default async function auth(req, res) {
+export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   const options = await getAuthOptions()
   return NextAuth(req, res, options)
 }

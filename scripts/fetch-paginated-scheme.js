@@ -24,13 +24,16 @@ const sheets = google.sheets({ version: 'v4', auth });
 
 async function fetchPaginatedScheme() {
   const spreadsheetId = '12QpO_T2EV6Zke4DmNg4in2zYtGlh0q4daNI2eeiAdU0';
-  const sheetId = 403093960;
+  // Accept sheetId as command-line argument, default to Payment Instructions sheet
+  const sheetId = parseInt(process.argv[2]) || 731885123;
 
   console.log('Fetching paginated invoice scheme from Google Sheets...');
 
   const response = await sheets.spreadsheets.get({
     spreadsheetId,
-    includeGridData: true
+    includeGridData: true,
+    // Request all formatting fields including textFormatRuns for mixed formatting
+    fields: 'sheets(properties,data(rowData(values(formattedValue,effectiveFormat,textFormatRuns)),rowMetadata,columnMetadata),merges)',
   });
 
   const sheet = response.data.sheets.find(s => s.properties.sheetId === sheetId);
@@ -99,6 +102,19 @@ async function fetchPaginatedScheme() {
         vAlign: ef.verticalAlignment || 'TOP',
         wrapStrategy: ef.wrapStrategy || 'OVERFLOW_CELL',
         border: ef.borders || {},
+        // Capture text format runs for mixed formatting within a cell
+        textFormatRuns: cell.textFormatRuns?.map(run => ({
+          startIndex: run.startIndex || 0,
+          format: {
+            fontFamily: run.format?.fontFamily || null,
+            fontSize: run.format?.fontSize || null,
+            bold: run.format?.bold || false,
+            italic: run.format?.italic || false,
+            underline: run.format?.underline || false,
+            strikethrough: run.format?.strikethrough || false,
+            fgColor: toUnitRgb(run.format?.foregroundColorStyle?.rgbColor || run.format?.foregroundColor),
+          }
+        })) || null,
       };
     });
   });

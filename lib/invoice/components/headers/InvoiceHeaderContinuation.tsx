@@ -2,9 +2,16 @@
  * InvoiceHeaderContinuation Component
  *
  * Minimal header for continuation pages (page 2+).
- * Layout matches header-continuation-minimal.json exactly.
+ * Layout matches Google Sheets gid=403093960, rows 52-57.
  *
- * Row heights: [21, 21, 21, 21, 21, 21, 21, 21, 21, 21] = 210px total
+ * Row heights: [21, 21, 21, 21, 21, 21] = 126px total
+ *
+ * Merges from spreadsheet:
+ * - Row 52-54: A-D "Invoice" (3 rows = 63px)
+ * - Row 52-55: L-N "E." logo (4 rows = 84px)
+ * - Row 56: A-C "Invoice #:", E-G "Issued Date:"
+ * - Row 56-57: J-N Subsidiary names (2 rows = 42px)
+ * - Row 57: A-C invoice number, E-G date
  */
 
 import React from 'react';
@@ -19,12 +26,21 @@ export interface InvoiceHeaderContinuationProps {
   debug?: boolean;
 }
 
+// Row heights for continuation header (rows 52-57)
+const ROW_HEIGHTS = [21, 21, 21, 21, 21, 21];
+
 /**
- * Spacify text - add a space between each character
+ * Spacify text - add a space between each character, double space between words
  */
 function spacify(text: string | undefined | null): string {
   if (!text) return '';
-  return String(text).split('').join(' ');
+  return String(text)
+    .split('')
+    .map((char) => {
+      if (char === ' ') return '  ';
+      return char;
+    })
+    .join(' ');
 }
 
 /**
@@ -38,22 +54,13 @@ function formatInvoiceDate(project?: ProjectRecord | null): string {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-const monoStyle = { fontFamily: '"Roboto Mono", monospace' };
+// Helper to sum row heights
+const sumHeights = (start: number, count: number) =>
+  ROW_HEIGHTS.slice(start, start + count).reduce((a, b) => a + b, 0);
+
+const googleSansMonoStyle = { fontFamily: '"Google Sans Mono", monospace' };
 const cormorantStyle = { fontFamily: '"Cormorant Infant", serif' };
 
-/**
- * InvoiceHeaderContinuation - Minimal header for continuation pages
- *
- * Layout from JSON (10 rows of 21px each):
- * - Row 1: "I n v o i c e" (spacified) | "E." logo
- * - Rows 2-4: Empty left | Empty right
- * - Row 5: Empty left | SubsidiaryEnglishName + ChineseName (spacified)
- * - Row 6: "Invoice #:" label (C) | Empty right
- * - Row 7: Invoice number (B) | Empty right
- * - Row 8: "Issued Date:" label (C) | Empty right
- * - Row 9: Invoice date (A) | Empty right
- * - Row 10: Empty (spacer before table)
- */
 export const InvoiceHeaderContinuation: React.FC<InvoiceHeaderContinuationProps> = ({
   invoice,
   project,
@@ -65,110 +72,141 @@ export const InvoiceHeaderContinuation: React.FC<InvoiceHeaderContinuationProps>
 
   return (
     <>
-      {/* === Row 1 (21px): "I n v o i c e" + Logo === */}
-      <FlexCell columns="A-K" height={21} vAlign="bottom" hAlign="left" debug={debug}>
+      {/* === ROWS 1-4 (84px): Invoice A-D (3r), E-K empty (4r), L-N logo (4r) === */}
+      {/* "Invoice" spans rows 1-3 (63px) */}
+      <FlexCell
+        columns="A-D"
+        height={sumHeights(0, 3)}
+        rowSpan={3}
+        vAlign="bottom"
+        hAlign="left"
+        debug={debug}
+        style={{ paddingLeft: '3px' }}
+      >
         <span style={{
           ...cormorantStyle,
-          fontSize: '37px', // 35 + 2
+          fontSize: '47px', // 35pt converted to px
           fontWeight: 700,
-          letterSpacing: '0.15em',
         }}>
-          Invoice
+          {spacify('Invoice')}
         </span>
       </FlexCell>
-      <FlexCell columns="L-N" height={21} vAlign="middle" hAlign="right" debug={debug}>
+      {/* E-K empty for rows 1-3 */}
+      <Cell columns="E-K" height={sumHeights(0, 3)} rowSpan={3} debug={debug} />
+      {/* "E." logo spans rows 1-4 (84px) */}
+      <FlexCell
+        columns="L-N"
+        height={sumHeights(0, 4)}
+        rowSpan={4}
+        vAlign="middle"
+        hAlign="right"
+        debug={debug}
+        style={{ paddingRight: '3px' }}
+      >
         <span style={{
           fontFamily: '"Rampart One", cursive',
-          fontSize: '62px', // 60 + 2
+          fontSize: '80px', // 60pt converted to px
           lineHeight: 1,
         }}>
           E.
         </span>
       </FlexCell>
 
-      {/* === Rows 2-4 (63px): Empty rows === */}
-      <Cell columns="A-N" height={63} debug={debug} />
+      {/* === ROW 4 (21px): A-K empty (logo L-N continues) === */}
+      {/* Border on bottom of row 55 (dotted, light gray #ccc) - columns A-I */}
+      <Cell columns="A-I" height={ROW_HEIGHTS[3]} debug={debug} style={{ borderBottom: '1px dotted rgb(204, 204, 204)' }} />
+      <Cell columns="J-K" height={ROW_HEIGHTS[3]} debug={debug} />
+      {/* L-N covered by logo rowSpan */}
 
-      {/* === Row 5 (21px): Subsidiary Names === */}
-      <Cell columns="A-I" height={21} debug={debug} />
-      <FlexCell columns="J-N" height={21} vAlign="top" hAlign="right" debug={debug}>
-        <div style={{ textAlign: 'right' }}>
-          <span style={{
-            ...cormorantStyle,
-            fontSize: '12px', // 10 + 2
-            fontWeight: 700,
-          }}>
-            {spacify(subsidiary?.englishName)}
-          </span>
-          {subsidiary?.chineseName && (
-            <>
-              {' '}
-              <span style={{
-                fontFamily: '"Iansui", sans-serif',
-                fontSize: '10px', // 8 + 2
-                fontWeight: 700,
-                letterSpacing: '0.25em',
-              }}>
-                {spacify(subsidiary.chineseName)}
-              </span>
-            </>
-          )}
-        </div>
-      </FlexCell>
-
-      {/* === Row 6 (21px): "Invoice #:" label === */}
-      <Cell columns="A-B" height={21} debug={debug} />
-      <FlexCell columns="C-D" height={21} vAlign="bottom" hAlign="right" debug={debug}>
+      {/* === ROW 5 (21px): Labels + Subsidiary names start === */}
+      <FlexCell
+        columns="A-C"
+        height={ROW_HEIGHTS[4]}
+        vAlign="bottom"
+        hAlign="left"
+        debug={debug}
+        style={{ paddingLeft: '3px' }}
+      >
         <span style={{
-          ...monoStyle,
-          fontSize: '10px', // 8 + 2
+          ...googleSansMonoStyle,
+          fontSize: '11px', // 8pt converted to px
           fontStyle: 'italic',
         }}>
           Invoice #:
         </span>
       </FlexCell>
-      <Cell columns="E-N" height={21} debug={debug} />
-
-      {/* === Row 7 (21px): Invoice number === */}
-      <Cell columns="A" height={21} debug={debug} />
-      <FlexCell columns="B-D" height={21} vAlign="top" hAlign="right" debug={debug}>
+      <Cell columns="D" height={ROW_HEIGHTS[4]} debug={debug} />
+      <FlexCell columns="E-G" height={ROW_HEIGHTS[4]} vAlign="bottom" hAlign="left" debug={debug}>
         <span style={{
-          ...monoStyle,
-          fontSize: '11px', // 9 + 2
-          fontWeight: 700,
-        }}>
-          #{invoice.invoiceNumber || ''}
-        </span>
-      </FlexCell>
-      <Cell columns="E-N" height={21} debug={debug} />
-
-      {/* === Row 8 (21px): "Issued Date:" label === */}
-      <Cell columns="A-B" height={21} debug={debug} />
-      <FlexCell columns="C-D" height={21} vAlign="bottom" hAlign="right" debug={debug}>
-        <span style={{
-          ...monoStyle,
-          fontSize: '10px', // 8 + 2
+          ...googleSansMonoStyle,
+          fontSize: '11px', // 8pt converted to px
           fontStyle: 'italic',
         }}>
           Issued Date:
         </span>
       </FlexCell>
-      <Cell columns="E-N" height={21} debug={debug} />
+      <Cell columns="H-I" height={ROW_HEIGHTS[4]} debug={debug} />
+      {/* Subsidiary names (J-N) spanning 2 rows (42px) */}
+      <FlexCell
+        columns="J-N"
+        height={sumHeights(4, 2)}
+        rowSpan={2}
+        vAlign="top"
+        hAlign="right"
+        debug={debug}
+        style={{ paddingRight: '3px' }}
+      >
+        <div style={{ textAlign: 'right' }}>
+          <div style={{
+            ...cormorantStyle,
+            fontSize: '13px', // 10pt converted to px
+            fontWeight: 700,
+            whiteSpace: 'pre',
+          }}>
+            {spacify(subsidiary?.englishName)}
+          </div>
+          {subsidiary?.chineseName && (
+            <div style={{
+              fontFamily: '"Iansui", sans-serif',
+              fontSize: '11px', // 8pt converted to px
+              fontWeight: 700,
+              letterSpacing: '0.25em',
+            }}>
+              {spacify(subsidiary.chineseName)}
+            </div>
+          )}
+        </div>
+      </FlexCell>
 
-      {/* === Row 9 (21px): Invoice date === */}
-      <FlexCell columns="A-D" height={21} vAlign="top" hAlign="right" debug={debug}>
+      {/* === ROW 6 (21px): Values === */}
+      <FlexCell
+        columns="A-C"
+        height={ROW_HEIGHTS[5]}
+        vAlign="top"
+        hAlign="left"
+        debug={debug}
+        style={{ paddingLeft: '3px' }}
+      >
         <span style={{
-          ...monoStyle,
-          fontSize: '11px', // 9 + 2
+          ...googleSansMonoStyle,
+          fontSize: '12px', // 9pt converted to px
+          fontWeight: 700,
+        }}>
+          #{invoice.invoiceNumber || ''}
+        </span>
+      </FlexCell>
+      <Cell columns="D" height={ROW_HEIGHTS[5]} debug={debug} />
+      <FlexCell columns="E-G" height={ROW_HEIGHTS[5]} vAlign="top" hAlign="left" debug={debug}>
+        <span style={{
+          ...googleSansMonoStyle,
+          fontSize: '12px', // 9pt converted to px
           fontWeight: 700,
         }}>
           {invoiceDate}
         </span>
       </FlexCell>
-      <Cell columns="E-N" height={21} debug={debug} />
-
-      {/* === Row 10 (21px): Spacer before table === */}
-      <Cell columns="A-N" height={21} debug={debug} />
+      <Cell columns="H-I" height={ROW_HEIGHTS[5]} debug={debug} />
+      {/* J-N covered by subsidiary rowSpan */}
     </>
   );
 };

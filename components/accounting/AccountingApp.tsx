@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   Card,
   Table,
@@ -47,14 +48,20 @@ import {
   PlusOutlined,
   FilterOutlined,
   SyncOutlined,
+  FolderOutlined,
 } from "@ant-design/icons"
 import type { ColumnsType } from "antd/es/table"
-import type { DataProvider, BaseRecord, GetListResponse } from "@refinedev/core"
+import type { DataProvider, BaseRecord, GetListResponse, GetListParams } from "@refinedev/core"
+import type { Dayjs } from "dayjs"
+import type { CheckboxChangeEvent } from "antd/es/checkbox"
+import type { DefaultOptionType } from "antd/es/select"
 import dayjs from "dayjs"
 
 import AppShell from "../layout/AppShell"
 import BankTransactionsTab from "./BankTransactionsTab"
+import DocumentsTab from "./DocumentsTab"
 import { generateDescription } from "../../lib/accounting/descriptionGenerator"
+import { NAVIGATION_RESOURCES, ALLOWED_MENU_KEYS } from "../../lib/navigation/resources"
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -192,7 +199,7 @@ const accountingDataProvider: DataProvider = {
 
   getList: async <TData extends BaseRecord = BaseRecord>({
     resource,
-  }): Promise<GetListResponse<TData>> => {
+  }: GetListParams): Promise<GetListResponse<TData>> => {
     if (resource === "accounts") {
       const response = await fetch("/api/accounting/accounts", {
         credentials: "include",
@@ -812,7 +819,7 @@ const ChartOfAccounts: React.FC<{
           return (
             <Select
               value={editValues.type}
-              onChange={(value) => setEditValues({ ...editValues, type: value })}
+              onChange={(value: string) => setEditValues({ ...editValues, type: value as Account["type"] })}
               options={ACCOUNT_TYPE_OPTIONS}
               size="small"
               style={{ width: "100%" }}
@@ -855,7 +862,7 @@ const ChartOfAccounts: React.FC<{
           return (
             <Switch
               checked={editValues.active}
-              onChange={(checked) => setEditValues({ ...editValues, active: checked })}
+              onChange={(checked: boolean) => setEditValues({ ...editValues, active: checked })}
               checkedChildren="Active"
               unCheckedChildren="Inactive"
               size="small"
@@ -1109,7 +1116,7 @@ const AddAccountModal: React.FC<{
           rules={[
             { required: true, message: "Please enter an account code" },
             {
-              validator: (_, value) => {
+              validator: (_: unknown, value: string) => {
                 if (!value || !selectedType) return Promise.resolve()
                 const range = CODE_RANGES[selectedType]
                 const numValue = parseInt(value, 10)
@@ -1143,7 +1150,7 @@ const AddAccountModal: React.FC<{
         <Form.Item>
           <Checkbox
             checked={linkBankAccount}
-            onChange={(e) => setLinkBankAccount(e.target.checked)}
+            onChange={(e: CheckboxChangeEvent) => setLinkBankAccount(e.target.checked)}
           >
             Link to existing bank account
           </Checkbox>
@@ -1172,7 +1179,7 @@ const AddAccountModal: React.FC<{
                 ),
               }))}
               showSearch
-              filterOption={(input, option) =>
+              filterOption={(input: string, option: DefaultOptionType | undefined) =>
                 bankAccountOptions
                   .find((acc) => acc.id === option?.value)
                   ?.displayName.toLowerCase()
@@ -1348,7 +1355,7 @@ const JournalEntriesTable: React.FC<{
       <Table
         columns={lineColumns}
         dataSource={record.lines}
-        rowKey={(_, index) => `${record.id}-line-${index}`}
+        rowKey={(_: unknown, index: number | undefined) => `${record.id}-line-${index}`}
         pagination={false}
         size="small"
         style={{ margin: "0 24px" }}
@@ -1386,11 +1393,11 @@ const JournalEntriesTable: React.FC<{
         expandable={{
           expandedRowRender,
           expandedRowKeys,
-          onExpandedRowsChange: (keys) => setExpandedRowKeys(keys as string[]),
+          onExpandedRowsChange: (keys: readonly React.Key[]) => setExpandedRowKeys(keys as string[]),
           expandRowByClick: true,
           showExpandColumn: false,
         }}
-        onRow={(record) => ({
+        onRow={(record: JournalEntry) => ({
           style: { cursor: "pointer" },
           // Note: Removed native title to prevent conflict with cell-specific Tooltips
         })}
@@ -2054,6 +2061,7 @@ const SettingsModal: React.FC<{
   const [saving, setSaving] = useState(false)
   const [scanning, setScanning] = useState(false)
   const { message, modal } = AntdApp.useApp()
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     if (open && settings) {
@@ -2106,6 +2114,9 @@ const SettingsModal: React.FC<{
           }
 
           message.success(data.message || "Invoice scan completed successfully")
+          // Invalidate React Query cache for cross-component updates
+          queryClient.invalidateQueries({ queryKey: ["accounting"] })
+          queryClient.invalidateQueries({ queryKey: ["projects"] })
 
           if (data.results) {
             modal.info({
@@ -2228,6 +2239,7 @@ const SettingsModal: React.FC<{
 const AccountingContent: React.FC = () => {
   const screens = Grid.useBreakpoint()
   const { message } = AntdApp.useApp()
+  const queryClient = useQueryClient()
 
   const [activeTab, setActiveTab] = useState("coa")
   const [basis, setBasis] = useState<AccountingBasis>("accrual")
@@ -2349,7 +2361,8 @@ const AccountingContent: React.FC = () => {
     if (json.error) throw new Error(json.error)
     setSettings(json.settings)
     setBasis(json.settings.defaultBasis || "accrual")
-  }, [])
+    queryClient.invalidateQueries({ queryKey: ["accounting"] })
+  }, [queryClient])
 
   const updateAccount = useCallback(async (code: string, updates: Partial<Account>) => {
     const response = await fetch(`/api/accounting/accounts?code=${encodeURIComponent(code)}`, {
@@ -2360,8 +2373,9 @@ const AccountingContent: React.FC = () => {
     })
     const json = await response.json()
     if (json.error) throw new Error(json.error)
+    queryClient.invalidateQueries({ queryKey: ["accounting"] })
     return json.account
-  }, [])
+  }, [queryClient])
 
   const createAccount = useCallback(async (account: { code: string; name: string; type: string }) => {
     const response = await fetch("/api/accounting/accounts", {
@@ -2372,8 +2386,9 @@ const AccountingContent: React.FC = () => {
     })
     const json = await response.json()
     if (json.error) throw new Error(json.error)
+    queryClient.invalidateQueries({ queryKey: ["accounting"] })
     return json.account
-  }, [])
+  }, [queryClient])
 
   useEffect(() => {
     fetchData()
@@ -2477,6 +2492,20 @@ const AccountingContent: React.FC = () => {
       ),
     },
     {
+      key: "documents",
+      label: (
+        <span>
+          <FolderOutlined style={{ marginRight: 8 }} />
+          Documents
+        </span>
+      ),
+      children: (
+        <DocumentsTab
+          subsidiaryId={selectedSubsidiaries[0] || "erl"}
+        />
+      ),
+    },
+    {
       key: "trial-balance",
       label: (
         <span>
@@ -2501,7 +2530,7 @@ const AccountingContent: React.FC = () => {
               <Text>Date Range:</Text>
               <RangePicker
                 value={pnlDateRange}
-                onChange={(dates) => {
+                onChange={(dates: [Dayjs | null, Dayjs | null] | null) => {
                   if (dates && dates[0] && dates[1]) {
                     setPnlDateRange([dates[0], dates[1]])
                   }
@@ -2540,10 +2569,7 @@ const AccountingContent: React.FC = () => {
       {/* Header */}
       <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
         <Col>
-          <Title level={3} style={{ margin: 0 }}>
-            <DollarOutlined style={{ marginRight: 12 }} />
-            Accounting
-          </Title>
+          <Title level={2} style={{ margin: 0 }}>Accounting</Title>
         </Col>
         <Col>
           <Space>
@@ -2551,7 +2577,7 @@ const AccountingContent: React.FC = () => {
             <Tooltip title="Multi-subsidiary filtering coming soon">
               <Select
                 value={selectedSubsidiaries[0] || "erl"}
-                onChange={(value) => {
+                onChange={(value: string) => {
                   setSelectedSubsidiaries([value])
                 }}
                 style={{ minWidth: 140 }}
@@ -2570,7 +2596,7 @@ const AccountingContent: React.FC = () => {
             <Text>Basis:</Text>
             <Select
               value={basis}
-              onChange={(value) => setBasis(value)}
+              onChange={(value: "accrual" | "cash") => setBasis(value)}
               style={{ width: 120 }}
               options={[
                 { label: "Accrual", value: "accrual" },
@@ -2647,53 +2673,11 @@ const AccountingContent: React.FC = () => {
 // App Shell Wrapper
 // ============================================================================
 
-const ALLOWED_MENU_KEYS = [
-  "dashboard",
-  "client-directory",
-  "projects",
-  "finance",
-  "accounting",
-  "coaching-sessions",
-  "tools",
-] as const
-
 const AccountingApp: React.FC = () => {
   return (
     <AppShell
       dataProvider={accountingDataProvider}
-      resources={[
-        { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
-        {
-          name: "client-directory",
-          list: "/client-accounts",
-          meta: { label: "Client Accounts" },
-        },
-        {
-          name: "projects",
-          list: "/projects",
-          meta: { label: "Projects" },
-        },
-        {
-          name: "finance",
-          list: "/finance",
-          meta: { label: "Finance" },
-        },
-        {
-          name: "accounting",
-          list: "/accounting",
-          meta: { label: "Accounting" },
-        },
-        {
-          name: "coaching-sessions",
-          list: "/coaching-sessions",
-          meta: { label: "Coaching Sessions" },
-        },
-        {
-          name: "tools",
-          list: "/tools",
-          meta: { label: "Tools" },
-        },
-      ]}
+      resources={NAVIGATION_RESOURCES}
       allowedMenuKeys={ALLOWED_MENU_KEYS}
     >
       <AccountingContent />

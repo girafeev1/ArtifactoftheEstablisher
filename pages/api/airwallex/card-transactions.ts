@@ -142,7 +142,8 @@ export default async function handler(
     const issuingToken = await authenticate(
       airwallexConfig.issuingClientId,
       airwallexConfig.issuingApiKey,
-      airwallexConfig.baseUrl
+      airwallexConfig.baseUrl,
+      airwallexConfig.defaultAccountId || undefined
     )
 
     // Create client with Issuing token

@@ -17,6 +17,8 @@ export interface InvoiceGridProps {
   showGrid?: boolean;
   /** Custom styles */
   style?: React.CSSProperties;
+  /** Explicit row heights in pixels (for scheme-based pages) */
+  rowHeights?: number[];
 }
 
 /**
@@ -30,14 +32,34 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
   className,
   showGrid = false,
   style,
+  rowHeights,
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
   const [rowInfo, setRowInfo] = useState<Array<{ top: number; height: number }>>([]);
 
-  // Detect row boundaries when showGrid is enabled
-  // Using useLayoutEffect to ensure DOM is measured after layout
+  // Calculate row info for debug overlay
+  // When explicit rowHeights are provided, use them directly
+  // Otherwise, detect rows dynamically from cell positions
   useLayoutEffect(() => {
-    if (!showGrid || !gridRef.current) {
+    if (!showGrid) {
+      setRowInfo([]);
+      return;
+    }
+
+    // If explicit rowHeights are provided, use them directly
+    if (rowHeights && rowHeights.length > 0) {
+      let currentTop = 0;
+      const rows: Array<{ top: number; height: number }> = [];
+      rowHeights.forEach((height) => {
+        rows.push({ top: currentTop, height });
+        currentTop += height;
+      });
+      setRowInfo(rows);
+      return;
+    }
+
+    // Otherwise, detect rows dynamically
+    if (!gridRef.current) {
       setRowInfo([]);
       return;
     }
@@ -51,11 +73,10 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
       ) as HTMLElement[];
 
       const gridRect = grid.getBoundingClientRect();
+      const gridHeight = Math.round(gridRect.height);
 
-      // Group cells by their top position to find row boundaries
-      // Track both single-row cells and rowSpan cells separately
-      const rowTops = new Map<number, number>(); // top -> height
-      const rowSpanCells: Array<{ top: number; height: number; rowSpan: number }> = [];
+      // Collect all unique top positions with tolerance for rounding
+      const topPositions = new Set<number>();
 
       cells.forEach((cell) => {
         const rect = cell.getBoundingClientRect();
@@ -64,43 +85,38 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
         const rowSpanAttr = cell.getAttribute('data-row-span');
         const rowSpan = rowSpanAttr ? parseInt(rowSpanAttr, 10) : 1;
 
+        // For rowSpan cells, calculate intermediate row positions
         if (rowSpan > 1) {
-          // Track rowSpan cells to fill in gaps later
-          rowSpanCells.push({ top: relTop, height: cellHeight, rowSpan });
+          const rowHeight = Math.round(cellHeight / rowSpan);
+          for (let i = 0; i < rowSpan; i++) {
+            topPositions.add(relTop + i * rowHeight);
+          }
         } else {
-          // Single-row cell - use as row boundary
-          const existingHeight = rowTops.get(relTop);
-          if (!existingHeight || cellHeight > existingHeight) {
-            rowTops.set(relTop, cellHeight);
-          }
+          topPositions.add(relTop);
         }
       });
 
-      // Now process rowSpan cells to fill in missing row boundaries
-      // For each rowSpan cell, calculate the implied row positions
-      rowSpanCells.forEach(({ top, height, rowSpan }) => {
-        const avgRowHeight = Math.round(height / rowSpan);
-        for (let i = 0; i < rowSpan; i++) {
-          const rowTop = top + (i * avgRowHeight);
-          // Only add if we don't already have a row at this position
-          if (!rowTops.has(rowTop)) {
-            // Check if there's a row very close (within 5px tolerance)
-            const hasNearbyRow = Array.from(rowTops.keys()).some(
-              existing => Math.abs(existing - rowTop) < 5
-            );
-            if (!hasNearbyRow) {
-              rowTops.set(rowTop, avgRowHeight);
-            }
-          }
+      // Merge nearby positions (within 3px tolerance)
+      const mergedTops: number[] = [];
+      const sortedTops = Array.from(topPositions).sort((a, b) => a - b);
+
+      sortedTops.forEach((top) => {
+        const lastTop = mergedTops[mergedTops.length - 1];
+        if (lastTop === undefined || top - lastTop > 3) {
+          mergedTops.push(top);
         }
       });
 
-      // Sort by top position and create row info
-      const sortedRows = Array.from(rowTops.entries())
-        .sort((a, b) => a[0] - b[0])
-        .map(([top, height]) => ({ top, height }));
+      // Calculate row heights from consecutive tops
+      const rows: Array<{ top: number; height: number }> = [];
+      for (let i = 0; i < mergedTops.length; i++) {
+        const top = mergedTops[i];
+        const nextTop = mergedTops[i + 1];
+        const height = nextTop !== undefined ? nextTop - top : gridHeight - top;
+        rows.push({ top, height: Math.max(height, 1) });
+      }
 
-      setRowInfo(sortedRows);
+      setRowInfo(rows);
     };
 
     detectRows();
@@ -108,7 +124,12 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
     const observer = new ResizeObserver(detectRows);
     observer.observe(gridRef.current);
     return () => observer.disconnect();
-  }, [showGrid, children]);
+  }, [showGrid, children, rowHeights]);
+
+  // Generate gridTemplateRows from explicit row heights if provided
+  const gridTemplateRows = rowHeights
+    ? rowHeights.map(h => `${h}px`).join(' ')
+    : undefined;
 
   return (
     <div
@@ -117,6 +138,7 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
       style={{
         display: 'grid',
         gridTemplateColumns: getGridTemplateColumns(),
+        gridTemplateRows,
         width: `${TOTAL_WIDTH}px`,
         position: 'relative',
         boxSizing: 'border-box',
@@ -189,6 +211,33 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
               />
             ))}
           </div>
+          {/* Row grid lines (horizontal) */}
+          <div
+            data-grid-overlay="row-lines"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              pointerEvents: 'none',
+            }}
+          >
+            {rowInfo.map((row, idx) => (
+              <div
+                key={idx}
+                style={{
+                  position: 'absolute',
+                  top: row.top,
+                  left: 0,
+                  right: 0,
+                  height: '1px',
+                  borderTop: '1px dashed rgba(255, 0, 0, 0.3)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            ))}
+          </div>
           {/* Row labels on the left */}
           <div
             data-grid-overlay="rows"
@@ -216,7 +265,6 @@ export const InvoiceGrid: React.FC<InvoiceGridProps> = ({
                   fontWeight: 700,
                   color: 'rgba(255, 0, 0, 0.7)',
                   fontFamily: '"Roboto Mono", monospace',
-                  borderTop: '1px dashed rgba(255, 0, 0, 0.3)',
                   boxSizing: 'border-box',
                 }}
               >

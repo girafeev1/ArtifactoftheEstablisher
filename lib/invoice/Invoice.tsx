@@ -7,6 +7,7 @@
 
 import React, { useMemo } from 'react';
 import { InvoicePage } from './InvoicePage';
+import { PaymentDetailsPage, PaymentInstructionsPage } from './components';
 import { paginateInvoice, type InvoicePaginationResult, type InvoiceItem as PaginationInvoiceItem } from '../invoiceTemplates/paginationEngine';
 import type { ProjectInvoiceRecord, ProjectRecord, SubsidiaryDoc, BankInfo, InvoiceItem, InvoiceVariant } from './types';
 
@@ -27,6 +28,8 @@ export interface InvoiceProps {
   totalChinese?: string;
   /** QR code URL for payment */
   qrCodeUrl?: string;
+  /** Client representative name (for cheque signature) */
+  clientRepresentative?: string;
   /** Show debug grid column overlay */
   debug?: boolean;
   /** Show debug flexbox/cell borders */
@@ -61,6 +64,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
   totalEnglish,
   totalChinese,
   qrCodeUrl,
+  clientRepresentative,
   debug,
   flexDebug,
 }) => {
@@ -75,9 +79,9 @@ export const Invoice: React.FC<InvoiceProps> = ({
       unitPrice: item.unitPrice || 0,
       quantity: item.quantity || 0,
       quantityUnit: item.quantityUnit || '',
-      subQuantity: item.subQuantity,
-      notes: item.notes,
-      discount: item.discount,
+      subQuantity: item.subQuantity ?? undefined,
+      notes: item.notes ?? undefined,
+      discount: item.discount ?? undefined,
     }));
   }, [invoice.items]);
 
@@ -126,7 +130,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
   // Calculate total
   const total = useMemo(() => calculateInvoiceTotal(items), [items]);
 
-  // Debug: Log pagination info in development
+  // Debug: Log pagination and data info in development
   if (process.env.NODE_ENV === 'development') {
     console.log('[Invoice] Pagination:', {
       itemCount: items.length,
@@ -134,7 +138,24 @@ export const Invoice: React.FC<InvoiceProps> = ({
       layoutMode: pagination.layoutMode,
       itemDistribution: pagination.itemDistribution,
     });
+    console.log('[Invoice] Data:', {
+      variant,
+      hasSubsidiary: !!subsidiary,
+      subsidiaryName: subsidiary?.englishName,
+      hasBankInfo: !!bankInfo,
+      bankName: bankInfo?.bankName || '(empty)',
+      bankCode: bankInfo?.bankCode || '(empty)',
+      accountNumber: bankInfo?.accountNumber || '(empty)',
+      fpsId: bankInfo?.fpsId || '(not set)',
+      fpsEmail: bankInfo?.fpsEmail || '(not set)',
+      hasQrCodeUrl: !!qrCodeUrl,
+      qrCodeUrl: qrCodeUrl ? qrCodeUrl.substring(0, 50) + '...' : '(none)',
+    });
   }
+
+  // Determine which supplementary pages to include based on variant
+  const includePaymentDetails = variant === 'A' || variant === 'A2' || variant === 'bundle';
+  const includePaymentInstructions = variant === 'B2' || variant === 'A2' || variant === 'bundle';
 
   return (
     <div className="invoice-container">
@@ -180,6 +201,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
           }
         }
       `}</style>
+      {/* Main Invoice Pages */}
       {pagination.pages.map((page, pageIndex) => {
         const isFirstPage = pageIndex === 0;
         const isLastPage = page.sections.totalBox;
@@ -211,11 +233,42 @@ export const Invoice: React.FC<InvoiceProps> = ({
             totalEnglish={totalEnglish}
             totalChinese={totalChinese}
             qrCodeUrl={qrCodeUrl}
+            variant={variant}
             debug={debug}
             flexDebug={flexDebug}
           />
         );
       })}
+
+      {/* Supplementary Pages based on variant */}
+      {includePaymentDetails && (
+        <PaymentDetailsPage
+          subsidiary={subsidiary}
+          bankInfo={bankInfo}
+          qrCodeUrl={qrCodeUrl}
+          total={total}
+          totalEnglish={totalEnglish}
+          totalChinese={totalChinese}
+          debug={debug}
+          flexDebug={flexDebug}
+        />
+      )}
+
+      {includePaymentInstructions && (
+        <PaymentInstructionsPage
+          subsidiary={subsidiary}
+          bankInfo={bankInfo}
+          invoiceNumber={invoice.invoiceNumber}
+          invoiceDate={invoice.createdAt || undefined}
+          total={total}
+          totalEnglish={totalEnglish}
+          totalChinese={totalChinese}
+          clientRepresentative={clientRepresentative}
+          qrCodeUrl={qrCodeUrl}
+          debug={debug}
+          flexDebug={flexDebug}
+        />
+      )}
     </div>
   );
 };

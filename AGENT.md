@@ -12,7 +12,7 @@ Date fields must be validated before calling `.toLocaleDateString()` or similar 
 
 ## Coaching Sessions Page Fonts
 
-The coaching sessions dashboard (`pages/dashboard/businesses/coaching-sessions.tsx`) and its dialog tabs follow these typography rules:
+The coaching sessions dashboard (`pages/dashboard/businesses/coaching.tsx`) and its dialog tabs follow these typography rules:
 
 - Floating window headers in the student dialog use **Cantata One**.
 - Field labels across `OverviewTab`, `SessionsTab`, `BillingTab`, `PersonalTab`, and `SessionDetail` render in **Newsreader** at weight 200.

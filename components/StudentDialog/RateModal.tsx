@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
-} from '@mui/material'
+import { Modal, Input, Button, Space } from 'antd'
 import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
@@ -88,41 +81,39 @@ export default function RateModal({
   }
 
   return (
-    <Dialog
+    <Modal
       open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="xs"
-      slotProps={{
-        backdrop: { sx: { zIndex: 1600 } },
-        paper: { sx: { zIndex: 1601 } },
-      }}
+      onCancel={onClose}
+      title={<span style={{ fontFamily: 'Cantata One' }}>Edit Rate Charged</span>}
+      width={400}
+      zIndex={1601}
+      footer={
+        <Space>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            type="primary"
+            onClick={async () => {
+              await save()
+              onClose()
+            }}
+            disabled={!amount}
+          >
+            Save
+          </Button>
+        </Space>
+      }
     >
-      <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Edit Rate Charged</DialogTitle>
-      <DialogContent>
-        <TextField
-          label="Rate Charged"
+      <div style={{ marginTop: 16 }}>
+        <label style={{ display: 'block', marginBottom: 8, color: 'rgba(0, 0, 0, 0.45)' }}>
+          Rate Charged
+        </label>
+        <Input
           type="number"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          fullWidth
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
           autoFocus
-          sx={{ mt: 1 }}
         />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={async () => {
-            await save()
-            onClose()
-          }}
-          disabled={!amount}
-        >
-          Save
-        </Button>
-      </DialogActions>
-    </Dialog>
+      </div>
+    </Modal>
   )
 }
-

@@ -9,17 +9,9 @@ import {
 } from 'firebase/auth'
 import { auth } from '../../lib/firebaseClientAuth'
 import { signIn, useSession } from 'next-auth/react'
-import {
-  Alert,
-  Box,
-  Button,
-  Container,
-  Divider,
-  Link,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Alert, Button, Divider, Input, Space, Typography } from 'antd'
+
+const { Title, Text, Link } = Typography
 
 type FirebaseDiagnosticsResponse =
   | { ok: true; uid: string; projectId: string | null }
@@ -55,10 +47,8 @@ type CredentialExchangeParams = {
   refreshToken?: string | null
 }
 
-const buttonStyles = {
+const buttonStyle: React.CSSProperties = {
   height: 48,
-  justifyContent: 'center',
-  textTransform: 'none' as const,
   fontWeight: 600,
 }
 
@@ -323,80 +313,86 @@ export default function SignInPage() {
       <Head>
         <title>Sign in · Establish Portal</title>
       </Head>
-      <Container maxWidth='sm' sx={{ display: 'flex', minHeight: '100vh', alignItems: 'center' }}>
-        <Box sx={{ width: '100%', py: 6 }}>
-          <Typography variant='h4' fontWeight={600} gutterBottom>
+      <div
+        style={{
+          maxWidth: 480,
+          margin: '0 auto',
+          display: 'flex',
+          minHeight: '100vh',
+          alignItems: 'center',
+          padding: '0 16px',
+        }}
+      >
+        <div style={{ width: '100%', paddingTop: 48, paddingBottom: 48 }}>
+          <Title level={3} style={{ fontWeight: 600, marginBottom: 8 }}>
             Welcome back
-          </Typography>
-          <Typography variant='body1' color='text.secondary' sx={{ mb: 4 }}>
+          </Title>
+          <Text type="secondary" style={{ display: 'block', marginBottom: 32 }}>
             Sign in with Google or your email to continue.
-          </Typography>
+          </Text>
 
           {error && (
-            <Alert severity='error' sx={{ mb: 3 }}>
-              {error}
-            </Alert>
+            <Alert
+              type="error"
+              message={error}
+              style={{ marginBottom: 24 }}
+              showIcon
+            />
           )}
 
-          <Stack spacing={2}>
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Button
               onClick={handleGoogleSignIn}
-              variant='contained'
-              color='primary'
+              type="primary"
               disabled={submitting}
-              sx={buttonStyles}
+              block
+              style={buttonStyle}
             >
               Continue with Google
             </Button>
 
-            <Divider>or</Divider>
+            <Divider plain>or</Divider>
 
-            <Stack spacing={2}>
-              <TextField
-                label='Email'
-                type='email'
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Input
+                placeholder="Email"
+                type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                fullWidth
-                required
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                size="large"
               />
-              <TextField
-                label='Password'
-                type='password'
+              <Input.Password
+                placeholder="Password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                fullWidth
-                required
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                size="large"
               />
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+              <div style={{ display: 'flex', gap: 12 }}>
                 <Button
-                  fullWidth
-                  variant='contained'
+                  type="primary"
                   disabled={submitting}
                   onClick={() => handleEmailAuth('signIn')}
-                  sx={buttonStyles}
+                  style={{ ...buttonStyle, flex: 1 }}
                 >
                   Sign in
                 </Button>
                 <Button
-                  fullWidth
-                  variant='outlined'
                   disabled={submitting}
                   onClick={() => handleEmailAuth('signUp')}
-                  sx={buttonStyles}
+                  style={{ ...buttonStyle, flex: 1 }}
                 >
                   Create account
                 </Button>
-              </Stack>
-            </Stack>
-          </Stack>
+              </div>
+            </Space>
+          </Space>
 
-          <Typography variant='caption' color='text.secondary' sx={{ mt: 4, display: 'block' }}>
+          <Text type="secondary" style={{ marginTop: 32, display: 'block', fontSize: 12 }}>
             By signing in you agree to the Establish Productions internal use policy. Problems signing in? Contact
-            <Link href='mailto:support@establish.com'>{' support@establish.com'}</Link>.
-          </Typography>
-        </Box>
-      </Container>
+            <Link href="mailto:support@establish.com">{' support@establish.com'}</Link>.
+          </Text>
+        </div>
+      </div>
     </>
   )
 }

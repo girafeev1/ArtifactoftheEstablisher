@@ -17,3 +17,26 @@ export type { TotalBoxProps } from './totals';
 // Footers
 export { FooterFull, FooterSimple } from './footers';
 export type { FooterFullProps, FooterSimpleProps } from './footers';
+
+// Supplementary Pages
+export { PaymentDetailsPage, PaymentInstructionsPage } from './pages';
+export type { PaymentDetailsPageProps, PaymentInstructionsPageProps } from './pages';
+
+// Shared Components
+export {
+  ELogo,
+  SubsidiaryBranding,
+  PageTitle,
+  PageHeaderWithBranding,
+  PageFooter,
+  spacify,
+  TermsAndConditions,
+} from './shared';
+export type {
+  ELogoProps,
+  SubsidiaryBrandingProps,
+  PageTitleProps,
+  PageHeaderWithBrandingProps,
+  PageFooterProps,
+  TermsAndConditionsProps,
+} from './shared';

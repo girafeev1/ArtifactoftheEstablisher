@@ -1,0 +1,4 @@
+# Storybook - local development only
+.storybook/
+stories/
+storybook-static/

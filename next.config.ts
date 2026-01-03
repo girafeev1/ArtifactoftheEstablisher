@@ -8,8 +8,8 @@ const CLASSNAMES_FRAGMENTS = [
 
 const config: NextConfig = {
   eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
+    // Run ESLint manually via `npm run lint`. Disabled during builds due to
+    // compatibility issues between Next.js and ESLint 9 flat config.
     ignoreDuringBuilds: true,
   },
   async redirects() {
@@ -31,7 +31,12 @@ const config: NextConfig = {
       },
       {
         source: "/dashboard/finance",
-        destination: "/finance",
+        destination: "/bank",
+        permanent: true,
+      },
+      {
+        source: "/finance",
+        destination: "/bank",
         permanent: true,
       },
       {
@@ -45,8 +50,8 @@ const config: NextConfig = {
         permanent: true,
       },
       {
-        source: "/dashboard/coaching-sessions",
-        destination: "/coaching-sessions",
+        source: "/dashboard/coaching",
+        destination: "/coaching",
         permanent: true,
       },
       {

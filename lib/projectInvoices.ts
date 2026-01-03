@@ -421,7 +421,8 @@ export interface ProjectInvoiceRecord {
   paid: boolean | null
   paidOnIso: string | null
   paidOnDisplay: string | null
-  paidTo: string | null
+  paidTo: string | null  // Derived from transactions - which bank RECEIVED payment
+  payTo: string | null   // Stored on invoice - which bank client should PAY TO
   paymentStatus: string | null
   items: ProjectInvoiceItemRecord[]
   createdAt?: string | null
@@ -551,7 +552,11 @@ const buildInvoiceRecord = (
   const paidOnIso = toIsoString(paidOnSource)
   const paidOnDisplay =
     toDisplayDate(data.paidOnDisplay ?? paidOnSource) ?? (paidOnIso ? toDisplayDate(paidOnIso) : null)
-  const paidTo = toStringValue(data.paidTo ?? data.paymentRecipient ?? data.payTo)
+  // payTo: bank account for payment instructions (stored on invoice, used for rendering)
+  // Falls back to legacy paidTo for backwards compatibility with existing documents
+  const payTo = toStringValue(data.payTo ?? data.paidTo ?? data.paymentRecipient)
+  // paidTo: derived from transactions at enrichment time, not stored
+  const paidTo: string | null = null
   const paymentStatus = sanitizePaymentStatus(rawPaymentStatus, paid)
 
   // Representative is now stored as a map:
@@ -600,6 +605,7 @@ const buildInvoiceRecord = (
     paidOnIso,
     paidOnDisplay,
     paidTo,
+    payTo,
     paymentStatus,
     items,
     createdAt: toIsoString(data.createdAt),
@@ -704,7 +710,9 @@ interface InvoiceWritePayload {
   items: InvoiceItemPayload[]
   taxOrDiscountPercent: number | null
   paymentStatus: string | null
-  // Note: paidTo and paidOn are now derived from transactions, not stored on invoice
+  // payTo: bank account identifier for payment instructions (where client should pay)
+  // This is distinct from payment status which is derived from transactions
+  payTo?: string | null
   onDate?: unknown
 }
 
@@ -780,6 +788,11 @@ const buildInvoiceWritePayload = (
       : null
   const paymentStatus = toStringValue(payload.paymentStatus) ?? null
 
+  // payTo: bank account identifier for payment instructions
+  // This specifies which bank account the client should pay TO (for invoice rendering)
+  // Distinct from payment status tracking which is derived from transactions
+  const payTo = toStringValue(payload.payTo) ?? null
+
   const result: Record<string, unknown> = {
     baseInvoiceNumber: payload.baseInvoiceNumber,
     companyName: client.companyName,
@@ -791,10 +804,8 @@ const buildInvoiceWritePayload = (
     itemsCount: items.length,
     taxOrDiscountPercent,
     paymentStatus,
+    payTo, // Bank account for payment instructions (replaces legacy paidTo)
   }
-
-  // Note: paidTo and paidOn are no longer stored on invoices.
-  // Payment info is now derived from matched transactions.
 
   const onDateIso = toIsoString(payload.onDate as any)
   if (onDateIso) {
@@ -898,6 +909,7 @@ export const createInvoiceForProject = async (
     items: input.items,
     taxOrDiscountPercent: input.taxOrDiscountPercent,
     paymentStatus: input.paymentStatus,
+    payTo: input.payTo,
     onDate: input.onDate,
   })
 
@@ -1022,6 +1034,7 @@ export const updateInvoiceForProject = async (
       items: input.items,
       taxOrDiscountPercent: input.taxOrDiscountPercent,
       paymentStatus: input.paymentStatus,
+      payTo: input.payTo,
       onDate: input.onDate,
     },
     existingCount,

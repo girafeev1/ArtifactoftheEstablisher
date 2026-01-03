@@ -97,7 +97,7 @@ const VERTICAL_INSET = 2 // inset from top/bottom to avoid hugging edges
 const RUN_PADDING = 0 // horizontal padding between runs (right alignment uses exact width)
 const DEBUG = process.env.PDFKIT_DEBUG === '1'
 
-const registerFonts = (doc: PDFDocument) => {
+const registerFonts = (doc: InstanceType<typeof PDFDocument>) => {
   // Roboto Mono – base Latin mono.
   try {
     const roboto = (FONT_DATA as any)['RobotoMono-Regular.ttf']
@@ -261,7 +261,7 @@ type LayoutHelpers = {
   scaleX: number
 }
 
-const buildLayoutHelpers = (doc: PDFDocument, scheme: any): { helpers: LayoutHelpers; marginLeft: number; marginTop: number } => {
+const buildLayoutHelpers = (doc: InstanceType<typeof PDFDocument>, scheme: any): { helpers: LayoutHelpers; marginLeft: number; marginTop: number } => {
   // Margins in points: 0.3" left/right = 21.6pt; 0.2" top/bottom = 14.4pt
   const marginLeft = 21.6
   const marginTop = 14.4
@@ -633,7 +633,7 @@ export const buildInvoicePdfKitDocument = async (
               (meta.value === '<ItemNotes>' && runHasCJK)
             runs.push({
               text: hasMarker ? spacify(txt) : txt,
-              fontFamily: r.fontFamily ?? meta.fontFamily,
+              fontFamily: (r.fontFamily ?? meta.fontFamily) ?? undefined,
               // For the combined "<ItemTitle> <ItemSubQuantity>" cell the sheet
               // visually uses 19pt for the title and 14pt for the sub‑quantity.
               // The scheme only reports 19 as the base; shrink the sub‑quantity
@@ -643,8 +643,8 @@ export const buildInvoicePdfKitDocument = async (
               // the latter explicitly. We want "forceBold" to win, otherwise
               // prefer the explicit run bold flag, and finally fall back to
               // the cell meta bold value.
-              bold: forceBold || (r.bold ?? meta.bold),
-              italic: r.italic ?? meta.italic,
+              bold: (forceBold || (r.bold ?? meta.bold)) ?? undefined,
+              italic: (r.italic ?? meta.italic) ?? undefined,
             })
           })
         } else {
@@ -675,10 +675,10 @@ export const buildInvoicePdfKitDocument = async (
             (meta.value === '<ItemNotes>' && runHasCJK)
           runs.push({
             text: hasMarker ? spacify(txt) : txt,
-            fontFamily: meta.fontFamily,
+            fontFamily: meta.fontFamily ?? undefined,
             fontSize: baseFontSize,
-            bold: forceBold || meta.bold,
-            italic: meta.italic,
+            bold: (forceBold || meta.bold) ?? undefined,
+            italic: meta.italic ?? undefined,
           })
         }
         if (!runs.length) return
@@ -728,7 +728,7 @@ export const buildInvoicePdfKitDocument = async (
                 // Force bold for project title (both CJK and Latin) and for
                 // PresenterWorkType CJK segments; InvoiceTotalEnglish is also
                 // always bold.
-                bold: ru.bold || isTitle || isTotal || (isWork && !hasCJK ? false : isWork && hasCJK) || meta.bold,
+                bold: (ru.bold || isTitle || isTotal || (isWork && !hasCJK ? false : isWork && hasCJK) || meta.bold) ?? undefined,
               })
             })
           })

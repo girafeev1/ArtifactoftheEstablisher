@@ -1,10 +1,12 @@
 // components/StudentDialog/OverviewTab.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Tabs, Tab, Box, Typography } from '@mui/material'
+import { Tabs, Typography } from 'antd'
 import LoadingDash from '../LoadingDash'
 import FloatingWindow from './FloatingWindow'
 import { titleFor, MainTab, BillingSubTab } from './title'
+
+const { Text, Title } = Typography
 
 // OverviewTab acts purely as a presenter. PersonalTab, SessionsTab and
 // BillingTab each fetch and compute their own data then "stream" summary
@@ -41,9 +43,9 @@ class StudentDialogErrorBoundary extends React.Component<
   render() {
     if (this.state.error) {
       return (
-        <Box p={2}>
-          <Typography color="error">Student dialog failed to load.</Typography>
-        </Box>
+        <div style={{ padding: 16 }}>
+          <Text type="danger">Student dialog failed to load.</Text>
+        </div>
       )
     }
     return this.props.children
@@ -162,7 +164,7 @@ export default function OverviewTab({
     }
   }
 
-  const handleTabChange = (_: any, v: string) => selectTab(v)
+  const handleTabChange = (v: string) => selectTab(v)
 
   const closeAndReset = () => {
     setTab('overview')
@@ -215,35 +217,44 @@ export default function OverviewTab({
   const selected =
     tab === 'billing' && subTab ? `billing-${subTab}` : tab
 
+  const labelStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 200 }
+  const valueStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 500, margin: 0 }
+
+  const tabItems = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'personal', label: 'Personal' },
+    { key: 'sessions', label: 'Sessions' },
+    { key: 'billing', label: 'Billing' },
+    ...(tab === 'billing' ? [
+      { key: 'billing-retainers', label: <span style={{ paddingLeft: 16, fontSize: '0.82rem' }}>Retainers</span> },
+      { key: 'billing-payment-history', label: <span style={{ paddingLeft: 16, fontSize: '0.82rem' }}>Payment History</span> },
+      { key: 'billing-session-vouchers', label: <span style={{ paddingLeft: 16, fontSize: '0.82rem' }}>Session Vouchers</span> },
+    ] : []),
+  ]
+
   if (!open) return null
   return (
     <StudentDialogErrorBoundary>
       <FloatingWindow onClose={closeAndReset} title={title} actions={actions}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', maxHeight: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-          <Box sx={{ display: 'flex', flexGrow: 1, position: 'relative', alignItems: 'flex-start', maxHeight: '100%', maxWidth: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', maxHeight: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexGrow: 1, position: 'relative', alignItems: 'flex-start', maxHeight: '100%', maxWidth: '100%' }}>
             {/* No blocking overlay. Show inline spinners per-field below. */}
 
-            <Box
-              sx={{
+            <div
+              style={{
                 flexGrow: 1,
-                pr: 3,
+                paddingRight: 24,
                 overflow: 'auto',
                 textAlign: 'left',
                 maxHeight: '100%',
                 maxWidth: '100%',
               }}
             >
-              <Box sx={{ display: tab === 'overview' ? 'block' : 'none' }}>
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-                >
+              <div style={{ display: tab === 'overview' ? 'block' : 'none' }}>
+                <Text type="secondary" style={labelStyle}>
                   Legal Name:
-                </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                >
+                </Text>
+                <Title level={5} style={valueStyle}>
                   {(personalLoading.firstName || personalLoading.lastName)
                     ? <LoadingDash />
                     : (() => {
@@ -252,119 +263,80 @@ export default function OverviewTab({
                         const both = `${first} ${last}`.trim()
                         return both === 'N/A N/A' ? 'N/A' : both
                       })()}
-                </Typography>
+                </Title>
 
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-                >
+                <Text type="secondary" style={labelStyle}>
                   Gender:
-                </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                >
+                </Text>
+                <Title level={5} style={valueStyle}>
                   {personalLoading.sex ? <LoadingDash /> : displayField(personal.sex)}
-                </Typography>
+                </Title>
 
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-                >
+                <Text type="secondary" style={labelStyle}>
                   Joined Date:
-                </Typography>
+                </Text>
                 {overviewLoading ? (
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  >
+                  <Title level={5} style={valueStyle}>
                     <LoadingDash />
-                  </Typography>
+                  </Title>
                 ) : (
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  >
+                  <Title level={5} style={valueStyle}>
                     {overview.joint || '–'}
-                  </Typography>
+                  </Title>
                 )}
 
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-                  >
+                <div>
+                  <Text type="secondary" style={labelStyle}>
                     Total Sessions:
-                  </Typography>
+                  </Text>
                   {overviewLoading ? (
-                    <Typography
-                      variant="h6"
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                    >
+                    <Title level={5} style={valueStyle}>
                       <LoadingDash />
-                    </Typography>
+                    </Title>
                   ) : (
-                    <Typography
-                      variant="h6"
-                      sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+                    <Title
+                      level={5}
+                      style={valueStyle}
                       onMouseEnter={() => setHover(true)}
                       onMouseLeave={() => setHover(false)}
                     >
                       {hover
                         ? `✔︎ ${overview.proceeded ?? 0}`
                         : `${overview.total ?? '–'} (❌ ${overview.cancelled ?? '–'})`}
-                    </Typography>
+                    </Title>
                   )}
-                </Box>
+                </div>
 
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-                >
+                <Text type="secondary" style={labelStyle}>
                   Balance Due:
-                </Typography>
+                </Text>
                 {billingLoading.balanceDue ? (
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  >
+                  <Title level={5} style={valueStyle}>
                     <LoadingDash />
-                  </Typography>
+                  </Title>
                 ) : (
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  >
+                  <Title level={5} style={valueStyle}>
                     {billing.balanceDue != null
                       ? formatCurrency(Number(billing.balanceDue) || 0)
                       : '-'}
-                  </Typography>
+                  </Title>
                 )}
 
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-                >
+                <Text type="secondary" style={labelStyle}>
                   Voucher Balance:
-                </Typography>
+                </Text>
                 {billingLoading.voucherBalance ? (
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  >
+                  <Title level={5} style={valueStyle}>
                     <LoadingDash />
-                  </Typography>
+                  </Title>
                 ) : (
-                  <Typography
-                    variant="h6"
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  >
+                  <Title level={5} style={valueStyle}>
                     {billing.voucherBalance != null
                       ? Number(billing.voucherBalance)
                       : '-'}
-                  </Typography>
+                  </Title>
                 )}
-              </Box>
+              </div>
 
               <PersonalTab
                 abbr={abbr}
@@ -393,8 +365,8 @@ export default function OverviewTab({
                     tab === 'billing' && !subTab ? 'block' : 'none',
                 }}
               />
-              <Box
-                sx={{
+              <div
+                style={{
                   display:
                     tab === 'billing' && subTab === 'retainers'
                       ? 'block'
@@ -406,9 +378,9 @@ export default function OverviewTab({
                   account={account}
                   balanceDue={Number(billing.balanceDue) || 0}
                 />
-              </Box>
-              <Box
-                sx={{
+              </div>
+              <div
+                style={{
                   display:
                     tab === 'billing' && subTab === 'payment-history'
                       ? 'block'
@@ -421,9 +393,9 @@ export default function OverviewTab({
                   onTitleChange={setChildTitle}
                   active={tab === 'billing' && subTab === 'payment-history'}
                 />
-              </Box>
-              <Box
-                sx={{
+              </div>
+              <div
+                style={{
                   display:
                     tab === 'billing' && subTab === 'session-vouchers'
                       ? 'block'
@@ -431,89 +403,21 @@ export default function OverviewTab({
                 }}
               >
                 <VouchersTab abbr={abbr} account={account} />
-              </Box>
-            </Box>
+              </div>
+            </div>
 
             <Tabs
-              orientation="vertical"
-              value={selected}
+              tabPosition="right"
+              activeKey={selected}
               onChange={handleTabChange}
-              sx={{
-                borderLeft: 1,
-                borderColor: 'divider',
+              items={tabItems}
+              style={{
+                borderLeft: '1px solid #f0f0f0',
                 minWidth: 140,
-                alignItems: 'flex-end',
-                display: 'flex',
               }}
-            >
-              <Tab
-                value="overview"
-                label="Overview"
-                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
-              />
-              <Tab
-                value="personal"
-                label="Personal"
-                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
-              />
-              <Tab
-                value="sessions"
-                label="Sessions"
-                sx={{ textAlign: 'right', justifyContent: 'flex-end', width: '100%' }}
-              />
-              <Tab
-                value="billing"
-                label="Billing"
-                onClick={() => selectTab('billing')}
-                sx={{
-                  textAlign: 'right',
-                  justifyContent: 'flex-end',
-                  width: '100%',
-                  bgcolor: tab === 'billing' ? 'action.selected' : undefined,
-                }}
-              />
-              <Tab
-                value="billing-retainers"
-                label="Retainers"
-                sx={{
-                  display: tab === 'billing' ? 'flex' : 'none',
-                  pl: 4,
-                  fontSize: '0.82rem',
-                  textAlign: 'right',
-                  justifyContent: 'flex-end',
-                  width: '100%',
-                }}
-                onClick={() => selectTab('billing-retainers')}
-              />
-              <Tab
-                value="billing-payment-history"
-                label="Payment History"
-                sx={{
-                  display: tab === 'billing' ? 'flex' : 'none',
-                  pl: 4,
-                  fontSize: '0.82rem',
-                  textAlign: 'right',
-                  justifyContent: 'flex-end',
-                  width: '100%',
-                }}
-                onClick={() => selectTab('billing-payment-history')}
-              />
-              <Tab
-                value="billing-session-vouchers"
-                label="Session Vouchers"
-                sx={{
-                  display: tab === 'billing' ? 'flex' : 'none',
-                  pl: 4,
-                  fontSize: '0.82rem',
-                  textAlign: 'right',
-                  justifyContent: 'flex-end',
-                  width: '100%',
-                }}
-                onClick={() => selectTab('billing-session-vouchers')}
-              />
-            </Tabs>
-          </Box>
-        </Box>
+            />
+          </div>
+        </div>
       </FloatingWindow>
     </StudentDialogErrorBoundary>
   )

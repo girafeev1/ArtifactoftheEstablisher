@@ -4,6 +4,7 @@ import {
   type CrudFilters,
   type CrudSorting,
   type DataProvider,
+  type GetListParams,
   type GetListResponse,
   type HttpError,
 } from "@refinedev/core"
@@ -38,12 +39,11 @@ import debounce from "lodash.debounce"
 import type { ClientDirectoryRecord } from "../../lib/clientDirectory"
 
 import AppShell from "../layout/AppShell"
+import { NAVIGATION_RESOURCES, ALLOWED_MENU_KEYS } from "../../lib/navigation/resources"
 
 type DirectoryApiRecord = ClientDirectoryRecord & { id: string }
 
-const { Text } = Typography
-
-const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects", "finance", "accounting", "coaching-sessions", "tools"] as const
+const { Text, Title } = Typography
 
 if (typeof window === "undefined") {
   console.info("[client-accounts] Module loaded", {
@@ -323,7 +323,7 @@ const applySorting = (rows: ClientAccountRow[], sorters?: CrudSorting): ClientAc
 
 const refineDataProvider: DataProvider = {
   getApiUrl: () => "/api",
-  getList: async <TData extends BaseRecord = BaseRecord>({ resource, pagination, sorters, filters }) => {
+  getList: async <TData extends BaseRecord = BaseRecord>({ resource, pagination, sorters, filters }: GetListParams) => {
     if (resource !== "client-directory") {
       return { data: [], total: 0 } as GetListResponse<TData>
     }
@@ -650,8 +650,8 @@ const ClientAccountsTable = ({
       <Table<ClientAccountRow>
         {...tableProps}
         rowKey="id"
-        onRow={(record) => ({
-          onClick: (event) => {
+        onRow={(record: ClientAccountRow) => ({
+          onClick: (event: React.MouseEvent<HTMLElement>) => {
             const target = event.target as HTMLElement
             if (target.closest('[data-table-action]')) {
               return
@@ -662,7 +662,7 @@ const ClientAccountsTable = ({
         pagination={{
           ...(tableProps.pagination || {}),
           pageSizeOptions: ["12", "24", "48", "96"],
-          showTotal: (total) => <PaginationSummary total={total} />,
+          showTotal: (total: number) => <PaginationSummary total={total} />,
           onChange: (page: number, pageSize?: number) => {
             try { console.info('[client-accounts] pagination.onChange', { page, pageSize }) } catch {}
             onPageChange(page, pageSize)
@@ -671,7 +671,7 @@ const ClientAccountsTable = ({
             }
           },
         }}
-        onChange={(pagination, filters, sorter, extra) => {
+        onChange={(pagination: unknown, filters: unknown, sorter: unknown, extra: { action?: string }) => {
           try {
             console.info('[client-accounts] table.onChange', {
               current: (pagination as any)?.current,
@@ -689,25 +689,25 @@ const ClientAccountsTable = ({
           dataIndex={["company", "name"]}
           title="Company"
           width={240}
-          filterDropdown={(props) => (
+          filterDropdown={(props: Record<string, unknown>) => (
             <FilterDropdown {...props}>
               <Select
                 placeholder="Search Company"
                 style={{ width: 220 }}
                 showSearch
                 options={companyOptions}
-                filterOption={(input, option) =>
+                filterOption={(input: string, option: { label?: unknown } | undefined) =>
                   (option?.label as string).toLowerCase().includes(input.toLowerCase())
                 }
               />
             </FilterDropdown>
           )}
-          render={(_, record) => (
+          render={(_: unknown, record: ClientAccountRow) => (
             <Space size={12} align="center">
               <CompanyAvatar seed={record.company.id || record.company.name} />
               <Button
                 type="link"
-                onClick={(event) => {
+                onClick={(event: React.MouseEvent) => {
                   event.preventDefault()
                   event.stopPropagation()
                   onViewDetails(record)
@@ -724,19 +724,19 @@ const ClientAccountsTable = ({
           title="Payment Status"
           width={200}
           sorter
-          render={(_, record) => <PaymentStatusTag overdue={record.hasOverduePayment} />}
+          render={(_: unknown, record: ClientAccountRow) => <PaymentStatusTag overdue={record.hasOverduePayment} />}
         />
         <Table.Column<ClientAccountRow>
           dataIndex="displayName"
           title="Representative"
           width={300}
-          render={(_, record) => (
+          render={(_: unknown, record: ClientAccountRow) => (
             <Space align="start">
               <RepresentativeAvatar seed={record.avatarSeed} value={record.baseName ?? record.displayName} />
               <Text strong>{record.displayName}</Text>
             </Space>
           )}
-          filterDropdown={(props) => (
+          filterDropdown={(props: Record<string, unknown>) => (
             <FilterDropdown {...props}>
               <Input placeholder="Search Representative" />
             </FilterDropdown>
@@ -745,12 +745,12 @@ const ClientAccountsTable = ({
         <Table.Column<ClientAccountRow>
           dataIndex="email"
           title="Email"
-          filterDropdown={(props) => (
+          filterDropdown={(props: Record<string, unknown>) => (
             <FilterDropdown {...props}>
               <Input placeholder="Search Email" />
             </FilterDropdown>
           )}
-          render={(_, record) => {
+          render={(_: unknown, record: ClientAccountRow) => {
             const phone = toNullableString(record.phone)
             return (
               <Space direction="vertical" size={0}>
@@ -764,7 +764,7 @@ const ClientAccountsTable = ({
           title="Actions"
           fixed="right"
           align="right"
-          render={(_, record) => (
+          render={(_: unknown, record: ClientAccountRow) => (
             <ActionButtons
               record={record}
               onViewDetails={onViewDetails}
@@ -1210,7 +1210,7 @@ const ClientAccountsContent = () => {
         { field: "hasOverduePayment", operator: "eq", value: undefined },
       ],
     },
-    onSearch: (values) => [
+    onSearch: (values: { name?: string }) => [
       {
         field: "name",
         operator: "contains",
@@ -1428,6 +1428,11 @@ const ClientAccountsContent = () => {
           width: "100%",
         }}
       >
+        {/* Page Title */}
+        <div style={{ marginBottom: 24 }}>
+          <Title level={2} style={{ margin: 0 }}>Client Accounts</Title>
+        </div>
+
         <div
           style={{
             display: "flex",
@@ -1467,7 +1472,7 @@ const ClientAccountsContent = () => {
                 placeholder="Search by name"
                 prefix={<SearchOutlined className="anticon tertiary" />}
                 suffix={<Spin size="small" spinning={tableQuery.isFetching} />}
-                onChange={(event) => debouncedSearch(event.target.value)}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) => debouncedSearch(event.target.value)}
                 style={{ width: "100%" }}
               />
             </Form.Item>
@@ -1510,39 +1515,7 @@ const ClientAccountsContent = () => {
 const ClientAccountsShell = () => (
   <AppShell
     dataProvider={refineDataProvider}
-    resources={[
-      { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
-      {
-        name: "client-directory",
-        list: "/client-accounts",
-        meta: { label: "Client Accounts" },
-      },
-      {
-        name: "projects",
-        list: "/projects",
-        meta: { label: "Projects" },
-      },
-      {
-        name: "finance",
-        list: "/finance",
-        meta: { label: "Finance" },
-      },
-      {
-        name: "accounting",
-        list: "/accounting",
-        meta: { label: "Accounting" },
-      },
-      {
-        name: "coaching-sessions",
-        list: "/coaching-sessions",
-        meta: { label: "Coaching Sessions" },
-      },
-      {
-        name: "tools",
-        list: "/tools",
-        meta: { label: "Tools" },
-      },
-    ]}
+    resources={NAVIGATION_RESOURCES}
     allowedMenuKeys={ALLOWED_MENU_KEYS}
   >
     <ClientAccountsContent />

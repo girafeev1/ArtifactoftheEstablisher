@@ -4,9 +4,11 @@
 
 import { GetServerSideProps } from 'next';
 import { getSession } from 'next-auth/react';
-import { Box, Typography, CircularProgress } from '@mui/material';
+import { Typography, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+
+const { Text, Title } = Typography;
 
 export default function MainPage() {
   const router = useRouter();
@@ -55,7 +57,7 @@ export default function MainPage() {
         }
         // Clear the hash and redirect to finance page
         window.history.replaceState(null, '', '/');
-        router.push('/finance?ocbc_connected=true');
+        router.push('/bank?ocbc_connected=true');
       })
       .catch((err) => {
         console.error('[index] OAuth callback error:', err);
@@ -69,34 +71,34 @@ export default function MainPage() {
   // Show loading state while processing OAuth callback or redirecting
   if (isProcessingOAuth) {
     return (
-      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: '100vh', justifyContent: 'center' }}>
-        <CircularProgress />
-        <Typography variant="body1">Connecting to OCBC...</Typography>
-      </Box>
+      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, minHeight: '100vh', justifyContent: 'center' }}>
+        <Spin size="large" />
+        <Text>Connecting to OCBC...</Text>
+      </div>
     );
   }
 
   // Show error if OAuth failed
   if (oauthError) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h5" color="error" gutterBottom>
+      <div style={{ padding: 24 }}>
+        <Title level={4} type="danger" style={{ marginBottom: 8 }}>
           OCBC Connection Failed
-        </Typography>
-        <Typography variant="body1">{oauthError}</Typography>
-        <Typography variant="body2" sx={{ mt: 2 }}>
-          <a href="/finance">Go to Finance</a>
-        </Typography>
-      </Box>
+        </Title>
+        <Text>{oauthError}</Text>
+        <div style={{ marginTop: 16 }}>
+          <a href="/bank">Go to Bank Access</a>
+        </div>
+      </div>
     );
   }
 
   // Show loading while redirecting to dashboard
   return (
-    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: '100vh', justifyContent: 'center' }}>
-      <CircularProgress />
-      <Typography variant="body1">Loading...</Typography>
-    </Box>
+    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, minHeight: '100vh', justifyContent: 'center' }}>
+      <Spin size="large" />
+      <Text>Loading...</Text>
+    </div>
   );
 }
 

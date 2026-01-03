@@ -1,20 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import {
-  Box,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  CircularProgress,
-  Typography,
-  TableSortLabel,
-  Button,
-  Popover,
-  Checkbox,
-  FormGroup,
-  FormControlLabel,
-} from '@mui/material'
+import { Typography, Table, Spin, Button, Popover, Checkbox, Tooltip } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import { FilterOutlined } from '@ant-design/icons'
 import { collection, orderBy, query, onSnapshot } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import PaymentDetail from './PaymentDetail'
@@ -27,10 +14,9 @@ import { formatSessions } from '../../lib/billing/formatSessions'
 import { truncateList } from '../../lib/payments/truncate'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
-import Tooltip from '@mui/material/Tooltip'
-import IconButton from '@mui/material/IconButton'
-import FilterListIcon from '@mui/icons-material/FilterList'
 import { readColumnPrefs, writeColumnPrefs } from '../../lib/columnPrefs'
+
+const { Text } = Typography
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -55,6 +41,17 @@ const formatDate = (v: any) => {
   }
 }
 
+interface PaymentRow {
+  id: string
+  amount?: number
+  paymentMade?: any
+  method?: string
+  entity?: string
+  identifier?: string
+  refNumber?: string
+  assignedSessions?: string[]
+}
+
 export default function PaymentHistory({
   abbr,
   account,
@@ -66,7 +63,7 @@ export default function PaymentHistory({
   onTitleChange?: (title: string | null) => void
   active: boolean
 }) {
-  const [payments, setPayments] = useState<any[]>([])
+  const [payments, setPayments] = useState<PaymentRow[]>([])
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any | null>(null)
   const [sortField, setSortField] = useState<'amount' | 'paymentMade'>('paymentMade')
@@ -75,7 +72,7 @@ export default function PaymentHistory({
   const { data: bill } = useBilling(abbr, account)
   const { data: session } = useSession()
   const userEmail = session?.user?.email || 'anon'
-  const columns = [
+  const columnDefs = [
     { key: 'paymentMade', label: 'Date', width: 140 },
     { key: 'amount', label: 'Amount', width: 130 },
     { key: 'method', label: 'Method', width: 120 },
@@ -84,7 +81,7 @@ export default function PaymentHistory({
     { key: 'refNumber', label: 'Reference #', width: 160 },
     { key: 'session', label: 'For Session(s)', width: 180 },
   ] as const
-  const defaultVisible = columns.reduce((acc, c) => {
+  const defaultVisible = columnDefs.reduce((acc, c) => {
     acc[c.key] = ['paymentMade', 'amount', 'session'].includes(c.key)
     return acc
   }, {} as Record<string, boolean>)
@@ -100,13 +97,12 @@ export default function PaymentHistory({
     setVisible(next)
     writeColumnPrefs(prefsKey, next)
   }
-  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null)
-  const { widths, startResize, dblClickResize, keyResize } = useColumnWidths(
+  const [filterOpen, setFilterOpen] = useState(false)
+  const { widths } = useColumnWidths(
     'payments',
-    columns,
+    columnDefs,
     userEmail,
   )
-  const tableRef = React.useRef<HTMLTableElement>(null)
 
   const sessionMap = React.useMemo(() => {
     const m: Record<string, number> = {}
@@ -153,14 +149,9 @@ export default function PaymentHistory({
     return sortAsc ? av - bv : bv - av
   })
 
-  const visibleCount = columns.reduce(
-    (acc, c) => acc + (visible[c.key] ? 1 : 0),
-    0,
-  )
-
   if (detail)
     return (
-      <Box sx={{ height: '100%' }}>
+      <div style={{ height: '100%' }}>
         <PaymentDetail
           abbr={abbr}
           account={account}
@@ -168,496 +159,188 @@ export default function PaymentHistory({
           onBack={() => setDetail(null)}
           onTitleChange={onTitleChange}
         />
-      </Box>
+      </div>
     )
 
+  const tableColumns: ColumnsType<PaymentRow> = []
+
+  if (visible['paymentMade']) {
+    tableColumns.push({
+      title: 'Date',
+      dataIndex: 'paymentMade',
+      key: 'paymentMade',
+      width: widths['paymentMade'],
+      sorter: true,
+      sortOrder: sortField === 'paymentMade' ? (sortAsc ? 'ascend' : 'descend') : undefined,
+      render: (v: any) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{formatDate(v)}</span>,
+    })
+  }
+  if (visible['amount']) {
+    tableColumns.push({
+      title: 'Amount',
+      dataIndex: 'amount',
+      key: 'amount',
+      width: widths['amount'],
+      sorter: true,
+      sortOrder: sortField === 'amount' ? (sortAsc ? 'ascend' : 'descend') : undefined,
+      render: (v: number) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{formatCurrency(Number(v) || 0)}</span>,
+    })
+  }
+  if (visible['method']) {
+    tableColumns.push({
+      title: 'Method',
+      dataIndex: 'method',
+      key: 'method',
+      width: widths['method'],
+      render: (v: string) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{v || '—'}</span>,
+    })
+  }
+  if (visible['entity']) {
+    tableColumns.push({
+      title: 'Entity',
+      dataIndex: 'entity',
+      key: 'entity',
+      width: widths['entity'],
+      render: (v: string) => (
+        <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+          {v ? (v === 'ME-ERL' ? 'Music Establish (ERL)' : v) : '—'}
+        </span>
+      ),
+    })
+  }
+  if (visible['identifier']) {
+    tableColumns.push({
+      title: 'Bank Account',
+      dataIndex: 'identifier',
+      key: 'identifier',
+      width: widths['identifier'],
+      render: (v: string) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{v || '—'}</span>,
+    })
+  }
+  if (visible['refNumber']) {
+    tableColumns.push({
+      title: 'Reference #',
+      dataIndex: 'refNumber',
+      key: 'refNumber',
+      width: widths['refNumber'],
+      render: (v: string) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{v || '—'}</span>,
+    })
+  }
+  if (visible['session']) {
+    tableColumns.push({
+      title: 'For Session(s)',
+      key: 'session',
+      width: widths['session'],
+      render: (_: any, p: PaymentRow) => {
+        const ords = (p.assignedSessions || [])
+          .map((id: string) => sessionMap[id])
+          .filter((n: number | undefined): n is number => typeof n === 'number')
+          .sort((a: number, b: number) => a - b)
+        const { visible: ordVisible, hiddenCount } = truncateList<number>(ords)
+        return (
+          <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+            {formatSessions(ordVisible)}
+            {hiddenCount > 0 && ' …'}
+          </span>
+        )
+      },
+    })
+  }
+
+  const filterContent = (
+    <div style={{ padding: 8 }}>
+      {columnDefs.map((c) => (
+        <div key={c.key} style={{ marginBottom: 4 }}>
+          <Checkbox
+            checked={visible[c.key]}
+            onChange={() => toggleCol(c.key)}
+          >
+            {c.label}
+          </Checkbox>
+        </div>
+      ))}
+    </div>
+  )
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ flexGrow: 1, overflow: 'auto', padding: 16, paddingBottom: 64 }}>
         {loading ? (
-          <CircularProgress />
+          <Spin />
         ) : (
           <>
-            <Box
-              sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}
-            >
-              <Box>
-                <Typography
-                  variant="subtitle1"
-                  sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-                >
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div>
+                <Text style={{ fontFamily: 'Cantata One', textDecoration: 'underline', display: 'block' }}>
                   Payment History
-                </Typography>
-                <Tooltip title="Filter Columns">
-                  <IconButton
-                    aria-label="Filter Columns"
-                    data-testid="filter-columns"
-                    onClick={(e) => setFilterAnchor(e.currentTarget)}
-                    sx={{ mt: 0.5 }}
-                  >
-                    <FilterListIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
+                </Text>
+                <Popover
+                  content={filterContent}
+                  title="Filter Columns"
+                  trigger="click"
+                  open={filterOpen}
+                  onOpenChange={setFilterOpen}
+                >
+                  <Tooltip title="Filter Columns">
+                    <Button
+                      type="text"
+                      icon={<FilterOutlined />}
+                      aria-label="Filter Columns"
+                      data-testid="filter-columns"
+                      style={{ marginTop: 4 }}
+                    />
+                  </Tooltip>
+                </Popover>
+              </div>
               <Tooltip title="Create Payment">
-                <IconButton
-                  color="primary"
+                <Button
+                  type="text"
+                  icon={<CreateIcon />}
                   onClick={() => setModalOpen(true)}
                   aria-label="Create Payment"
-                >
-                  <CreateIcon fontSize="small" />
-                </IconButton>
+                />
               </Tooltip>
-            </Box>
-            <Popover
-              open={Boolean(filterAnchor)}
-              anchorEl={filterAnchor}
-              onClose={() => setFilterAnchor(null)}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            >
-              <FormGroup sx={{ p: 2 }}>
-                {columns.map((c) => (
-                  <FormControlLabel
-                    key={c.key}
-                    control={
-                      <Checkbox
-                        checked={visible[c.key]}
-                        onChange={() => toggleCol(c.key)}
-                      />
-                    }
-                    label={c.label}
-                  />
-                ))}
-              </FormGroup>
-            </Popover>
+            </div>
             <Table
-              ref={tableRef}
               size="small"
-              sx={{
-                cursor: 'pointer',
-                tableLayout: 'fixed',
-                width: 'max-content',
-                '& td, & th': {
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+              columns={tableColumns}
+              dataSource={sortedPayments}
+              rowKey="id"
+              pagination={false}
+              style={{ cursor: 'pointer' }}
+              onRow={(p: PaymentRow) => ({
+                onClick: () => setDetail(p),
+                onKeyDown: (e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setDetail(p)
+                  }
                 },
-                '& th .MuiTableSortLabel-root': {
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                },
-              }}
-            >
-            <TableHead>
-              <TableRow>
-                {visible['paymentMade'] && (
-                  <TableCell
-                    data-col="paymentMade"
-                    data-col-header
-                    title="Date"
-                    sx={{
-                      fontFamily: 'Cantata One',
-                      fontWeight: 'bold',
-                      position: 'relative',
-                      width: widths['paymentMade'],
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    <TableSortLabel
-                      active={sortField === 'paymentMade'}
-                      direction={sortField === 'paymentMade' && sortAsc ? 'asc' : 'desc'}
-                      onClick={() => {
-                        if (sortField === 'paymentMade') setSortAsc((s) => !s)
-                        else {
-                          setSortField('paymentMade')
-                          setSortAsc(false)
-                        }
-                      }}
-                    >
-                      Date
-                    </TableSortLabel>
-                    <Box
-                      className="col-resizer"
-                      aria-label="Resize column Payment Date"
-                      role="separator"
-                      tabIndex={0}
-                      onMouseDown={(e) => startResize('paymentMade', e)}
-                      onDoubleClick={() =>
-                        dblClickResize('paymentMade', tableRef.current || undefined)
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowLeft') keyResize('paymentMade', 'left')
-                        if (e.key === 'ArrowRight') keyResize('paymentMade', 'right')
-                      }}
-                    />
-                  </TableCell>
-                )}
-                {visible['amount'] && (
-                  <TableCell
-                    data-col="amount"
-                    data-col-header
-                    title="Amount"
-                    sx={{
-                      fontFamily: 'Cantata One',
-                      fontWeight: 'bold',
-                      position: 'relative',
-                      width: widths['amount'],
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    <TableSortLabel
-                      active={sortField === 'amount'}
-                      direction={sortField === 'amount' && sortAsc ? 'asc' : 'desc'}
-                      onClick={() => {
-                        if (sortField === 'amount') setSortAsc((s) => !s)
-                        else {
-                          setSortField('amount')
-                          setSortAsc(false)
-                        }
-                      }}
-                    >
-                      Amount
-                    </TableSortLabel>
-                    <Box
-                      className="col-resizer"
-                      aria-label="Resize column Amount"
-                      role="separator"
-                      tabIndex={0}
-                      onMouseDown={(e) => startResize('amount', e)}
-                      onDoubleClick={() =>
-                        dblClickResize('amount', tableRef.current || undefined)
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowLeft') keyResize('amount', 'left')
-                        if (e.key === 'ArrowRight') keyResize('amount', 'right')
-                      }}
-                    />
-                  </TableCell>
-                )}
-                {visible['method'] && (
-                  <TableCell
-                    data-col="method"
-                    data-col-header
-                    title="Method"
-                    sx={{
-                      fontFamily: 'Cantata One',
-                      fontWeight: 'bold',
-                      position: 'relative',
-                      width: widths['method'],
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    Method
-                    <Box
-                      className="col-resizer"
-                      aria-label="Resize column Method"
-                      role="separator"
-                      tabIndex={0}
-                      onMouseDown={(e) => startResize('method', e)}
-                      onDoubleClick={() =>
-                        dblClickResize('method', tableRef.current || undefined)
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowLeft') keyResize('method', 'left')
-                        if (e.key === 'ArrowRight') keyResize('method', 'right')
-                      }}
-                    />
-                  </TableCell>
-                )}
-                {visible['entity'] && (
-                  <TableCell
-                    data-col="entity"
-                    data-col-header
-                    title="Entity"
-                    sx={{
-                      fontFamily: 'Cantata One',
-                      fontWeight: 'bold',
-                      position: 'relative',
-                      width: widths['entity'],
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    Entity
-                    <Box
-                      className="col-resizer"
-                      aria-label="Resize column Entity"
-                      role="separator"
-                      tabIndex={0}
-                      onMouseDown={(e) => startResize('entity', e)}
-                      onDoubleClick={() =>
-                        dblClickResize('entity', tableRef.current || undefined)
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowLeft') keyResize('entity', 'left')
-                        if (e.key === 'ArrowRight') keyResize('entity', 'right')
-                      }}
-                    />
-                  </TableCell>
-                )}
-                {visible['identifier'] && (
-                  <TableCell
-                    data-col="identifier"
-                    data-col-header
-                    title="Bank Account"
-                    sx={{
-                      fontFamily: 'Cantata One',
-                      fontWeight: 'bold',
-                      position: 'relative',
-                      width: widths['identifier'],
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    Bank Account
-                    <Box
-                      className="col-resizer"
-                      aria-label="Resize column Bank Account"
-                      role="separator"
-                      tabIndex={0}
-                      onMouseDown={(e) => startResize('identifier', e)}
-                      onDoubleClick={() =>
-                        dblClickResize('identifier', tableRef.current || undefined)
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowLeft') keyResize('identifier', 'left')
-                        if (e.key === 'ArrowRight') keyResize('identifier', 'right')
-                      }}
-                    />
-                  </TableCell>
-                )}
-                {visible['refNumber'] && (
-                  <TableCell
-                    data-col="refNumber"
-                    data-col-header
-                    title="Reference #"
-                    sx={{
-                      fontFamily: 'Cantata One',
-                      fontWeight: 'bold',
-                      position: 'relative',
-                      width: widths['refNumber'],
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    Reference #
-                    <Box
-                      className="col-resizer"
-                      aria-label="Resize column Reference #"
-                      role="separator"
-                      tabIndex={0}
-                      onMouseDown={(e) => startResize('refNumber', e)}
-                      onDoubleClick={() =>
-                        dblClickResize('refNumber', tableRef.current || undefined)
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowLeft') keyResize('refNumber', 'left')
-                        if (e.key === 'ArrowRight') keyResize('refNumber', 'right')
-                      }}
-                    />
-                  </TableCell>
-                )}
-                {visible['session'] && (
-                  <TableCell
-                    data-col="session"
-                    data-col-header
-                    title="For Session(s)"
-                    sx={{
-                      fontFamily: 'Cantata One',
-                      fontWeight: 'bold',
-                      position: 'relative',
-                      width: widths['session'],
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    For Session(s)
-                    <Box
-                      className="col-resizer"
-                      aria-label="Resize column For Session(s)"
-                      role="separator"
-                      tabIndex={0}
-                      onMouseDown={(e) => startResize('session', e)}
-                      onDoubleClick={() =>
-                        dblClickResize('session', tableRef.current || undefined)
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowLeft') keyResize('session', 'left')
-                        if (e.key === 'ArrowRight') keyResize('session', 'right')
-                      }}
-                    />
-                  </TableCell>
-                )}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedPayments.map((p) => {
-                const amount = Number(p.amount) || 0
-                const ords = (p.assignedSessions || [])
-                  .map((id: string) => sessionMap[id])
-                  .filter((n): n is number => typeof n === 'number')
-                  .sort((a, b) => a - b)
-                const { visible: ordVisible, hiddenCount } = truncateList<number>(ords)
-                return (
-                  <TableRow
-                    key={p.id}
-                    hover
-                    onClick={() => setDetail(p)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setDetail(p)
-                      }
-                    }}
-                    sx={{ cursor: 'pointer', py: 1 }}
-                  >
-                    {visible['paymentMade'] && (
-                      <TableCell
-                        data-col="paymentMade"
-                        title={formatDate(p.paymentMade)}
-                        sx={{
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: widths['paymentMade'],
-                          minWidth: widths['paymentMade'],
-                        }}
-                      >
-                        {formatDate(p.paymentMade)}
-                      </TableCell>
-                    )}
-                    {visible['amount'] && (
-                      <TableCell
-                        data-col="amount"
-                        title={formatCurrency(amount)}
-                        sx={{
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: widths['amount'],
-                          minWidth: widths['amount'],
-                        }}
-                      >
-                        {formatCurrency(amount)}
-                      </TableCell>
-                    )}
-                    {visible['method'] && (
-                      <TableCell
-                        data-col="method"
-                        title={p.method || '—'}
-                        sx={{
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: widths['method'],
-                          minWidth: widths['method'],
-                        }}
-                      >
-                        {p.method || '—'}
-                      </TableCell>
-                    )}
-                    {visible['entity'] && (
-                      <TableCell
-                        data-col="entity"
-                        title={
-                          p.entity
-                            ? p.entity === 'ME-ERL'
-                              ? 'Music Establish (ERL)'
-                              : p.entity
-                            : '—'
-                        }
-                        sx={{
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: widths['entity'],
-                          minWidth: widths['entity'],
-                        }}
-                      >
-                        {p.entity
-                          ? p.entity === 'ME-ERL'
-                            ? 'Music Establish (ERL)'
-                            : p.entity
-                          : '—'}
-                      </TableCell>
-                    )}
-                    {visible['identifier'] && (
-                      <TableCell
-                        data-col="identifier"
-                        title={p.identifier || '—'}
-                        sx={{
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: widths['identifier'],
-                          minWidth: widths['identifier'],
-                        }}
-                      >
-                        {p.identifier || '—'}
-                      </TableCell>
-                    )}
-                    {visible['refNumber'] && (
-                      <TableCell
-                        data-col="refNumber"
-                        title={p.refNumber || '—'}
-                        sx={{
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: widths['refNumber'],
-                          minWidth: widths['refNumber'],
-                        }}
-                      >
-                        {p.refNumber || '—'}
-                      </TableCell>
-                    )}
-                    {visible['session'] && (
-                      <TableCell
-                        data-col="session"
-                        title={formatSessions(ords)}
-                        sx={{
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: widths['session'],
-                          minWidth: widths['session'],
-                        }}
-                      >
-                        {formatSessions(ordVisible)}
-                        {hiddenCount > 0 && ' …'}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                )
+                role: 'button',
+                tabIndex: 0,
               })}
-              {sortedPayments.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={visibleCount}
-                    sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  >
-                    No payments recorded.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-            </Table>
+              onChange={(_: any, __: any, sorter: any) => {
+                if (sorter.field) {
+                  const field = sorter.field as 'amount' | 'paymentMade'
+                  if (sortField === field) {
+                    setSortAsc(sorter.order === 'ascend')
+                  } else {
+                    setSortField(field)
+                    setSortAsc(sorter.order === 'ascend')
+                  }
+                }
+              }}
+              locale={{ emptyText: 'No payments recorded.' }}
+            />
           </>
         )}
-      </Box>
+      </div>
       <PaymentModal
         abbr={abbr}
         account={account}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
       />
-    </Box>
+    </div>
   )
 }
-

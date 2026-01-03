@@ -1,0 +1,142 @@
+rules_version = '2';
+
+/**
+ * Firestore Security Rules - epl-projects database
+ *
+ * Contains: projects, accounting
+ *
+ * PERMISSIVE MODE (RBAC_ENABLED=false):
+ * - All authenticated users have access
+ * - No role checking yet
+ *
+ * When RBAC is enabled, uncomment the strict rules.
+ */
+
+service cloud.firestore {
+  match /databases/epl-projects/documents {
+
+    // ========================================================================
+    // Helper Functions
+    // ========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // STRICT MODE (uncomment when RBAC_ENABLED=true):
+    // function isActive() {
+    //   return isAuthenticated() &&
+    //          request.auth.token.status == 'active';
+    // }
+    //
+    // function hasRole(role) {
+    //   return isActive() && request.auth.token.role == role;
+    // }
+    //
+    // function hasAnyRole(roles) {
+    //   return isActive() && request.auth.token.role in roles;
+    // }
+    //
+    // function isAdmin() {
+    //   return hasRole('admin');
+    // }
+    //
+    // function isVendor() {
+    //   return hasRole('vendor');
+    // }
+    //
+    // function vendorHasProjectAccess(year, projectId) {
+    //   return isVendor() &&
+    //          request.auth.token.vendorProjectIds != null &&
+    //          (year + '/' + projectId) in request.auth.token.vendorProjectIds &&
+    //          (request.auth.token.vendorExpiresAt == null ||
+    //           request.auth.token.vendorExpiresAt > request.time.toMillis());
+    // }
+    //
+    // function canReadProjects() {
+    //   return hasAnyRole(['admin', 'accounting', 'projects', 'viewer']);
+    // }
+    //
+    // function canWriteProjects() {
+    //   return hasAnyRole(['admin', 'projects']);
+    // }
+
+    // ========================================================================
+    // Projects Collection (nested: projects/{year}/projects/{projectId})
+    // ========================================================================
+
+    match /projects/{year}/projects/{projectId} {
+      // PERMISSIVE: Any authenticated user
+      allow read, write: if isAuthenticated();
+
+      // STRICT:
+      // allow read: if canReadProjects() || vendorHasProjectAccess(year, projectId);
+      // allow create: if canWriteProjects();
+      // allow update: if canWriteProjects() ||
+      //                  (isVendor() && vendorHasProjectAccess(year, projectId));
+      // allow delete: if isAdmin();
+
+      // Invoice subcollection
+      match /invoice/{invoiceId} {
+        allow read, write: if isAuthenticated();
+
+        // STRICT:
+        // allow read: if canReadProjects() || vendorHasProjectAccess(year, projectId);
+        // allow write: if canWriteProjects();
+
+        // Update logs
+        match /updateLogs/{logId} {
+          allow read: if isAuthenticated();
+          allow write: if false; // Server-side only
+
+          // STRICT:
+          // allow read: if canReadProjects() || vendorHasProjectAccess(year, projectId);
+          // allow write: if false;
+        }
+      }
+
+      // Project update logs
+      match /updateLogs/{logId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // Server-side only
+
+        // STRICT:
+        // allow read: if canReadProjects() || vendorHasProjectAccess(year, projectId);
+        // allow write: if false;
+      }
+    }
+
+    // Legacy: Root-level year collections (fallback)
+    match /{year}/{projectId} {
+      allow read, write: if isAuthenticated();
+
+      match /{subcollection}/{docId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // ========================================================================
+    // Accounting Collection
+    // ========================================================================
+
+    match /accounting/{docType}/{subCollection}/{docId} {
+      // PERMISSIVE: Any authenticated user
+      allow read, write: if isAuthenticated();
+
+      // STRICT:
+      // allow read: if hasAnyRole(['admin', 'accounting', 'viewer']);
+      // allow write: if hasAnyRole(['admin', 'accounting']);
+    }
+
+    // ========================================================================
+    // Catch-all
+    // ========================================================================
+
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+
+      // STRICT:
+      // allow read, write: if isAdmin();
+    }
+  }
+}

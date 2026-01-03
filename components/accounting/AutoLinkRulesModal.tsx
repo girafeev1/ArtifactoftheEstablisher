@@ -431,19 +431,19 @@ export default function AutoLinkRulesModal({
             <Space key={index} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
               <Select
                 value={condition.field}
-                onChange={(v) => updateCondition(index, { field: v })}
+                onChange={(v: string) => updateCondition(index, { field: v as MatchField })}
                 style={{ width: 140 }}
                 options={MATCH_FIELDS}
               />
               <Select
                 value={condition.operator}
-                onChange={(v) => updateCondition(index, { operator: v })}
+                onChange={(v: string) => updateCondition(index, { operator: v as MatchOperator })}
                 style={{ width: 120 }}
                 options={MATCH_OPERATORS}
               />
               <Input
                 value={condition.value}
-                onChange={(e) => updateCondition(index, { value: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateCondition(index, { value: e.target.value })}
                 placeholder="Value to match"
                 style={{ width: 200 }}
               />
@@ -495,7 +495,7 @@ export default function AutoLinkRulesModal({
               showSearch
               placeholder="Select GL account"
               optionFilterProp="children"
-              filterOption={(input, option) =>
+              filterOption={(input: string, option: { label?: string; value?: string } | undefined) =>
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               options={accounts.map((a) => ({

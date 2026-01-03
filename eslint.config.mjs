@@ -16,11 +16,8 @@ export default [
     settings: { react: { version: 'detect' } },
     rules: {
       'react/react-in-jsx-scope': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-empty-interface': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
-      'prefer-const': 'off',
     },
   },
 ];

@@ -1,0 +1,152 @@
+rules_version = '2';
+
+/**
+ * Firestore Security Rules - mel-sessions (default database)
+ *
+ * Contains: users, auditLogs, Students, Sessions
+ *
+ * PERMISSIVE MODE (RBAC_ENABLED=false):
+ * - All authenticated users have access
+ * - No role checking yet
+ *
+ * When RBAC is enabled, uncomment the strict rules and comment out permissive ones.
+ */
+
+service cloud.firestore {
+  match /databases/mel-sessions/documents {
+
+    // ========================================================================
+    // Helper Functions
+    // ========================================================================
+
+    // Basic authentication check
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // STRICT MODE (uncomment when RBAC_ENABLED=true):
+    // function isActive() {
+    //   return isAuthenticated() &&
+    //          request.auth.token.status == 'active';
+    // }
+    //
+    // function hasRole(role) {
+    //   return isActive() && request.auth.token.role == role;
+    // }
+    //
+    // function hasAnyRole(roles) {
+    //   return isActive() && request.auth.token.role in roles;
+    // }
+    //
+    // function isAdmin() {
+    //   return hasRole('admin');
+    // }
+    //
+    // function canRead() {
+    //   return hasAnyRole(['admin', 'accounting', 'projects', 'viewer']);
+    // }
+    //
+    // function canWrite() {
+    //   return hasAnyRole(['admin', 'accounting', 'projects']);
+    // }
+
+    // ========================================================================
+    // Users Collection
+    // ========================================================================
+
+    match /users/{userId} {
+      // PERMISSIVE: Any authenticated user can read their own profile
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+
+      // PERMISSIVE: Any authenticated user can read all users (for admin UI)
+      allow read: if isAuthenticated();
+
+      // PERMISSIVE: Any authenticated user can create their own profile
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+
+      // PERMISSIVE: Any authenticated user can update (will be admin-only when RBAC enabled)
+      allow update: if isAuthenticated();
+
+      // STRICT (uncomment when RBAC enabled):
+      // allow read: if isAuthenticated() && request.auth.uid == userId;
+      // allow read: if isAdmin();
+      // allow create: if isAuthenticated() &&
+      //                  request.auth.uid == userId &&
+      //                  request.resource.data.status == 'pending' &&
+      //                  request.resource.data.role == 'pending';
+      // allow update, delete: if isAdmin();
+    }
+
+    // ========================================================================
+    // Audit Logs Collection
+    // ========================================================================
+
+    match /auditLogs/{logId} {
+      // PERMISSIVE: Any authenticated user can read
+      allow read: if isAuthenticated();
+
+      // Writes are always server-side only (via Admin SDK)
+      allow write: if false;
+
+      // STRICT (uncomment when RBAC enabled):
+      // allow read: if isAdmin();
+      // allow write: if false;
+    }
+
+    // ========================================================================
+    // Students Collection (Coaching)
+    // ========================================================================
+
+    match /Students/{studentId} {
+      // PERMISSIVE: Any authenticated user
+      allow read, write: if isAuthenticated();
+
+      // STRICT:
+      // allow read: if canRead();
+      // allow write: if canWrite();
+
+      // Subcollections
+      match /{subcollection}/{docId} {
+        allow read, write: if isAuthenticated();
+
+        // STRICT:
+        // allow read: if canRead();
+        // allow write: if canWrite();
+      }
+    }
+
+    // ========================================================================
+    // Sessions Collection (Coaching)
+    // ========================================================================
+
+    match /Sessions/{sessionId} {
+      // PERMISSIVE: Any authenticated user
+      allow read, write: if isAuthenticated();
+
+      // STRICT:
+      // allow read: if canRead();
+      // allow write: if canWrite();
+
+      // Subcollections (payment, rateCharged, appointmentHistory, etc.)
+      match /{subcollection}/{docId} {
+        allow read, write: if isAuthenticated();
+
+        // STRICT:
+        // allow read: if canRead();
+        // allow write: if hasAnyRole(['admin', 'accounting']) || canWrite();
+      }
+    }
+
+    // ========================================================================
+    // Catch-all for other collections
+    // ========================================================================
+
+    match /{document=**} {
+      // PERMISSIVE: Allow authenticated access to any other documents
+      allow read, write: if isAuthenticated();
+
+      // STRICT:
+      // allow read, write: if isAdmin();
+    }
+  }
+}

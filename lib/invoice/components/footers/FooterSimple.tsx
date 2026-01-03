@@ -1,8 +1,8 @@
 /**
  * FooterSimple Component
  *
- * Simple footer for continuation pages (not the last page).
- * Layout matches footer-continuation-simple.json exactly.
+ * Simple footer for continuation pages and supplementary pages.
+ * Used on all pages except the last page of Version B/B2 invoices.
  *
  * Row heights: [24, 57] = 81px total
  */
@@ -23,24 +23,65 @@ export interface FooterSimpleProps {
 }
 
 /**
- * Spacify text - add a space between each character
+ * Spacify text - add a space between each character, double space between words
+ * Matches the "P a y m e n t   D e t a i l s" format
  */
 function spacify(text: string | undefined | null): string {
   if (!text) return '';
-  return String(text).split('').join(' ');
+  return String(text)
+    .split('')
+    .map((char, i, arr) => {
+      // Add extra space before space characters to create double-space word separation
+      if (char === ' ') return '  ';
+      return char;
+    })
+    .join(' ');
 }
 
 /**
- * FooterSimple - Minimal footer for continuation pages
+ * Format phone number with mixed font sizes
+ * "+(852)" area code in 9pt (12px), rest of phone number in 10pt (13px)
+ * The area code is 1pt smaller than the phone number
+ */
+function formatPhone(phone: string | undefined | null): React.ReactNode {
+  if (!phone) return null;
+
+  // Spacify the phone number first
+  const spacified = spacify(phone);
+
+  // Match pattern: optional + followed by (852) or 852
+  // Example: "+ ( 8 5 2 )   1 2 3 4   5 6 7 8"
+  const match = spacified.match(/^(\+\s*)?(\(\s*8\s*5\s*2\s*\))(.*)/);
+
+  if (match) {
+    const plus = match[1] || ''; // "+" part - smaller (7px for testing)
+    const areaCode = match[2]; // "(852)" part - smaller (7px for testing)
+    const rest = match[3]; // rest of number - 10pt (13px)
+
+    return (
+      <>
+        {plus && <span style={{ fontSize: '9px' }}>{plus}</span>}
+        <span style={{ fontSize: '9px' }}>{areaCode}</span>
+        <span style={{ fontSize: '13px' }}>{rest}</span>
+      </>
+    );
+  }
+
+  // No country code detected, just return spacified
+  return <span style={{ fontSize: '13px' }}>{spacified}</span>;
+}
+
+/**
+ * FooterSimple - Minimal footer for continuation and supplementary pages
  *
- * Layout from JSON (2 rows) with merges:
+ * Layout (2 rows) with merges:
  * - Row 1 (24px): SubsidiaryEnglishName in A-D (merged), rest empty
- * - Row 2 (57px): Address in A-D (merged), Phone/Email in K-N (merged)
+ * - Row 2 (57px): Address in A-D (merged), Phone/Email in J-N (merged)
  *
- * Merges from JSON:
- * - r1=1, c1=1, r2=1, c2=4 → Row 1, A-D
- * - r1=2, c1=1, r2=2, c2=4 → Row 2, A-D
- * - r1=2, c1=11, r2=2, c2=14 → Row 2, K-N
+ * Merges:
+ * - Row 1, A-D: Company name
+ * - Row 2, A-D: Address
+ * - Row 2, J-N: Phone/Email
  */
 export const FooterSimple: React.FC<FooterSimpleProps> = ({
   subsidiary,
@@ -60,11 +101,11 @@ export const FooterSimple: React.FC<FooterSimpleProps> = ({
         vAlign="bottom"
         hAlign="left"
         debug={debug}
-        style={{ borderTop: '1px solid rgb(239, 239, 239)' }}
+        style={{ borderTop: '1px solid rgb(239, 239, 239)', paddingLeft: '3px' }}
       >
         <span style={{
           ...cormorantStyle,
-          fontSize: '14px', // 12 + 2
+          fontSize: '16px', // 12pt converted to px
           fontWeight: 700,
         }}>
           {subsidiary?.englishName || ''}
@@ -73,12 +114,12 @@ export const FooterSimple: React.FC<FooterSimpleProps> = ({
       <Cell columns="E-N" height={24} debug={debug} style={{ borderTop: '1px solid rgb(239, 239, 239)' }} />
 
       {/* === Row 2 (57px): Address (A-D) + Contact Info (K-N) === */}
-      <FlexCell columns="A-D" height={57} vAlign="top" hAlign="left" debug={debug}>
+      <FlexCell columns="A-D" height={57} vAlign="top" hAlign="left" debug={debug} style={{ paddingLeft: '3px', overflow: 'visible' }}>
         <div style={{
           ...cormorantStyle,
-          fontSize: '10px', // 8 + 2
+          fontSize: '11px', // 8pt converted to px
           color: grayColor,
-          lineHeight: 1.4,
+          lineHeight: 1.2,
         }}>
           {subsidiary?.addressLine1 && <div>{subsidiary.addressLine1}</div>}
           {subsidiary?.addressLine2 && <div>{subsidiary.addressLine2}</div>}
@@ -86,17 +127,16 @@ export const FooterSimple: React.FC<FooterSimpleProps> = ({
           {subsidiary?.region && <div>{subsidiary.region}, Hong Kong</div>}
         </div>
       </FlexCell>
-      <Cell columns="E-J" height={57} debug={debug} />
-      <FlexCell columns="K-N" height={57} vAlign="top" hAlign="right" debug={debug}>
+      <Cell columns="E-I" height={57} debug={debug} />
+      <FlexCell columns="J-N" height={57} vAlign="top" hAlign="right" debug={debug} style={{ overflow: 'visible', paddingRight: '3px' }}>
         <div style={{
           ...cormorantStyle,
-          fontSize: '12px', // 10 + 2
           color: grayColor,
           textAlign: 'right',
-          lineHeight: 1.4,
+          lineHeight: 1.2,
         }}>
-          {subsidiary?.phone && <div>{spacify(subsidiary.phone)}</div>}
-          {subsidiary?.email && <div>{spacify(subsidiary.email)}</div>}
+          {subsidiary?.phone && <div>{formatPhone(subsidiary.phone)}</div>}
+          {subsidiary?.email && <div style={{ fontSize: '13px' }}>{spacify(subsidiary.email)}</div>}
         </div>
       </FlexCell>
     </>

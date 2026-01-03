@@ -1,8 +1,10 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { Rnd } from 'react-rnd'
-import { Box, IconButton, Typography } from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
+import { Typography, Button } from 'antd'
+import { CloseOutlined } from '@ant-design/icons'
+
+const { Title } = Typography
 
 interface FloatingWindowProps {
   title?: string
@@ -20,46 +22,52 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
   const content = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 600) {
       return (
-        <Box
-          sx={{
+        <div
+          style={{
             position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            bgcolor: 'background.paper',
+            backgroundColor: '#fff',
             zIndex: 1500,
             display: 'flex',
             flexDirection: 'column',
           }}
         >
-          <Box
-            sx={{
+          <div
+            style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              px: 5,
-              py: 1,
+              paddingLeft: 40,
+              paddingRight: 40,
+              paddingTop: 8,
+              paddingBottom: 8,
             }}
           >
             {title && (
-              <Typography
-                variant="h6"
+              <Title
+                level={5}
                 className="floating-title"
                 aria-live="polite"
+                style={{ margin: 0 }}
               >
                 {title}
-              </Typography>
+              </Title>
             )}
-            <Box>
+            <div>
               {actions}
-              <IconButton onClick={onClose} aria-label="close window">
-                <CloseIcon />
-              </IconButton>
-            </Box>
-          </Box>
-          <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>{children}</Box>
-        </Box>
+              <Button
+                type="text"
+                icon={<CloseOutlined />}
+                onClick={onClose}
+                aria-label="close window"
+              />
+            </div>
+          </div>
+          <div style={{ flexGrow: 1, overflow: 'auto', padding: 32 }}>{children}</div>
+        </div>
       )
     }
 
@@ -73,48 +81,53 @@ export default function FloatingWindow({ title, children, onClose, actions }: Fl
         style={{ zIndex: 1500 }}
         dragHandleClassName={HANDLE_CLASS}
       >
-        <Box
-          sx={{
-            bgcolor: 'background.paper',
+        <div
+          style={{
+            backgroundColor: '#fff',
             height: '100%',
             width: '100%',
-            boxShadow: 3,
+            boxShadow: '0 1px 2px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.08)',
             display: 'flex',
             flexDirection: 'column',
           }}
         >
-          <Box
+          <div
             className={HANDLE_CLASS}
-            sx={{
+            style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              px: 5,
-              py: 1,
-              borderBottom: 1,
-              borderColor: 'divider',
+              paddingLeft: 40,
+              paddingRight: 40,
+              paddingTop: 8,
+              paddingBottom: 8,
+              borderBottom: '1px solid #f0f0f0',
               cursor: 'move',
               touchAction: 'none',
             }}
           >
             {title && (
-              <Typography
-                variant="h6"
+              <Title
+                level={5}
                 className="floating-title"
                 aria-live="polite"
+                style={{ margin: 0 }}
               >
                 {title}
-              </Typography>
+              </Title>
             )}
-            <Box>
+            <div>
               {actions}
-              <IconButton onClick={onClose} aria-label="close window">
-                <CloseIcon />
-              </IconButton>
-            </Box>
-          </Box>
-          <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4 }}>{children}</Box>
-        </Box>
+              <Button
+                type="text"
+                icon={<CloseOutlined />}
+                onClick={onClose}
+                aria-label="close window"
+              />
+            </div>
+          </div>
+          <div style={{ flexGrow: 1, overflow: 'auto', padding: 32 }}>{children}</div>
+        </div>
       </Rnd>
     )
   }

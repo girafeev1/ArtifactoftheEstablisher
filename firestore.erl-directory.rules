@@ -1,0 +1,91 @@
+rules_version = '2';
+
+/**
+ * Firestore Security Rules - erl-directory database
+ *
+ * Contains: bankAccount, clients
+ *
+ * PERMISSIVE MODE (RBAC_ENABLED=false):
+ * - All authenticated users have access
+ * - No role checking yet
+ *
+ * When RBAC is enabled, uncomment the strict rules.
+ */
+
+service cloud.firestore {
+  match /databases/erl-directory/documents {
+
+    // ========================================================================
+    // Helper Functions
+    // ========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // STRICT MODE (uncomment when RBAC_ENABLED=true):
+    // function isActive() {
+    //   return isAuthenticated() &&
+    //          request.auth.token.status == 'active';
+    // }
+    //
+    // function hasRole(role) {
+    //   return isActive() && request.auth.token.role == role;
+    // }
+    //
+    // function hasAnyRole(roles) {
+    //   return isActive() && request.auth.token.role in roles;
+    // }
+    //
+    // function isAdmin() {
+    //   return hasRole('admin');
+    // }
+
+    // ========================================================================
+    // Bank Accounts Collection
+    // ========================================================================
+
+    match /bankAccount/{accountId} {
+      // PERMISSIVE: Any authenticated user
+      allow read, write: if isAuthenticated();
+
+      // STRICT (bank accounts are sensitive):
+      // allow read: if hasAnyRole(['admin', 'accounting']);
+      // allow write: if isAdmin();
+    }
+
+    // ========================================================================
+    // Clients Collection
+    // ========================================================================
+
+    match /clients/{clientId} {
+      // PERMISSIVE: Any authenticated user
+      allow read, write: if isAuthenticated();
+
+      // STRICT:
+      // allow read: if hasAnyRole(['admin', 'accounting', 'projects', 'viewer']);
+      // allow write: if hasAnyRole(['admin', 'projects']);
+
+      // Client update logs
+      match /updateLogs/{logId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // Server-side only
+
+        // STRICT:
+        // allow read: if hasAnyRole(['admin', 'accounting', 'projects', 'viewer']);
+        // allow write: if false;
+      }
+    }
+
+    // ========================================================================
+    // Catch-all
+    // ========================================================================
+
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+
+      // STRICT:
+      // allow read, write: if isAdmin();
+    }
+  }
+}

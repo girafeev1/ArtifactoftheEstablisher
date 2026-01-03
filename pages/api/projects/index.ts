@@ -82,41 +82,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               if (invoices && invoices.length > 0) {
                 // Check each invoice for payment from transactions
                 let cleared = 0
+                let drafted = 0
+                let issued = 0
                 let lastPaidIso: string | null = null
                 let lastPaidDisplay: string | null = null
                 let lastTs = Number.NEGATIVE_INFINITY
 
                 for (const inv of invoices) {
-                  // Derive payment status from transactions
-                  const paymentInfo = await getInvoicePaymentInfo(
-                    inv.invoiceNumber,
-                    project.id,
-                    project.year,
-                  )
+                  // Check invoice paymentStatus to distinguish Draft from Due
+                  const invoiceStatus = (inv.paymentStatus ?? '').toLowerCase().trim()
+                  const isDraft = invoiceStatus === 'draft' || invoiceStatus === 'drafted' || invoiceStatus === ''
 
-                  const invoiceTotal = inv.total ?? 0
-                  const amountPaid = paymentInfo?.amountPaid ?? 0
-                  const isFullyPaid = invoiceTotal > 0 && Math.abs(amountPaid - invoiceTotal) < 0.01
+                  if (isDraft) {
+                    drafted++
+                  } else {
+                    issued++
+                    // Only check payment info for issued invoices
+                    const paymentInfo = await getInvoicePaymentInfo(
+                      inv.invoiceNumber,
+                      project.id,
+                      project.year,
+                    )
 
-                  if (isFullyPaid) {
-                    cleared++
-                    if (paymentInfo?.paidOn) {
-                      const ts = paymentInfo.paidOn.getTime()
-                      if (!Number.isNaN(ts) && ts >= lastTs) {
-                        lastTs = ts
-                        lastPaidIso = paymentInfo.paidOn.toISOString()
-                        lastPaidDisplay = paymentInfo.paidOn.toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })
+                    const invoiceTotal = inv.total ?? 0
+                    const amountPaid = paymentInfo?.amountPaid ?? 0
+                    const isFullyPaid = invoiceTotal > 0 && Math.abs(amountPaid - invoiceTotal) < 0.01
+
+                    if (isFullyPaid) {
+                      cleared++
+                      if (paymentInfo?.paidOn) {
+                        const ts = paymentInfo.paidOn.getTime()
+                        if (!Number.isNaN(ts) && ts >= lastTs) {
+                          lastTs = ts
+                          lastPaidIso = paymentInfo.paidOn.toISOString()
+                          lastPaidDisplay = paymentInfo.paidOn.toLocaleDateString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })
+                        }
                       }
                     }
                   }
                 }
 
                 const total = invoices.length
-                const outstanding = Math.max(total - cleared, 0)
+                const outstanding = Math.max(issued - cleared, 0)
 
                 // Aggregate totals
                 let aggregatedTotal = 0
@@ -134,12 +145,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   }
                 })
 
-                const label =
-                  cleared === 0
-                    ? "Due"
-                    : cleared < total
-                    ? "Partially Cleared"
-                    : "All Clear"
+                // Determine label based on invoice statuses:
+                // - All invoices are drafts → "Pending"
+                // - Some issued, none cleared → "Due"
+                // - Some cleared, some outstanding → "Partially Cleared"
+                // - All issued invoices cleared → "All Cleared"
+                let label: string
+                if (drafted === total) {
+                  // All invoices are still drafts (not yet issued)
+                  label = "Pending"
+                } else if (cleared === 0) {
+                  // Some issued but none cleared
+                  label = "Due"
+                } else if (cleared < issued) {
+                  // Some cleared but not all issued ones
+                  label = "Partially Cleared"
+                } else {
+                  // All issued invoices are cleared
+                  label = drafted > 0 ? "Partially Cleared" : "All Cleared"
+                }
+
                 const primary = invoices[0]
                 return {
                   ...project,
@@ -149,8 +174,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     total,
                     cleared,
                     outstanding,
+                    drafted,
+                    issued,
                     lastPaidOnDisplay: lastPaidDisplay,
                     label,
+                  },
+                }
+              } else {
+                // No invoices - return "On Hold" status
+                return {
+                  ...project,
+                  _invoiceSummary: {
+                    total: 0,
+                    cleared: 0,
+                    outstanding: 0,
+                    drafted: 0,
+                    issued: 0,
+                    lastPaidOnDisplay: null,
+                    label: "On Hold",
                   },
                 }
               }

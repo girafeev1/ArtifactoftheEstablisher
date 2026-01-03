@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
-  MenuItem,
-  Typography,
-  Grid,
-} from '@mui/material'
+import { Modal, Input, Button, Select, Typography, Row, Col, Space } from 'antd'
 import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
@@ -26,6 +16,8 @@ import { PATHS, logPath } from '../../lib/paths'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
 import { useSnackbar } from 'notistack'
+
+const { Text } = Typography
 
 export default function PaymentModal({
   abbr,
@@ -152,196 +144,154 @@ export default function PaymentModal({
     await writeSummaryFromCache(qc, abbr, account)
   }
 
+  const labelStyle: React.CSSProperties = { display: 'block', marginBottom: 8, fontFamily: 'Newsreader', fontWeight: 200, color: 'rgba(0, 0, 0, 0.45)' }
+  const inputStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 500 }
+
   return (
-    <Dialog
+    <Modal
       open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="xs"
-      PaperProps={{
-        sx: { display: 'flex', flexDirection: 'column', height: '100%' },
-      }}
+      onCancel={onClose}
+      title={<span style={{ fontFamily: 'Cantata One' }}>Add Payment</span>}
+      width={400}
+      footer={
+        <Space className="dialog-footer" data-testid="dialog-footer">
+          <Button onClick={onClose} data-testid="back-button">
+            Back
+          </Button>
+          <Button
+            type="primary"
+            onClick={async () => {
+              await save()
+              setAmount('')
+              setMadeOn('')
+              setMethod('')
+              setEntity('')
+              setSelectedBank(null)
+              setAccountId('')
+              setRefNumber('')
+              onClose()
+            }}
+            disabled={!method || !entity || (isErl && !accountId)}
+            data-testid="submit-payment"
+          >
+            Submit
+          </Button>
+        </Space>
+      }
     >
-      <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Payment</DialogTitle>
-      <DialogContent sx={{ flex: 1, overflow: 'auto', pb: '64px' }}>
-        <TextField
-          label="Payment Amount"
+      <div style={{ marginTop: 8 }}>
+        <label style={labelStyle}>Payment Amount</label>
+        <Input
           type="number"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          fullWidth
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
           autoFocus
-          sx={{ mt: 1 }}
-          InputLabelProps={{
-            sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-          }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          style={inputStyle}
         />
-        <TextField
-          label="Payment Made On"
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <label style={labelStyle}>Payment Made On</label>
+        <Input
           type="date"
           value={madeOn}
-          onChange={(e) => setMadeOn(e.target.value)}
-          fullWidth
-          InputLabelProps={{
-            shrink: true,
-            sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-          }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-          sx={{ mt: 2 }}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMadeOn(e.target.value)}
+          style={inputStyle}
         />
-        <TextField
-          label="Payment Method"
-          select
-          value={method}
-          onChange={(e) => setMethod(e.target.value)}
-          fullWidth
-          InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-          inputProps={{
-            style: { fontFamily: 'Newsreader', fontWeight: 500 },
-            'data-testid': 'method-select',
-          }}
-          sx={{ mt: 2 }}
-        >
-          {['FPS', 'Bank Transfer', 'Cheque'].map((m) => (
-            <MenuItem key={m} value={m}>
-              {m}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          label="Entity"
-          select
-          value={entity}
-          onChange={(e) => {
-            const val = e.target.value
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <label style={labelStyle}>Payment Method</label>
+        <Select
+          value={method || undefined}
+          onChange={(val: string) => setMethod(val)}
+          style={{ width: '100%', ...inputStyle }}
+          data-testid="method-select"
+          options={['FPS', 'Bank Transfer', 'Cheque'].map((m) => ({ label: m, value: m }))}
+          placeholder="Select method"
+        />
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <label style={labelStyle}>Entity</label>
+        <Select
+          value={entity || undefined}
+          onChange={(val: string) => {
             setEntity(val)
             if (val !== 'Music Establish (ERL)') {
               setAccountId('')
             }
           }}
-          fullWidth
-          InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-          inputProps={{
-            style: { fontFamily: 'Newsreader', fontWeight: 500 },
-            'data-testid': 'entity-select',
-          }}
-          sx={{ mt: 2 }}
-        >
-          <MenuItem value="Music Establish (ERL)">Music Establish (ERL)</MenuItem>
-          <MenuItem value="Personal">Personal</MenuItem>
-        </TextField>
-        {isErl && (
-          <>
-            <Grid container spacing={2} sx={{ mt: 2 }}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Bank"
-                  select
-                  value={selectedBank ? selectedBank.rawCodeSegment : ''}
-                  onChange={(e) => {
-                    const b = banks.find(
-                      (bk) => bk.rawCodeSegment === e.target.value,
-                    )
-                    setSelectedBank(b || null)
-                  }}
-                  fullWidth
-                  InputLabelProps={{
-                    sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-                  }}
-                  inputProps={{
-                    style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                    'data-testid': 'bank-select',
-                  }}
-                >
-                  {banks.map((b) => (
-                    <MenuItem
-                      key={`${b.bankName}-${b.rawCodeSegment}`}
-                      value={b.rawCodeSegment}
-                    >
-                      {buildBankLabel(b)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Bank Account"
-                  select
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  fullWidth
-                  InputLabelProps={{
-                    sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-                  }}
-                  inputProps={{
-                    style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                    'data-testid': 'bank-account-select',
-                  }}
-                >
-                  {accounts.map((a) => (
-                    <MenuItem key={a.accountDocId} value={a.accountDocId}>
-                      {buildAccountLabel(a)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-            </Grid>
-            {bankError && (
-              <Typography variant="body2" color="error" sx={{ mt: 1 }}>
-                {bankError}
-              </Typography>
-            )}
-            {acctError && !bankError && (
-              <Typography variant="body2" color="error" sx={{ mt: 1 }}>
-                {acctError}
-              </Typography>
-            )}
-            {acctEmpty && !acctError && (
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                No accounts found.{' '}
-                <Button size="small" onClick={retryAccounts}>
-                  Retry
-                </Button>
-              </Typography>
-            )}
-          </>
-        )}
-        <TextField
-          label="Reference Number"
-          value={refNumber}
-          onChange={(e) => setRefNumber(e.target.value)}
-          fullWidth
-          InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-          inputProps={{
-            style: { fontFamily: 'Newsreader', fontWeight: 500 },
-            'data-testid': 'ref-input',
-          }}
-          sx={{ mt: 2 }}
+          style={{ width: '100%', ...inputStyle }}
+          data-testid="entity-select"
+          options={[
+            { label: 'Music Establish (ERL)', value: 'Music Establish (ERL)' },
+            { label: 'Personal', value: 'Personal' },
+          ]}
+          placeholder="Select entity"
         />
-      </DialogContent>
-      <DialogActions className="dialog-footer" data-testid="dialog-footer">
-        <Button onClick={onClose} data-testid="back-button">
-          Back
-        </Button>
-        <Button
-          onClick={async () => {
-            await save()
-            setAmount('')
-            setMadeOn('')
-            setMethod('')
-            setEntity('')
-            setSelectedBank(null)
-            setAccountId('')
-            setRefNumber('')
-            onClose()
-          }}
-          disabled={!method || !entity || (isErl && !accountId)}
-          data-testid="submit-payment"
-        >
-          Submit
-        </Button>
-      </DialogActions>
-    </Dialog>
+      </div>
+      {isErl && (
+        <>
+          <Row gutter={16} style={{ marginTop: 16 }}>
+            <Col xs={24} md={12}>
+              <label style={labelStyle}>Bank</label>
+              <Select
+                value={selectedBank ? selectedBank.rawCodeSegment : undefined}
+                onChange={(val: string) => {
+                  const b = banks.find((bk) => bk.rawCodeSegment === val)
+                  setSelectedBank(b || null)
+                }}
+                style={{ width: '100%', ...inputStyle }}
+                data-testid="bank-select"
+                options={banks.map((b) => ({
+                  label: buildBankLabel(b),
+                  value: b.rawCodeSegment,
+                }))}
+                placeholder="Select bank"
+              />
+            </Col>
+            <Col xs={24} md={12}>
+              <label style={labelStyle}>Bank Account</label>
+              <Select
+                value={accountId || undefined}
+                onChange={(val: string) => setAccountId(val)}
+                style={{ width: '100%', ...inputStyle }}
+                data-testid="bank-account-select"
+                options={accounts.map((a) => ({
+                  label: buildAccountLabel(a),
+                  value: a.accountDocId,
+                }))}
+                placeholder="Select account"
+              />
+            </Col>
+          </Row>
+          {bankError && (
+            <Text type="danger" style={{ display: 'block', marginTop: 8 }}>
+              {bankError}
+            </Text>
+          )}
+          {acctError && !bankError && (
+            <Text type="danger" style={{ display: 'block', marginTop: 8 }}>
+              {acctError}
+            </Text>
+          )}
+          {acctEmpty && !acctError && (
+            <Text style={{ display: 'block', marginTop: 8 }}>
+              No accounts found.{' '}
+              <Button size="small" onClick={retryAccounts}>
+                Retry
+              </Button>
+            </Text>
+          )}
+        </>
+      )}
+      <div style={{ marginTop: 16 }}>
+        <label style={labelStyle}>Reference Number</label>
+        <Input
+          value={refNumber}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRefNumber(e.target.value)}
+          style={inputStyle}
+          data-testid="ref-input"
+        />
+      </div>
+    </Modal>
   )
 }

@@ -120,17 +120,25 @@ export default async function handler(
           sell_amount: amount,
         })
 
-        // Extract the rate from rate_details if available
+        // Extract amounts from rate_details if available
+        // rate_details contains the actual conversion result
         const rateDetail = rateResponse.rate_details?.[0]
-        const rate = rateDetail?.rate || (rateResponse.rate / 10000) // API returns rate as integer
-        const buyAmount = rateDetail?.buy_amount || (amount * rate)
+
+        // buy_amount tells us how much targetCurrency we get for sellAmount of sellCurrency
+        // This is the most reliable field for calculating the conversion rate
+        const buyAmount = rateDetail?.buy_amount ?? 0
+        const sellAmount = rateDetail?.sell_amount ?? amount
+
+        // Calculate the effective rate: how much buy_currency per 1 sell_currency
+        // This ensures we always have the rate in the direction we requested
+        const effectiveRate = sellAmount > 0 ? buyAmount / sellAmount : 0
 
         results.push({
           buy_currency: targetCurrency,
           sell_currency: sellCurrency,
-          rate,
+          rate: effectiveRate,
           buy_amount: buyAmount,
-          sell_amount: amount,
+          sell_amount: sellAmount,
         })
       } catch (error) {
         console.warn(`[api/airwallex/fx-rates] Failed to get rate for ${sellCurrency}/${targetCurrency}:`, error)

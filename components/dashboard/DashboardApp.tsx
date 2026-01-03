@@ -7,6 +7,7 @@
 import React from "react"
 import { useRouter } from "next/router"
 import { navigateWithModifier } from "../../lib/navigation"
+import { NAVIGATION_RESOURCES, ALLOWED_MENU_KEYS } from "../../lib/navigation/resources"
 import AppShell from "../layout/AppShell"
 import {
   Row,
@@ -52,19 +53,19 @@ const dashboardCards: DashboardCard[] = [
     color: "#52c41a",
   },
   {
-    key: "finance",
-    title: "Finance",
+    key: "bank",
+    title: "Bank Access",
     description: "Manage banking integrations, payments, and financial records.",
     icon: <BankOutlined style={{ fontSize: 48 }} />,
-    href: "/finance",
+    href: "/bank",
     color: "#722ed1",
   },
   {
-    key: "coaching-sessions",
+    key: "coaching",
     title: "Coaching Sessions",
     description: "Schedule and track coaching sessions with students.",
     icon: <ReadOutlined style={{ fontSize: 48 }} />,
-    href: "/coaching-sessions",
+    href: "/coaching",
     color: "#fa8c16",
   },
   {
@@ -97,16 +98,8 @@ export default function DashboardApp() {
   return (
     <AppShell
       dataProvider={dataProvider}
-      resources={[
-        { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
-        { name: "client-directory", list: "/client-accounts", meta: { label: "Client Accounts" } },
-        { name: "projects", list: "/projects", meta: { label: "Projects" } },
-        { name: "finance", list: "/finance", meta: { label: "Finance" } },
-        { name: "accounting", list: "/accounting", meta: { label: "Accounting" } },
-        { name: "coaching-sessions", list: "/coaching-sessions", meta: { label: "Coaching Sessions" } },
-        { name: "tools", list: "/tools", meta: { label: "Tools" } },
-      ]}
-      allowedMenuKeys={["dashboard", "client-directory", "projects", "finance", "accounting", "coaching-sessions", "tools"]}
+      resources={NAVIGATION_RESOURCES}
+      allowedMenuKeys={ALLOWED_MENU_KEYS}
     >
       <div style={{ padding: 32 }}>
         {/* Header */}
@@ -123,7 +116,7 @@ export default function DashboardApp() {
             <Col key={card.key} xs={24} sm={12} lg={8}>
               <Card
                 hoverable
-                onClick={(e) => handleCardClick(e, card.href)}
+                onClick={(e: React.MouseEvent<HTMLDivElement>) => handleCardClick(e, card.href)}
                 style={{
                   height: "100%",
                   minHeight: 240,

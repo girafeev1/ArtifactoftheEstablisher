@@ -31,6 +31,7 @@ import {
   Collapse,
   Spin,
   Progress,
+  Image,
   App as AntdApp,
 } from "antd"
 import {
@@ -49,6 +50,12 @@ import {
   FileTextOutlined,
   AccountBookOutlined,
   CloudOutlined,
+  PaperClipOutlined,
+  FileImageOutlined,
+  FilePdfOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EyeOutlined,
 } from "@ant-design/icons"
 import type { ColumnsType } from "antd/es/table"
 import type { UploadFile } from "antd/es/upload/interface"
@@ -666,7 +673,7 @@ const CSVImportModal: React.FC<{
                 options={[
                   { value: "generic", label: "Claude Import (Generic CSV)" },
                 ]}
-                onChange={(value) => {
+                onChange={(value: string) => {
                   setIsClaudeImport(value === "generic")
                   handlePreview()
                 }}
@@ -700,7 +707,7 @@ const CSVImportModal: React.FC<{
                 label: acc.displayName,
               }))}
               notFoundContent="No bank accounts found"
-              onChange={(bankAccountId) => {
+              onChange={(bankAccountId: string) => {
                 // Re-trigger preview when bank account changes
                 if (fileContent && bankAccountId) {
                   setError(null)
@@ -985,14 +992,14 @@ const GCPEvidencePanel: React.FC<GCPEvidencePanelProps> = ({ transaction }) => {
                     <Table
                       size="small"
                       dataSource={evidence.breakdown}
-                      rowKey={(r) => `${r.service}-${r.project}`}
+                      rowKey={(r: { service: string; project: string }) => `${r.service}-${r.project}`}
                       pagination={false}
                       columns={[
                         {
                           title: 'Service',
                           dataIndex: 'service',
                           key: 'service',
-                          render: (text) => (
+                          render: (text: string) => (
                             <span style={{ fontWeight: 500 }}>{text}</span>
                           ),
                         },
@@ -1000,7 +1007,7 @@ const GCPEvidencePanel: React.FC<GCPEvidencePanelProps> = ({ transaction }) => {
                           title: 'Project',
                           dataIndex: 'project',
                           key: 'project',
-                          render: (text) => (
+                          render: (text: string) => (
                             <span style={{ color: '#8c8c8c' }}>{text}</span>
                           ),
                         },
@@ -1009,7 +1016,7 @@ const GCPEvidencePanel: React.FC<GCPEvidencePanelProps> = ({ transaction }) => {
                           dataIndex: 'cost',
                           key: 'cost',
                           align: 'right',
-                          render: (cost) => (
+                          render: (cost: number) => (
                             <span style={{ color: '#cf1322' }}>
                               {formatCurrency(cost, 'USD')}
                             </span>
@@ -1030,6 +1037,268 @@ const GCPEvidencePanel: React.FC<GCPEvidencePanelProps> = ({ transaction }) => {
         ),
       }]}
     />
+  )
+}
+
+// ============================================================================
+// Attachments Panel Component
+// ============================================================================
+
+interface AttachmentDoc {
+  id: string
+  type: string
+  storagePath: string
+  originalFilename: string
+  mimeType: string
+  fileSize: number
+  status: string
+  uploadedAt: any
+  downloadUrl?: string
+}
+
+interface AttachmentsPanelProps {
+  transaction: BankTransaction
+  onRefresh?: () => void
+}
+
+const AttachmentsPanel: React.FC<AttachmentsPanelProps> = ({ transaction, onRefresh }) => {
+  const [attachments, setAttachments] = useState<AttachmentDoc[]>([])
+  const [loading, setLoading] = useState(false)
+  const [previewVisible, setPreviewVisible] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState("")
+  const { message, modal } = AntdApp.useApp()
+
+  useEffect(() => {
+    if (!transaction?.id) {
+      setAttachments([])
+      return
+    }
+
+    const fetchAttachments = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch(`/api/accounting/receipts?transactionId=${transaction.id}`, {
+          credentials: "include",
+        })
+        const json = await response.json()
+        if (json.receipts) {
+          setAttachments(json.receipts)
+        }
+      } catch (err) {
+        console.warn("Failed to fetch attachments:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAttachments()
+  }, [transaction?.id])
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const formatDate = (dateValue: any): string => {
+    if (!dateValue) return "-"
+    try {
+      if (typeof dateValue._seconds === "number") {
+        return dayjs.unix(dateValue._seconds).format("DD MMM YYYY")
+      }
+      if (typeof dateValue.seconds === "number") {
+        return dayjs.unix(dateValue.seconds).format("DD MMM YYYY")
+      }
+      const parsed = dayjs(dateValue)
+      if (parsed.isValid()) return parsed.format("DD MMM YYYY")
+    } catch {}
+    return "-"
+  }
+
+  const isImageFile = (mimeType: string): boolean => mimeType?.startsWith("image/")
+
+  const handleView = (doc: AttachmentDoc) => {
+    if (doc.downloadUrl) {
+      setPreviewUrl(doc.downloadUrl)
+      setPreviewVisible(true)
+    }
+  }
+
+  const handleDownload = (doc: AttachmentDoc) => {
+    if (doc.downloadUrl) {
+      window.open(doc.downloadUrl, "_blank")
+    }
+  }
+
+  const handleUnlink = (doc: AttachmentDoc) => {
+    modal.confirm({
+      title: "Unlink Document",
+      content: `Unlink "${doc.originalFilename}" from this transaction? The document will remain in the inbox.`,
+      okText: "Unlink",
+      onOk: async () => {
+        try {
+          const response = await fetch(`/api/accounting/receipts/${doc.id}/match`, {
+            method: "DELETE",
+            credentials: "include",
+          })
+          const json = await response.json()
+          if (json.error) throw new Error(json.error)
+          message.success("Document unlinked")
+          // Refresh attachments
+          setAttachments((prev) => prev.filter((d) => d.id !== doc.id))
+          onRefresh?.()
+        } catch (err) {
+          message.error(err instanceof Error ? err.message : "Failed to unlink")
+        }
+      },
+    })
+  }
+
+  const count = attachments.length
+
+  return (
+    <>
+      <Collapse
+        size="small"
+        style={{ marginTop: 16 }}
+        defaultActiveKey={count > 0 ? ["attachments"] : []}
+        items={[
+          {
+            key: "attachments",
+            label: (
+              <Space>
+                <PaperClipOutlined style={{ color: "#8c8c8c" }} />
+                <span>Attachments</span>
+                {loading && <Spin size="small" />}
+                {!loading && <Tag>{count}</Tag>}
+              </Space>
+            ),
+            children: (
+              <div>
+                {loading && (
+                  <div style={{ textAlign: "center", padding: 16 }}>
+                    <Spin size="small" />
+                  </div>
+                )}
+
+                {!loading && attachments.length === 0 && (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="No attachments"
+                    style={{ margin: "16px 0" }}
+                  />
+                )}
+
+                {!loading && attachments.length > 0 && (
+                  <Space direction="vertical" style={{ width: "100%" }} size="small">
+                    {attachments.map((doc) => (
+                      <Card key={doc.id} size="small" bodyStyle={{ padding: 8 }}>
+                        <Row gutter={8} align="middle">
+                          <Col flex="40px">
+                            {isImageFile(doc.mimeType) && doc.downloadUrl ? (
+                              <Image
+                                src={doc.downloadUrl}
+                                alt={doc.originalFilename}
+                                width={32}
+                                height={32}
+                                style={{ objectFit: "cover", borderRadius: 4 }}
+                                preview={false}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  backgroundColor: "#f5f5f5",
+                                  borderRadius: 4,
+                                  fontSize: 16,
+                                }}
+                              >
+                                {doc.mimeType?.includes("pdf") ? (
+                                  <FilePdfOutlined style={{ color: "#1890ff" }} />
+                                ) : (
+                                  <FileImageOutlined style={{ color: "#52c41a" }} />
+                                )}
+                              </div>
+                            )}
+                          </Col>
+                          <Col flex="auto">
+                            <Tooltip title={doc.originalFilename}>
+                              <div
+                                style={{
+                                  fontWeight: 500,
+                                  fontSize: 12,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  maxWidth: 200,
+                                }}
+                              >
+                                {doc.originalFilename}
+                              </div>
+                            </Tooltip>
+                            <div style={{ fontSize: 11, color: "#8c8c8c" }}>
+                              {formatFileSize(doc.fileSize)} • {formatDate(doc.uploadedAt)}
+                            </div>
+                          </Col>
+                          <Col>
+                            <Space size="small">
+                              <Tooltip title="View">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<EyeOutlined />}
+                                  onClick={() => handleView(doc)}
+                                  disabled={!doc.downloadUrl}
+                                />
+                              </Tooltip>
+                              <Tooltip title="Download">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<DownloadOutlined />}
+                                  onClick={() => handleDownload(doc)}
+                                  disabled={!doc.downloadUrl}
+                                />
+                              </Tooltip>
+                              <Tooltip title="Unlink">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<DisconnectOutlined />}
+                                  onClick={() => handleUnlink(doc)}
+                                  danger
+                                />
+                              </Tooltip>
+                            </Space>
+                          </Col>
+                        </Row>
+                      </Card>
+                    ))}
+                  </Space>
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      {/* Image Preview */}
+      <Image
+        style={{ display: "none" }}
+        preview={{
+          visible: previewVisible,
+          src: previewUrl,
+          onVisibleChange: (visible: boolean) => {
+            setPreviewVisible(visible)
+            if (!visible) setPreviewUrl("")
+          },
+        }}
+      />
+    </>
   )
 }
 
@@ -1206,7 +1475,7 @@ const TransactionDetailsModal: React.FC<{
               <Input
                 size="small"
                 value={payerValue}
-                onChange={(e) => setPayerValue(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayerValue(e.target.value)}
                 onPressEnter={handleSavePayer}
                 style={{ width: 200 }}
                 autoFocus
@@ -1333,6 +1602,9 @@ const TransactionDetailsModal: React.FC<{
 
       {/* GCP Billing Evidence Panel - shows for GCP-related transactions */}
       <GCPEvidencePanel transaction={transaction} />
+
+      {/* Attachments Panel - shows linked documents/receipts */}
+      <AttachmentsPanel transaction={transaction} />
     </Modal>
   )
 }
@@ -1843,7 +2115,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
             <Button
               type="text"
               icon={<FileTextOutlined />}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent) => {
                 e.stopPropagation()
                 setActionPopoverOpen(null)
                 handleOpenMatchModal(record)
@@ -1855,7 +2127,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
             <Button
               type="text"
               icon={<AccountBookOutlined />}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent) => {
                 e.stopPropagation()
                 setActionPopoverOpen(null)
                 setSelectedTransaction(record)
@@ -1874,7 +2146,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
             color={getStatusColor(status)}
             icon={getStatusIcon(status)}
             style={isClickable ? { cursor: "pointer" } : undefined}
-            onClick={isClickable ? (e) => {
+            onClick={isClickable ? (e: React.MouseEvent) => {
               e.stopPropagation()
               setActionPopoverOpen(actionPopoverOpen === record.id ? null : record.id || null)
             } : undefined}
@@ -1890,7 +2162,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
               title="What would you like to do?"
               trigger="click"
               open={actionPopoverOpen === record.id}
-              onOpenChange={(open) => setActionPopoverOpen(open ? record.id || null : null)}
+              onOpenChange={(open: boolean) => setActionPopoverOpen(open ? record.id || null : null)}
               placement="bottomLeft"
             >
               {tag}
@@ -1994,7 +2266,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
                 precision={2}
                 valueStyle={{ color: stats.netAmount >= 0 ? "#52c41a" : "#cf1322", whiteSpace: "nowrap" }}
                 prefix={stats.netAmount >= 0 ? "+" : ""}
-                formatter={(value) => formatCurrency(Number(value))}
+                formatter={(value: number | string | undefined) => formatCurrency(Number(value))}
               />
             </Card>
           </Col>
@@ -2010,7 +2282,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
             allowClear
             style={{ width: 200 }}
             value={bankAccountFilter}
-            onChange={(value) => setBankAccountFilter(value || null)}
+            onChange={(value: string | null) => setBankAccountFilter(value || null)}
             options={[
               { value: null, label: "All Bank Accounts" },
               ...uniqueBankAccountIds.map((id) => {
@@ -2027,7 +2299,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
           )}
           <Segmented
             value={statsViewMode}
-            onChange={(value) => setStatsViewMode(value as "credits" | "debits")}
+            onChange={(value: string | number) => setStatsViewMode(value as "credits" | "debits")}
             options={[
               { label: "Credits", value: "credits" },
               { label: "Debits", value: "debits" },
@@ -2058,7 +2330,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
           loading={loading}
           pagination={{ pageSize: 20, showSizeChanger: true }}
           scroll={{ x: 900 }}
-          onRow={(record) => ({
+          onRow={(record: BankTransaction) => ({
             onClick: () => {
               setSelectedTransaction(record)
               setDetailsModalOpen(true)
@@ -2210,7 +2482,7 @@ const BankTransactionsTab: React.FC<BankTransactionsTabProps> = ({
               style={{ width: "100%" }}
               placeholder="Search for an account..."
               value={selectedAccountCode}
-              onChange={(value) => setSelectedAccountCode(value)}
+              onChange={(value: string | null) => setSelectedAccountCode(value)}
               optionFilterProp="label"
               options={accounts
                 .filter((acc) => {

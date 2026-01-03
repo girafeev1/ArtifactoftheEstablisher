@@ -188,7 +188,7 @@ async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]>
           onDateDisplay: null,
           onDateIso: toIso(d.onDate) || null,
           paid: typeof d.paid === 'boolean' ? d.paid : null,
-          paidTo: typeof d.paidTo === 'string' ? d.paidTo : null,
+          payTo: typeof d.payTo === 'string' ? d.payTo : (typeof d.paidTo === 'string' ? d.paidTo : null),
           paymentStatus: typeof d.paymentStatus === 'string' ? d.paymentStatus : null,
           presenterWorkType: typeof d.presenterWorkType === 'string' ? d.presenterWorkType : null,
           projectDateDisplay: typeof d.projectDateDisplay === 'string' ? d.projectDateDisplay : null,
@@ -219,7 +219,7 @@ async function adminFetchProjectsForYear(year: string): Promise<ProjectRecord[]>
         onDateDisplay: null,
         onDateIso: toIso(d.onDate) || null,
         paid: typeof d.paid === 'boolean' ? d.paid : null,
-        paidTo: typeof d.paidTo === 'string' ? d.paidTo : null,
+        payTo: typeof d.payTo === 'string' ? d.payTo : (typeof d.paidTo === 'string' ? d.paidTo : null),
         paymentStatus: typeof d.paymentStatus === 'string' ? d.paymentStatus : null,
         presenterWorkType: typeof d.presenterWorkType === 'string' ? d.presenterWorkType : null,
         projectDateDisplay: typeof d.projectDateDisplay === 'string' ? d.projectDateDisplay : null,
@@ -639,24 +639,139 @@ async function buildInvoiceDetailsText(year: string, projectId: string, invoiceN
   return lines.join('\n')
 }
 
+// Enriched invoice data from API (includes derived payment status from transactions)
+// Note: paidOnIso and paidOnDisplay are already in ProjectInvoiceRecord as string | null
+interface EnrichedInvoice extends ProjectInvoiceRecord {
+  amountPaid?: number
+}
+
+/**
+ * Fetch enriched invoice data from the invoices API.
+ * This includes derived payment status from linked bank transactions.
+ */
+async function fetchEnrichedInvoice(year: string, projectId: string, invoiceNumber: string): Promise<EnrichedInvoice | null> {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
+    ? `https://${process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL}`
+    : 'http://localhost:3000'
+
+  try {
+    const response = await fetch(`${baseUrl}/api/projects/by-id/${projectId}/invoices?year=${year}`)
+    if (!response.ok) {
+      console.warn('[tg] Failed to fetch enriched invoices:', response.status)
+      return null
+    }
+    const data = await response.json()
+    const invoices = data.invoices as EnrichedInvoice[]
+    const decoded = decodeURIComponent(invoiceNumber)
+    return invoices.find(inv => inv.invoiceNumber === decoded) || null
+  } catch (error) {
+    console.warn('[tg] Error fetching enriched invoice:', error)
+    return null
+  }
+}
+
+/**
+ * Check if an invoice is in a Cleared (paid) state.
+ * Cleared invoices should be read-only in the bot.
+ */
+function isInvoiceCleared(inv: EnrichedInvoice): boolean {
+  return inv.paymentStatus?.toLowerCase() === 'cleared'
+}
+
+/**
+ * Check if an invoice is Cleared and send a "locked" message if so.
+ * Returns true if the invoice is locked (caller should abort the edit).
+ */
+async function checkInvoiceLockedAndNotify(
+  token: string,
+  chatId: number,
+  msgId: number,
+  year: string,
+  projectId: string,
+  invoiceNumber: string
+): Promise<boolean> {
+  const enrichedInv = await fetchEnrichedInvoice(year, projectId, invoiceNumber)
+  if (enrichedInv && isInvoiceCleared(enrichedInv)) {
+    const lockedMessage =
+      '⚠️ <b>Invoice Locked</b>\n\n' +
+      'This invoice has been paid and cannot be modified.\n\n' +
+      'To make changes, first unmatch the bank transaction\n' +
+      'in the web app\'s Accounting section.'
+    await tgEditMessage(token, chatId, msgId, lockedMessage, {
+      inline_keyboard: [[{ text: '⬅ Back to Invoice', callback_data: `INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }]],
+    })
+    return true
+  }
+  return false
+}
+
 async function sendInvoiceDetailBubbles(token: string, chatId: number, controllerMessageId: number, year: string, projectId: string, invoiceNumber: string) {
   // Build sections and send as dedicated bubbles per spec
-  const list: ProjectInvoiceRecord[] = await fetchInvoicesForProject(year, projectId)
-  const inv = list.find((i) => i.invoiceNumber === decodeURIComponent(invoiceNumber))
+  // First try to get enriched data with derived payment status
+  const enrichedInv = await fetchEnrichedInvoice(year, projectId, invoiceNumber)
+
+  // Fall back to direct fetch if API fails
+  let inv: EnrichedInvoice
+  if (enrichedInv) {
+    inv = enrichedInv
+  } else {
+    const list: ProjectInvoiceRecord[] = await fetchInvoicesForProject(year, projectId)
+    const found = list.find((i) => i.invoiceNumber === decodeURIComponent(invoiceNumber))
+    if (!found) {
+      await tgEditMessage(token, chatId, controllerMessageId, 'Invoice not found.')
+      return
+    }
+    inv = found
+  }
+
   if (!inv) {
     await tgEditMessage(token, chatId, controllerMessageId, 'Invoice not found.')
     return
   }
+
+  const isCleared = isInvoiceCleared(inv)
   const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 
-  // 1) Controller message: Invoice number + actions (Edit, Back to Projects)
-  const title = `<b>Invoice:</b> #${esc(inv.invoiceNumber)}`
-  await tgEditMessage(token, chatId, controllerMessageId, title, {
-    inline_keyboard: [
-      [{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }],
-      [{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` }],
-    ],
-  })
+  // 1) Controller message: Invoice number + actions
+  // For Cleared invoices: show payment info and no Edit button
+  // For Draft/Due invoices: show Edit button
+  const titleLines: string[] = [`<b>Invoice:</b> #${esc(inv.invoiceNumber)}`]
+
+  if (isCleared) {
+    titleLines.push('')
+    titleLines.push('✅ <b>CLEARED</b>')
+    titleLines.push('')
+    // Show payment details from derived data
+    if (inv.amountPaid !== undefined && inv.amountPaid > 0) {
+      titleLines.push(`💰 Amount Paid: ${formatMoney(inv.amountPaid)}`)
+    }
+    if (inv.paidOnDisplay) {
+      titleLines.push(`📅 Paid On: ${esc(inv.paidOnDisplay)}`)
+    }
+    // Show bank info if available
+    const bank = await adminResolveBank(inv.paidTo || null)
+    const bankLabel = bank && (bank.bankName || bank.bankCode)
+      ? `${bank.bankName ? esc(bank.bankName) : ''}${bank.bankCode ? ` (${esc(bank.bankCode)})` : ''}`
+      : (inv.paidTo ? esc(inv.paidTo) : '')
+    if (bankLabel) {
+      titleLines.push(`🏦 Bank: ${bankLabel}`)
+    }
+    titleLines.push('')
+    titleLines.push('ℹ️ This invoice is locked. Payment was received via bank transaction.')
+  } else if (inv.paymentStatus) {
+    titleLines.push(`Status: <i>${esc(inv.paymentStatus)}</i>`)
+  }
+
+  const controllerKb = isCleared
+    ? { inline_keyboard: [[{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` }]] }
+    : {
+        inline_keyboard: [
+          [{ text: 'Edit', callback_data: `EDIT:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }],
+          [{ text: '⬅ Back to Projects', callback_data: `BK:PROJ:${year}:${projectId}` }],
+        ],
+      }
+
+  await tgEditMessage(token, chatId, controllerMessageId, titleLines.join('\n'), controllerKb)
 
   const sentIds: number[] = [controllerMessageId]
   // 2) Client detail heading (own bubble)
@@ -665,7 +780,7 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   // 3) Client detail content bubble
   const clientLines: string[] = []
   if (inv.companyName) {
-    clientLines.push(`<b>${esc(inv.companyName)}</b>`) 
+    clientLines.push(`<b>${esc(inv.companyName)}</b>`)
     if (inv.addressLine1) clientLines.push(esc(inv.addressLine1))
     if (inv.addressLine2) clientLines.push(esc(inv.addressLine2))
     if (inv.addressLine3 || inv.region) {
@@ -681,16 +796,22 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
   } else {
     clientLines.push('No client details')
   }
-  const clientResp = await sendBubble(token, chatId, clientLines.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EC:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
+  // Only show Edit button if not Cleared
+  const clientKb = isCleared ? undefined : { inline_keyboard: [[{ text: 'Edit', callback_data: `EC:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] }
+  const clientResp = await sendBubble(token, chatId, clientLines.join('\n'), clientKb)
   if (clientResp?.message_id) sentIds.push(clientResp.message_id)
 
   // 4) Invoice Detail heading bubble above first item
   let invDetailHead
   if (!inv.items || inv.items.length === 0) {
-    // If no items, offer an Add Item action here
-    invDetailHead = await sendBubble(token, chatId, '<b><u>Invoice Detail</u></b>', {
-      inline_keyboard: [[{ text: 'Add Item', callback_data: `NEW:ITEM:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]],
-    })
+    // If no items and not Cleared, offer an Add Item action here
+    if (isCleared) {
+      invDetailHead = await sendBubble(token, chatId, '<b><u>Invoice Detail</u></b>')
+    } else {
+      invDetailHead = await sendBubble(token, chatId, '<b><u>Invoice Detail</u></b>', {
+        inline_keyboard: [[{ text: 'Add Item', callback_data: `NEW:ITEM:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]],
+      })
+    }
   } else {
     invDetailHead = await sendBubble(token, chatId, '<b><u>Invoice Detail</u></b>')
   }
@@ -705,28 +826,38 @@ async function sendInvoiceDetailBubbles(token: string, chatId: number, controlle
       const unitSuffix = it.quantityUnit ? `/${esc(it.quantityUnit)}` : ''
       const lineTotal = typeof it.unitPrice === 'number' && typeof it.quantity === 'number' ? formatMoney(it.unitPrice * it.quantity) : '-'
       const parts: string[] = []
-      parts.push(`<b><u>Item ${i + 1}:</u></b>`) 
+      parts.push(`<b><u>Item ${i + 1}:</u></b>`)
       if (it.title) parts.push(`<b>${esc(it.title)}</b>${it.subQuantity ? ` x<i>${esc(it.subQuantity)}</i>` : ''}`)
       if (it.feeType) parts.push(`<i>${esc(it.feeType)}</i>`)
       if (it.notes) parts.push(esc(it.notes))
       parts.push('')
       parts.push(`<i>${unit} x ${qty}${unitSuffix}</i> = <b>${lineTotal}</b>`)
-      const itemResp = await sendBubble(token, chatId, parts.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `EI:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}:${i}` }]] })
+      // Only show Edit button if not Cleared
+      const itemKb = isCleared ? undefined : { inline_keyboard: [[{ text: 'Edit', callback_data: `EI:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}:${i}` }]] }
+      const itemResp = await sendBubble(token, chatId, parts.join('\n'), itemKb)
       if (itemResp?.message_id) sentIds.push(itemResp.message_id)
     }
   }
 
-  // 5) Totals + To + Status — only when there are items
+  // 6) Totals + To + Status — only when there are items
+  // For Cleared invoices, payment info is already shown in header, so simplify totals
   if (inv.items && inv.items.length > 0) {
-    const bank = await adminResolveBank(inv.paidTo || null)
-    const bankLabel = bank && (bank.bankName || bank.bankCode || bank.accountType)
-      ? `${bank.bankName ? esc(bank.bankName) : ''}${bank.bankCode ? ` (${esc(bank.bankCode)})` : ''}${bank.accountType ? ` - ${esc(bank.accountType)}` : ''}`
-      : (inv.paidTo ? esc(inv.paidTo) : '')
     const totals: string[] = []
     totals.push(`<b>Total:</b> ${formatMoney(inv.amount)}`)
-    if (bankLabel) totals.push(`<b>To:</b> ${bankLabel}`)
-    if (inv.paymentStatus) totals.push(`<i>${esc(inv.paymentStatus)}</i>`)
-    const totResp = await sendBubble(token, chatId, totals.join('\n'), { inline_keyboard: [[{ text: 'Edit', callback_data: `ET:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] })
+
+    if (!isCleared) {
+      // Only show bank/status details for non-cleared invoices (cleared shows in header)
+      const bank = await adminResolveBank(inv.paidTo || null)
+      const bankLabel = bank && (bank.bankName || bank.bankCode || bank.accountType)
+        ? `${bank.bankName ? esc(bank.bankName) : ''}${bank.bankCode ? ` (${esc(bank.bankCode)})` : ''}${bank.accountType ? ` - ${esc(bank.accountType)}` : ''}`
+        : (inv.paidTo ? esc(inv.paidTo) : '')
+      if (bankLabel) totals.push(`<b>To:</b> ${bankLabel}`)
+      if (inv.paymentStatus) totals.push(`<i>${esc(inv.paymentStatus)}</i>`)
+    }
+
+    // Only show Edit button if not Cleared
+    const totKb = isCleared ? undefined : { inline_keyboard: [[{ text: 'Edit', callback_data: `ET:INV:${year}:${projectId}:${encodeURIComponent(inv.invoiceNumber)}` }]] }
+    const totResp = await sendBubble(token, chatId, totals.join('\n'), totKb)
     if (totResp?.message_id) sentIds.push(totResp.message_id)
   }
 
@@ -862,7 +993,7 @@ const INVOICE_FIELD_LABELS: Record<string, string> = {
   invoiceNumber: 'Invoice Number',
   companyName: 'Client Company Name',
   paymentStatus: 'Payment Status',
-  paidTo: 'Paid To (bank identifier)',
+  // paidTo removed - now derived from bank transactions
   representative: 'Representative',
   addressLine1: 'Address Line 1',
   addressLine2: 'Address Line 2',
@@ -1251,6 +1382,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const name = String(text || '').trim()
         proposed = `${title ? title + ' ' : ''}${name}`.trim()
       }
+
+      // Validate paymentStatus - only Draft and Due are allowed
+      if (pending.kind === 'INV' && pending.field === 'paymentStatus') {
+        const normalized = proposed.toLowerCase().trim()
+        if (normalized === 'cleared' || normalized === 'paid') {
+          // Reject Cleared/Paid - must be set via bank transaction matching
+          const errorMessage =
+            '⚠️ <b>Cannot set status to "Cleared"</b>\n\n' +
+            'Payment status is automatically updated when you\n' +
+            'match a bank transaction to this invoice in the web app.\n\n' +
+            '<b>Allowed values:</b> Draft, Due'
+          await tgEditMessage(token, chatId, pending.controllerMessageId, errorMessage, {
+            inline_keyboard: [[{ text: '⬅ Back to Invoice', callback_data: `INV:${pending.year}:${pending.projectId}:${pending.invoiceNumber}` }]],
+          })
+          await clearPendingEdit(chatId, userId as number)
+          return res.status(200).end('ok')
+        }
+        // Normalize to Title Case (Draft or Due)
+        if (normalized === 'draft') {
+          proposed = 'Draft'
+        } else if (normalized === 'due') {
+          proposed = 'Due'
+        } else {
+          // Default to Due for any other value
+          proposed = 'Due'
+        }
+      }
+
       pending.proposedValue = proposed
       pending.step = 'preview'
       await putPendingEdit(pending)
@@ -1439,6 +1598,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.startsWith('EDIT:INV:')) {
       const [, , year, projectId, encInvoice] = data.split(':')
+      // Check if invoice is locked (Cleared)
+      if (await checkInvoiceLockedAndNotify(token, chatId, msgId, year, projectId, encInvoice)) {
+        return res.status(200).end('ok')
+      }
       await putPendingEdit({
         chatId,
         userId: cq.from?.id as number,
@@ -1456,6 +1619,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (data.startsWith('EC:INV:')) {
       const [, , year, projectId, encInvoice] = data.split(':')
       const invoiceNumber = decodeURIComponent(encInvoice)
+      // Check if invoice is locked (Cleared)
+      if (await checkInvoiceLockedAndNotify(token, chatId, msgId, year, projectId, encInvoice)) {
+        return res.status(200).end('ok')
+      }
       const kb = { inline_keyboard: [
         [{ text: INVOICE_FIELD_LABELS.companyName, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:companyName` }],
         [{ text: INVOICE_FIELD_LABELS.addressLine1, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:addressLine1` }],
@@ -1472,15 +1639,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (data.startsWith('EI:INV:')) {
       const parts = data.split(':')
       const year = parts[2]; const projectId = parts[3]; const encInvoice = parts[4]; const idx = parseInt(parts[5] || '0', 10) || 0
+      // Check if invoice is locked (Cleared)
+      if (await checkInvoiceLockedAndNotify(token, chatId, msgId, year, projectId, encInvoice)) {
+        return res.status(200).end('ok')
+      }
       await tgEditMessage(token, chatId, msgId, `Edit fields for Item ${idx + 1}:`, buildInvoiceItemFieldsKeyboard(year, projectId, decodeURIComponent(encInvoice), idx))
       return res.status(200).end('ok')
     }
     if (data.startsWith('ET:INV:')) {
       const [, , year, projectId, encInvoice] = data.split(':')
       const invoiceNumber = decodeURIComponent(encInvoice)
+      // Check if invoice is locked (Cleared)
+      if (await checkInvoiceLockedAndNotify(token, chatId, msgId, year, projectId, encInvoice)) {
+        return res.status(200).end('ok')
+      }
+      // Note: paidTo removed - now derived from bank transactions
       const kb = { inline_keyboard: [
         [{ text: INVOICE_FIELD_LABELS.paymentStatus, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:paymentStatus` }],
-        [{ text: INVOICE_FIELD_LABELS.paidTo, callback_data: `EPF:INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}:paidTo` }],
         [{ text: '⬅ Back', callback_data: `INV:${year}:${projectId}:${encodeURIComponent(invoiceNumber)}` }],
       ] }
       const m = await sendBubble(token, chatId, 'Select a totals field to edit:', kb)
@@ -1717,6 +1892,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create New Item — start
     if (data.startsWith('NEW:ITEM:')) {
       const [, , year, projectId, encInvoice] = data.split(':')
+      // Check if invoice is locked (Cleared)
+      if (await checkInvoiceLockedAndNotify(token, chatId, msgId, year, projectId, encInvoice)) {
+        return res.status(200).end('ok')
+      }
       // Fresh page as this leads to user input
       await clearInvoiceBubbles(chatId)
       // Compute next item number based on existing count (if any)
@@ -1845,6 +2024,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.startsWith('EPI:LIST:')) {
       const [, , year, projectId, encInvoice] = data.split(':')
+      // Check if invoice is locked (Cleared)
+      if (await checkInvoiceLockedAndNotify(token, chatId, msgId, year, projectId, encInvoice)) {
+        return res.status(200).end('ok')
+      }
       const invs = await fetchInvoicesForProject(year, projectId)
       const inv = invs.find(i => i.invoiceNumber === decodeURIComponent(encInvoice))
       const count = inv?.items?.length || 0
@@ -1887,12 +2070,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (data.startsWith('EPI:SEL:')) {
       const parts = data.split(':')
       const year = parts[2]; const projectId = parts[3]; const encInvoice = parts[4]; const idx = parseInt(parts[5] || '0', 10) || 0
+      // Check if invoice is locked (Cleared)
+      if (await checkInvoiceLockedAndNotify(token, chatId, msgId, year, projectId, encInvoice)) {
+        return res.status(200).end('ok')
+      }
       await tgEditMessage(token, chatId, msgId, `Edit fields for Item ${idx + 1}:`, buildInvoiceItemFieldsKeyboard(year, projectId, decodeURIComponent(encInvoice), idx))
       return res.status(200).end('ok')
     }
     if (data.startsWith('EPI:FLD:')) {
       const parts = data.split(':')
       const year = parts[2]; const projectId = parts[3]; const encInvoice = parts[4]; const idx = parseInt(parts[5] || '0', 10) || 0; const field = parts[6]
+      // Check if invoice is locked (Cleared)
+      if (await checkInvoiceLockedAndNotify(token, chatId, msgId, year, projectId, encInvoice)) {
+        return res.status(200).end('ok')
+      }
       await putPendingEdit({ chatId, userId: cq.from?.id as number, kind: 'INV', year, projectId, invoiceNumber: encInvoice, controllerMessageId: msgId, step: 'await_value', field, itemIndex: idx })
       await tgEditMessage(token, chatId, msgId, `Send new value for <b>Item ${idx + 1} ${INVOICE_ITEM_FIELD_LABELS[field] || field}</b>`, { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] })
       return res.status(200).end('ok')
@@ -1912,6 +2103,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await tgEditMessage(token, chatId, msgId, `Send new value for <b>${PROJECT_FIELD_LABELS[field]}</b>`, { inline_keyboard: [[{ text: '⬅ Cancel', callback_data: `P:${year}:${projectId}` }]] })
       } else if (scope === 'INV') {
         const year = parts[2]; const projectId = parts[3]; const encInvoice = parts[4]; const field = parts[5]
+        // Check if invoice is locked (Cleared)
+        if (await checkInvoiceLockedAndNotify(token, chatId, msgId, year, projectId, encInvoice)) {
+          return res.status(200).end('ok')
+        }
+        // Block paidTo edits (field was removed - derived from transactions now)
+        if (field === 'paidTo') {
+          await tgEditMessage(token, chatId, msgId,
+            '⚠️ <b>Field Deprecated</b>\n\n' +
+            '"Paid To" is now automatically determined when you\n' +
+            'match a bank transaction to this invoice in the web app.',
+            { inline_keyboard: [[{ text: '⬅ Back to Invoice', callback_data: `INV:${year}:${projectId}:${encInvoice}` }]] }
+          )
+          return res.status(200).end('ok')
+        }
         await putPendingEdit({
           chatId,
           userId: cq.from?.id as number,
@@ -1987,7 +2192,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             else if (f === 'region') (client as any).region = edit.proposedValue
             else if (f === 'companyName') (client as any).companyName = edit.proposedValue
             else if (f === 'paymentStatus') (current as any).paymentStatus = edit.proposedValue
-            else if (f === 'paidTo') (current as any).paidTo = edit.proposedValue
+            // paidTo removed - now derived from bank transactions
           }
           // Item-level edits
           if (edit.itemIndex !== undefined && edit.itemIndex !== null && edit.itemIndex >= 0 && edit.itemIndex < items.length) {

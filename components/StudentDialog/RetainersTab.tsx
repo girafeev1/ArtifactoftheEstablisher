@@ -1,16 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import {
-  Box,
-  Typography,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  Button,
-  TableSortLabel,
-  Tooltip,
-} from '@mui/material'
+import { Typography, Table, Tooltip, Button } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { RetainerDoc, getRetainerStatus, RetainerStatusColor } from '../../lib/retainer'
@@ -18,7 +8,8 @@ import RetainerModal from './RetainerModal'
 import { CreateIcon } from './icons'
 import { useSession } from 'next-auth/react'
 import { useColumnWidths } from '../../lib/useColumnWidths'
-import IconButton from '@mui/material/IconButton'
+
+const { Text } = Typography
 
 const formatDate = (v: any) => {
   try {
@@ -103,19 +94,93 @@ export default function RetainersTab({
     .filter((r) => r.s > today)
     .sort((a, b) => a.s.getTime() - b.s.getTime())[0]?.row
 
+  const colorMap: Record<RetainerStatusColor, string> = {
+    green: '#52c41a',
+    red: '#ff4d4f',
+    lightBlue: '#69b1ff',
+    lightGreen: '#95de64',
+  }
+
+  const tableColumns: ColumnsType<RetRow> = [
+    {
+      title: 'Retainer',
+      dataIndex: 'retainerStarts',
+      key: 'retainer',
+      width: widths['retainer'],
+      sorter: (a, b) => a.retainerStarts.toDate().getTime() - b.retainerStarts.toDate().getTime(),
+      defaultSortOrder: sortAsc ? 'ascend' : 'descend',
+      render: (_, r) => {
+        const start = r.retainerStarts.toDate()
+        const labelDate = new Date(start)
+        if (labelDate.getDate() >= 21) labelDate.setMonth(labelDate.getMonth() + 1)
+        const monthLabel = labelDate.toLocaleString('en-US', { month: 'short', year: 'numeric' })
+        return <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{monthLabel}</span>
+      },
+    },
+    {
+      title: 'Coverage Period',
+      key: 'period',
+      width: widths['period'],
+      render: (_, r) => (
+        <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+          {`${formatDate(r.retainerStarts)} – ${formatDate(r.retainerEnds)}`}
+        </span>
+      ),
+    },
+    {
+      title: 'Rate',
+      dataIndex: 'retainerRate',
+      key: 'rate',
+      width: widths['rate'],
+      render: (v) => (
+        <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
+          {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD', currencyDisplay: 'code' }).format(v)}
+        </span>
+      ),
+    },
+    {
+      title: 'Status',
+      key: 'status',
+      width: widths['status'],
+      render: (_, r) => {
+        const start = r.retainerStarts.toDate()
+        const end = r.retainerEnds.toDate()
+        let status
+        if (today < start) status = getRetainerStatus(r, today)
+        else if (today <= end) status = getRetainerStatus(r, today)
+        else status = getRetainerStatus(r, today, nextFuture)
+        return (
+          <Tooltip title={status.label}>
+            <span style={{ fontFamily: 'Newsreader', fontWeight: 500, color: colorMap[status.color] }}>
+              {status.label}
+            </span>
+          </Tooltip>
+        )
+      },
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: widths['actions'],
+      render: (_, r) => (
+        <Button size="small" onClick={() => setModal({ open: true, retainer: r })}>
+          Edit
+        </Button>
+      ),
+    },
+  ]
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', textAlign: 'left' }}>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1, pb: '64px' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography
-            variant="subtitle1"
-            sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-          >
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', textAlign: 'left' }}>
+      <div style={{ flexGrow: 1, overflow: 'auto', padding: 8, paddingBottom: 64 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text style={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}>
             Retainers
-          </Typography>
+          </Text>
           <Tooltip title="Create Retainer">
-            <IconButton
-              color="primary"
+            <Button
+              type="text"
+              icon={<CreateIcon />}
               aria-label="Create Retainer"
               onClick={() =>
                 setModal({
@@ -125,289 +190,22 @@ export default function RetainersTab({
                     : undefined,
                 })
               }
-            >
-              <CreateIcon fontSize="small" />
-            </IconButton>
+            />
           </Tooltip>
-        </Box>
+        </div>
         <Table
-          ref={tableRef}
           size="small"
-          sx={{
-            tableLayout: 'fixed',
-            width: 'max-content',
-            '& td, & th': {
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            },
-          }}
-        >
-        <TableHead>
-          <TableRow>
-            <TableCell
-              data-col="retainer"
-              data-col-header
-              title="Retainer"
-              sx={{
-                fontFamily: 'Cantata One',
-                fontWeight: 'bold',
-                position: 'relative',
-                width: widths['retainer'],
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              <TableSortLabel
-                active
-                direction={sortAsc ? 'asc' : 'desc'}
-                onClick={() => setSortAsc((s) => !s)}
-              >
-                Retainer
-              </TableSortLabel>
-              <Box
-                className="col-resizer"
-                aria-label="Resize column Retainer"
-                role="separator"
-                tabIndex={0}
-                onMouseDown={(e) => startResize('retainer', e)}
-                onDoubleClick={() =>
-                  dblClickResize('retainer', tableRef.current || undefined)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowLeft') keyResize('retainer', 'left')
-                  if (e.key === 'ArrowRight') keyResize('retainer', 'right')
-                }}
-              />
-            </TableCell>
-            <TableCell
-              data-col="period"
-              data-col-header
-              title="Coverage Period"
-              sx={{
-                fontFamily: 'Cantata One',
-                fontWeight: 'bold',
-                position: 'relative',
-                width: widths['period'],
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              Coverage Period
-              <Box
-                className="col-resizer"
-                aria-label="Resize column Coverage Period"
-                role="separator"
-                tabIndex={0}
-                onMouseDown={(e) => startResize('period', e)}
-                onDoubleClick={() =>
-                  dblClickResize('period', tableRef.current || undefined)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowLeft') keyResize('period', 'left')
-                  if (e.key === 'ArrowRight') keyResize('period', 'right')
-                }}
-              />
-            </TableCell>
-            <TableCell
-              data-col="rate"
-              data-col-header
-              title="Rate"
-              sx={{
-                fontFamily: 'Cantata One',
-                fontWeight: 'bold',
-                position: 'relative',
-                width: widths['rate'],
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              Rate
-              <Box
-                className="col-resizer"
-                aria-label="Resize column Rate"
-                role="separator"
-                tabIndex={0}
-                onMouseDown={(e) => startResize('rate', e)}
-                onDoubleClick={() =>
-                  dblClickResize('rate', tableRef.current || undefined)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowLeft') keyResize('rate', 'left')
-                  if (e.key === 'ArrowRight') keyResize('rate', 'right')
-                }}
-              />
-            </TableCell>
-            <TableCell
-              data-col="status"
-              data-col-header
-              title="Status"
-              sx={{
-                fontFamily: 'Cantata One',
-                fontWeight: 'bold',
-                position: 'relative',
-                width: widths['status'],
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              Status
-              <Box
-                className="col-resizer"
-                aria-label="Resize column Status"
-                role="separator"
-                tabIndex={0}
-                onMouseDown={(e) => startResize('status', e)}
-                onDoubleClick={() =>
-                  dblClickResize('status', tableRef.current || undefined)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowLeft') keyResize('status', 'left')
-                  if (e.key === 'ArrowRight') keyResize('status', 'right')
-                }}
-              />
-            </TableCell>
-            <TableCell
-              data-col="actions"
-              data-col-header
-              title="Actions"
-              sx={{
-                fontFamily: 'Cantata One',
-                fontWeight: 'bold',
-                position: 'relative',
-                width: widths['actions'],
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              Actions
-              <Box
-                className="col-resizer"
-                aria-label="Resize column Actions"
-                role="separator"
-                tabIndex={0}
-                onMouseDown={(e) => startResize('actions', e)}
-                onDoubleClick={() =>
-                  dblClickResize('actions', tableRef.current || undefined)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowLeft') keyResize('actions', 'left')
-                  if (e.key === 'ArrowRight') keyResize('actions', 'right')
-                }}
-              />
-            </TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {sortedRows.map((r) => {
+          columns={tableColumns}
+          dataSource={sortedRows}
+          rowKey="id"
+          pagination={false}
+          rowClassName={(r: RetRow) => {
             const start = r.retainerStarts.toDate()
             const end = r.retainerEnds.toDate()
-            let status
-            if (today < start) status = getRetainerStatus(r, today)
-            else if (today <= end) status = getRetainerStatus(r, today)
-            else status = getRetainerStatus(r, today, nextFuture)
-            const colorMap: Record<RetainerStatusColor, string> = {
-              green: 'success.main',
-              red: 'error.main',
-              lightBlue: 'info.light',
-              lightGreen: 'success.light',
-            }
             const active = today >= start && today <= end
-            const labelDate = new Date(start)
-            if (labelDate.getDate() >= 21)
-              labelDate.setMonth(labelDate.getMonth() + 1)
-            const monthLabel = labelDate.toLocaleString('en-US', {
-              month: 'short',
-              year: 'numeric',
-            })
-            return (
-              <TableRow key={r.id} hover selected={active}>
-                <TableCell
-                  data-col="retainer"
-                  title={monthLabel}
-                  sx={{
-                    fontFamily: 'Newsreader',
-                    fontWeight: 500,
-                    width: widths['retainer'],
-                    minWidth: widths['retainer'],
-                  }}
-                >
-                  {monthLabel}
-                </TableCell>
-                <TableCell
-                  data-col="period"
-                  title={`${formatDate(r.retainerStarts)} – ${formatDate(r.retainerEnds)}`}
-                  sx={{
-                    fontFamily: 'Newsreader',
-                    fontWeight: 500,
-                    width: widths['period'],
-                    minWidth: widths['period'],
-                  }}
-                >
-                  {`${formatDate(r.retainerStarts)} – ${formatDate(r.retainerEnds)}`}
-                </TableCell>
-                <TableCell
-                  data-col="rate"
-                  title={new Intl.NumberFormat(undefined, {
-                    style: 'currency',
-                    currency: 'HKD',
-                    currencyDisplay: 'code',
-                  }).format(r.retainerRate)}
-                  sx={{
-                    fontFamily: 'Newsreader',
-                    fontWeight: 500,
-                    width: widths['rate'],
-                    minWidth: widths['rate'],
-                  }}
-                >
-                  {new Intl.NumberFormat(undefined, {
-                    style: 'currency',
-                    currency: 'HKD',
-                    currencyDisplay: 'code',
-                  }).format(r.retainerRate)}
-                </TableCell>
-                <TableCell
-                  data-col="status"
-                  title={status.label}
-                  sx={{
-                    fontFamily: 'Newsreader',
-                    fontWeight: 500,
-                    color: colorMap[status.color],
-                    width: widths['status'],
-                    minWidth: widths['status'],
-                  }}
-                >
-                  <Tooltip title={status.label}>
-                    <span>{status.label}</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell
-                  data-col="actions"
-                  title="Edit"
-                  sx={{
-                    fontFamily: 'Newsreader',
-                    fontWeight: 500,
-                    width: widths['actions'],
-                    minWidth: widths['actions'],
-                  }}
-                >
-                  <Button
-                    size="small"
-                    onClick={() => setModal({ open: true, retainer: r })}
-                  >
-                    Edit
-                  </Button>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-        </Table>
+            return active ? 'ant-table-row-selected' : ''
+          }}
+        />
         {modal.open && (
           <RetainerModal
             abbr={abbr}
@@ -422,8 +220,8 @@ export default function RetainersTab({
             }}
           />
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }
 

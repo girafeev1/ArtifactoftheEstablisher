@@ -5,8 +5,9 @@
  * Primary feature: Invoice Previewer for testing invoice layouts.
  */
 
-import React, { useState, useMemo, useCallback } from "react"
+import React, { useState, useMemo, useCallback, useEffect } from "react"
 import AppShell from "../layout/AppShell"
+import { NAVIGATION_RESOURCES, ALLOWED_MENU_KEYS } from "../../lib/navigation/resources"
 import {
   Row,
   Col,
@@ -62,10 +63,41 @@ import {
   LayoutOutlined,
   TableOutlined,
   MenuOutlined,
+  CalculatorOutlined,
+  CloudOutlined,
+  GoogleOutlined,
+  ApiOutlined,
+  CodeOutlined,
+  BugOutlined,
+  RocketOutlined,
+  ThunderboltOutlined,
+  SafetyOutlined,
+  LockOutlined,
+  GlobalOutlined,
+  MailOutlined,
+  MessageOutlined,
+  NotificationOutlined,
+  BellOutlined,
+  HeartOutlined,
+  StarOutlined,
+  TagOutlined,
+  FlagOutlined,
+  PieChartOutlined,
+  LineChartOutlined,
+  AreaChartOutlined,
+  FundOutlined,
+  StockOutlined,
 } from "@ant-design/icons"
 import { Invoice } from "../../lib/invoice"
-import type { InvoiceItem, SubsidiaryDoc, BankInfo, ProjectInvoiceRecord } from "../../lib/invoice/types"
+import { InvoiceGrid } from "../../lib/invoice/grid"
+import { InvoiceHeaderFull, InvoiceHeaderFullVersionA, InvoiceHeaderContinuation } from "../../lib/invoice/components/headers"
+import { FooterFull, FooterSimple } from "../../lib/invoice/components/footers"
+import { TotalBox } from "../../lib/invoice/components/totals/TotalBox"
+import { num2eng, num2chi } from "../../lib/invoiceFormat"
+import type { InvoiceItem, SubsidiaryDoc, BankInfo, ProjectInvoiceRecord, InvoiceVariant } from "../../lib/invoice/types"
 import type { ProjectRecord } from "../../lib/projectsDatabase"
+import { fetchSubsidiaries } from "../../lib/subsidiaries"
+import { listBanks, listAccounts, lookupAccount, type BankInfo as ErlBankInfo } from "../../lib/erlDirectory"
 
 const { Title, Text, Paragraph } = Typography
 const { Panel } = Collapse
@@ -84,6 +116,11 @@ const SIDEBAR_ICONS = [
   { name: "Calendar", icon: <CalendarOutlined />, key: "calendar" },
   { name: "Folder", icon: <FolderOutlined />, key: "folder" },
   { name: "Bar Chart", icon: <BarChartOutlined />, key: "barchart" },
+  { name: "Pie Chart", icon: <PieChartOutlined />, key: "piechart" },
+  { name: "Line Chart", icon: <LineChartOutlined />, key: "linechart" },
+  { name: "Area Chart", icon: <AreaChartOutlined />, key: "areachart" },
+  { name: "Fund", icon: <FundOutlined />, key: "fund" },
+  { name: "Stock", icon: <StockOutlined />, key: "stock" },
   { name: "Settings (Filled)", icon: <SettingFilled />, key: "settingfilled" },
   { name: "Settings (Outlined)", icon: <SettingOutlined />, key: "setting" },
   { name: "Database", icon: <DatabaseOutlined />, key: "database" },
@@ -92,6 +129,7 @@ const SIDEBAR_ICONS = [
   { name: "Shop / Store", icon: <ShopOutlined />, key: "shop" },
   { name: "Credit Card", icon: <CreditCardOutlined />, key: "creditcard" },
   { name: "Wallet", icon: <WalletOutlined />, key: "wallet" },
+  { name: "Calculator", icon: <CalculatorOutlined />, key: "calculator" },
   { name: "Audit", icon: <AuditOutlined />, key: "audit" },
   { name: "Solution", icon: <SolutionOutlined />, key: "solution" },
   { name: "Contacts", icon: <ContactsOutlined />, key: "contacts" },
@@ -106,6 +144,24 @@ const SIDEBAR_ICONS = [
   { name: "Layout", icon: <LayoutOutlined />, key: "layout" },
   { name: "Table", icon: <TableOutlined />, key: "table" },
   { name: "Menu", icon: <MenuOutlined />, key: "menu" },
+  { name: "Cloud", icon: <CloudOutlined />, key: "cloud" },
+  { name: "Google", icon: <GoogleOutlined />, key: "google" },
+  { name: "API", icon: <ApiOutlined />, key: "api" },
+  { name: "Code", icon: <CodeOutlined />, key: "code" },
+  { name: "Bug", icon: <BugOutlined />, key: "bug" },
+  { name: "Rocket", icon: <RocketOutlined />, key: "rocket" },
+  { name: "Thunderbolt", icon: <ThunderboltOutlined />, key: "thunderbolt" },
+  { name: "Safety", icon: <SafetyOutlined />, key: "safety" },
+  { name: "Lock", icon: <LockOutlined />, key: "lock" },
+  { name: "Global", icon: <GlobalOutlined />, key: "global" },
+  { name: "Mail", icon: <MailOutlined />, key: "mail" },
+  { name: "Message", icon: <MessageOutlined />, key: "message" },
+  { name: "Notification", icon: <NotificationOutlined />, key: "notification" },
+  { name: "Bell", icon: <BellOutlined />, key: "bell" },
+  { name: "Heart", icon: <HeartOutlined />, key: "heart" },
+  { name: "Star", icon: <StarOutlined />, key: "star" },
+  { name: "Tag", icon: <TagOutlined />, key: "tag" },
+  { name: "Flag", icon: <FlagOutlined />, key: "flag" },
 ]
 
 // Placeholder text generators
@@ -214,7 +270,7 @@ const mockProject: ProjectRecord = {
   onDateDisplay: null,
   onDateIso: null,
   paid: false,
-  paidTo: null,
+  payTo: null,
   paymentStatus: "Pending",
   presenterWorkType: "Consulting",
   projectDateDisplay: null,
@@ -238,11 +294,94 @@ const dataProvider = {
 
 export default function ToolsApp() {
   const [itemConfigs, setItemConfigs] = useState<ItemConfig[]>([defaultItemConfig()])
-  const [invoiceVersion, setInvoiceVersion] = useState<"A" | "B">("B")
+  const [invoiceVersion, setInvoiceVersion] = useState<InvoiceVariant>("B")
   const [showDebugGrid, setShowDebugGrid] = useState(false)
   const [showFlexDebug, setShowFlexDebug] = useState(false)
   const [invoiceNumber, setInvoiceNumber] = useState("INV-2024-TEST-001")
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0])
+  const [manualTotal, setManualTotal] = useState<number | null>(null)
+
+  // === Invoice Total Box State ===
+  const [totalBoxAmount, setTotalBoxAmount] = useState<number>(12000)
+  const [totalBoxEnglishOverride, setTotalBoxEnglishOverride] = useState<string>("")
+  const [totalBoxChineseOverride, setTotalBoxChineseOverride] = useState<string>("")
+
+  // === Invoice Component Showcase State ===
+  const [showcaseSubsidiaries, setShowcaseSubsidiaries] = useState<SubsidiaryDoc[]>([])
+  const [showcaseHeaderSubsidiary, setShowcaseHeaderSubsidiary] = useState<string>("")
+  const [showcaseFooterSubsidiary, setShowcaseFooterSubsidiary] = useState<string>("")
+  const [showcaseHeaderVersion, setShowcaseHeaderVersion] = useState<"full" | "fullVersionA" | "continuation">("full")
+  const [showcaseFooterVersion, setShowcaseFooterVersion] = useState<"full" | "simple">("full")
+  const [showcaseDebugGrid, setShowcaseDebugGrid] = useState(true)
+  const [showcaseBankInfo, setShowcaseBankInfo] = useState<BankInfo>(mockBankInfo)
+
+  // Fetch subsidiaries for showcase
+  useEffect(() => {
+    fetchSubsidiaries().then(subs => {
+      setShowcaseSubsidiaries(subs)
+      if (subs.length > 0) {
+        if (!showcaseHeaderSubsidiary) setShowcaseHeaderSubsidiary(subs[0].identifier)
+        if (!showcaseFooterSubsidiary) setShowcaseFooterSubsidiary(subs[0].identifier)
+      }
+    })
+  }, [])
+
+  // Get selected subsidiaries for showcase (separate for header and footer)
+  const headerSubsidiary = useMemo(() => {
+    return showcaseSubsidiaries.find(s => s.identifier === showcaseHeaderSubsidiary) || mockSubsidiary
+  }, [showcaseSubsidiaries, showcaseHeaderSubsidiary])
+
+  const footerSubsidiary = useMemo(() => {
+    return showcaseSubsidiaries.find(s => s.identifier === showcaseFooterSubsidiary) || mockSubsidiary
+  }, [showcaseSubsidiaries, showcaseFooterSubsidiary])
+
+  // Mock invoice and project for showcase headers
+  const showcaseMockInvoice: ProjectInvoiceRecord = useMemo(() => ({
+    collectionId: "showcase",
+    invoiceNumber: "2025-001-0102",
+    baseInvoiceNumber: "2025-001-0102",
+    suffix: "",
+    invoiceDate: new Date().toISOString().split("T")[0],
+    companyName: "Sample Client Company Limited",
+    addressLine1: "Suite 1234, 12/F",
+    addressLine2: "Tower A, Business Centre",
+    addressLine3: "123 Example Road, Central",
+    region: "Hong Kong",
+    representative: { title: "Mr", firstName: "John", lastName: "Smith" },
+    subtotal: null,
+    taxOrDiscountPercent: null,
+    total: null,
+    amount: null,
+    paid: false,
+    paidOnIso: null,
+    paidOnDisplay: null,
+    paymentStatus: "Due",
+    paidTo: null,
+    payTo: null,
+    items: [],
+    projectId: "showcase-project",
+  }), [])
+
+  const showcaseMockProject: ProjectRecord = useMemo(() => ({
+    id: "showcase-project",
+    year: new Date().getFullYear().toString(),
+    amount: 12000,
+    clientCompany: "Sample Client Company Limited",
+    invoice: "2025-001-0102",
+    onDateDisplay: null,
+    onDateIso: null,
+    paid: false,
+    payTo: null,
+    paymentStatus: "Due",
+    presenterWorkType: "Consulting 顧問服務",
+    projectDateDisplay: "January 2, 2025",
+    projectDateIso: "2025-01-02",
+    projectNature: "Advisory & Strategic Planning",
+    projectNumber: "2025-001",
+    projectTitle: "Strategic Business Advisory 企業策略顧問",
+    subsidiary: showcaseHeaderSubsidiary || "mock-sub",
+    workStatus: "active",
+  }), [showcaseHeaderSubsidiary])
 
   // Generate invoice items from configs
   const invoiceItems: InvoiceItem[] = useMemo(() => {
@@ -279,16 +418,17 @@ export default function ToolsApp() {
     },
     subtotal: null,
     taxOrDiscountPercent: null,
-    total: null,
-    amount: null,
+    total: manualTotal,
+    amount: manualTotal,
     paid: false,
     paidOnIso: null,
     paidOnDisplay: null,
     paymentStatus: "Pending",
-    paidTo: "mock-account",
+    paidTo: null,
+    payTo: "mock-account",
     items: invoiceItems,
     projectId: "mock-project",
-  } as ProjectInvoiceRecord), [invoiceNumber, invoiceDate, invoiceItems])
+  } as ProjectInvoiceRecord), [invoiceNumber, invoiceDate, invoiceItems, manualTotal])
 
   const handleAddItem = useCallback(() => {
     setItemConfigs(prev => [...prev, defaultItemConfig()])
@@ -315,16 +455,8 @@ export default function ToolsApp() {
   return (
     <AppShell
       dataProvider={dataProvider}
-      resources={[
-        { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
-        { name: "client-directory", list: "/client-accounts", meta: { label: "Client Accounts" } },
-        { name: "projects", list: "/projects", meta: { label: "Projects" } },
-        { name: "finance", list: "/finance", meta: { label: "Finance" } },
-        { name: "accounting", list: "/accounting", meta: { label: "Accounting" } },
-        { name: "coaching-sessions", list: "/coaching-sessions", meta: { label: "Coaching Sessions" } },
-        { name: "tools", list: "/tools", meta: { label: "Tools" } },
-      ]}
-      allowedMenuKeys={["dashboard", "client-directory", "projects", "finance", "accounting", "coaching-sessions", "tools"]}
+      resources={NAVIGATION_RESOURCES}
+      allowedMenuKeys={ALLOWED_MENU_KEYS}
     >
       <div style={{ padding: 24 }}>
         {/* Header */}
@@ -333,9 +465,9 @@ export default function ToolsApp() {
           <Text type="secondary">Utility tools for testing and development</Text>
         </div>
 
-        {/* Tool Cards - Collapsible */}
+        {/* Tool Cards - Collapsible (all collapsed by default) */}
         <Collapse
-          defaultActiveKey={["invoice-previewer"]}
+          defaultActiveKey={[]}
           style={{ marginBottom: 24 }}
         >
           {/* Invoice Previewer Tool */}
@@ -347,27 +479,47 @@ export default function ToolsApp() {
                 <span style={{ fontWeight: 500 }}>Invoice Previewer</span>
               </Space>
             }
-            extra={
-              <Space onClick={(e) => e.stopPropagation()}>
-                <Text type="secondary">Version:</Text>
-                <Select
-                  value={invoiceVersion}
-                  onChange={setInvoiceVersion}
-                  style={{ width: 80 }}
-                  size="small"
-                  options={[
-                    { label: "A", value: "A" },
-                    { label: "B", value: "B" },
-                  ]}
-                />
-                <Divider type="vertical" />
-                <Text type="secondary">Debug Grid:</Text>
-                <Switch size="small" checked={showDebugGrid} onChange={setShowDebugGrid} />
-                <Text type="secondary">Flex Debug:</Text>
-                <Switch size="small" checked={showFlexDebug} onChange={setShowFlexDebug} />
-              </Space>
-            }
           >
+            {/* Debug Grid Toggle */}
+            <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+              <Text type="secondary">Debug Grid:</Text>
+              <Switch size="small" checked={showcaseDebugGrid} onChange={setShowcaseDebugGrid} />
+            </div>
+
+            {/* Nested Collapse for sub-sections */}
+            <Collapse defaultActiveKey={[]} style={{ marginBottom: 0 }}>
+              {/* Full Invoice Preview */}
+              <Panel
+                key="full-invoice"
+                header={
+                  <Space>
+                    <EyeOutlined />
+                    <span style={{ fontWeight: 500 }}>Full Invoice Preview</span>
+                  </Space>
+                }
+              >
+              {/* Controls Row */}
+              <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                <Space>
+                  <Text type="secondary">Variant:</Text>
+                  <Select
+                    value={invoiceVersion}
+                    onChange={setInvoiceVersion}
+                    style={{ width: 100 }}
+                    size="small"
+                    options={[
+                      { label: "B (Basic)", value: "B" },
+                      { label: "B2", value: "B2" },
+                      { label: "A", value: "A" },
+                      { label: "A2", value: "A2" },
+                    ]}
+                  />
+                </Space>
+                <Space>
+                  <Text type="secondary">Flex Debug:</Text>
+                  <Switch size="small" checked={showFlexDebug} onChange={setShowFlexDebug} />
+                </Space>
+              </div>
               <Row gutter={24}>
                 {/* Controls Panel */}
                 <Col xs={24} lg={8}>
@@ -405,7 +557,7 @@ export default function ToolsApp() {
                                 danger
                                 size="small"
                                 icon={<DeleteOutlined />}
-                                onClick={(e) => {
+                                onClick={(e: React.MouseEvent) => {
                                   e.stopPropagation()
                                   handleRemoveItem(config.id)
                                 }}
@@ -420,7 +572,7 @@ export default function ToolsApp() {
                                   min={10}
                                   max={100}
                                   value={config.titleLength}
-                                  onChange={(v) => handleUpdateItem(config.id, { titleLength: v })}
+                                  onChange={(v: number) => handleUpdateItem(config.id, { titleLength: v })}
                                 />
                               </div>
                               <div>
@@ -429,7 +581,7 @@ export default function ToolsApp() {
                                   min={5}
                                   max={40}
                                   value={config.feeTypeLength}
-                                  onChange={(v) => handleUpdateItem(config.id, { feeTypeLength: v })}
+                                  onChange={(v: number) => handleUpdateItem(config.id, { feeTypeLength: v })}
                                 />
                               </div>
                               <div>
@@ -438,7 +590,7 @@ export default function ToolsApp() {
                                   min={0}
                                   max={10}
                                   value={config.notesLines}
-                                  onChange={(v) => handleUpdateItem(config.id, { notesLines: v })}
+                                  onChange={(v: number) => handleUpdateItem(config.id, { notesLines: v })}
                                 />
                               </div>
                               {config.notesLines > 0 && (
@@ -448,7 +600,7 @@ export default function ToolsApp() {
                                     min={20}
                                     max={100}
                                     value={config.notesCharsPerLine}
-                                    onChange={(v) => handleUpdateItem(config.id, { notesCharsPerLine: v })}
+                                    onChange={(v: number) => handleUpdateItem(config.id, { notesCharsPerLine: v })}
                                   />
                                 </div>
                               )}
@@ -459,7 +611,7 @@ export default function ToolsApp() {
                                     style={{ width: "100%" }}
                                     size="small"
                                     value={config.unitPrice}
-                                    onChange={(v) => handleUpdateItem(config.id, { unitPrice: v ?? 0 })}
+                                    onChange={(v: number | null) => handleUpdateItem(config.id, { unitPrice: v ?? 0 })}
                                   />
                                 </Col>
                                 <Col span={12}>
@@ -468,7 +620,7 @@ export default function ToolsApp() {
                                     style={{ width: "100%" }}
                                     size="small"
                                     value={config.quantity}
-                                    onChange={(v) => handleUpdateItem(config.id, { quantity: v ?? 0 })}
+                                    onChange={(v: number | null) => handleUpdateItem(config.id, { quantity: v ?? 0 })}
                                   />
                                 </Col>
                               </Row>
@@ -477,7 +629,7 @@ export default function ToolsApp() {
                                   <Switch
                                     size="small"
                                     checked={config.hasSubQuantity}
-                                    onChange={(v) => handleUpdateItem(config.id, { hasSubQuantity: v })}
+                                    onChange={(v: boolean) => handleUpdateItem(config.id, { hasSubQuantity: v })}
                                   />
                                   <Text type="secondary" style={{ fontSize: 12 }}>Sub-quantity</Text>
                                 </Space>
@@ -487,7 +639,7 @@ export default function ToolsApp() {
                                   <Switch
                                     size="small"
                                     checked={config.hasDiscount}
-                                    onChange={(v) => handleUpdateItem(config.id, { hasDiscount: v })}
+                                    onChange={(v: boolean) => handleUpdateItem(config.id, { hasDiscount: v })}
                                   />
                                   <Text type="secondary" style={{ fontSize: 12 }}>Discount</Text>
                                   {config.hasDiscount && (
@@ -495,7 +647,7 @@ export default function ToolsApp() {
                                       size="small"
                                       style={{ width: 80 }}
                                       value={config.discountAmount}
-                                      onChange={(v) => handleUpdateItem(config.id, { discountAmount: v ?? 0 })}
+                                      onChange={(v: number | null) => handleUpdateItem(config.id, { discountAmount: v ?? 0 })}
                                     />
                                   )}
                                 </Space>
@@ -527,7 +679,7 @@ export default function ToolsApp() {
                           style={{ width: "100%", padding: "4px 8px", border: "1px solid #d9d9d9", borderRadius: 4 }}
                         />
                       </div>
-                    </Space>
+                                          </Space>
                   </Card>
                 </Col>
 
@@ -559,7 +711,7 @@ export default function ToolsApp() {
                           subsidiary={mockSubsidiary}
                           bankInfo={mockBankInfo}
                           variant={invoiceVersion}
-                          debug={showDebugGrid}
+                          debug={showcaseDebugGrid}
                           flexDebug={showFlexDebug}
                         />
                       </div>
@@ -567,6 +719,232 @@ export default function ToolsApp() {
                   </Card>
                 </Col>
               </Row>
+              </Panel>
+
+              {/* Headers Section */}
+              <Panel
+                key="headers"
+                header={
+                  <Space>
+                    <LayoutOutlined />
+                    <span style={{ fontWeight: 500 }}>Headers</span>
+                  </Space>
+                }
+              >
+                {/* Controls Row */}
+                <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  <Space>
+                    <Text type="secondary">Subsidiary:</Text>
+                    <Select
+                      value={showcaseHeaderSubsidiary}
+                      onChange={setShowcaseHeaderSubsidiary}
+                      style={{ width: 200 }}
+                      size="small"
+                      options={showcaseSubsidiaries.map(s => ({
+                        label: s.englishName || s.identifier,
+                        value: s.identifier,
+                      }))}
+                      placeholder="Select subsidiary"
+                    />
+                  </Space>
+                  <Space>
+                    <Text type="secondary">Version:</Text>
+                    <Select
+                      value={showcaseHeaderVersion}
+                      onChange={setShowcaseHeaderVersion}
+                      style={{ width: 180 }}
+                      size="small"
+                      options={[
+                        { label: "Full B (Page 1)", value: "full" },
+                        { label: "Full A (Page 1)", value: "fullVersionA" },
+                        { label: "Continuation", value: "continuation" },
+                      ]}
+                    />
+                  </Space>
+                </div>
+                <div style={{ backgroundColor: "#f5f5f5", padding: 24, overflow: "auto" }}>
+                  <div style={{ display: "inline-block", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+                    <InvoiceGrid showGrid={showcaseDebugGrid}>
+                      {showcaseHeaderVersion === "full" ? (
+                        <InvoiceHeaderFull
+                          invoice={showcaseMockInvoice}
+                          project={showcaseMockProject}
+                          subsidiary={headerSubsidiary}
+                          debug={showcaseDebugGrid}
+                        />
+                      ) : showcaseHeaderVersion === "fullVersionA" ? (
+                        <InvoiceHeaderFullVersionA
+                          invoice={showcaseMockInvoice}
+                          project={showcaseMockProject}
+                          subsidiary={headerSubsidiary}
+                          debug={showcaseDebugGrid}
+                        />
+                      ) : (
+                        <InvoiceHeaderContinuation
+                          invoice={showcaseMockInvoice}
+                          project={showcaseMockProject}
+                          subsidiary={headerSubsidiary}
+                          pageNumber={2}
+                          debug={showcaseDebugGrid}
+                        />
+                      )}
+                    </InvoiceGrid>
+                  </div>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <Text type="secondary">
+                    {showcaseHeaderVersion === "full"
+                      ? "Version B: Full header for first page (476px total height, 22 rows) - Logo left, Invoice title right"
+                      : showcaseHeaderVersion === "fullVersionA"
+                      ? "Version A: Full header for first page (483px total height, 23 rows) - Invoice title left, Logo right"
+                      : "Minimal header for continuation pages (210px total height, 10 rows)"}
+                  </Text>
+                </div>
+              </Panel>
+
+              {/* Footers Section */}
+              <Panel
+                key="footers"
+                header={
+                  <Space>
+                    <LayoutOutlined />
+                    <span style={{ fontWeight: 500 }}>Footers</span>
+                  </Space>
+                }
+              >
+                {/* Controls Row */}
+                <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  <Space>
+                    <Text type="secondary">Subsidiary:</Text>
+                    <Select
+                      value={showcaseFooterSubsidiary}
+                      onChange={setShowcaseFooterSubsidiary}
+                      style={{ width: 200 }}
+                      size="small"
+                      options={showcaseSubsidiaries.map(s => ({
+                        label: s.englishName || s.identifier,
+                        value: s.identifier,
+                      }))}
+                      placeholder="Select subsidiary"
+                    />
+                  </Space>
+                  <Space>
+                    <Text type="secondary">Version:</Text>
+                    <Select
+                      value={showcaseFooterVersion}
+                      onChange={setShowcaseFooterVersion}
+                      style={{ width: 180 }}
+                      size="small"
+                      options={[
+                        { label: "Full Payment (Last)", value: "full" },
+                        { label: "Simple (Continuation)", value: "simple" },
+                      ]}
+                    />
+                  </Space>
+                </div>
+                <div style={{ backgroundColor: "#f5f5f5", padding: 24, overflow: "auto" }}>
+                  <div style={{ display: "inline-block", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+                    <InvoiceGrid showGrid={showcaseDebugGrid}>
+                      {showcaseFooterVersion === "full" ? (
+                        <FooterFull
+                          subsidiary={footerSubsidiary}
+                          bankInfo={showcaseBankInfo}
+                          totalEnglish="Hong Kong Dollars Twelve Thousand Only"
+                          totalChinese="港幣壹萬貳仟元正"
+                          debug={showcaseDebugGrid}
+                        />
+                      ) : (
+                        <FooterSimple
+                          subsidiary={footerSubsidiary}
+                          pageNumber={1}
+                          totalPages={2}
+                          debug={showcaseDebugGrid}
+                        />
+                      )}
+                    </InvoiceGrid>
+                  </div>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <Text type="secondary">
+                    {showcaseFooterVersion === "full"
+                      ? "Full payment footer for last page (195px total height, 10 rows) - includes bank info, payment terms"
+                      : "Simple footer for continuation pages (81px total height, 2 rows)"}
+                  </Text>
+                </div>
+              </Panel>
+
+              {/* Invoice Total Box Section */}
+              <Panel
+                key="total-box"
+                header={
+                  <Space>
+                    <DollarOutlined />
+                    <span style={{ fontWeight: 500 }}>Invoice Total Box</span>
+                  </Space>
+                }
+              >
+                {/* Controls Row */}
+                <div style={{ marginBottom: 16 }}>
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Total Amount (HKD)</Text>
+                      <InputNumber
+                        style={{ width: "100%" }}
+                        size="small"
+                        value={totalBoxAmount}
+                        onChange={(v: number | null) => setTotalBoxAmount(v || 0)}
+                        min={0}
+                        step={100}
+                        formatter={(value: number | undefined) => value ? `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+                        parser={(value: string | undefined) => value ? Number(value.replace(/\$\s?|(,*)/g, '')) : 0}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>English Override</Text>
+                      <input
+                        type="text"
+                        value={totalBoxEnglishOverride}
+                        onChange={(e) => setTotalBoxEnglishOverride(e.target.value)}
+                        placeholder={num2eng(totalBoxAmount)}
+                        style={{ width: "100%", padding: "4px 8px", border: "1px solid #d9d9d9", borderRadius: 4, fontSize: 12 }}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Chinese Override</Text>
+                      <input
+                        type="text"
+                        value={totalBoxChineseOverride}
+                        onChange={(e) => setTotalBoxChineseOverride(e.target.value)}
+                        placeholder={num2chi(totalBoxAmount)}
+                        style={{ width: "100%", padding: "4px 8px", border: "1px solid #d9d9d9", borderRadius: 4, fontSize: 12 }}
+                      />
+                    </Col>
+                  </Row>
+                  <div style={{ marginTop: 8 }}>
+                    <Text type="secondary" style={{ fontSize: 10 }}>
+                      Leave override fields empty to use auto-generated text. English: "{num2eng(totalBoxAmount)}" | Chinese: "{num2chi(totalBoxAmount)}"
+                    </Text>
+                  </div>
+                </div>
+                <div style={{ backgroundColor: "#f5f5f5", padding: 24, overflow: "auto" }}>
+                  <div style={{ display: "inline-block", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+                    <InvoiceGrid showGrid={showcaseDebugGrid} rowHeights={[22, 34, 22]}>
+                      <TotalBox
+                        total={totalBoxAmount}
+                        totalEnglish={totalBoxEnglishOverride || num2eng(totalBoxAmount)}
+                        totalChinese={totalBoxChineseOverride || `港幣${num2chi(totalBoxAmount).replace('元', '元').replace('正', '正')}`}
+                        debug={showcaseDebugGrid}
+                      />
+                    </InvoiceGrid>
+                  </div>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <Text type="secondary">
+                    Invoice total box (78px total height, 3 rows) - displays amount in numbers, English words, and Chinese characters
+                  </Text>
+                </div>
+              </Panel>
+            </Collapse>
           </Panel>
 
           {/* Icon Picker Tool */}
@@ -603,6 +981,36 @@ export default function ToolsApp() {
                 ))}
               </Row>
             </div>
+          </Panel>
+
+          {/* Component Showcase */}
+          <Panel
+            key="storybook"
+            header={
+              <Space>
+                <BookOutlined />
+                <span style={{ fontWeight: 500 }}>Component Showcase</span>
+              </Space>
+            }
+          >
+            <Card size="small">
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <Text>
+                  Browse and interact with all Ant Design components used in this application.
+                </Text>
+                <Text type="secondary">
+                  View buttons, inputs, tables, modals, and more with live examples.
+                </Text>
+                <Divider style={{ margin: "12px 0" }} />
+                <Button
+                  type="primary"
+                  icon={<RocketOutlined />}
+                  href="/tools/storybook"
+                >
+                  Open Component Showcase
+                </Button>
+              </Space>
+            </Card>
           </Panel>
         </Collapse>
       </div>

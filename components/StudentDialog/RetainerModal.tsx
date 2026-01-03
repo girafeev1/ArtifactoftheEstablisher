@@ -1,16 +1,10 @@
 import React, { useState } from 'react'
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Modal, Input, Button, Space, Typography } from 'antd'
 import { addRetainer, calculateEndDate, RetainerDoc } from '../../lib/retainer'
 import { useBillingClient } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache, markSessionsInRetainer } from '../../lib/liveRefresh'
+
+const { Text } = Typography
 
 const formatDate = (d: Date | null) =>
   d
@@ -76,65 +70,71 @@ export default function RetainerModal({
     }
   }
 
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    marginBottom: 8,
+    fontFamily: 'Newsreader',
+    fontWeight: 200,
+    color: 'rgba(0, 0, 0, 0.45)'
+  }
+  const inputStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 500 }
+
   return (
-    <Dialog open={open} onClose={() => onClose(false)} fullWidth maxWidth="xs">
-      <DialogTitle sx={{ fontFamily: 'Cantata One' }}>
-        {retainer ? 'Edit Retainer' : 'Add Retainer'}
-      </DialogTitle>
-      <DialogContent>
-        {/* TODO: replace TextField type="date" with MUI DatePicker + shouldDisableDate to gray out overlapping ranges. */}
-        <TextField
+    <Modal
+      open={open}
+      onCancel={() => onClose(false)}
+      title={<span style={{ fontFamily: 'Cantata One' }}>{retainer ? 'Edit Retainer' : 'Add Retainer'}</span>}
+      width={400}
+      footer={
+        <Space>
+          <Button onClick={() => onClose(false)} disabled={saving}>
+            Close
+          </Button>
+          <Button
+            type="primary"
+            onClick={handleSave}
+            disabled={saving || !start || !rate}
+          >
+            Save
+          </Button>
+        </Space>
+      }
+    >
+      {/* TODO: replace Input type="date" with Ant DatePicker + disabledDate to gray out overlapping ranges. */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={labelStyle}>Start Date</label>
+        <Input
           type="date"
-          label="Start Date"
           value={start}
-          onChange={(e) => setStart(e.target.value)}
-          fullWidth
-          sx={{ mb: 2 }}
-          InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStart(e.target.value)}
+          style={inputStyle}
         />
-        <TextField
-          label="End Date"
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <label style={labelStyle}>End Date</label>
+        <Input
           value={formatDate(endDate)}
-          fullWidth
-          sx={{ mb: 2 }}
-          InputProps={{ readOnly: true, sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-          InputLabelProps={{ shrink: true, sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
+          readOnly
+          style={inputStyle}
         />
-        <TextField
-          label="Rate"
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={labelStyle}>Rate</label>
+        <Input
           value={rate}
-          onChange={(e) => setRate(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRate(e.target.value)}
           type="number"
-          fullWidth
-          sx={{ mb: 1 }}
-          InputLabelProps={{
-            shrink: true,
-            sx: { fontFamily: 'Newsreader', fontWeight: 200 },
-          }}
-          inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-          helperText={`Balance Due: ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD', currencyDisplay: 'code' }).format(balanceDue)} (retainers can be added even if balance is insufficient)`}
-          FormHelperTextProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+          style={inputStyle}
         />
-        {error && (
-          <Typography color="error" sx={{ mb: 2 }}>
-            {error}
-          </Typography>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={() => onClose(false)} disabled={saving}>
-          Close
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          disabled={saving || !start || !rate}
-        >
-          Save
-        </Button>
-      </DialogActions>
-    </Dialog>
+        <Text type="secondary" style={{ fontFamily: 'Newsreader', fontWeight: 500, fontSize: 12, marginTop: 4, display: 'block' }}>
+          Balance Due: {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'HKD', currencyDisplay: 'code' }).format(balanceDue)} (retainers can be added even if balance is insufficient)
+        </Text>
+      </div>
+      {error && (
+        <Text type="danger" style={{ marginBottom: 16, display: 'block' }}>
+          {error}
+        </Text>
+      )}
+    </Modal>
   )
 }
-

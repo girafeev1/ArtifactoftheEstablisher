@@ -1,17 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TextField,
-} from '@mui/material'
+import { Modal, Button, Table, Input, Space } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import {
   collection,
   addDoc,
@@ -127,131 +116,145 @@ export default function BaseRateHistoryDialog({
     setEditing(null)
   }
 
+  interface RowType {
+    id: string
+    rate: number
+    effectDate?: any
+    timestamp: any
+    editedBy?: string
+  }
+
+  const columns: ColumnsType<RowType> = [
+    {
+      title: 'Rate (HKD)',
+      dataIndex: 'rate',
+      key: 'rate',
+      render: (_, r) =>
+        editing && editing.id === r.id && editing.field === 'rate' ? (
+          <Input
+            type="number"
+            size="small"
+            defaultValue={r.rate}
+            onBlur={(e: React.FocusEvent<HTMLInputElement>) => saveRate(r.id, e.target.value)}
+            style={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          />
+        ) : (
+          <span
+            role="button"
+            tabIndex={0}
+            style={{ fontFamily: 'Newsreader', fontWeight: 500, cursor: 'pointer' }}
+            onClick={() => setEditing({ id: r.id, field: 'rate' })}
+          >
+            {formatCurrency(Number(r.rate) || 0)}
+          </span>
+        ),
+    },
+    {
+      title: 'Effective Date',
+      dataIndex: 'effectDate',
+      key: 'effectDate',
+      render: (_, r) => {
+        if (editing && editing.id === r.id && editing.field === 'date') {
+          return (
+            <Input
+              type="date"
+              size="small"
+              defaultValue={
+                r.effectDate
+                  ? dayjs(r.effectDate.toDate ? r.effectDate.toDate() : r.effectDate)
+                      .tz()
+                      .format('YYYY-MM-DD')
+                  : dayjs().tz().format('YYYY-MM-DD')
+              }
+              onBlur={(e: React.FocusEvent<HTMLInputElement>) => saveEffectDate(r.id, e.target.value)}
+              style={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+            />
+          )
+        }
+        if (r.effectDate) {
+          return (
+            <span
+              role="button"
+              tabIndex={0}
+              style={{ fontFamily: 'Newsreader', fontWeight: 500, cursor: 'pointer' }}
+              onClick={() => setEditing({ id: r.id, field: 'date' })}
+            >
+              {formatDate(r.effectDate)}
+            </span>
+          )
+        }
+        return (
+          <Input
+            type="date"
+            size="small"
+            defaultValue={dayjs().tz().format('YYYY-MM-DD')}
+            onBlur={(e: React.FocusEvent<HTMLInputElement>) => saveEffectDate(r.id, e.target.value)}
+            style={{ fontFamily: 'Newsreader', fontWeight: 500 }}
+          />
+        )
+      },
+    },
+  ]
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Base Rate History</DialogTitle>
-      <DialogContent>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Rate (HKD)</TableCell>
-              <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>Effective Date</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow
-                key={r.id}
-                title={`Edited by ${r.editedBy || 'unknown'} on ${formatDate(
-                  r.timestamp,
-                )}`}
-              >
-                <TableCell
-                  sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-                  title={`Edited by ${r.editedBy || 'unknown'} on ${formatDate(
-                    r.timestamp,
-                  )}`}
-                >
-                  {editing?.id === r.id && editing.field === 'rate' ? (
-                    <TextField
-                      type="number"
-                      size="small"
-                      defaultValue={r.rate}
-                      onBlur={(e) => saveRate(r.id, e.target.value)}
-                      inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-                    />
-                  ) : (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setEditing({ id: r.id, field: 'rate' })}
-                    >
-                      {formatCurrency(Number(r.rate) || 0)}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  {editing?.id === r.id && editing.field === 'date' ? (
-                    <TextField
-                      type="date"
-                      size="small"
-                      defaultValue={
-                        r.effectDate
-                          ? dayjs(r.effectDate.toDate ? r.effectDate.toDate() : r.effectDate)
-                              .tz()
-                              .format('YYYY-MM-DD')
-                          : dayjs().tz().format('YYYY-MM-DD')
-                      }
-                      onBlur={(e) => saveEffectDate(r.id, e.target.value)}
-                      inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
-                    />
-                  ) : r.effectDate ? (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setEditing({ id: r.id, field: 'date' })}
-                    >
-                      {formatDate(r.effectDate)}
-                    </span>
-                  ) : (
-                    <TextField
-                      type="date"
-                      size="small"
-                      defaultValue={dayjs().tz().format('YYYY-MM-DD')}
-                      onBlur={(e) => saveEffectDate(r.id, e.target.value)}
-                      inputProps={{
-                        style: { fontFamily: 'Newsreader', fontWeight: 500 },
-                      }}
-                    />
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={2} sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                  No history.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </DialogContent>
-      <DialogActions sx={{ justifyContent: 'space-between' }}>
-        <Button onClick={() => setAddOpen(true)}>Add</Button>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-      <Dialog open={addOpen} onClose={() => setAddOpen(false)}>
-      <DialogTitle sx={{ fontFamily: 'Cantata One' }}>Add Base Rate</DialogTitle>
-        <DialogContent>
-          <TextField
-            label="New Rate (HKD)"
+    <>
+      <Modal
+        open={open}
+        onCancel={onClose}
+        title={<span style={{ fontFamily: 'Cantata One' }}>Base Rate History</span>}
+        width={600}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Button onClick={() => setAddOpen(true)}>Add</Button>
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        }
+      >
+        <Table
+          size="small"
+          columns={columns}
+          dataSource={rows}
+          rowKey="id"
+          pagination={false}
+          locale={{ emptyText: 'No history.' }}
+        />
+      </Modal>
+      <Modal
+        open={addOpen}
+        onCancel={() => setAddOpen(false)}
+        title={<span style={{ fontFamily: 'Cantata One' }}>Add Base Rate</span>}
+        footer={
+          <Space style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+            <Button onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button type="primary" onClick={add} disabled={!newRate}>
+              Add
+            </Button>
+          </Space>
+        }
+      >
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', marginBottom: 8, fontFamily: 'Newsreader', fontWeight: 200 }}>
+            New Rate (HKD)
+          </label>
+          <Input
             type="number"
             value={newRate}
-            onChange={(e) => setNewRate(e.target.value)}
-            fullWidth
-            sx={{ my: 1 }}
-            InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-            inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewRate(e.target.value)}
+            style={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           />
-          <TextField
-            label="Effective Date"
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', marginBottom: 8, fontFamily: 'Newsreader', fontWeight: 200 }}>
+            Effective Date
+          </label>
+          <Input
             type="date"
             value={newDate}
-            onChange={(e) => setNewDate(e.target.value)}
-            fullWidth
-            sx={{ my: 1 }}
-            InputLabelProps={{ sx: { fontFamily: 'Newsreader', fontWeight: 200 } }}
-            inputProps={{ style: { fontFamily: 'Newsreader', fontWeight: 500 } }}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewDate(e.target.value)}
+            style={{ fontFamily: 'Newsreader', fontWeight: 500 }}
           />
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: 'space-between' }}>
-          <Button onClick={() => setAddOpen(false)}>Cancel</Button>
-          <Button onClick={add} disabled={!newRate}>
-            Add
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Dialog>
+        </div>
+      </Modal>
+    </>
   )
 }

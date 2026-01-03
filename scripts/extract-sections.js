@@ -1,230 +1,111 @@
+/**
+ * Extract section definitions from Google Sheets scheme for invoice pages
+ * Usage: node scripts/extract-sections.js
+ */
+
 const fs = require('fs');
 const path = require('path');
 
-// Load the paginated scheme
-const schemePath = path.join(process.cwd(), 'tmp', 'paginated-invoice-scheme.json');
+const schemePath = path.join(__dirname, '..', 'tmp', 'paginated-invoice-scheme.json');
 const scheme = JSON.parse(fs.readFileSync(schemePath, 'utf8'));
 
-console.log('Extracting sections from paginated scheme...\n');
+const cols = 'ABCDEFGHIJKLMN'.split('');
+const colName = (idx) => cols[idx - 1] || 'Col' + idx;
+const getCell = (row, col) => {
+  const colIdx = typeof col === 'string' ? cols.indexOf(col) + 1 : col;
+  return scheme.cells[row + ':' + colIdx];
+};
 
-/**
- * Extract a section from the scheme
- * @param {string} sectionId - Section identifier
- * @param {number} startRow - Start row (1-based)
- * @param {number} endRow - End row (1-based, inclusive)
- * @param {string} type - Section type
- * @param {string} description - Section description
- */
-function extractSection(sectionId, startRow, endRow, type, description) {
-  const rowCount = endRow - startRow + 1;
+function analyzeSection(name, startRow, endRow) {
+  console.log('\n' + '='.repeat(60));
+  console.log('=== ' + name.toUpperCase() + ' (Rows ' + startRow + '-' + endRow + ') ===');
+  console.log('='.repeat(60) + '\n');
 
-  // Extract row heights for this section
-  const rowHeightsPx = [];
+  let totalHeight = 0;
+  const rowHeights = [];
   for (let r = startRow; r <= endRow; r++) {
-    rowHeightsPx.push(scheme.rowHeightsPx[r - 1] || 0);
+    const h = scheme.rowHeightsPx[r - 1];
+    totalHeight += h;
+    rowHeights.push(h);
   }
 
-  // Extract cells for this section (convert to section-relative coordinates)
-  const cells = {};
-  for (let r = startRow; r <= endRow; r++) {
-    for (let c = 1; c <= 14; c++) {
-      const originalKey = `${r}:${c}`;
-      if (scheme.cells[originalKey]) {
-        const sectionRow = r - startRow + 1;
-        const newKey = `${sectionRow}:${c}`;
-        cells[newKey] = scheme.cells[originalKey];
-      }
-    }
-  }
+  console.log('Total height: ' + totalHeight + 'px');
+  console.log('Row count: ' + (endRow - startRow + 1));
+  console.log('Row heights: [' + rowHeights.join(', ') + ']');
 
-  // Extract merges for this section (convert to section-relative coordinates)
-  const merges = [];
-  scheme.merges.forEach(m => {
-    // Check if merge overlaps with this section
-    if (m.r1 >= startRow && m.r1 <= endRow) {
-      merges.push({
-        r1: m.r1 - startRow + 1,
-        c1: m.c1,
-        r2: Math.min(m.r2, endRow) - startRow + 1,
-        c2: m.c2,
-      });
+  const sectionMerges = scheme.merges.filter(m => m.r1 >= startRow && m.r1 <= endRow);
+  sectionMerges.sort((a, b) => a.r1 - b.r1 || a.c1 - b.c1);
+
+  console.log('\nMerges (' + sectionMerges.length + '):');
+  sectionMerges.forEach(m => {
+    const cell = getCell(m.r1, m.c1);
+    const localRow = m.r1 - startRow + 1;
+    const rowSpan = m.r2 - m.r1;
+    const colSpan = m.c2 - m.c1;
+    const startCol = colName(m.c1);
+    const endCol = colName(m.c2);
+    const value = (cell && cell.value ? cell.value : '').replace(/\n/g, '\\n').substring(0, 30);
+    if (rowSpan > 0 || colSpan > 1) {
+      console.log('  Local Row ' + localRow + ': ' + startCol + '-' + endCol + ' (rowSpan=' + (rowSpan+1) + ', colSpan=' + colSpan + ') "' + value + '"');
     }
   });
 
-  const section = {
-    id: sectionId,
-    name: sectionId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-    version: '1.0.0',
-    type,
-    rowCount,
-    columnWidthsPx: scheme.columnWidthsPx,
-    rowHeightsPx,
-    cells,
-    merges,
-    metadata: {
-      repeatable: type === 'item-row',
-      description,
-      extractedFrom: {
-        spreadsheetId: scheme.spreadsheetId,
-        sheetId: scheme.sheetId,
-        rows: `${startRow}-${endRow}`,
-        scannedAt: scheme.scannedAt,
-      },
-    },
-  };
+  console.log('\nRow-by-row:');
+  for (let r = startRow; r <= endRow; r++) {
+    const localRow = r - startRow + 1;
+    const height = scheme.rowHeightsPx[r - 1];
+    const rowCells = [];
+    for (let c = 1; c <= 14; c++) {
+      const cell = getCell(r, c);
+      if (cell && cell.value && cell.value.trim()) {
+        const value = cell.value.replace(/\n/g, '\\n').substring(0, 20);
+        const font = (cell.fontFamily || 'default') + ' ' + (cell.fontSize || 10) + 'px';
+        const style = (cell.bold ? ' bold' : '') + (cell.italic ? ' italic' : '');
+        rowCells.push({ col: colName(c), value: value, font: font + style });
+      }
+    }
+    const rowMerges = sectionMerges.filter(m => m.r1 === r && (m.r2 - m.r1 > 0 || m.c2 - m.c1 > 1));
 
-  // Save section
-  const outputDir = path.join(process.cwd(), 'tmp', 'invoice-sections');
-  fs.mkdirSync(outputDir, { recursive: true });
-
-  const outputPath = path.join(outputDir, `${sectionId}.json`);
-  fs.writeFileSync(outputPath, JSON.stringify(section, null, 2), 'utf8');
-
-  console.log(`✓ Extracted ${sectionId}`);
-  console.log(`  Rows: ${startRow}-${endRow} (${rowCount} rows)`);
-  console.log(`  Cells: ${Object.keys(cells).length}`);
-  console.log(`  Merges: ${merges.length}`);
-  console.log(`  Saved to: ${outputPath}\n`);
-
-  return section;
+    let output = 'Row ' + localRow + ' (' + r + '): ' + height + 'px';
+    if (rowCells.length > 0) {
+      output += ' | ' + rowCells.map(c => c.col + ':"' + c.value + '"').join(', ');
+    }
+    if (rowMerges.length > 0) {
+      output += ' | MERGES: ' + rowMerges.map(m => colName(m.c1) + '-' + colName(m.c2) + (m.r2-m.r1 > 0 ? '(' + (m.r2-m.r1+1) + 'rows)' : '')).join(', ');
+    }
+    console.log(output);
+  }
 }
 
-// Extract all sections
-extractSection(
-  'header-versionB-full',
-  1, 22,
-  'header',
-  'Full header for Version B Page 1 with logo, subsidiary info, client info, invoice metadata, project info, and FPS QR code'
-);
+console.log('=== INVOICE STRUCTURE FROM SCHEME ===');
+console.log('Sheet: ' + scheme.sheetTitle);
 
-extractSection(
-  'header-continuation-minimal',
-  52, 61,
-  'continuation-header',
-  'Minimal header for continuation pages with just branding, invoice number, and date'
-);
+const markers = [];
+for (let r = 1; r <= scheme.rowHeightsPx.length; r++) {
+  const cellA = getCell(r, 1);
+  const cellK = getCell(r, 11);
+  const cellL = getCell(r, 12);
+  if (cellA && cellA.value && cellA.value.includes('P a y m e n t')) {
+    markers.push({ row: r, type: cellA.value.includes('Details') ? 'PaymentDetails' : 'PaymentInstructions' });
+  }
+  if ((cellK && cellK.value && cellK.value.includes('Invoice')) || (cellL && cellL.value && cellL.value.includes('Invoice'))) {
+    markers.push({ row: r, type: 'InvoiceTitle' });
+  }
+}
 
-extractSection(
-  'item-table-header',
-  23, 23,
-  'table-header',
-  'Column headers for item table (DESCRIPTION | AMOUNT)'
-);
+console.log('\nSection markers:');
+markers.forEach(m => console.log('  Row ' + m.row + ': ' + m.type));
 
-extractSection(
-  'item-row-template',
-  25, 27,
-  'item-row',
-  'Repeatable item row template with title, fee type, unit price, quantity, and notes'
-);
+const piStart = markers.find(m => m.type === 'PaymentInstructions');
+if (piStart) {
+  const nextMarker = markers.find(m => m.row > piStart.row);
+  const piEnd = nextMarker ? nextMarker.row - 1 : scheme.rowHeightsPx.length;
+  analyzeSection('Payment Instructions', piStart.row, Math.min(piEnd, piStart.row + 60));
+}
 
-extractSection(
-  'total-box',
-  91, 93,
-  'totals',
-  'Invoice total box with Chinese, English, and numeric amounts'
-);
-
-extractSection(
-  'footer-continuation-simple',
-  50, 51,
-  'footer',
-  'Simple continuation footer with subsidiary name and contact info'
-);
-
-extractSection(
-  'footer-full-payment',
-  98, 107,
-  'footer',
-  'Full payment footer with bank details, FPS ID, and payment terms'
-);
-
-// ============================================
-// PAYMENT DETAILS PAGE (Full standalone page)
-// ============================================
-extractSection(
-  'page-payment-details',
-  161, 201,
-  'standalone-page',
-  'Full Payment Details page with beneficiary info, bank details, FPS QR code, and Terms & Conditions'
-);
-
-// ============================================
-// PAYMENT INSTRUCTIONS PAGE (Full standalone page)
-// ============================================
-extractSection(
-  'page-payment-instructions',
-  202, 252,
-  'standalone-page',
-  'Full Payment Instructions page with cheque and bank transfer payment methods'
-);
-
-// ============================================
-// ADDITIONAL SECTIONS FOR GRANULAR COMPOSITION
-// ============================================
-
-// Payment Details - Header section
-extractSection(
-  'payment-details-header',
-  161, 172,
-  'page-header',
-  'Payment Details page header with title and subsidiary branding'
-);
-
-// Payment Details - Bank info section
-extractSection(
-  'payment-details-bank-info',
-  173, 190,
-  'payment-info',
-  'Bank details section with beneficiary, bank code, branch, FPS ID, and QR code'
-);
-
-// Payment Details - Terms & Conditions
-extractSection(
-  'payment-details-terms',
-  195, 199,
-  'terms',
-  'Terms & Conditions section in English and Chinese'
-);
-
-// Payment Details - Footer
-extractSection(
-  'payment-details-footer',
-  200, 201,
-  'page-footer',
-  'Payment Details page footer with subsidiary info'
-);
-
-// Payment Instructions - Header section
-extractSection(
-  'payment-instructions-header',
-  202, 210,
-  'page-header',
-  'Payment Instructions page header with title and payment deadline notice'
-);
-
-// Payment Instructions - Cheque method
-extractSection(
-  'payment-instructions-cheque',
-  211, 230,
-  'payment-method',
-  'Payable cheque section with cheque writing guide and amount details'
-);
-
-// Payment Instructions - Transfer method
-extractSection(
-  'payment-instructions-transfer',
-  231, 248,
-  'payment-method',
-  'Bank transfer section with account details, FPS ID, and QR code'
-);
-
-// Payment Instructions - Footer
-extractSection(
-  'payment-instructions-footer',
-  251, 252,
-  'page-footer',
-  'Payment Instructions page footer with subsidiary info'
-);
-
-console.log('✓ All sections extracted successfully!');
+const pdStart = markers.find(m => m.type === 'PaymentDetails');
+if (pdStart) {
+  const nextMarker = markers.find(m => m.row > pdStart.row);
+  const pdEnd = nextMarker ? nextMarker.row - 1 : scheme.rowHeightsPx.length;
+  analyzeSection('Payment Details', pdStart.row, Math.min(pdEnd, pdStart.row + 45));
+}

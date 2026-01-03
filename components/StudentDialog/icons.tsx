@@ -1,3 +1,3 @@
-import NoteAddRoundedIcon from '@mui/icons-material/NoteAddRounded'
+import { FileAddOutlined } from '@ant-design/icons'
 
-export const CreateIcon = NoteAddRoundedIcon
+export const CreateIcon = FileAddOutlined

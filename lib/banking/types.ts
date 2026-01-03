@@ -9,7 +9,7 @@
 // Provider Types
 // ============================================================================
 
-export type BankProviderId = 'airwallex' | 'ocbc' | 'hsbc' | string
+export type BankProviderId = 'airwallex' | 'ocbc' | 'hsbc' | 'fubon' | string
 
 export type BankFeature =
   | 'accounts'
@@ -264,6 +264,13 @@ export const BANK_PROVIDERS: Record<BankProviderId, Omit<BankProvider, 'connecte
     shortName: 'AWX',
     color: '#722ed1',
     features: ['accounts', 'transactions', 'transfers', 'payments', 'beneficiaries', 'fx'],
+  },
+  fubon: {
+    id: 'fubon',
+    name: 'Fubon Bank',
+    shortName: 'FBB',
+    color: '#0066b3', // Fubon blue
+    features: ['accounts', 'transactions'],
   },
   ocbc: {
     id: 'ocbc',

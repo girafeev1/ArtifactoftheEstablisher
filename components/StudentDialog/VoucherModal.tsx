@@ -1,12 +1,5 @@
 import React, { useState } from 'react'
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
-} from '@mui/material'
+import { Modal, Input, Button, Space } from 'antd'
 import { collection, doc, getDocs, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
@@ -55,54 +48,51 @@ export default function VoucherModal({
   }
 
   return (
-    <Dialog
+    <Modal
       open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="xs"
-      slotProps={{
-        root: { sx: { zIndex: 1600 } },
-        backdrop: { sx: { zIndex: 1600 } },
-        paper: { sx: { zIndex: 1601 } },
-      }}
+      onCancel={onClose}
+      title={<span style={{ fontFamily: 'Cantata One' }}>Add Session Voucher</span>}
+      width={400}
+      zIndex={1601}
+      footer={
+        <Space>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            type="primary"
+            onClick={async () => {
+              await save()
+              setToken('')
+              setEffectiveDate('')
+              onClose()
+            }}
+            disabled={!token || !effectiveDate}
+          >
+            Save
+          </Button>
+        </Space>
+      }
     >
-      <DialogTitle sx={{ fontFamily: 'Cantata One' }}>
-        Add Session Voucher
-      </DialogTitle>
-      <DialogContent>
-        <TextField
-          label="Token"
+      <div style={{ marginTop: 16 }}>
+        <label style={{ display: 'block', marginBottom: 8, color: 'rgba(0, 0, 0, 0.45)' }}>
+          Token
+        </label>
+        <Input
           type="number"
           value={token}
-          onChange={(e) => setToken(e.target.value)}
-          fullWidth
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setToken(e.target.value)}
           autoFocus
-          sx={{ mt: 1 }}
         />
-        <TextField
-          label="Effective Date"
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <label style={{ display: 'block', marginBottom: 8, color: 'rgba(0, 0, 0, 0.45)' }}>
+          Effective Date
+        </label>
+        <Input
           type="date"
           value={effectiveDate}
-          onChange={(e) => setEffectiveDate(e.target.value)}
-          fullWidth
-          InputLabelProps={{ shrink: true }}
-          sx={{ mt: 2 }}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEffectiveDate(e.target.value)}
         />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={async () => {
-            await save()
-            setToken('')
-            setEffectiveDate('')
-            onClose()
-          }}
-          disabled={!token || !effectiveDate}
-        >
-          Save
-        </Button>
-      </DialogActions>
-    </Dialog>
+      </div>
+    </Modal>
   )
 }

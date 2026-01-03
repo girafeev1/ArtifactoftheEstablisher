@@ -152,7 +152,8 @@ export interface BankTransaction {
   // Audit fields
   subsidiaryId: string
   memo?: string
-  supportingDocument?: string // File path/URL to uploaded proof
+  supportingDocument?: string // File path/URL to uploaded proof (legacy)
+  receiptIds?: string[]       // Array of linked receipt IDs
   createdAt: Timestamp
   createdBy: string
   updatedAt?: Timestamp
@@ -315,3 +316,97 @@ export const BANK_ACCOUNT_TO_GL: Record<string, string> = {
   'ERL-FBO-C': '1004',
   'ERL-AWX-S': '1005', // Airwallex
 }
+
+// ============================================================================
+// Document Types (Supporting Documents - Receipts, Invoices, Contracts, etc.)
+// ============================================================================
+
+/**
+ * Document type classification
+ * - receipt: Uploaded receipt/proof of payment
+ * - invoice_pdf: Generated invoice PDF
+ * - contract: Contract or agreement
+ * - quote: Quote or estimate
+ * - other: Other supporting document
+ */
+export type DocumentType = 'receipt' | 'invoice_pdf' | 'contract' | 'quote' | 'other'
+
+export type DocumentStatus = 'inbox' | 'matched' | 'orphaned'
+
+export type DocumentSource = 'telegram' | 'web' | 'system'
+
+export interface Document {
+  id?: string
+
+  // Document type
+  type: DocumentType            // Classification of the document
+
+  // File information
+  storagePath: string           // Firebase Storage path: documents/{subsidiaryId}/{year}/{month}/{filename}
+  originalFilename: string      // Original filename from upload
+  mimeType: string              // image/jpeg, image/png, image/heic, application/pdf
+  fileSize: number              // Bytes
+  thumbnailPath?: string        // Optional thumbnail for images
+
+  // Linking information
+  status: DocumentStatus
+  transactionId?: string        // Linked transaction ID (when matched)
+  invoiceNumber?: string        // Linked invoice number (for invoice PDFs)
+  referenceNumber?: string      // User-provided reference for auto-matching
+
+  // Source tracking
+  source: DocumentSource
+  telegramUserId?: number       // For Telegram uploads
+  telegramFileId?: string       // Telegram file_id for re-download if needed
+
+  // Organizational
+  subsidiaryId: string
+  uploadedAt: Timestamp
+  uploadedBy: string            // User email or 'tg:{telegramUserId}'
+  matchedAt?: Timestamp
+  matchedBy?: string
+
+  // Metadata
+  memo?: string                 // User notes about the document
+}
+
+export interface DocumentInput {
+  type?: DocumentType           // Defaults to 'receipt' if not specified
+  storagePath: string
+  originalFilename: string
+  mimeType: string
+  fileSize: number
+  thumbnailPath?: string
+  invoiceNumber?: string
+  referenceNumber?: string
+  source: DocumentSource
+  telegramUserId?: number
+  telegramFileId?: string
+  subsidiaryId: string
+  uploadedBy: string
+  memo?: string
+}
+
+// Backward compatibility aliases
+export type ReceiptStatus = DocumentStatus
+export type ReceiptSource = DocumentSource
+export type Receipt = Document
+export type ReceiptInput = DocumentInput
+
+// Allowed MIME types for document uploads
+export const DOCUMENT_ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'application/pdf',
+] as const
+
+export type DocumentMimeType = typeof DOCUMENT_ALLOWED_MIME_TYPES[number]
+
+// Backward compatibility alias
+export const RECEIPT_ALLOWED_MIME_TYPES = DOCUMENT_ALLOWED_MIME_TYPES
+export type ReceiptMimeType = DocumentMimeType
+
+// Document collection constants
+export const DOCUMENTS_SUBCOLLECTION = 'documents'
+export const RECEIPTS_SUBCOLLECTION = 'receipts' // Backward compatibility (points to same collection)

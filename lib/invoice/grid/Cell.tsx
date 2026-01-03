@@ -60,6 +60,15 @@ export interface FlexCellProps extends CellProps {
   vAlign?: 'top' | 'middle' | 'bottom';
   /** Horizontal alignment */
   hAlign?: 'left' | 'center' | 'right';
+  /**
+   * Allow content to overflow cell bounds (default: false)
+   * When true:
+   * - Sets overflow: visible
+   * - Sets alignItems based on hAlign to prevent stretching
+   * - Content overflows in the opposite direction of alignment
+   *   (right-aligned text overflows left, left-aligned overflows right)
+   */
+  allowOverflow?: boolean;
 }
 
 export const FlexCell: React.FC<FlexCellProps> = ({
@@ -68,6 +77,7 @@ export const FlexCell: React.FC<FlexCellProps> = ({
   height,
   vAlign = 'top',
   hAlign = 'left',
+  allowOverflow = false,
   style,
   className,
   children,
@@ -84,6 +94,12 @@ export const FlexCell: React.FC<FlexCellProps> = ({
 
   const textAlign = hAlign;
 
+  // For overflow cells, align items based on hAlign to prevent stretching
+  // This allows content to overflow in the correct direction
+  const alignItems = allowOverflow
+    ? (hAlign === 'right' ? 'flex-end' : hAlign === 'left' ? 'flex-start' : 'center')
+    : undefined;
+
   // Add padding for top/bottom aligned cells to give breathing room
   const verticalPadding = vAlign === 'top' ? { paddingTop: '2px' }
     : vAlign === 'bottom' ? { paddingBottom: '2px' }
@@ -98,11 +114,12 @@ export const FlexCell: React.FC<FlexCellProps> = ({
         gridRow: rowSpan > 1 ? `span ${rowSpan}` : undefined,
         height: height ? `${height}px` : undefined,
         minHeight: 0,
-        overflow: 'hidden',
+        overflow: allowOverflow ? 'visible' : 'hidden',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
         justifyContent,
+        alignItems,
         textAlign,
         ...verticalPadding,
         // Debug border

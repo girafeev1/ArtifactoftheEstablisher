@@ -8,23 +8,10 @@ const formatCurrency = (n: number) =>
     currency: 'HKD',
     currencyDisplay: 'code',
   }).format(n)
-import {
-  Box,
-  Typography,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  CircularProgress,
-  FormGroup,
-  FormControlLabel,
-  Checkbox,
-  Select,
-  MenuItem,
-  Button,
-  TableSortLabel,
-} from '@mui/material'
+import { Typography, Table, Spin, Checkbox, Select, Button } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+
+const { Text, Title } = Typography
 
 import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
@@ -173,7 +160,7 @@ export default function SessionsTab({
     }
   }, [sortBy, sortDir, sortStorageKey])
   const handleSort = (key: string) => {
-    setSort((prev) =>
+    setSort((prev: { by: string; dir: 'asc' | 'desc' }) =>
       prev.by === key ? { by: key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { by: key, dir: 'asc' },
     )
   }
@@ -599,413 +586,241 @@ export default function SessionsTab({
     }
   }, [abbr, account, onSummary])
 
+  const labelStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 200 }
+  const valueStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 500, margin: 0 }
+
   if (loading) {
-    return <CircularProgress />
+    return <Spin />
   }
   return (
-    <Box
-      sx={{ display: 'flex', flexDirection: 'column', height: '100%', textAlign: 'left' }}
-      style={style}
+    <div
+      style={{ ...style, display: 'flex', flexDirection: 'column', height: '100%', textAlign: 'left' }}
     >
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1, pb: '64px' }}>
+      <div style={{ flexGrow: 1, overflow: 'auto', padding: 8, paddingBottom: 64 }}>
         {!detail && (
           <>
           <Button
-            variant="outlined"
             size="small"
             onClick={() => setFiltersOpen((o) => !o)}
-            sx={{ mb: 1 }}
+            style={{ marginBottom: 8 }}
             aria-label="toggle session filters"
           >
             Filters
           </Button>
           {filtersOpen && (
-            <Box mb={2}>
-              <Typography variant="subtitle2">Columns</Typography>
-              <FormGroup row>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 8 }}>Columns</Text>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {allColumns
                   .filter((c) => c.key !== 'ordinal')
                   .map((c) => (
-                    <FormControlLabel
+                    <Checkbox
                       key={c.key}
-                      control={
-                        <Checkbox
-                          checked={visibleCols.includes(c.key)}
-                          onChange={(e) => {
-                            const checked = e.target.checked
-                            setVisibleCols((cols) =>
-                              checked
-                                ? [...cols, c.key]
-                                : cols.filter((k) => k !== c.key),
-                            )
-                          }}
-                          size="small"
-                        />
-                      }
-                      label={c.label}
-                    />
+                      checked={visibleCols.includes(c.key)}
+                      onChange={(e: { target: { checked: boolean } }) => {
+                        const checked = e.target.checked
+                        setVisibleCols((cols) =>
+                          checked
+                            ? [...cols, c.key]
+                            : cols.filter((k) => k !== c.key),
+                        )
+                      }}
+                    >
+                      {c.label}
+                    </Checkbox>
                   ))}
-              </FormGroup>
-              <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                Period
-              </Typography>
+              </div>
+              <Text strong style={{ display: 'block', marginTop: 8, marginBottom: 8 }}>Period</Text>
               <Select
                 value={period}
                 size="small"
-                onChange={(e) => setPeriod(e.target.value as any)}
-                MenuProps={{ disablePortal: false }}
-              >
-                <MenuItem value="30">Last 30 days</MenuItem>
-                <MenuItem value="90">Last 90 days</MenuItem>
-                <MenuItem value="all">All</MenuItem>
-              </Select>
-            </Box>
+                onChange={(val: '30' | '90' | 'all') => setPeriod(val)}
+                style={{ width: 150 }}
+                options={[
+                  { label: 'Last 30 days', value: '30' },
+                  { label: 'Last 90 days', value: '90' },
+                  { label: 'All', value: 'all' },
+                ]}
+              />
+            </div>
           )}
 
-          <Box sx={{ display: 'flex', gap: 4, mb: 2 }}>
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
+          <div style={{ display: 'flex', gap: 32, marginBottom: 16 }}>
+            <div>
+              <Text type="secondary" style={labelStyle}>
                 Joined Date:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
+              </Text>
+              <Title level={5} style={valueStyle}>
                 {summary.jointDate || '–'}
-              </Typography>
-            </Box>
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-              >
+              </Title>
+            </div>
+            <div>
+              <Text type="secondary" style={labelStyle}>
                 Last Session:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
+              </Text>
+              <Title level={5} style={valueStyle}>
                 {summary.lastSession || '–'}
-              </Typography>
-            </Box>
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-            >
-              Total Sessions:
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              onMouseEnter={() => setHover(true)}
-              onMouseLeave={() => setHover(false)}
-            >
-              {hover
-                ? `✔︎ ${summary.proceeded ?? 0}`
-                : `${summary.totalSessions ?? '–'} (❌ ${summary.cancelled ?? '–'})`}
-            </Typography>
-          </Box>
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
+              </Title>
+            </div>
+            <div>
+              <Text type="secondary" style={labelStyle}>
+                Total Sessions:
+              </Text>
+              <Title
+                level={5}
+                style={valueStyle}
+                onMouseEnter={() => setHover(true)}
+                onMouseLeave={() => setHover(false)}
               >
+                {hover
+                  ? `✔︎ ${summary.proceeded ?? 0}`
+                  : `${summary.totalSessions ?? '–'} (❌ ${summary.cancelled ?? '–'})`}
+              </Title>
+            </div>
+            <div>
+              <Text type="secondary" style={labelStyle}>
                 Voucher Balance:
-              </Typography>
-              <Typography
-                variant="h6"
-                sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-              >
+              </Text>
+              <Title level={5} style={valueStyle}>
                 {voucherBalance ?? '–'}
-              </Typography>
-            </Box>
-          </Box>
+              </Title>
+            </div>
+          </div>
 
-          <Table
-            ref={tableRef}
-            size="small"
-            sx={{
-              tableLayout: 'fixed',
-              width: 'max-content',
-              '& td, & th': {
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+          {(() => {
+            const cellStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 500 }
+            const tableColumns: ColumnsType<any> = [
+              {
+                title: '#',
+                dataIndex: 'ordinal',
+                key: 'ordinal',
+                width: colWidth('ordinal'),
+                fixed: 'left',
+                render: (v) => <span style={cellStyle}>{v}</span>,
               },
-            }}
-          >
-            <TableHead>
-              <TableRow>
-                {allColumns
-                  .filter((c) => c.key === 'ordinal' || visibleCols.includes(c.key))
-                  .map((c) => (
-                    <TableCell
-                      key={c.key}
-                      data-col={c.key}
-                      data-col-header
-                      title={c.label}
-                      aria-sort={
-                        sortBy === c.key
-                          ? sortDir === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : 'none'
-                      }
-                      sx={{
-                        typography: 'body2',
-                        fontFamily: 'Cantata One',
-                        fontWeight: 'bold',
-                        width: colWidth(c.key),
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        position: c.key === 'ordinal' ? 'sticky' : 'relative',
-                        left: c.key === 'ordinal' ? 0 : undefined,
-                        zIndex: c.key === 'ordinal' ? 3 : undefined,
-                        backgroundColor:
-                          c.key === 'ordinal' ? 'background.paper' : undefined,
-                      }}
-                    >
-                      {c.key === 'ordinal' ? (
-                        c.label
-                      ) : (
-                        <TableSortLabel
-                          active={sortBy === c.key}
-                          direction={sortBy === c.key ? sortDir : 'asc'}
-                          onClick={() => handleSort(c.key)}
-                        >
-                          {c.label}
-                        </TableSortLabel>
-                      )}
-                      <Box
-                        className="col-resizer"
-                        aria-label={`Resize column ${c.label}`}
-                        role="separator"
-                        tabIndex={0}
-                        onMouseDown={(e) => startResize(c.key, e)}
-                        onDoubleClick={() =>
-                          dblClickResize(c.key, tableRef.current || undefined)
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === 'ArrowLeft') keyResize(c.key, 'left')
-                          if (e.key === 'ArrowRight') keyResize(c.key, 'right')
-                        }}
-                      />
-                    </TableCell>
-                  ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sessions
-                .filter((s) => {
-                  if (period === 'all') return true
-                  const days = Number(period)
-                  const since = Date.now() - days * 24 * 60 * 60 * 1000
-                  return s.startMs >= since
-                })
-                .sort(sessionsComparator(sortBy, sortDir))
-                .map((s, i) => (
-                  <TableRow
-                    key={i}
-                    hover
-                    onClick={() => {
-                      setDetail(s)
-                      const idx = sessions.findIndex((r) => r.id === s.id)
-                      const num = String(idx + 1).padStart(3, '0')
-                      const titleDate = new Date(s.startMs).toLocaleDateString(
-                        undefined,
-                        { month: 'short', day: '2-digit', year: 'numeric' },
-                      )
-                      const title = `${account} - #${num} | ${titleDate} ${s.time}`
-                      onTitle?.(title)
-                    }}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    <TableCell
-                      data-col="ordinal"
-                      title={String(s.ordinal)}
-                      sx={{
-                        typography: 'body2',
-                        fontFamily: 'Newsreader',
-                        fontWeight: 500,
-                        width: colWidth('ordinal'),
-                        minWidth: colWidth('ordinal'),
-                        position: 'sticky',
-                        left: 0,
-                        zIndex: 2,
-                        backgroundColor: 'background.paper',
-                      }}
-                    >
-                      {s.ordinal}
-                    </TableCell>
-                    {visibleCols.includes('date') && (
-                      <TableCell
-                        data-col="date"
-                        title={s.date}
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('date'),
-                          minWidth: colWidth('date'),
-                        }}
-                      >
-                        {s.date}
-                      </TableCell>
-                    )}
-                    {visibleCols.includes('time') && (
-                      <TableCell
-                        data-col="time"
-                        title={s.time}
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('time'),
-                          minWidth: colWidth('time'),
-                        }}
-                      >
-                        {s.time}
-                      </TableCell>
-                    )}
-                    {visibleCols.includes('duration') && (
-                      <TableCell
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('duration'),
-                          minWidth: colWidth('duration'),
-                        }}
-                      >
-                        {s.duration}
-                      </TableCell>
-                    )}
-                    {visibleCols.includes('sessionType') && (
-                      <TableCell
-                        data-col="sessionType"
-                        title={s.sessionType}
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('sessionType'),
-                          minWidth: colWidth('sessionType'),
-                        }}
-                      >
-                        {s.sessionType}
-                      </TableCell>
-                    )}
-                    {visibleCols.includes('billingType') && (
-                      <TableCell
-                        data-col="billingType"
-                        title={s.billingType}
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('billingType'),
-                          minWidth: colWidth('billingType'),
-                        }}
-                      >
-                        {s.billingType}
-                      </TableCell>
-                    )}
-                    {visibleCols.includes('voucherBalance') && (
-                      <TableCell
-                        data-col="voucherBalance"
-                        title={String(s.voucherBalance ?? '-')}
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('voucherBalance'),
-                          minWidth: colWidth('voucherBalance'),
-                        }}
-                      >
-                        {s.voucherBalance ?? '-'}
-                      </TableCell>
-                    )}
-                    {visibleCols.includes('baseRate') && (
-                      <TableCell
-                        data-col="baseRate"
-                        title={
-                          s.baseRate !== '-' ? formatCurrency(Number(s.baseRate)) : '-'
-                        }
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('baseRate'),
-                          minWidth: colWidth('baseRate'),
-                        }}
-                      >
-                        {s.baseRate !== '-' ? formatCurrency(Number(s.baseRate)) : '-'}
-                      </TableCell>
-                    )}
-                    {visibleCols.includes('rateCharged') && (
-                      <TableCell
-                        data-col="rateCharged"
-                        title={
-                          typeof s.rateCharged === 'string'
-                            ? s.rateCharged
-                            : s.rateCharged !== '-'
-                            ? formatCurrency(Number(s.rateCharged))
-                            : '-'
-                        }
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('rateCharged'),
-                          minWidth: colWidth('rateCharged'),
-                        }}
-                      >
-                        {typeof s.rateCharged === 'string'
-                          ? s.rateCharged
-                          : s.rateCharged !== '-'
-                          ? formatCurrency(Number(s.rateCharged))
-                          : '-'}
-                      </TableCell>
-                    )}
-                    {visibleCols.includes('paymentStatus') && (
-                      <TableCell
-                        data-col="paymentStatus"
-                        title={s.paymentStatus}
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('paymentStatus'),
-                          minWidth: colWidth('paymentStatus'),
-                        }}
-                      >
-                        {s.paymentStatus}
-                      </TableCell>
-                    )}
-                    {visibleCols.includes('payOn') && (
-                      <TableCell
-                        data-col="payOn"
-                        title={s.payOn}
-                        sx={{
-                          typography: 'body2',
-                          fontFamily: 'Newsreader',
-                          fontWeight: 500,
-                          width: colWidth('payOn'),
-                          minWidth: colWidth('payOn'),
-                        }}
-                      >
-                        {s.payOn}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
+              ...(visibleCols.includes('date') ? [{
+                title: 'Date',
+                dataIndex: 'date',
+                key: 'date',
+                width: colWidth('date'),
+                sorter: true,
+                sortOrder: sortBy === 'date' ? (sortDir === 'asc' ? 'ascend' as const : 'descend' as const) : undefined,
+                render: (v: string) => <span style={cellStyle}>{v}</span>,
+              }] : []),
+              ...(visibleCols.includes('time') ? [{
+                title: 'Time',
+                dataIndex: 'time',
+                key: 'time',
+                width: colWidth('time'),
+                sorter: true,
+                sortOrder: sortBy === 'time' ? (sortDir === 'asc' ? 'ascend' as const : 'descend' as const) : undefined,
+                render: (v: string) => <span style={cellStyle}>{v}</span>,
+              }] : []),
+              ...(visibleCols.includes('duration') ? [{
+                title: 'Duration',
+                dataIndex: 'duration',
+                key: 'duration',
+                width: colWidth('duration'),
+                render: (v: string) => <span style={cellStyle}>{v}</span>,
+              }] : []),
+              ...(visibleCols.includes('sessionType') ? [{
+                title: 'Session Type',
+                dataIndex: 'sessionType',
+                key: 'sessionType',
+                width: colWidth('sessionType'),
+                sorter: true,
+                sortOrder: sortBy === 'sessionType' ? (sortDir === 'asc' ? 'ascend' as const : 'descend' as const) : undefined,
+                render: (v: string) => <span style={cellStyle}>{v}</span>,
+              }] : []),
+              ...(visibleCols.includes('billingType') ? [{
+                title: 'Billing Type',
+                dataIndex: 'billingType',
+                key: 'billingType',
+                width: colWidth('billingType'),
+                sorter: true,
+                sortOrder: sortBy === 'billingType' ? (sortDir === 'asc' ? 'ascend' as const : 'descend' as const) : undefined,
+                render: (v: string) => <span style={cellStyle}>{v}</span>,
+              }] : []),
+              ...(visibleCols.includes('voucherBalance') ? [{
+                title: 'Voucher Balance',
+                dataIndex: 'voucherBalance',
+                key: 'voucherBalance',
+                width: colWidth('voucherBalance'),
+                render: (v: number | null) => <span style={cellStyle}>{v ?? '-'}</span>,
+              }] : []),
+              ...(visibleCols.includes('baseRate') ? [{
+                title: 'Base Rate',
+                dataIndex: 'baseRate',
+                key: 'baseRate',
+                width: colWidth('baseRate'),
+                render: (v: string | number) => <span style={cellStyle}>{v !== '-' ? formatCurrency(Number(v)) : '-'}</span>,
+              }] : []),
+              ...(visibleCols.includes('rateCharged') ? [{
+                title: 'Rate Charged',
+                dataIndex: 'rateCharged',
+                key: 'rateCharged',
+                width: colWidth('rateCharged'),
+                sorter: true,
+                sortOrder: sortBy === 'rateCharged' ? (sortDir === 'asc' ? 'ascend' as const : 'descend' as const) : undefined,
+                render: (v: string | number) => <span style={cellStyle}>{typeof v === 'string' ? v : formatCurrency(Number(v))}</span>,
+              }] : []),
+              ...(visibleCols.includes('paymentStatus') ? [{
+                title: 'Payment Status',
+                dataIndex: 'paymentStatus',
+                key: 'paymentStatus',
+                width: colWidth('paymentStatus'),
+                sorter: true,
+                sortOrder: sortBy === 'paymentStatus' ? (sortDir === 'asc' ? 'ascend' as const : 'descend' as const) : undefined,
+                render: (v: string) => <span style={cellStyle}>{v}</span>,
+              }] : []),
+              ...(visibleCols.includes('payOn') ? [{
+                title: 'Pay on',
+                dataIndex: 'payOn',
+                key: 'payOn',
+                width: colWidth('payOn'),
+                sorter: true,
+                sortOrder: sortBy === 'payOn' ? (sortDir === 'asc' ? 'ascend' as const : 'descend' as const) : undefined,
+                render: (v: string) => <span style={cellStyle}>{v}</span>,
+              }] : []),
+            ]
+
+            const filteredSessions = sessions.filter((s) => {
+              if (period === 'all') return true
+              const days = Number(period)
+              const since = Date.now() - days * 24 * 60 * 60 * 1000
+              return s.startMs >= since
+            }).sort(sessionsComparator(sortBy, sortDir))
+
+            return (
+              <Table
+                size="small"
+                columns={tableColumns}
+                dataSource={filteredSessions}
+                rowKey="id"
+                pagination={false}
+                scroll={{ x: 'max-content' }}
+                onRow={(s: any) => ({
+                  onClick: () => {
+                    setDetail(s)
+                    const idx = sessions.findIndex((r) => r.id === s.id)
+                    const num = String(idx + 1).padStart(3, '0')
+                    const titleDate = new Date(s.startMs).toLocaleDateString(
+                      undefined,
+                      { month: 'short', day: '2-digit', year: 'numeric' },
+                    )
+                    const title = `${account} - #${num} | ${titleDate} ${s.time}`
+                    onTitle?.(title)
+                  },
+                  style: { cursor: 'pointer' },
+                })}
+                onChange={(_: any, __: any, sorter: any) => {
+                  if (sorter.field && sorter.order) {
+                    setSort({ by: sorter.field, dir: sorter.order === 'ascend' ? 'asc' : 'desc' })
+                  }
+                }}
+              />
+            )
+          })()}
 
           </>
         )}
@@ -1021,8 +836,8 @@ export default function SessionsTab({
             }}
           />
         )}
-      </Box>
-      <Box className="dialog-footer" sx={{ p: 1, display: 'flex', justifyContent: 'space-between' }} />
-    </Box>
+      </div>
+      <div className="dialog-footer" style={{ padding: 8, display: 'flex', justifyContent: 'space-between' }} />
+    </div>
   )
 }

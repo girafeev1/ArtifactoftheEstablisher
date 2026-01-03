@@ -1,20 +1,13 @@
 import React, { useEffect, useState } from 'react'
-import {
-  Box,
-  Typography,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  IconButton,
-  Tooltip,
-} from '@mui/material'
+import { Typography, Table, Tooltip, Button } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { PATHS, logPath } from '../../lib/paths'
 import { CreateIcon } from './icons'
 import VoucherModal from './VoucherModal'
+
+const { Text } = Typography
 
 const formatDate = (v: any) => {
   try {
@@ -69,57 +62,50 @@ export default function VouchersTab({ abbr, account }: { abbr: string; account: 
     load()
   }, [abbr])
 
+  const columns: ColumnsType<Row> = [
+    {
+      title: 'Token',
+      dataIndex: 'Token',
+      key: 'Token',
+      render: (v) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{v}</span>,
+    },
+    {
+      title: 'Effective Date',
+      dataIndex: 'effectiveDate',
+      key: 'effectiveDate',
+      render: (v) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{formatDate(v)}</span>,
+    },
+    {
+      title: 'Timestamp',
+      dataIndex: 'timestamp',
+      key: 'timestamp',
+      render: (v) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{formatDate(v)}</span>,
+    },
+    {
+      title: 'Edited By',
+      dataIndex: 'EditedBy',
+      key: 'EditedBy',
+      render: (v) => <span style={{ fontFamily: 'Newsreader', fontWeight: 500 }}>{v || '-'}</span>,
+    },
+  ]
+
   return (
-    <Box sx={{ p: 1, textAlign: 'left', height: '100%' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-        <Typography
-          variant="subtitle1"
-          sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-        >
+    <div style={{ padding: 8, textAlign: 'left', height: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+        <Text style={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}>
           Session Vouchers
-        </Typography>
+        </Text>
         <Tooltip title="Create Voucher">
-          <IconButton color="primary" onClick={() => setModalOpen(true)}>
-            <CreateIcon fontSize="small" />
-          </IconButton>
+          <Button type="text" icon={<CreateIcon />} onClick={() => setModalOpen(true)} />
         </Tooltip>
-      </Box>
-      <Table size="small">
-      <TableHead>
-        <TableRow>
-          <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-            Token
-          </TableCell>
-          <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-            Effective Date
-          </TableCell>
-          <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-            Timestamp
-          </TableCell>
-          <TableCell sx={{ fontFamily: 'Cantata One', fontWeight: 'bold' }}>
-            Edited By
-            </TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.id}>
-              <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                {r.Token}
-              </TableCell>
-              <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                {formatDate(r.effectiveDate)}
-              </TableCell>
-              <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                {formatDate(r.timestamp)}
-              </TableCell>
-              <TableCell sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}>
-                {r.EditedBy || '-'}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      </div>
+      <Table
+        size="small"
+        columns={columns}
+        dataSource={rows}
+        rowKey="id"
+        pagination={false}
+      />
       <VoucherModal
         abbr={abbr}
         account={account}
@@ -129,6 +115,6 @@ export default function VouchersTab({ abbr, account }: { abbr: string; account: 
           load()
         }}
       />
-    </Box>
+    </div>
   )
 }

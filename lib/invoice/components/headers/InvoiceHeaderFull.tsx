@@ -10,6 +10,7 @@
 import React from 'react';
 import { Cell, FlexCell } from '../../grid';
 import type { ProjectInvoiceRecord, ProjectRecord, SubsidiaryDoc, Representative } from '../../types';
+import type { RepresentativeInfo } from '../../../representative';
 
 export interface InvoiceHeaderFullProps {
   invoice: ProjectInvoiceRecord;
@@ -44,7 +45,7 @@ function formatInvoiceDate(project?: ProjectRecord | null): string {
 /**
  * Get representative display name
  */
-function getRepresentativeName(rep?: Representative | string | null): { title: string; name: string } {
+function getRepresentativeName(rep?: Representative | RepresentativeInfo | string | null): { title: string; name: string } {
   if (!rep) return { title: '', name: '' };
   if (typeof rep === 'string') return { title: '', name: rep };
   const title = rep.title || '';
@@ -221,13 +222,14 @@ export const InvoiceHeaderFull: React.FC<InvoiceHeaderFullProps> = ({
       </FlexCell>
 
       {/* === ROW 8 (32px): Client Company Name A-D | E-K empty | L-N covered by row 7 === */}
-      {/* merge r1=8, c1=1, r2=8, c2=4 → A-D row 8 */}
-      <FlexCell columns="A-D" height={ROW_HEIGHTS[7]} vAlign="middle" debug={debug}>
+      {/* merge r1=8, c1=1, r2=8, c2=4 → A-D row 8 - allow text overflow */}
+      <FlexCell columns="A-D" height={ROW_HEIGHTS[7]} vAlign="middle" style={{ overflow: 'visible' }} debug={debug}>
         <span style={{
           ...monoStyle,
           fontSize: '13px', // 11 + 2
           fontWeight: 700,
           fontStyle: 'italic',
+          whiteSpace: 'nowrap',
         }}>
           {invoice.companyName || ''}
         </span>

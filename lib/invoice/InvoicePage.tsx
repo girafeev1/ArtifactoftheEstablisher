@@ -8,12 +8,12 @@
 
 import React from 'react';
 import { InvoiceGrid, Spacer } from './grid';
-import { InvoiceHeaderFull, InvoiceHeaderContinuation } from './components/headers';
+import { InvoiceHeaderFull, InvoiceHeaderFullVersionA, InvoiceHeaderContinuation } from './components/headers';
 import { ItemTableHeader, ItemRow } from './components/items';
 import { TotalBox } from './components/totals';
 import { FooterFull, FooterSimple } from './components/footers';
 import { TOTAL_WIDTH } from './grid/gridConstants';
-import type { ProjectInvoiceRecord, ProjectRecord, SubsidiaryDoc, BankInfo, InvoiceItem } from './types';
+import type { ProjectInvoiceRecord, ProjectRecord, SubsidiaryDoc, BankInfo, InvoiceItem, InvoiceVariant } from './types';
 
 export interface InvoicePageProps {
   /** Page number (1-based) */
@@ -51,6 +51,8 @@ export interface InvoicePageProps {
   totalChinese?: string;
   /** QR code URL for payment */
   qrCodeUrl?: string;
+  /** Invoice variant (B, B2, A, A2) - affects footer display */
+  variant?: InvoiceVariant;
   /** Show debug grid column overlay */
   debug?: boolean;
   /** Show debug flexbox/cell borders */
@@ -104,6 +106,7 @@ export const InvoicePage: React.FC<InvoicePageProps> = ({
   totalEnglish,
   totalChinese,
   qrCodeUrl,
+  variant = 'B',
   debug,
   flexDebug,
 }) => {
@@ -150,13 +153,24 @@ export const InvoicePage: React.FC<InvoicePageProps> = ({
           <InvoiceGrid showGrid={debug} style={{ flex: '0 0 auto' }}>
             {/* === Header === */}
             {isFirstPage ? (
-              <InvoiceHeaderFull
-                invoice={invoice}
-                project={project}
-                subsidiary={subsidiary}
-                qrCodeUrl={qrCodeUrl}
-                debug={flexDebug}
-              />
+              // Version A/A2 use different header layout (Invoice title on left, Logo on right)
+              variant === 'A' || variant === 'A2' ? (
+                <InvoiceHeaderFullVersionA
+                  invoice={invoice}
+                  project={project}
+                  subsidiary={subsidiary}
+                  qrCodeUrl={qrCodeUrl}
+                  debug={flexDebug}
+                />
+              ) : (
+                <InvoiceHeaderFull
+                  invoice={invoice}
+                  project={project}
+                  subsidiary={subsidiary}
+                  qrCodeUrl={qrCodeUrl}
+                  debug={flexDebug}
+                />
+              )
             ) : (
               <InvoiceHeaderContinuation
                 invoice={invoice}
@@ -215,8 +229,12 @@ export const InvoicePage: React.FC<InvoicePageProps> = ({
           <div style={{ flex: '1 1 auto', minHeight: '0px' }} />
 
           {/* Footer grid - always at bottom of page */}
+          {/* Footer type depends on variant:
+              - Version B/B2: Last page shows FooterFull (with bank info)
+              - Version A/A2: Last page shows FooterSimple (bank info on separate Payment Details page)
+              - All other pages: FooterSimple */}
           <InvoiceGrid showGrid={debug} style={{ flex: '0 0 auto' }}>
-            {isLastPage ? (
+            {isLastPage && (variant === 'B' || variant === 'B2') ? (
               <FooterFull
                 subsidiary={subsidiary}
                 bankInfo={bankInfo}

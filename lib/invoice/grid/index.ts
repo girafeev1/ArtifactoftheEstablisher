@@ -25,3 +25,23 @@ export {
   getColumnRangeWidth,
   getGridTemplateColumns,
 } from './gridConstants';
+
+export {
+  SchemeCell,
+  SchemeRow,
+  SchemeColors,
+  cellToStyle,
+  cellToTextStyle,
+  renderTextWithRuns,
+  emptyCell,
+  emptyCells,
+} from './SchemeRenderer';
+export type {
+  SchemeBorder,
+  SchemeCellData,
+  SchemeRowData,
+  SchemeMerge,
+} from './SchemeRenderer';
+
+export { SchemePageRenderer } from './SchemePageRenderer';
+export type { SchemePageRendererProps, ValueOverride } from './SchemePageRenderer';

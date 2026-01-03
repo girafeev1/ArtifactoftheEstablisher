@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Box, Typography, Button } from '@mui/material'
+import { Typography, Button } from 'antd'
 import { PATHS, logPath } from '../../lib/paths'
 import RateModal from './RateModal'
 import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore'
@@ -7,6 +7,8 @@ import { getAuth } from 'firebase/auth'
 import { db } from '../../lib/firebase'
 import { useBillingClient, billingKey } from '../../lib/billing/useBilling'
 import { writeSummaryFromCache } from '../../lib/liveRefresh'
+
+const { Text, Title } = Typography
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat(undefined, {
@@ -95,80 +97,51 @@ export default function SessionDetail({
     await createVoucherEntry(false)
   }
 
+  const labelStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 200 }
+  const valueStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 500 }
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 4, pb: '64px' }}>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ flexGrow: 1, overflow: 'auto', padding: 32, paddingBottom: 64 }}>
+        <Text type="secondary" style={labelStyle}>
           iCal ID:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
+        </Text>
+        <Title level={5} style={{ ...valueStyle, marginTop: 0, marginBottom: 16 }}>
           {session.id}
-        </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+        </Title>
+        <Text type="secondary" style={labelStyle}>
           Date:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
+        </Text>
+        <Title level={5} style={{ ...valueStyle, marginTop: 0, marginBottom: 16 }}>
           {formatDate(session.date)}
-        </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+        </Title>
+        <Text type="secondary" style={labelStyle}>
           Time:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
+        </Text>
+        <Title level={5} style={{ ...valueStyle, marginTop: 0, marginBottom: 16 }}>
           {session.time}
-        </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+        </Title>
+        <Text type="secondary" style={labelStyle}>
           Duration:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
+        </Text>
+        <Title level={5} style={{ ...valueStyle, marginTop: 0, marginBottom: 16 }}>
           {session.duration}
-        </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+        </Title>
+        <Text type="secondary" style={labelStyle}>
           Base Rate:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
+        </Text>
+        <Title level={5} style={{ ...valueStyle, marginTop: 0, marginBottom: 16 }}>
           {session.baseRate !== '-' ? formatCurrency(Number(session.baseRate)) : '-'}
-        </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+        </Title>
+        <Text type="secondary" style={labelStyle}>
           Rate Charged:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{
-            fontFamily: 'Newsreader',
-            fontWeight: 500,
+        </Text>
+        <Title
+          level={5}
+          style={{
+            ...valueStyle,
+            marginTop: 0,
+            marginBottom: 16,
             cursor: voucherUsed ? 'default' : 'pointer',
           }}
           onClick={() => {
@@ -178,57 +151,40 @@ export default function SessionDetail({
           {session.rateCharged !== '-' ?
             formatCurrency(Number(session.rateCharged)) :
             '-'}
-        </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+        </Title>
+        <Text type="secondary" style={labelStyle}>
           Session Voucher:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
+        </Text>
+        <Title level={5} style={{ ...valueStyle, marginTop: 0, marginBottom: 16 }}>
           {voucherUsed ? 'Yes' : 'No'}
-        </Typography>
+        </Title>
         {voucherUsed ? (
-          <Button variant="outlined" onClick={unmarkVoucher} sx={{ mt: 1 }}>
+          <Button onClick={unmarkVoucher} style={{ marginTop: 8 }}>
             Remove Session Voucher
           </Button>
         ) : (
           <Button
-            variant="outlined"
             onClick={markVoucher}
             disabled={session.rateSpecified}
-            sx={{ mt: 1 }}
+            style={{ marginTop: 8 }}
           >
             Use Session Voucher
           </Button>
         )}
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
-          Payment Status:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
-          {session.paymentStatus}
-        </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
-          Pay on:
-        </Typography>
-        <Typography
-          variant="h6"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-        >
-          {session.payOn || '-'}
-        </Typography>
+        <div style={{ marginTop: 16 }}>
+          <Text type="secondary" style={labelStyle}>
+            Payment Status:
+          </Text>
+          <Title level={5} style={{ ...valueStyle, marginTop: 0, marginBottom: 16 }}>
+            {session.paymentStatus}
+          </Title>
+          <Text type="secondary" style={labelStyle}>
+            Pay on:
+          </Text>
+          <Title level={5} style={{ ...valueStyle, marginTop: 0, marginBottom: 16 }}>
+            {session.payOn || '-'}
+          </Title>
+        </div>
         <RateModal
           sessionId={session.id}
           abbr={abbr}
@@ -243,16 +199,16 @@ export default function SessionDetail({
             session.rateSpecified = true
           }}
         />
-      </Box>
+      </div>
 
-      <Box
+      <div
         className="dialog-footer"
-        sx={{ p: 1, display: 'flex', justifyContent: 'flex-start' }}
+        style={{ padding: 8, display: 'flex', justifyContent: 'flex-start' }}
       >
-        <Button variant="text" onClick={onBack} aria-label="back to sessions">
+        <Button type="text" onClick={onBack} aria-label="back to sessions">
           ← Back
         </Button>
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }

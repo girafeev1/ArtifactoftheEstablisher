@@ -12,6 +12,7 @@ export type SubsidiaryDoc = {
   region?: string
   email?: string
   phone?: string
+  brNumber?: string  // Business Registration Number
 }
 
 const AOTE_REF_DB_ID = 'aote-ref'

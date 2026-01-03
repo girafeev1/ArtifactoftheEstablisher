@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from "react"
 import { useRouter } from "next/router"
+import { useQueryClient } from "@tanstack/react-query"
 import { navigateWithModifier } from "../../lib/navigation"
 import {
   type BaseRecord,
   type CrudFilters,
   type CrudSorting,
   type DataProvider,
+  type GetListParams,
   type GetListResponse,
   type HttpError,
 } from "@refinedev/core"
@@ -32,6 +34,7 @@ import debounce from "lodash.debounce"
 import type { ProjectRecord, WorkStatus } from "../../lib/projectsDatabase"
 import { WORK_STATUS_COLORS, WORK_STATUS_LABELS, WORK_STATUS_DESCRIPTIONS } from "../../lib/projectsDatabase"
 import AppShell from "../layout/AppShell"
+import { NAVIGATION_RESOURCES, ALLOWED_MENU_KEYS } from "../../lib/navigation/resources"
 import {
   amountText,
   normalizeProject,
@@ -149,8 +152,6 @@ if (typeof window === "undefined") {
 }
 
 const { Title } = Typography
-
-const ALLOWED_MENU_KEYS = ["dashboard", "client-directory", "projects", "finance", "accounting", "coaching-sessions", "tools"] as const
 
 const projectsCache: {
   years: string[]
@@ -301,7 +302,7 @@ const refineDataProvider: DataProvider = {
     filters,
     pagination,
     sorters,
-  }): Promise<GetListResponse<TData>> => {
+  }: GetListParams): Promise<GetListResponse<TData>> => {
     if (resource !== "projects") {
       return { data: [], total: 0 }
     }
@@ -473,8 +474,11 @@ const simpleDescriptorText = (value: string | null | undefined) => {
   return trimmed.length > 0 ? trimmed : "-"
 }
 const paymentTagStyles: Record<string, { backgroundColor: string; color: string }> = {
-  green: { backgroundColor: "#dcfce7", color: "#166534" },
-  red: { backgroundColor: "#fee2e2", color: "#b91c1c" },
+  green: { backgroundColor: "#dcfce7", color: "#166534" },    // All Cleared
+  red: { backgroundColor: "#fee2e2", color: "#b91c1c" },      // Due
+  orange: { backgroundColor: "#ffedd5", color: "#c2410c" },   // Partially Cleared
+  amber: { backgroundColor: "#fef3c7", color: "#92400e" },    // Pending (blinking)
+  gray: { backgroundColor: "#f1f5f9", color: "#64748b" },     // On Hold
   default: { backgroundColor: "#e2e8f0", color: "#1f2937" },
 }
 
@@ -483,6 +487,7 @@ const ProjectsContent = () => {
   const screens = Grid.useBreakpoint()
   const { message } = AntdApp.useApp()
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   const tableHook = useTable({
     resource: "projects",
@@ -504,7 +509,7 @@ const ProjectsContent = () => {
         { field: "search", operator: "contains", value: undefined },
       ],
     },
-    onSearch: (values) => [
+    onSearch: (values: { search?: string }) => [
       {
         field: "search",
         operator: "contains",
@@ -802,6 +807,8 @@ const ProjectsContent = () => {
           handleYearChange(yearValue)
         }
         await (tableQuery as unknown as { refetch?: () => Promise<unknown> })?.refetch?.()
+        // Invalidate React Query cache for cross-component updates
+        queryClient.invalidateQueries({ queryKey: ["projects"] })
       }
     } catch (error) {
       const description = error instanceof Error ? error.message : "Failed to create project"
@@ -816,6 +823,7 @@ const ProjectsContent = () => {
     createYear,
     handleYearChange,
     message,
+    queryClient,
     tableQuery,
   ])
 
@@ -851,7 +859,7 @@ const ProjectsContent = () => {
         render: (_: string | null, record: ProjectRow & { workStatus?: WorkStatus; _invoiceSummary?: { label: string } }) => {
           // Override workStatus to 'completed' if all invoices are cleared
           const paymentLabel = record._invoiceSummary?.label
-          const workStatus: WorkStatus = paymentLabel === 'All Clear' ? 'completed' : (record.workStatus || 'active')
+          const workStatus: WorkStatus = paymentLabel === 'All Cleared' ? 'completed' : (record.workStatus || 'active')
           const barColor = WORK_STATUS_COLORS[workStatus]
 
           return (
@@ -859,7 +867,7 @@ const ProjectsContent = () => {
               {/* Colored bar - clickable to change status */}
               <Tooltip
                 open={statusDropdownOpenId === record.id}
-                onOpenChange={(open) => {
+                onOpenChange={(open: boolean) => {
                   if (!open && statusDropdownOpenId === record.id) {
                     // Mark that dropdown was just closed to prevent navigation
                     statusDropdownJustClosedRef.current = true
@@ -896,6 +904,8 @@ const ProjectsContent = () => {
                               if (!res.ok) throw new Error('Failed to update status')
                               // Refresh by triggering a filter change (forces re-fetch)
                               setFilters((prev: CrudFilters) => [...(prev || [])])
+                              // Invalidate React Query cache for cross-component updates
+                              queryClient.invalidateQueries({ queryKey: ["projects"] })
                               message.success('Status updated')
                             } catch (err) {
                               message.error(err instanceof Error ? err.message : 'Failed to update status')
@@ -967,9 +977,19 @@ const ProjectsContent = () => {
         dataIndex: "_invoiceSummary",
         sorter: false,
         render: (_: unknown, record: ProjectRow & { _invoiceSummary?: { label: string; lastPaidOnDisplay?: string | null } }) => {
-          const label = record._invoiceSummary?.label ?? (record.paid ? "All Clear" : "Due")
+          const label = record._invoiceSummary?.label ?? (record.paid ? "All Cleared" : "On Hold")
           const lastPaid = record._invoiceSummary?.lastPaidOnDisplay ?? null
-          const chipKey = label === 'All Clear' ? 'green' : label === 'Due' ? 'red' : 'default'
+
+          // Map label to color key
+          const chipKey =
+            label === 'All Cleared' ? 'green' :
+            label === 'Due' ? 'red' :
+            label === 'Partially Cleared' ? 'orange' :
+            label === 'Pending' ? 'amber' :
+            label === 'On Hold' ? 'gray' :
+            'default'
+
+          const isPending = label === 'Pending'
           const palette = paymentTagStyles[chipKey] ?? paymentTagStyles.default
           const tag = (
             <Tag
@@ -981,6 +1001,8 @@ const ProjectsContent = () => {
                 border: 'none',
                 padding: '2px 12px',
                 fontSize: 13,
+                fontStyle: isPending ? 'italic' : 'normal',
+                animation: isPending ? 'pending-blink 1.2s ease-in-out infinite' : 'none',
               }}
             >
               {label}
@@ -1025,7 +1047,7 @@ const ProjectsContent = () => {
               aria-label="Delete project"
               icon={<DeleteOutlined style={{ color: deleteDisabled ? '#9ca3af' : '#dc2626' }} />}
               disabled={deleteDisabled}
-              onClick={(event) => {
+              onClick={(event: React.MouseEvent) => {
                 event.stopPropagation()
                 Modal.confirm({
                   title: 'Delete this project?',
@@ -1040,6 +1062,8 @@ const ProjectsContent = () => {
                       if (!res.ok) throw new Error('Delete failed')
                       message.success('Project deleted')
                       await (tableQuery as unknown as { refetch?: () => Promise<unknown> })?.refetch?.()
+                      // Invalidate React Query cache for cross-component updates
+                      queryClient.invalidateQueries({ queryKey: ["projects"] })
                     } catch (e) {
                       message.error(e instanceof Error ? e.message : 'Delete failed')
                     }
@@ -1054,7 +1078,7 @@ const ProjectsContent = () => {
                 type="text"
                 icon={<EyeOutlined />}
                 aria-label="View project details"
-                onClick={(event) => {
+                onClick={(event: React.MouseEvent) => {
                   event.stopPropagation()
                   navigateToDetails(record, event)
                 }}
@@ -1149,7 +1173,7 @@ const ProjectsContent = () => {
               allowClear
               placeholder="All years"
               options={yearOptions}
-              onChange={(value) => handleYearChange(value ?? undefined)}
+              onChange={(value: string | undefined) => handleYearChange(value ?? undefined)}
               style={{ minWidth: 160 }}
             />
           </Form.Item>
@@ -1162,7 +1186,7 @@ const ProjectsContent = () => {
               allowClear
               placeholder="All subsidiaries"
               options={subsidiaryOptions}
-              onChange={(value) => handleSubsidiaryChange(value ?? undefined)}
+              onChange={(value: string | undefined) => handleSubsidiaryChange(value ?? undefined)}
               style={{ minWidth: 200 }}
             />
           </Form.Item>
@@ -1195,8 +1219,8 @@ const ProjectsContent = () => {
             rowKey="id"
             columns={columns}
             pagination={false}
-            onRow={(record) => ({
-              onClick: (event) => navigateToDetails(record, event),
+            onRow={(record: ProjectRow) => ({
+              onClick: (event: React.MouseEvent) => navigateToDetails(record, event),
               style: { cursor: "pointer" },
             })}
           />
@@ -1225,6 +1249,11 @@ const ProjectsContent = () => {
           @keyframes soft-blink {
             0% { opacity: 1; }
             50% { opacity: 0.45; }
+            100% { opacity: 1; }
+          }
+          @keyframes pending-blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
             100% { opacity: 1; }
           }
           .spinner {
@@ -1269,12 +1298,12 @@ const ProjectsContent = () => {
                   size="large"
                   style={{ fontWeight: 700, fontSize: 20, padding: 0 }}
                   defaultValue={createForm.getFieldValue("projectNumber")}
-                  onBlur={(e) => {
+                  onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
                     const v = (e.target.value ?? "").trim()
                     createForm.setFieldsValue({ projectNumber: v })
                     setEditingProjectNumber(false)
                   }}
-                  onKeyDown={(e) => {
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                     if (e.key === "Enter" || e.key === "Escape") {
                       const target = e.target as HTMLInputElement
                       const v = (target.value ?? "").trim()
@@ -1336,7 +1365,7 @@ const ProjectsContent = () => {
             </Form.Item>
             {/* Pickup date (projectDate) */}
             <Form.Item label="Project Pickup Date" name="projectDate">
-              <DatePicker style={{ width: '100%' }} onChange={(v) => {
+              <DatePicker style={{ width: '100%' }} onChange={(v: unknown) => {
                 try {
                   console.log('[CreateProject] date change', v && (v as any).format ? (v as any).format('YYYY-MM-DD') : v)
                 } catch {}
@@ -1357,39 +1386,7 @@ const ProjectsContent = () => {
 const ProjectsApp = () => (
   <AppShell
     dataProvider={refineDataProvider}
-    resources={[
-      { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
-      {
-        name: "client-directory",
-        list: "/client-accounts",
-        meta: { label: "Client Accounts" },
-      },
-      {
-        name: "projects",
-        list: "/projects",
-        meta: { label: "Projects" },
-      },
-      {
-        name: "finance",
-        list: "/finance",
-        meta: { label: "Finance" },
-      },
-      {
-        name: "accounting",
-        list: "/accounting",
-        meta: { label: "Accounting" },
-      },
-      {
-        name: "coaching-sessions",
-        list: "/coaching-sessions",
-        meta: { label: "Coaching Sessions" },
-      },
-      {
-        name: "tools",
-        list: "/tools",
-        meta: { label: "Tools" },
-      },
-    ]}
+    resources={NAVIGATION_RESOURCES}
     allowedMenuKeys={ALLOWED_MENU_KEYS}
   >
     <ProjectsContent />

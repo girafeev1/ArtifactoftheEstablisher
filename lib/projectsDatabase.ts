@@ -99,7 +99,7 @@ export interface ProjectRecord {
   onDateDisplay: string | null
   onDateIso: string | null
   paid: boolean | null
-  paidTo: string | null
+  payTo: string | null  // Bank account for payment instructions (aggregated from invoices)
   paymentStatus: string | null
   presenterWorkType: string | null
   projectDateDisplay: string | null
@@ -312,7 +312,7 @@ const buildProjectRecord = (
     onDateDisplay,
     onDateIso,
     paid: toBooleanValue(data.paid),
-    paidTo: toStringValue(data.paidTo),
+    payTo: toStringValue(data.payTo ?? data.paidTo),  // Falls back to legacy paidTo
     paymentStatus,
     presenterWorkType: toStringValue(data.presenterWorkType),
     projectDateDisplay,
@@ -432,7 +432,7 @@ export const fetchProjectsFromDatabase = async (
         snapshot = null as any
       }
       if (snapshot && !snapshot.empty) {
-        snapshot.forEach((doc) => {
+        snapshot.forEach((doc: { id: string; data: () => Record<string, unknown> }) => {
           const data = doc.data() as Record<string, unknown>
           // Skip deleted records unless includeDeleted is true
           if (!includeDeleted && data.recordStatus === 'deleted') {
@@ -551,7 +551,7 @@ const sanitizeUpdates = (updates: Partial<ProjectRecord>) => {
     'invoice',
     'onDate',
     'paid',
-    'paidTo',
+    'payTo',
     'clientCompany',
   ])
   Object.entries(updates).forEach(([key, value]) => {

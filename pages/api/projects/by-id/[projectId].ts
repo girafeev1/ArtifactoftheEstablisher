@@ -107,7 +107,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let aggregatedPaid: boolean | null = null
     let aggregatedPaidOnDisplay: string | null = null
     let aggregatedPaidOnIso: string | null = null
-    let aggregatedPaidTo: string | null = null
+    let aggregatedPayTo: string | null = null
 
     invoices.forEach((invoice) => {
       if (typeof invoice.total === "number" && !Number.isNaN(invoice.total)) {
@@ -126,8 +126,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!aggregatedPaidOnIso && invoice.paidOnIso) {
           aggregatedPaidOnIso = invoice.paidOnIso
         }
-        if (!aggregatedPaidTo && invoice.paidTo) {
-          aggregatedPaidTo = invoice.paidTo
+        if (!aggregatedPayTo && invoice.payTo) {
+          aggregatedPayTo = invoice.payTo
         }
       } else if (invoice.paid === false && aggregatedPaid === null) {
         aggregatedPaid = false
@@ -137,8 +137,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!aggregatedPaidOnIso && invoice.paidOnIso) {
           aggregatedPaidOnIso = invoice.paidOnIso
         }
-        if (!aggregatedPaidTo && invoice.paidTo) {
-          aggregatedPaidTo = invoice.paidTo
+        if (!aggregatedPayTo && invoice.payTo) {
+          aggregatedPayTo = invoice.payTo
         }
       } else {
         if (!aggregatedPaidOnDisplay && invoice.paidOnDisplay) {
@@ -147,8 +147,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!aggregatedPaidOnIso && invoice.paidOnIso) {
           aggregatedPaidOnIso = invoice.paidOnIso
         }
-        if (!aggregatedPaidTo && invoice.paidTo) {
-          aggregatedPaidTo = invoice.paidTo
+        if (!aggregatedPayTo && invoice.payTo) {
+          aggregatedPayTo = invoice.payTo
         }
       }
     })
@@ -162,7 +162,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       paid: aggregatedPaid ?? project.paid,
       onDateDisplay: aggregatedPaidOnDisplay ?? project.onDateDisplay,
       onDateIso: aggregatedPaidOnIso ?? project.onDateIso,
-      paidTo: aggregatedPaidTo ?? project.paidTo,
+      payTo: aggregatedPayTo ?? project.payTo,
     }
 
     console.info("[api/projects/:id] Project resolved", {

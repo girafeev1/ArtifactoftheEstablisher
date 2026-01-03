@@ -72,7 +72,7 @@ export const applyRichTextFormatting = (
             userEnteredValue: {
               stringValue: String(cell.value)
             },
-            textFormatRuns: textFormatRuns.map(run => ({
+            textFormatRuns: textFormatRuns.map((run: { start: number; format?: { fontFamily?: string; fontSize?: number; bold?: boolean; italic?: boolean; foregroundColor?: string } }) => ({
               startIndex: run.start,
               format: {
                 fontFamily: run.format?.fontFamily || 'Arial',
@@ -125,8 +125,8 @@ export const applyCellFormatting = (
 
 export const applyBorders = (sheetId: number, borders: any[], offset = 0) => {
   const requests: any[] = [];
-  borders.forEach((row, rowIndex) => {
-    row.forEach((cell, colIndex) => {
+  borders.forEach((row: any[], rowIndex: number) => {
+    row.forEach((cell: { top?: { style: string; color: string }; bottom?: { style: string; color: string }; left?: { style: string; color: string }; right?: { style: string; color: string } }, colIndex: number) => {
       if (cell && (cell.top || cell.bottom || cell.left || cell.right)) {
         requests.push({
           updateBorders: {

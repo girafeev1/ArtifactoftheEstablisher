@@ -46,6 +46,7 @@ import { FileTextOutlined } from '@ant-design/icons'
 import { getPaginationSummary, type InvoiceItem as PaginationItem } from '../../lib/invoiceTemplates/contentHeightCalculator'
 
 import AppShell from "../layout/AppShell"
+import { NAVIGATION_RESOURCES, ALLOWED_MENU_KEYS } from "../../lib/navigation/resources"
 import {
   amountText,
   mergeLineWithRegion,
@@ -69,19 +70,9 @@ const paymentPalette = {
   green: { backgroundColor: "#dcfce7", color: "#166534" },
   red: { backgroundColor: "#fee2e2", color: "#b91c1c" },
   orange: { backgroundColor: "#ffedd5", color: "#c2410c" },  // For Partial status
+  blue: { backgroundColor: "#dbeafe", color: "#1e40af" },    // For Due status
   default: { backgroundColor: "#e2e8f0", color: "#1f2937" },
 } as const
-
-// Cleared is NOT manually selectable - only set via transaction matching
-const INVOICE_STATUS_OPTIONS = [
-  { label: "Draft", value: "Draft" },
-  { label: "Due", value: "Due" },
-] as const
-
-const ANT_INVOICE_STATUS_OPTIONS = INVOICE_STATUS_OPTIONS.map((option) => ({
-  label: option.label,
-  value: option.value,
-}))
 
 const IS_DEV_ENV = process.env.NODE_ENV === "development"
 
@@ -148,7 +139,7 @@ type InvoiceDraftState = {
   items: InvoiceDraftItem[]
   taxOrDiscountPercent: number
   paymentStatus: string | null
-  paidTo?: string | null
+  payTo?: string | null
   paidOnIso?: string | null
 }
 
@@ -366,7 +357,7 @@ const buildDraftFromInvoice = (
   paymentStatus:
     invoice.paymentStatus ??
     (invoice.paid === true ? "Cleared" : invoice.paid === false ? "Due" : "Draft"),
-  paidTo: invoice.paidTo ?? null,
+  payTo: invoice.payTo ?? null,
   paidOnIso: invoice.paidOnIso ?? null,
 })
 
@@ -389,7 +380,7 @@ const buildDraftForNewInvoice = (
     items: [],
     taxOrDiscountPercent: 0,
     paymentStatus: "Draft",
-    paidTo: null,
+    payTo: null,
     paidOnIso: null,
   }
 }
@@ -618,18 +609,18 @@ const ProjectsShowContent = () => {
 
 
 
-  // Resolve bank identifiers (paidTo) into bank name/account type for display
+  // Resolve bank identifiers (payTo) into bank name/account type for display
   useEffect(() => {
     const controller = new AbortController()
     const run = async () => {
       const ids = new Set<string>()
       invoices.forEach((inv) => {
-        if (typeof inv.paidTo === "string" && inv.paidTo.trim().length > 0) {
-          ids.add(inv.paidTo.trim())
+        if (typeof inv.payTo === "string" && inv.payTo.trim().length > 0) {
+          ids.add(inv.payTo.trim())
         }
       })
-      if (draftInvoice?.paidTo && draftInvoice.paidTo.trim().length > 0) {
-        ids.add(draftInvoice.paidTo.trim())
+      if (draftInvoice?.payTo && draftInvoice.payTo.trim().length > 0) {
+        ids.add(draftInvoice.payTo.trim())
       }
       const missing = Array.from(ids).filter((id) => !bankInfoMap[id])
       if (missing.length === 0) return
@@ -651,7 +642,7 @@ const ProjectsShowContent = () => {
     }
     void run()
     return () => controller.abort()
-  }, [invoices, draftInvoice?.paidTo])
+  }, [invoices, draftInvoice?.payTo])
 
   // Load banks when editing invoice
   useEffect(() => {
@@ -663,10 +654,10 @@ const ProjectsShowContent = () => {
           const banks = await listBanks()
           if (!cancelled) setBankList(banks)
         }
-        // if we have a paidTo identifier but no selected bank, try to infer from account lookup
-        if (draftInvoice?.paidTo && !selectedBankCode) {
+        // if we have a payTo identifier but no selected bank, try to infer from account lookup
+        if (draftInvoice?.payTo && !selectedBankCode) {
           try {
-            const info = await lookupAccount(draftInvoice.paidTo)
+            const info = await lookupAccount(draftInvoice.payTo)
             if (!cancelled && info?.bankCode) {
               setSelectedBankCode(String(info.bankCode).padStart(3, '0'))
               // fetch accounts for that bank
@@ -685,7 +676,7 @@ const ProjectsShowContent = () => {
     return () => {
       cancelled = true
     }
-  }, [invoiceMode, draftInvoice?.paidTo, bankList, selectedBankCode])
+  }, [invoiceMode, draftInvoice?.payTo, bankList, selectedBankCode])
 
   useEffect(() => {
     if (!project || projectEditMode !== "view") {
@@ -1042,8 +1033,8 @@ const ProjectsShowContent = () => {
           ? totalPaidOnText !== "-" ? totalPaidOnText : null
           : paidOnFormatted !== "-" ? paidOnFormatted : null
 
-      const paidToIdentifier = invoice.paidTo && invoice.paidTo.trim().length > 0 ? invoice.paidTo.trim() : null
-      const payToInfo = paidToIdentifier ? bankInfoMap[paidToIdentifier] ?? null : null
+      const payToIdentifier = invoice.payTo && invoice.payTo.trim().length > 0 ? invoice.payTo.trim() : null
+      const payToInfo = payToIdentifier ? bankInfoMap[payToIdentifier] ?? null : null
       const displayBankName = payToInfo?.bankName
         ? (() => {
             // Build acronym for long names (>=4 tokens), ignoring lower-case words.
@@ -1067,7 +1058,7 @@ const ProjectsShowContent = () => {
         statusLabel: derivedStatus ?? paymentChipLabel(paidFromStatus),
         statusColor,
         paidOnText,
-        payToText: paidToIdentifier,
+        payToText: payToIdentifier,
         payToInfo,
         collectionId: invoice.collectionId,
         displayBankName,
@@ -1098,8 +1089,8 @@ const ProjectsShowContent = () => {
 
     if (invoiceMode === "create" && draftInvoice) {
       const pendingIdentifier =
-        draftInvoice.paidTo && draftInvoice.paidTo.trim().length > 0
-          ? draftInvoice.paidTo.trim()
+        draftInvoice.payTo && draftInvoice.payTo.trim().length > 0
+          ? draftInvoice.payTo.trim()
           : null
       const pendingInfo = pendingIdentifier ? bankInfoMap[pendingIdentifier] ?? null : null
       const pendingDisplayBankName = pendingInfo?.bankName
@@ -1126,7 +1117,7 @@ const ProjectsShowContent = () => {
         payToText: pendingIdentifier ?? draftInvoice.client?.companyName ?? null,
         payToInfo: pendingInfo,
         displayBankName: pendingDisplayBankName,
-        collectionId: draftInvoice.collectionId,
+        collectionId: draftInvoice.collectionId ?? '',
         index: invoices.length,
         linkedTransactions: undefined,
       })
@@ -1218,7 +1209,7 @@ const ProjectsShowContent = () => {
       items: (activeInvoice.items || []).map((it) => ({ title: it.title, subQuantity: it.subQuantity, feeType: it.feeType, notes: it.notes, unitPrice: it.unitPrice, quantity: it.quantity, quantityUnit: it.quantityUnit, discount: it.discount })),
       amount: activeInvoice.amount,
       paymentStatus: activeInvoice.paymentStatus,
-      paidTo: activeInvoice.paidTo,
+      payTo: activeInvoice.payTo,
     }
   }, [activeInvoice])
   const currentHash = useMemo(() => {
@@ -1750,15 +1741,6 @@ const ProjectsShowContent = () => {
     [finalizeInvoiceNumberEdit],
   )
 
-  const handleInvoiceStatusChange = useCallback((value: string) => {
-    setDraftInvoice((previous) => {
-      if (!previous) {
-        return previous
-      }
-      return { ...previous, paymentStatus: value }
-    })
-  }, [])
-
   const handleCancelInvoice = useCallback(() => {
     if (!hasInvoices) {
       if (project) {
@@ -1790,7 +1772,7 @@ const ProjectsShowContent = () => {
       let aggregatedPaid: boolean | null = null
       let aggregatedPaidOnDisplay: string | null = null
       let aggregatedPaidOnIso: string | null = null
-      let aggregatedPaidTo: string | null = null
+      let aggregatedPayTo: string | null = null
       nextInvoices.forEach((entry) => {
         if (typeof entry.total === "number" && !Number.isNaN(entry.total)) {
           aggregated += entry.total
@@ -1807,8 +1789,8 @@ const ProjectsShowContent = () => {
           if (!aggregatedPaidOnIso && entry.paidOnIso) {
             aggregatedPaidOnIso = entry.paidOnIso
           }
-          if (!aggregatedPaidTo && entry.paidTo) {
-            aggregatedPaidTo = entry.paidTo
+          if (!aggregatedPayTo && entry.payTo) {
+            aggregatedPayTo = entry.payTo
           }
         } else if (entry.paid === false && aggregatedPaid === null) {
           aggregatedPaid = false
@@ -1818,8 +1800,8 @@ const ProjectsShowContent = () => {
           if (!aggregatedPaidOnIso && entry.paidOnIso) {
             aggregatedPaidOnIso = entry.paidOnIso
           }
-          if (!aggregatedPaidTo && entry.paidTo) {
-            aggregatedPaidTo = entry.paidTo
+          if (!aggregatedPayTo && entry.payTo) {
+            aggregatedPayTo = entry.payTo
           }
         } else {
           if (!aggregatedPaidOnDisplay && entry.paidOnDisplay) {
@@ -1828,8 +1810,8 @@ const ProjectsShowContent = () => {
           if (!aggregatedPaidOnIso && entry.paidOnIso) {
             aggregatedPaidOnIso = entry.paidOnIso
           }
-          if (!aggregatedPaidTo && entry.paidTo) {
-            aggregatedPaidTo = entry.paidTo
+          if (!aggregatedPayTo && entry.payTo) {
+            aggregatedPayTo = entry.payTo
           }
         }
       })
@@ -1841,17 +1823,17 @@ const ProjectsShowContent = () => {
         amount: hasAmount ? aggregated : previous.amount,
         clientCompany: primary?.companyName ?? previous.clientCompany,
         paid: aggregatedPaid ?? previous.paid,
-        paidTo: aggregatedPaidTo ?? previous.paidTo,
+        payTo: aggregatedPayTo ?? previous.payTo,
         onDateIso: resolvedOnIso,
         onDateDisplay: resolvedOnDisplay,
       }
     })
   }, [])
 
-  const handlePaidToChange = useCallback((value: string) => {
+  const handlePayToChange = useCallback((value: string) => {
     setDraftInvoice((previous) => {
       if (!previous) return previous
-      return { ...previous, paidTo: value }
+      return { ...previous, payTo: value }
     })
   }, [])
 
@@ -1913,7 +1895,7 @@ const ProjectsShowContent = () => {
     if (!project || !draftInvoice) {
       return
     }
-    const normalizedPaidTo = draftInvoice.paidTo ? draftInvoice.paidTo.trim() : ""
+    const normalizedPayTo = draftInvoice.payTo ? draftInvoice.payTo.trim() : ""
     const normalizedInvoiceNumber = (draftInvoice.invoiceNumber ?? '').replace(/^#/, '').trim()
     try {
       setSavingInvoice(true)
@@ -1927,7 +1909,7 @@ const ProjectsShowContent = () => {
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: statusToSave,
-              paidTo: normalizedPaidTo.length > 0 ? normalizedPaidTo : null,
+              payTo: normalizedPayTo.length > 0 ? normalizedPayTo : null,
               paidOn: draftInvoice.paidOnIso ?? null,
               onDate: draftInvoice.paidOnIso ?? null,
             }
@@ -1939,10 +1921,18 @@ const ProjectsShowContent = () => {
               items: draftInvoice.items,
               taxOrDiscountPercent: draftInvoice.taxOrDiscountPercent,
               paymentStatus: statusToSave,
-              paidTo: normalizedPaidTo.length > 0 ? normalizedPaidTo : null,
+              payTo: normalizedPayTo.length > 0 ? normalizedPayTo : null,
               paidOn: draftInvoice.paidOnIso ?? null,
               onDate: draftInvoice.paidOnIso ?? null,
             }
+
+      // Debug: log payload being sent
+      console.log('[invoice-save] Sending payload:', {
+        method,
+        endpoint,
+        payTo: (payload as any).payTo,
+        paymentStatus: (payload as any).paymentStatus,
+      })
 
       const response = await fetch(endpoint, {
         method,
@@ -1989,6 +1979,36 @@ const ProjectsShowContent = () => {
     }
   }, [project, draftInvoice, invoiceMode, invoices, activeInvoiceIndex, message, updateProjectFromInvoices])
 
+  // Handler for clicking on Draft status to issue invoice
+  const handleIssueInvoiceClick = useCallback(() => {
+    if (!draftInvoice) return
+
+    const currentStatus = (draftInvoice.paymentStatus ?? '').toLowerCase()
+    if (currentStatus === 'due' || currentStatus === 'cleared') {
+      // Already issued, no action needed
+      return
+    }
+
+    Modal.confirm({
+      title: 'Issue Invoice?',
+      content: (
+        <div style={{ marginTop: 16 }}>
+          <p style={{ marginBottom: 12 }}>
+            This will issue the invoice and post it to the general ledger.
+          </p>
+          <p style={{ color: '#666', fontSize: 13 }}>
+            Once issued, the invoice will be marked as &quot;Due&quot; and a journal entry will be created.
+          </p>
+        </div>
+      ),
+      okText: 'Issue Invoice',
+      cancelText: 'Keep as Draft',
+      onOk: async () => {
+        await performInvoiceSave('Due')
+      },
+    })
+  }, [draftInvoice, performInvoiceSave])
+
   const handleSaveInvoice = useCallback(async () => {
     if (!project || !draftInvoice) {
       return
@@ -2027,7 +2047,7 @@ const ProjectsShowContent = () => {
         const sameMeta = (
           (current.taxOrDiscountPercent ?? 0) === (draftInvoice.taxOrDiscountPercent ?? 0) &&
           (current.paymentStatus ?? null) === (draftInvoice.paymentStatus ?? null) &&
-          (current.paidTo ?? null) === (draftInvoice.paidTo ?? null) &&
+          (current.payTo ?? null) === (draftInvoice.payTo ?? null) &&
           (current.paidOnIso ?? null) === (draftInvoice.paidOnIso ?? null)
         )
 
@@ -2040,14 +2060,31 @@ const ProjectsShowContent = () => {
       }
     } catch {}
 
-    // Check if invoice is already Due or Cleared - don't prompt, just save
+    // Check if invoice is already Due or Cleared - warn about GL impact
     const currentStatus = (draftInvoice.paymentStatus ?? '').toLowerCase()
     if (currentStatus === 'due' || currentStatus === 'cleared') {
-      await performInvoiceSave(draftInvoice.paymentStatus ?? 'Due')
+      Modal.confirm({
+        title: 'Update Issued Invoice?',
+        content: (
+          <div style={{ marginTop: 16 }}>
+            <p style={{ marginBottom: 12, color: '#d46b08' }}>
+              <strong>⚠ Warning:</strong> This invoice has already been issued to the general ledger.
+            </p>
+            <p style={{ marginBottom: 8 }}>
+              Saving changes will update the GL entry with the new invoice details.
+            </p>
+          </div>
+        ),
+        okText: 'Update Invoice',
+        cancelText: 'Cancel',
+        onOk: async () => {
+          await performInvoiceSave(draftInvoice.paymentStatus ?? 'Due')
+        },
+      })
       return
     }
 
-    // For Draft invoices or new invoices, show the prompt
+    // For Draft invoices or new invoices, show the issuance prompt
     Modal.confirm({
       title: 'Save Invoice',
       content: (
@@ -2055,7 +2092,7 @@ const ProjectsShowContent = () => {
           <p style={{ marginBottom: 12 }}>Would you like to issue this invoice now?</p>
           <ul style={{ paddingLeft: 20, color: '#666' }}>
             <li><strong>Save as Draft</strong> - Save changes but keep as draft</li>
-            <li><strong>Save & Issue</strong> - Mark as issued and ready for payment</li>
+            <li><strong>Save & Issue</strong> - Mark as issued and post to general ledger</li>
           </ul>
         </div>
       ),
@@ -2135,7 +2172,7 @@ const ProjectsShowContent = () => {
         key: "title",
         dataIndex: "title",
         title: <span className="items-heading">Item</span>,
-        onCell: (record) => (record.kind === "adder" ? { colSpan: 4 } : {}),
+        onCell: (record: InvoiceTableRow) => (record.kind === "adder" ? { colSpan: 4 } : {}),
         render: (_: unknown, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
             return (
@@ -2173,7 +2210,7 @@ const ProjectsShowContent = () => {
                         value={record.title}
                         placeholder="Item title"
                         variant="borderless"
-                        onChange={(event) => handleItemChange(record.key, "title", event.target.value)}
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleItemChange(record.key, "title", event.target.value)}
                       />
                     </div>
                   </div>
@@ -2183,7 +2220,7 @@ const ProjectsShowContent = () => {
                         value={record.subQuantity ?? ""}
                         placeholder="Sub-Qty"
                         variant="borderless"
-                        onChange={(event) => handleItemChange(record.key, "subQuantity", event.target.value)}
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleItemChange(record.key, "subQuantity", event.target.value)}
                       />
                     </div>
                   </div>
@@ -2194,7 +2231,7 @@ const ProjectsShowContent = () => {
                     autoSize={{ minRows: 1, maxRows: 3 }}
                     className="item-description-edit"
                     style={{ fontStyle: 'italic', fontWeight: 200, fontFamily: 'Karla, sans-serif', color: '#374151' }}
-                    onFocus={(event) => {
+                    onFocus={(event: React.FocusEvent<HTMLTextAreaElement>) => {
                       try {
                         const el = event.target as HTMLTextAreaElement
                         el.style.fontStyle = 'italic'
@@ -2203,7 +2240,7 @@ const ProjectsShowContent = () => {
                         el.style.color = '#374151'
                       } catch {}
                     }}
-                    onChange={(event) => handleItemChange(record.key, "feeType", event.target.value)}
+                    onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => handleItemChange(record.key, "feeType", event.target.value)}
                   />
                   <Input.TextArea
                     value={record.notes ?? ""}
@@ -2212,7 +2249,7 @@ const ProjectsShowContent = () => {
                     autoSize={{ minRows: 1, maxRows: 4 }}
                     className="item-notes-edit"
                     style={{ whiteSpace: "pre-wrap" }}
-                    onChange={(event) => handleItemChange(record.key, "notes", event.target.value)}
+                    onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => handleItemChange(record.key, "notes", event.target.value)}
                   />
                 </div>
                 <Button
@@ -2231,7 +2268,7 @@ const ProjectsShowContent = () => {
         title: <span className="items-heading">Unit Price</span>,
         width: 140,
         align: "right",
-        onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
+        onCell: (record: InvoiceTableRow) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
             return null
@@ -2253,7 +2290,7 @@ const ProjectsShowContent = () => {
                 variant="borderless"
                 className="numeric-input-right"
                 style={{ width: "100%" }}
-                onChange={(next) => handleItemChange(record.key, "unitPrice", next ?? 0)}
+                onChange={(next: number | null) => handleItemChange(record.key, "unitPrice", next ?? 0)}
               />
               <div className="unit-price-unit-edit">
                 <Input
@@ -2262,7 +2299,7 @@ const ProjectsShowContent = () => {
                   variant="borderless"
                   className="unit-price-unit-input"
                   prefix={<span className="unit-prefix">/</span>}
-                  onChange={(event) => handleItemChange(record.key, "quantityUnit", event.target.value)}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleItemChange(record.key, "quantityUnit", event.target.value)}
                 />
               </div>
             </div>
@@ -2275,7 +2312,7 @@ const ProjectsShowContent = () => {
         title: <span className="items-heading">Qty</span>,
         width: 100,
         align: "right",
-        onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
+        onCell: (record: InvoiceTableRow) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (value: number | undefined, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
             return null
@@ -2290,7 +2327,7 @@ const ProjectsShowContent = () => {
               variant="borderless"
               className="numeric-input-right quantity-input"
               style={{ width: "100%" }}
-              onChange={(next) => handleItemChange(record.key, "quantity", next ?? 0)}
+              onChange={(next: number | null) => handleItemChange(record.key, "quantity", next ?? 0)}
             />
           )
         },
@@ -2300,7 +2337,7 @@ const ProjectsShowContent = () => {
         dataIndex: "total",
         title: <span className="items-heading">Total</span>,
         align: "right",
-        onCell: (record) => (record.kind === "adder" ? { colSpan: 0 } : {}),
+        onCell: (record: InvoiceTableRow) => (record.kind === "adder" ? { colSpan: 0 } : {}),
         render: (_: unknown, record: InvoiceTableRow) => {
           if (record.kind === "adder") {
             return null
@@ -2342,7 +2379,7 @@ const ProjectsShowContent = () => {
                 variant="borderless"
                 className="item-discount-input"
                 style={{ width: "100%" }}
-                onChange={(event) =>
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                   handleDiscountInputChange(record.key, event.target.value)
                 }
               />
@@ -2452,7 +2489,7 @@ const ProjectsShowContent = () => {
             {isProjectEditing ? (
               <Input
                 value={projectDraft.projectNumber}
-                onChange={(event) => handleProjectDraftChange("projectNumber", event.target.value)}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleProjectDraftChange("projectNumber", event.target.value)}
                 placeholder="Project number"
                 variant="filled"
                 className="descriptor-input"
@@ -2565,7 +2602,7 @@ const ProjectsShowContent = () => {
               {isProjectEditing ? (
               <Input
                 value={projectDraft.presenterWorkType}
-                onChange={(event) =>
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                   handleProjectDraftChange("presenterWorkType", event.target.value)
                 }
                 placeholder="Project type"
@@ -2580,7 +2617,7 @@ const ProjectsShowContent = () => {
               {isProjectEditing ? (
                 <Input
                   value={projectDraft.projectTitle}
-                  onChange={(event) => handleProjectDraftChange("projectTitle", event.target.value)}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleProjectDraftChange("projectTitle", event.target.value)}
                   placeholder="Project title"
                   variant="filled"
                   className="project-title-input"
@@ -2594,7 +2631,7 @@ const ProjectsShowContent = () => {
                 {isProjectEditing ? (
                   <Input
                     value={projectDraft.projectNature}
-                    onChange={(event) => handleProjectDraftChange("projectNature", event.target.value)}
+                    onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleProjectDraftChange("projectNature", event.target.value)}
                     placeholder="Project nature"
                     variant="filled"
                     className="project-nature-input"
@@ -2612,8 +2649,8 @@ const ProjectsShowContent = () => {
                     value={projectDraft.subsidiary}
                     placeholder="Select Subsidiary"
                     optionFilterProp="children"
-                    onChange={(value) => handleProjectDraftChange("subsidiary", value)}
-                    filterOption={(input, option) =>
+                    onChange={(value: string) => handleProjectDraftChange("subsidiary", value)}
+                    filterOption={(input: string, option: { label?: string } | undefined) =>
                       (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                     }
                     options={(allSubsidiaries ?? [] as SubsidiaryDoc[]).map(s => ({ value: s.identifier, label: s.englishName }))}
@@ -2704,9 +2741,9 @@ const ProjectsShowContent = () => {
                   <div className="company-block editing">
                     <AutoComplete
                       value={editingClient?.companyName ?? ""}
-                      onChange={(value) => handleClientFieldChange("companyName", value)}
+                      onChange={(value: string) => handleClientFieldChange("companyName", value)}
                       options={(clientsDirectory ?? []).map((c) => ({ value: c.companyName }))}
-                      onSelect={(value) => {
+                      onSelect={(value: string) => {
                         const list = clientsDirectory ?? []
                         const match = list.find((c) => c.companyName === value)
                         if (match) {
@@ -2735,14 +2772,14 @@ const ProjectsShowContent = () => {
                       placeholder="Company name"
                       className={`client-input company company-autocomplete ${flashClientFields ? 'flash-fill' : ''}`}
                       style={{ textAlign: 'left', width: '100%' }}
-                      filterOption={(inputValue, option) =>
+                      filterOption={(inputValue: string, option: { value?: unknown } | undefined) =>
                         String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
                       }
                     />
                     <div className="client-input-group">
                       <Input
                         value={editingClient?.addressLine1 ?? ""}
-                        onChange={(event) => handleClientFieldChange("addressLine1", event.target.value)}
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleClientFieldChange("addressLine1", event.target.value)}
                         placeholder="Address line 1"
                         variant="borderless"
                         className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
@@ -2750,7 +2787,7 @@ const ProjectsShowContent = () => {
                       />
                       <Input
                         value={editingClient?.addressLine2 ?? ""}
-                        onChange={(event) => handleClientFieldChange("addressLine2", event.target.value)}
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleClientFieldChange("addressLine2", event.target.value)}
                         placeholder="Address line 2"
                         variant="borderless"
                         className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
@@ -2758,7 +2795,7 @@ const ProjectsShowContent = () => {
                       />
                       <Input
                         value={editingClient?.addressLine3 ?? ""}
-                        onChange={(event) => handleClientFieldChange("addressLine3", event.target.value)}
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleClientFieldChange("addressLine3", event.target.value)}
                         placeholder="Address line 3"
                         variant="borderless"
                         className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
@@ -2766,7 +2803,7 @@ const ProjectsShowContent = () => {
                       />
                       <Input
                         value={editingClient?.region ?? ""}
-                        onChange={(event) => handleClientFieldChange("region", event.target.value)}
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleClientFieldChange("region", event.target.value)}
                         placeholder="Region"
                         variant="borderless"
                         className={`client-input ${flashClientFields ? 'flash-fill' : ''}`}
@@ -2784,7 +2821,7 @@ const ProjectsShowContent = () => {
                         popupMatchSelectWidth={false}
                       />
                       <Input
-                        onChange={(event) => {
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
                           handleClientRepresentativeChange("firstName", event.target.value)
                         }}
                         value={editingClient?.representative?.firstName ?? ''}
@@ -2794,7 +2831,7 @@ const ProjectsShowContent = () => {
                         style={{ textAlign: 'left' }}
                       />
                       <Input
-                        onChange={(event) => {
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
                           handleClientRepresentativeChange("lastName", event.target.value)
                         }}
                         value={editingClient?.representative?.lastName ?? ''}
@@ -2829,7 +2866,14 @@ const ProjectsShowContent = () => {
                         </div>
                         {/* Edit Invoice Details merged into Manage button */}
                         <div className="invoice-table">
-                          {/* ... invoice table content ... */}
+                          {/* Column headers */}
+                          <div className="invoice-row head" role="row">
+                            <div className="invoice-cell number">Invoice #</div>
+                            <div className="invoice-cell amount">Amount</div>
+                            <div className="invoice-cell status">Status</div>
+                            <div className="invoice-cell pay-to">Pay To</div>
+                            <div className="invoice-cell paid-on">Paid On</div>
+                          </div>
                           {invoiceEntries.length > 0 ? (
                             invoiceEntries.map((entry, index) => {
                               const isActive = index === activeEntryIndex
@@ -2895,13 +2939,13 @@ const ProjectsShowContent = () => {
                                     {allowDetailEdit ? (
                                       <Input
                                           value={draftInvoice?.invoiceNumber ?? ""}
-                                          onChange={(event) => handleInvoiceNumberInput(event.target.value)}
+                                          onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleInvoiceNumberInput(event.target.value)}
                                           onBlur={finalizeInvoiceNumberEdit}
                                           onKeyDown={handleInvoiceNumberKeyDown}
                                           autoFocus
                                           bordered={false}
                                           className="invoice-input editing"
-                                          onClick={(event) => event.stopPropagation()}
+                                          onClick={(event: React.MouseEvent) => event.stopPropagation()}
                                         />
                                       ) : (
                                         <span
@@ -2916,7 +2960,7 @@ const ProjectsShowContent = () => {
                                         danger
                                         size="small"
                                         icon={isPending && invoiceMode === 'create' ? <CloseOutlined /> : <DeleteOutlined />}
-                                        onClick={(e) => {
+                                        onClick={(e: React.MouseEvent) => {
                                           e.stopPropagation()
                                           if (isPending && invoiceMode === 'create') {
                                             // Treat delete on pending row as cancel creation
@@ -2941,26 +2985,57 @@ const ProjectsShowContent = () => {
                                         onClick={(event) => event.stopPropagation()}
                                         onKeyDown={(event) => event.stopPropagation()}
                                       >
-                                          {draftInvoice.paymentStatus?.toLowerCase() === 'cleared' ? (
-                                            <Tooltip title={`Paid via ${entry.linkedTransactions?.length || 1} transaction(s)`}>
-                                              <Tag color="green" style={{ cursor: 'default' }}>
-                                                <LinkOutlined style={{ marginRight: 4 }} />
-                                                Cleared
-                                              </Tag>
-                                            </Tooltip>
-                                          ) : (
-                                            <Select
-                                              value={draftInvoice.paymentStatus ?? undefined}
-                                              onChange={handleInvoiceStatusChange}
-                                              options={ANT_INVOICE_STATUS_OPTIONS}
-                                              className="invoice-status-select"
-                                              popupMatchSelectWidth={false}
-                                              style={{ width: 'auto', minWidth: 90 }}
-                                            />
-                                          )}
+                                        {draftInvoice.paymentStatus?.toLowerCase() === 'cleared' ? (
+                                          <Tooltip title={`Paid via ${entry.linkedTransactions?.length || 1} transaction(s)`}>
+                                            <Tag color="green" style={{ cursor: 'default' }}>
+                                              <LinkOutlined style={{ marginRight: 4 }} />
+                                              Cleared
+                                            </Tag>
+                                          </Tooltip>
+                                        ) : draftInvoice.paymentStatus?.toLowerCase() === 'due' ? (
+                                          <Tooltip title="Invoice has been issued">
+                                            <Tag
+                                              color={paymentPalette.blue.backgroundColor}
+                                              className="status-chip"
+                                              style={{ color: paymentPalette.blue.color, cursor: 'default' }}
+                                            >
+                                              Due
+                                            </Tag>
+                                          </Tooltip>
+                                        ) : (
+                                          <Tooltip title="Click to issue this invoice">
+                                            <Tag
+                                              color={paymentPalette.default.backgroundColor}
+                                              className="status-chip status-draft-clickable"
+                                              style={{
+                                                color: paymentPalette.default.color,
+                                                cursor: 'pointer'
+                                              }}
+                                              onClick={handleIssueInvoiceClick}
+                                            >
+                                              <span className="blink-text">Pending</span>
+                                            </Tag>
+                                          </Tooltip>
+                                        )}
                                       </div>
                                     ) : entry.pending ? (
-                                      <span className="draft-pill">Draft</span>
+                                      <Tag
+                                        color={paymentPalette.default.backgroundColor}
+                                        className="status-chip"
+                                        style={{ color: paymentPalette.default.color }}
+                                      >
+                                        <span className="blink-text">Pending</span>
+                                      </Tag>
+                                    ) : entry.statusLabel?.toLowerCase() === 'draft' ? (
+                                      <Tooltip title="Invoice not yet issued - click to edit and issue">
+                                        <Tag
+                                          color={paymentPalette.default.backgroundColor}
+                                          className="status-chip"
+                                          style={{ color: paymentPalette.default.color }}
+                                        >
+                                          <span className="blink-text">Pending</span>
+                                        </Tag>
+                                      </Tooltip>
                                     ) : entry.statusLabel?.toLowerCase() === 'cleared' && entry.linkedTransactions?.length ? (
                                       <Tooltip title={`Paid via ${entry.linkedTransactions.length} transaction(s)`}>
                                         <Tag
@@ -3016,8 +3091,8 @@ const ProjectsShowContent = () => {
                                         <Select
                                           placeholder="Account"
                                           size="small"
-                                          value={draftInvoice.paidTo ?? undefined}
-                                          onChange={(val: string) => handlePaidToChange(val)}
+                                          value={draftInvoice.payTo ?? undefined}
+                                          onChange={(val: string) => handlePayToChange(val)}
                                           options={(accountList ?? []).map((a) => ({ label: a.accountType ? `${a.accountType} Account` : 'Account', value: a.accountDocId }))}
                                           style={{ width: 160 }}
                                           popupMatchSelectWidth={false}
@@ -3048,14 +3123,14 @@ const ProjectsShowContent = () => {
                                     {allowDetailEdit ? (
                                       <DatePicker
                                         value={draftInvoice.paidOnIso ? dayjs(draftInvoice.paidOnIso) : null}
-                                        onChange={(v) => {
+                                        onChange={(v: Dayjs | null) => {
                                           handlePaidOnChange(v)
                                         }}
                                         variant="borderless"
                                         format="MMM DD, YYYY"
                                         placeholder="Select date"
                                         allowClear
-                                        onClick={(e) => e.stopPropagation()}
+                                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
                                       />
                                     ) : (
                                       entry.paidOnText ?? "-"
@@ -3162,7 +3237,7 @@ const ProjectsShowContent = () => {
                             max={100}
                             step={0.5}
                             value={taxPercent}
-                            onChange={(v) => handleTaxChange(typeof v === 'number' ? v : 0)}
+                            onChange={(v: number | null) => handleTaxChange(typeof v === 'number' ? v : 0)}
                             className="tax-input"
                           />
                         ) : (
@@ -3883,6 +3958,10 @@ const ProjectsShowContent = () => {
         /* Blinking create-new row */
         .create-new-blink { font-family: ${KARLA_FONT}; font-weight: 700; font-style: italic; color: #0f172a; animation: blink 1.2s ease-in-out infinite; }
 
+        /* Blinking text for pending/draft status */
+        .blink-text { animation: blink 1.2s ease-in-out infinite; }
+        .status-draft-clickable:hover { opacity: 0.8; transform: scale(1.02); transition: all 0.15s ease; }
+
         /* Ensure English (Karla) part of project title is bold */
         :global(.project-title .karla-label) { font-weight: 700 !important; }
 
@@ -4525,40 +4604,8 @@ const ProjectsShowContent = () => {
 const ProjectsShowApp = () => (
   <AppShell
     dataProvider={projectsDataProvider}
-    resources={[
-      { name: "dashboard", list: "/dashboard", meta: { label: "Dashboard" } },
-      {
-        name: "client-directory",
-        list: "/client-accounts",
-        meta: { label: "Client Accounts" },
-      },
-      {
-        name: "projects",
-        list: "/projects",
-        meta: { label: "Projects" },
-      },
-      {
-        name: "finance",
-        list: "/finance",
-        meta: { label: "Finance" },
-      },
-      {
-        name: "coaching-sessions",
-        list: "/coaching-sessions",
-        meta: { label: "Coaching Sessions" },
-      },
-      {
-        name: "accounting",
-        list: "/accounting",
-        meta: { label: "Accounting" },
-      },
-      {
-        name: "tools",
-        list: "/tools",
-        meta: { label: "Tools" },
-      },
-    ]}
-    allowedMenuKeys={["dashboard", "client-directory", "projects", "finance", "accounting", "coaching-sessions", "tools"]}
+    resources={NAVIGATION_RESOURCES}
+    allowedMenuKeys={ALLOWED_MENU_KEYS}
   >
     <ProjectsShowContent />
   </AppShell>

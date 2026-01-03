@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 /**
- * Middleware for OCBC OAuth handling
+ * Middleware for OCBC OAuth handling and RBAC route protection
  *
  * Note: OCBC uses OAuth 2.0 Implicit Grant flow, which returns the access token
  * in a URL fragment (#access_token=xxx). URL fragments are never sent to the server,
@@ -13,7 +13,12 @@ import type { NextRequest } from 'next/server'
  * 2. Sends it to /api/ocbc/auth/store-token
  * 3. Redirects to the finance page
  *
- * This middleware is kept for potential future use or error handling.
+ * RBAC Note:
+ * Role-based access control is handled at the page level via getServerSideProps,
+ * not in this middleware. Edge middleware cannot easily access NextAuth sessions
+ * without duplicating JWT verification logic. When RBAC_ENABLED is true, each
+ * protected page checks the user's role/status and redirects to /auth/pending
+ * if the user is not approved.
  */
 export function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl
@@ -25,10 +30,10 @@ export function middleware(request: NextRequest) {
 
     console.log('[middleware] OAuth error at root:', { error, errorDescription })
 
-    // Redirect to finance page with error
-    const financeUrl = new URL('/finance', request.url)
-    financeUrl.searchParams.set('error', errorDescription || error || 'OAuth failed')
-    return NextResponse.redirect(financeUrl)
+    // Redirect to bank page with error
+    const bankUrl = new URL('/bank', request.url)
+    bankUrl.searchParams.set('error', errorDescription || error || 'OAuth failed')
+    return NextResponse.redirect(bankUrl)
   }
 
   return NextResponse.next()

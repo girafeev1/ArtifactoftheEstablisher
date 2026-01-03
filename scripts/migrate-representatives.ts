@@ -177,7 +177,7 @@ const migrateClients = async (opts: CliOptions, plan: any[]) => {
   return { scanned: snap.size, planned: plan.filter((p) => p.kind === 'client').length }
 }
 
-const listProjectRefs = async (fsProjects: ReturnType<typeof getAdminFirestore>) => {
+const listProjectRefs = async (fsProjects: ReturnType<NonNullable<typeof getAdminFirestore>>) => {
   const refs: any[] = []
 
   // Nested projects: projects/{year}/projects/{projectId}

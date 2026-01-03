@@ -1,12 +1,14 @@
 // components/StudentDialog/BillingTab.tsx
 
 import React, { useEffect, useState } from 'react'
-import { Box, Typography, Tooltip, IconButton } from '@mui/material'
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import { Typography, Tooltip, Button } from 'antd'
+import { InfoCircleOutlined } from '@ant-design/icons'
+
+const { Text, Title } = Typography
 import BaseRateHistoryDialog from './BaseRateHistoryDialog'
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
-import InlineEdit from '../../common/InlineEdit'
+import InlineEdit from '../InlineEdit'
 import { PATHS, logPath } from '../../lib/paths'
 import { computeBalanceDue } from '../../lib/billing/balance'
 
@@ -232,65 +234,51 @@ export default function BillingTab({
     }
   }, [abbr, account, onBilling])
 
+  const labelStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 200 }
+  const valueStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 500, margin: 0 }
+
   const renderField = (k: string) => {
     const v = fields[k]
     return (
-      <Box key={k} mb={2}>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+      <div key={k} style={{ marginBottom: 16 }}>
+        <Text type="secondary" style={labelStyle}>
           {LABELS[k]}:
           {k === 'baseRate' && (
             <Tooltip title="Base rate history">
-              <IconButton size="small" onClick={() => setHistOpen(true)}>
-                <InfoOutlinedIcon fontSize="inherit" />
-              </IconButton>
+              <Button
+                type="text"
+                size="small"
+                icon={<InfoCircleOutlined />}
+                onClick={() => setHistOpen(true)}
+                style={{ marginLeft: 4 }}
+              />
             </Tooltip>
           )}
-        </Typography>
+        </Text>
         {loading[k] ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             Loading…
-          </Typography>
+          </Title>
         ) : k === 'baseRate' ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             {v != null && !isNaN(Number(v)) ? `${formatCurrency(Number(v))} / session` : '-'}
-          </Typography>
+          </Title>
         ) : k === 'balanceDue' ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             {v != null && !isNaN(Number(v)) ? formatCurrency(Number(v)) : '-'}
-          </Typography>
+          </Title>
         ) : k === 'voucherBalance' ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             {v != null && !isNaN(Number(v)) ? Number(v) : '-'}
-          </Typography>
+          </Title>
         ) : k === 'lastPaymentDate' ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             {v === '__ERROR__' ? 'Error' : formatDate(v)}
-          </Typography>
+          </Title>
         ) : k === 'retainer' ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             {v === '__ERROR__' ? 'Error' : v || 'Inactive'}
-          </Typography>
+          </Title>
         ) : (
           <InlineEdit
             value={v}
@@ -320,14 +308,14 @@ export default function BillingTab({
             }}
           />
         )}
-      </Box>
+      </div>
     )
   }
 
   return (
-    <Box
-      style={style}
-      sx={{
+    <div
+      style={{
+        ...style,
         textAlign: 'left',
         maxWidth: '100%',
         maxHeight: '100%',
@@ -336,13 +324,10 @@ export default function BillingTab({
         flexDirection: 'column',
       }}
     >
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 1 }}>
-        <Typography
-          variant="subtitle1"
-          sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-        >
+      <div style={{ flexGrow: 1, overflow: 'auto', padding: 8 }}>
+        <Text style={{ fontFamily: 'Cantata One', textDecoration: 'underline', display: 'block', marginBottom: 8 }}>
           Billing Information
-        </Typography>
+        </Text>
         {[
           'balanceDue',
           'baseRate',
@@ -350,25 +335,18 @@ export default function BillingTab({
           'lastPaymentDate',
           'voucherBalance',
         ].map((k) => renderField(k))}
-        <Typography
-          variant="subtitle1"
-          sx={{
-            fontFamily: 'Cantata One',
-            textDecoration: 'underline',
-            mt: 2,
-          }}
-        >
+        <Text style={{ fontFamily: 'Cantata One', textDecoration: 'underline', display: 'block', marginTop: 16, marginBottom: 8 }}>
           Payment Information
-        </Typography>
+        </Text>
         {['defaultBillingType', 'billingCompany'].map((k) => renderField(k))}
-      </Box>
+      </div>
       <BaseRateHistoryDialog
         abbr={abbr}
         account={account}
         open={histOpen}
         onClose={() => setHistOpen(false)}
       />
-    </Box>
+    </div>
   )
 }
 

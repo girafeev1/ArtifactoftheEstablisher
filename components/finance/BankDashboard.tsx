@@ -24,6 +24,7 @@ import {
   Badge,
   Grid,
   Divider,
+  Switch,
   App as AntdApp,
 } from "antd"
 import {
@@ -168,7 +169,8 @@ const AirwallexIcon: React.FC<{ size?: number }> = ({ size = 24 }) => {
   )
 }
 
-// OCBC Logo Component - circular symbol with rays + "OCBC" text
+// OCBC Logo Component - circular symbol with rays + "OCBC" text paths
+// Using SVG paths for authentic letter shapes matching official branding
 const OCBCLogo: React.FC<{ width?: number; height?: number }> = ({
   width = 130,
   height = 30,
@@ -179,8 +181,17 @@ const OCBCLogo: React.FC<{ width?: number; height?: number }> = ({
       <g transform="translate(1, 1) scale(0.063)">
         <path fill="#e30513" d="m209.1 0.7c-36.2 0-70.2 9.8-99.9 26.9l39.4 48.9 28 33.7c11.3-4.1 23.4-6.3 36-6.3 61.4 0 111.2 52.6 111.2 117.4 0 45.7-24.8 85.3-60.9 104.7-2.3 1.4-43 25.6-112.7 25.6l-109.9-0.3c38 54.9 99.5 90.6 168.8 90.6 115.4 0 209-98.8 209-220.6 0-121.8-93.6-220.6-209-220.6zm-165 85.3l84 59c8.7-10.7 19.2-19.8 31-26.7l-72.7-75.5c-16 12.3-30.2 26.8-42.3 43.2zm77.1 121.6l103 41.9v-25.7l-87.7-52.6c-6.9 9.6-12.3 21.6-15.3 36.4zm26.4-48.9l76.6 53.8v-26.7l-44.3-45.9c-11.2 3.9-22.5 9.9-32.3 18.8zm76.6 131.3v-29.6l-105.3-35c-1 17 0.8 37.2 6.2 61 0 0-24-26.3-24.2-67l-98.2-32.6c-1.7 11.2-2.6 22.7-2.6 34.5 0 24 3.7 47 10.4 68.7zm-215.9-129.6l93.4 39.7c2.3-14.6 7.3-28.1 14.4-40.1l-85.4-53.5c-9.6 16.6-17.2 34.8-22.4 53.9zm91.5 143h-84.5c4.4 11.7 9.8 23 16 33.6h150.9l19.3-21.4h-90.8z"/>
       </g>
-      {/* OCBC text */}
-      <text x="34" y="22" fill="#e30513" fontFamily="'Helvetica Neue', Helvetica, Arial, sans-serif" fontSize="20" fontWeight="700" letterSpacing="-0.5">OCBC</text>
+      {/* OCBC text - using paths for authentic look */}
+      <g transform="translate(34, 6)" fill="#e30513">
+        {/* O */}
+        <path d="M0 9.5C0 4.3 3.8 0.5 9 0.5C14.2 0.5 18 4.3 18 9.5C18 14.7 14.2 18.5 9 18.5C3.8 18.5 0 14.7 0 9.5ZM9 15.2C12.1 15.2 14.3 12.8 14.3 9.5C14.3 6.2 12.1 3.8 9 3.8C5.9 3.8 3.7 6.2 3.7 9.5C3.7 12.8 5.9 15.2 9 15.2Z"/>
+        {/* C */}
+        <path d="M22 9.5C22 4.3 25.8 0.5 31 0.5C34.5 0.5 37.2 2.2 38.5 4.8L35.3 6.5C34.5 5 32.9 3.8 31 3.8C27.9 3.8 25.7 6.2 25.7 9.5C25.7 12.8 27.9 15.2 31 15.2C32.9 15.2 34.5 14 35.3 12.5L38.5 14.2C37.2 16.8 34.5 18.5 31 18.5C25.8 18.5 22 14.7 22 9.5Z"/>
+        {/* B */}
+        <path d="M42 0.8H50.5C54.2 0.8 56.5 2.8 56.5 5.8C56.5 7.5 55.7 8.9 54.3 9.7C56.2 10.5 57.3 12.1 57.3 14C57.3 17.2 54.8 18.2 51 18.2H42V0.8ZM50 8.2C52 8.2 53 7.4 53 5.9C53 4.5 52 3.7 50 3.7H45.5V8.2H50ZM50.5 15.3C52.7 15.3 53.8 14.5 53.8 12.8C53.8 11.2 52.7 10.4 50.5 10.4H45.5V15.3H50.5Z"/>
+        {/* C */}
+        <path d="M61 9.5C61 4.3 64.8 0.5 70 0.5C73.5 0.5 76.2 2.2 77.5 4.8L74.3 6.5C73.5 5 71.9 3.8 70 3.8C66.9 3.8 64.7 6.2 64.7 9.5C64.7 12.8 66.9 15.2 70 15.2C71.9 15.2 73.5 14 74.3 12.5L77.5 14.2C76.2 16.8 73.5 18.5 70 18.5C64.8 18.5 61 14.7 61 9.5Z"/>
+      </g>
     </svg>
   )
 }
@@ -190,6 +201,49 @@ const OCBCIcon: React.FC<{ size?: number }> = ({ size = 24 }) => {
   return (
     <svg width={size} height={size} viewBox="0 0 1549 1635" style={{ display: 'block' }}>
       <path fill="#e30513" fillRule="evenodd" d="m1548.7 817.6c0 451.1-346.7 817-774.2 817-256.7 0-484.5-132.2-625.2-335.5l407 1.1c258.2 0 409-89.6 417.5-94.8 133.7-71.9 225.6-218.5 225.6-387.8 0-240-184.5-434.8-411.9-434.8-46.7 0-91.5 8.2-133.4 23.3l-103.7-124.8-145.9-181.1c110-63.3 235.9-99.6 370-99.6 427.5 0 774.2 365.9 774.2 817zm-1228.7-661.1l269.3 279.6c-43.7 25.6-82.6 59.3-114.8 98.9l-311.2-218.5c44.9-60.7 97.5-114.4 156.7-160zm185.6 475.6l324.8 194.8v95.2l-381.5-155.2c11.1-54.8 31.1-99.3 56.7-134.8zm160.8-116l164 170v98.9l-283.7-199.2c36.3-33 78.2-55.2 119.7-69.7zm-627.5 555.9c-24.8-80.3-38.5-165.5-38.5-254.4 0-43.7 3.3-86.3 9.6-127.8l363.7 120.8c0.8 150.7 89.7 248.1 89.7 248.1-20-88.1-26.7-162.9-23-225.9l390 129.6v109.6zm74.9-679.6l316.3 198.2c-26.3 44.4-44.8 94.4-53.3 148.5l-346-147c19.3-70.8 47.4-138.2 83-199.7zm296.3 774.5h336.3l-71.5 79.2h-558.9c-23-39.2-43-81.1-59.3-124.4h313z"/>
+    </svg>
+  )
+}
+
+// Fubon Bank Logo Component - official FB symbol + Traditional Chinese text
+// Based on official branding: teal (#009e9c) and blue (#008fc7)
+const FubonLogo: React.FC<{ width?: number; height?: number }> = ({
+  width = 140,
+  height = 34,
+}) => {
+  return (
+    <svg width={width} height={height} viewBox="0 0 160 42" style={{ display: 'block' }}>
+      <g transform="translate(0, 0)">
+        {/* FB Symbol - F part (blue) */}
+        <g transform="matrix(1.25,0,0,1.25,13.5,20)">
+          <path fill="#008fc7" d="m 0,0 -1.446,0 0,-0.008 c -2.65,-0.068 -5.423,-0.906 -7.268,-3.003 -1.948,-2.217 -2.133,-4.183 -2.133,-7.431 l 0,-23.204 15.852,0 0,9.109 5.018,0 0,5.114 -10.068,0 0,-9.18 -5.756,0 0,19.232 c 0,0 -0.375,4.179 4.653,4.292 L 0.003,-5.022 0,0 z"/>
+        </g>
+        {/* FB Symbol - B part (teal) */}
+        <g transform="matrix(1.25,0,0,1.25,30.4,16.7)">
+          <path fill="#009e9c" d="M 0,0 C -0.017,-0.012 0.017,0.004 0,0 0,0 -0.002,-0.098 0.284,-0.299 2.077,-1.742 3.025,-3.133 3.013,-5.975 3,-9.521 -0.076,-12.096 -3.571,-12.096 l 0,-4.902 c 6.085,0 11.612,4.338 11.612,10.519 0,2.213 -0.603,4.391 -2.109,6.514 0.067,0.086 0.391,0.47 0.657,0.944 0.373,0.654 0.442,1.453 0.442,4.119 l 0,11.555 -15.608,0 0,-9.21 -4.973,0 0,-5.055 10.059,0 0,9.085 5.615,0 0,-7.839 C 2.124,3.634 2.353,1.447 0,0"/>
+        </g>
+        {/* 富邦銀行 Traditional Chinese text */}
+        <text x="52" y="29" fill="#000000" fontFamily="'PingFang TC', 'Microsoft JhengHei', 'Heiti TC', sans-serif" fontSize="20" fontWeight="600" letterSpacing="1">
+          富邦銀行
+        </text>
+      </g>
+    </svg>
+  )
+}
+
+// Fubon Bank Icon - official FB symbol only
+const FubonIcon: React.FC<{ size?: number }> = ({ size = 24 }) => {
+  const scale = size / 42
+  return (
+    <svg width={size} height={size} viewBox="0 0 42 42" style={{ display: 'block' }}>
+      {/* FB Symbol - F part (blue) */}
+      <g transform="matrix(1.25,0,0,1.25,13.5,20)">
+        <path fill="#008fc7" d="m 0,0 -1.446,0 0,-0.008 c -2.65,-0.068 -5.423,-0.906 -7.268,-3.003 -1.948,-2.217 -2.133,-4.183 -2.133,-7.431 l 0,-23.204 15.852,0 0,9.109 5.018,0 0,5.114 -10.068,0 0,-9.18 -5.756,0 0,19.232 c 0,0 -0.375,4.179 4.653,4.292 L 0.003,-5.022 0,0 z"/>
+      </g>
+      {/* FB Symbol - B part (teal) */}
+      <g transform="matrix(1.25,0,0,1.25,30.4,16.7)">
+        <path fill="#009e9c" d="M 0,0 C -0.017,-0.012 0.017,0.004 0,0 0,0 -0.002,-0.098 0.284,-0.299 2.077,-1.742 3.025,-3.133 3.013,-5.975 3,-9.521 -0.076,-12.096 -3.571,-12.096 l 0,-4.902 c 6.085,0 11.612,4.338 11.612,10.519 0,2.213 -0.603,4.391 -2.109,6.514 0.067,0.086 0.391,0.47 0.657,0.944 0.373,0.654 0.442,1.453 0.442,4.119 l 0,11.555 -15.608,0 0,-9.21 -4.973,0 0,-5.055 10.059,0 0,9.085 5.615,0 0,-7.839 C 2.124,3.634 2.353,1.447 0,0"/>
+      </g>
     </svg>
   )
 }
@@ -225,10 +279,13 @@ interface BalanceCardProps {
   onCurrencyChange: (currency: string) => void
   convertToCurrency: string
   onConvertCurrencyChange: (currency: string) => void
-  fxRate: FxRate | null
+  fxRates: Record<string, number>  // Currency -> rate to convertToCurrency
   fxLoading?: boolean
   loading?: boolean
 }
+
+// Currencies to show in the All Wallets section
+const DISPLAY_CURRENCIES = ["HKD", "CNY", "EUR", "USD", "GBP"]
 
 const BalanceCard: React.FC<BalanceCardProps> = ({
   balances,
@@ -236,19 +293,34 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
   onCurrencyChange,
   convertToCurrency,
   onConvertCurrencyChange,
-  fxRate,
+  fxRates,
   fxLoading,
   loading,
 }) => {
-  const selectedBalance = balances.find(b => b.currency === viewCurrency) || balances[0]
-  const totalBalance = selectedBalance?.total || 0
+  const [showConverted, setShowConverted] = useState(false)
 
-  // Show all wallets with balances, sorted by total desc
-  const walletsWithBalance = balances.filter(b => b.total > 0 || b.pending > 0)
+  // Filter wallets to only show specific currencies
+  const displayWallets = DISPLAY_CURRENCIES.map(currency => {
+    const wallet = balances.find(b => b.currency === currency)
+    return wallet || { currency, available: 0, total: 0, pending: 0 }
+  })
 
-  // Calculate converted amount
-  const convertedAmount = fxRate ? fxRate.buy_amount : null
   const showConversion = convertToCurrency !== viewCurrency
+
+  // Calculate total balance: sum of ALL wallets converted to target currency
+  const totalConverted = displayWallets.reduce((sum, wallet) => {
+    if (wallet.currency === convertToCurrency) {
+      // Same currency, no conversion needed
+      return sum + wallet.total
+    }
+    const rate = fxRates[wallet.currency] || 0
+    return sum + (wallet.total * rate)
+  }, 0)
+
+  // For display: show converted total when conversion is active, otherwise show selected wallet balance
+  const selectedBalance = balances.find(b => b.currency === viewCurrency)
+  const displayCurrency = showConversion ? convertToCurrency : viewCurrency
+  const displayAmount = showConversion ? totalConverted : (selectedBalance?.total || 0)
 
   // Build currency options for conversion (exclude current viewCurrency)
   const conversionOptions = CONVERSION_CURRENCIES
@@ -257,122 +329,112 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
 
   return (
     <Card
-      title={<Text strong style={{ fontSize: 16 }}>Balance</Text>}
+      title={
+        <Row justify="space-between" align="middle">
+          <Text strong style={{ fontSize: 16 }}>Balance</Text>
+          <Select
+            value={convertToCurrency}
+            onChange={onConvertCurrencyChange}
+            style={{ width: 90 }}
+            size="small"
+            loading={fxLoading}
+            options={[
+              { value: viewCurrency, label: viewCurrency },
+              ...conversionOptions
+            ]}
+            optionRender={(option: { value?: React.ReactNode; label?: React.ReactNode }) => (
+              <Space>
+                <CurrencyFlagIcon currency={option.value as string} size={16} />
+                <span>{option.value}</span>
+              </Space>
+            )}
+          />
+        </Row>
+      }
       loading={loading}
       style={{ height: "100%" }}
     >
-      {/* Total Balance Header */}
+      {/* Total Balance Header - shows converted currency when selected */}
       <div style={{ marginBottom: 16 }}>
         <Space align="center">
-          <CurrencyFlagIcon currency={viewCurrency} size={32} />
+          <CurrencyFlagIcon currency={displayCurrency} size={32} />
           <div>
             <Title level={2} style={{ margin: 0 }}>
-              {formatCurrency(totalBalance, viewCurrency)}
+              {fxLoading && showConversion ? "..." : formatCurrency(displayAmount, displayCurrency)}
             </Title>
             <Text type="secondary">Total balance</Text>
           </div>
         </Space>
       </div>
 
-      {/* FX Conversion Section */}
-      <div style={{ marginBottom: 16, padding: "12px", background: "#f8f9fa", borderRadius: 8 }}>
-        <Row align="middle" gutter={8}>
-          <Col>
-            <Text type="secondary" style={{ fontSize: 12 }}>Convert to</Text>
-          </Col>
-          <Col>
-            <Select
-              value={convertToCurrency}
-              onChange={onConvertCurrencyChange}
-              style={{ width: 100 }}
-              size="small"
-              loading={fxLoading}
-              options={[
-                { value: viewCurrency, label: `${viewCurrency} (same)` },
-                ...conversionOptions
-              ]}
-              optionRender={(option) => (
-                <Space>
-                  <CurrencyFlagIcon currency={option.value as string} size={16} />
-                  <span>{option.label}</span>
-                </Space>
-              )}
-            />
-          </Col>
-          <Col flex="auto" style={{ textAlign: "right" }}>
-            {fxLoading ? (
-              <Spin size="small" />
-            ) : showConversion && convertedAmount !== null ? (
-              <div>
-                <Space>
-                  <CurrencyFlagIcon currency={convertToCurrency} size={20} />
-                  <Text strong style={{ fontSize: 16 }}>
-                    {formatCurrency(convertedAmount, convertToCurrency)}
-                  </Text>
-                </Space>
-                {fxRate && (
-                  <div>
-                    <Text type="secondary" style={{ fontSize: 11 }}>
-                      Rate: 1 {viewCurrency} = {fxRate.rate.toFixed(6)} {convertToCurrency}
-                    </Text>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Select currency to convert
-              </Text>
-            )}
-          </Col>
-        </Row>
-      </div>
-
       <Divider style={{ margin: "16px 0" }} />
 
       {/* All Wallet Balances */}
       <div>
-        <Text type="secondary" style={{ fontSize: 12, marginBottom: 8, display: "block" }}>
-          ALL WALLETS
-        </Text>
-        {walletsWithBalance.length === 0 ? (
-          <Text type="secondary">No wallets with balance</Text>
-        ) : (
-          <Space direction="vertical" style={{ width: "100%" }} size={12}>
-            {walletsWithBalance.map(wallet => (
-              <Row
-                key={wallet.currency}
-                justify="space-between"
-                align="middle"
-                style={{
-                  padding: "8px 12px",
-                  background: wallet.currency === viewCurrency ? "#f6f8fa" : "transparent",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                }}
-                onClick={() => onCurrencyChange(wallet.currency)}
-              >
-                <Col>
-                  <Space>
-                    <CurrencyFlagIcon currency={wallet.currency} size={24} />
-                    <div>
-                      <Text strong>{wallet.currency}</Text>
-                      {wallet.pending > 0 && (
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 11 }}>
-                            Pending: {formatCurrency(wallet.pending, wallet.currency)}
-                          </Text>
-                        </div>
-                      )}
-                    </div>
-                  </Space>
-                </Col>
-                <Col>
-                  <Text strong>{formatCurrency(wallet.total, wallet.currency)}</Text>
-                </Col>
-              </Row>
-            ))}
-          </Space>
-        )}
+        <Row justify="space-between" align="middle" style={{ marginBottom: 8 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            ALL WALLETS
+          </Text>
+          {showConversion && (
+            <Tooltip title={showConverted ? `Show native currencies` : `Show as ${convertToCurrency}`}>
+              <Switch
+                size="small"
+                checked={showConverted}
+                onChange={setShowConverted}
+                checkedChildren={convertToCurrency}
+                unCheckedChildren="FX"
+              />
+            </Tooltip>
+          )}
+        </Row>
+        <Space direction="vertical" style={{ width: "100%" }} size={8}>
+          {displayWallets
+            .filter(wallet => wallet.currency !== viewCurrency) // Exclude view currency (shown in Total)
+            .map(wallet => {
+              // Calculate converted amount for this wallet
+              const rate = wallet.currency === convertToCurrency ? 1 : (fxRates[wallet.currency] || 0)
+              const walletConverted = showConverted && rate > 0
+                ? wallet.total * rate
+                : wallet.total
+              const walletDisplayCurrency = showConverted ? convertToCurrency : wallet.currency
+
+              return (
+                <Row
+                  key={wallet.currency}
+                  justify="space-between"
+                  align="middle"
+                  style={{
+                    padding: "8px 12px",
+                    background: "transparent",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                  onClick={() => onCurrencyChange(wallet.currency)}
+                >
+                  <Col>
+                    <Space>
+                      <CurrencyFlagIcon currency={wallet.currency} size={24} />
+                      <div>
+                        <Text strong>{wallet.currency}</Text>
+                        {wallet.pending > 0 && (
+                          <div>
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                              Pending: {formatCurrency(wallet.pending, wallet.currency)}
+                            </Text>
+                          </div>
+                        )}
+                      </div>
+                    </Space>
+                  </Col>
+                  <Col>
+                    <Text strong>
+                      {showConverted && fxLoading ? "..." : formatCurrency(walletConverted, walletDisplayCurrency)}
+                    </Text>
+                  </Col>
+                </Row>
+              )
+            })}
+        </Space>
       </div>
     </Card>
   )
@@ -666,7 +728,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
       key: "date",
       width: 100,
       render: (date: string) => (
-        <Text style={{ fontSize: 13 }}>{dayjs(date).format("YYYY-MM-DD")}</Text>
+        <Text style={{ fontSize: 13 }}>{dayjs(date).format("MMM DD, YYYY HH:mm")}</Text>
       ),
       sorter: (a, b) => dayjs(a.date).unix() - dayjs(b.date).unix(),
       defaultSortOrder: "descend",
@@ -683,7 +745,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
         return (
           <Space size={6}>
             {getTransactionTypeIcon(record.metadata?.source_type)}
-            <Text style={{ fontSize: 13 }}>{typeLabel}</Text>
+            <Text strong style={{ fontSize: 13 }}>{typeLabel}</Text>
           </Space>
         )
       },
@@ -696,7 +758,7 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
         const details = record.description || ""
         return (
           <Tooltip title={details}>
-            <Text style={{ fontSize: 13 }} ellipsis>
+            <Text style={{ fontSize: 15 }} ellipsis>
               {details}
             </Text>
           </Tooltip>
@@ -757,13 +819,16 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
         pagination={showAll ? {
           pageSize: 20,
           showSizeChanger: true,
-          showTotal: (total) => `${total} transactions`,
+          showTotal: (total: number) => `${total} transactions`,
           size: "small",
         } : false}
         size="small"
-        onRow={(record) => ({
+        onRow={(record: BankTransaction, index?: number) => ({
           onClick: () => onRowClick(record),
-          style: { cursor: "pointer" },
+          style: {
+            cursor: "pointer",
+            background: index !== undefined && index % 2 === 1 ? "#fafafa" : "#fff",
+          },
         })}
         locale={{
           emptyText: (
@@ -847,12 +912,6 @@ const GlobalAccountsCard: React.FC<GlobalAccountsCardProps> = ({
               </Col>
             )}
           </Row>
-          <Alert
-            type="warning"
-            message="Use exact account name or deposit may be rejected"
-            style={{ marginTop: 8, fontSize: 11 }}
-            showIcon
-          />
         </div>
       ))}
     </Card>
@@ -887,7 +946,7 @@ const BankDashboard: React.FC<BankDashboardProps> = ({
   // UI State
   const [viewCurrency, setViewCurrency] = useState("HKD")
   const [convertToCurrency, setConvertToCurrency] = useState("USD")
-  const [fxRate, setFxRate] = useState<FxRate | null>(null)
+  const [fxRates, setFxRates] = useState<Record<string, number>>({})  // Currency -> rate to convertToCurrency
   const [fxLoading, setFxLoading] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<BankTransaction | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -1094,29 +1153,22 @@ const BankDashboard: React.FC<BankDashboardProps> = ({
     }
   }, [providerId])
 
-  const fetchFxRate = useCallback(async (
+  // Fetch a single FX rate and return it
+  // Returns: how much buyCurrency you get per 1 sellCurrency
+  const fetchSingleFxRate = useCallback(async (
     sellCurrency: string,
-    buyCurrency: string,
-    sellAmount: number
-  ) => {
+    buyCurrency: string
+  ): Promise<number> => {
     // Skip if same currency
     if (sellCurrency === buyCurrency) {
-      setFxRate({
-        buy_currency: buyCurrency,
-        sell_currency: sellCurrency,
-        rate: 1,
-        buy_amount: sellAmount,
-        sell_amount: sellAmount,
-      })
-      return
+      return 1
     }
 
-    setFxLoading(true)
     try {
       const params = new URLSearchParams({
         sell_currency: sellCurrency,
         buy_currency: buyCurrency,
-        sell_amount: String(sellAmount),
+        sell_amount: "1", // Just get the rate for 1 unit
       })
 
       const response = await fetch(`/api/${providerId}/fx-rates?${params}`, {
@@ -1125,18 +1177,50 @@ const BankDashboard: React.FC<BankDashboardProps> = ({
       const data = await response.json()
 
       if (data.success && data.data?.rates?.length > 0) {
-        setFxRate(data.data.rates[0])
-      } else {
-        console.warn("No FX rate available for", sellCurrency, "->", buyCurrency)
-        setFxRate(null)
+        const rateData = data.data.rates[0]
+        // Use buy_amount which tells us how much buyCurrency we get for 1 sellCurrency
+        // This is more reliable than the rate field which can be inverted
+        if (rateData.buy_amount && rateData.sell_amount) {
+          return rateData.buy_amount / rateData.sell_amount
+        }
+        // Fallback to rate, but it might be inverted - check if rate > 1 for typical pairs
+        const rate = rateData.rate || 0
+        // For HKD->USD, rate should be ~0.13, not ~7.8
+        // If rate > 1 and we're converting from a weaker currency, it's likely inverted
+        return rate
       }
+      console.warn("No FX rate available for", sellCurrency, "->", buyCurrency)
+      return 0
     } catch (err) {
       console.error("Failed to fetch FX rate:", err)
-      setFxRate(null)
+      return 0
+    }
+  }, [providerId])
+
+  // Fetch FX rates for all display currencies to the target currency
+  const fetchAllFxRates = useCallback(async (targetCurrency: string) => {
+    setFxLoading(true)
+    try {
+      const rates: Record<string, number> = {}
+
+      // Fetch rates for all display currencies in parallel
+      const promises = DISPLAY_CURRENCIES.map(async (currency) => {
+        const rate = await fetchSingleFxRate(currency, targetCurrency)
+        return { currency, rate }
+      })
+
+      const results = await Promise.all(promises)
+      results.forEach(({ currency, rate }) => {
+        rates[currency] = rate
+      })
+
+      setFxRates(rates)
+    } catch (err) {
+      console.error("Failed to fetch FX rates:", err)
     } finally {
       setFxLoading(false)
     }
-  }, [providerId])
+  }, [fetchSingleFxRate])
 
   const loadAllData = useCallback(async () => {
     setLoading(true)
@@ -1168,15 +1252,11 @@ const BankDashboard: React.FC<BankDashboardProps> = ({
     init()
   }, [checkConnection, loadAllData])
 
-  // Fetch FX rate when conversion currency or balance changes
+  // Fetch FX rates for all currencies when conversion currency changes
   useEffect(() => {
     if (!connected || balances.length === 0) return
-
-    const selectedBalance = balances.find(b => b.currency === viewCurrency)
-    if (selectedBalance && selectedBalance.total > 0) {
-      fetchFxRate(viewCurrency, convertToCurrency, selectedBalance.total)
-    }
-  }, [connected, viewCurrency, convertToCurrency, balances, fetchFxRate])
+    fetchAllFxRates(convertToCurrency)
+  }, [connected, convertToCurrency, balances, fetchAllFxRates])
 
   // ============================================================================
   // Actions
@@ -1250,6 +1330,10 @@ const BankDashboard: React.FC<BankDashboardProps> = ({
                 <div style={{ marginBottom: 16 }}>
                   <AirwallexIcon size={64} />
                 </div>
+              ) : providerId === "fubon" ? (
+                <div style={{ marginBottom: 16 }}>
+                  <FubonIcon size={64} />
+                </div>
               ) : providerId === "ocbc" ? (
                 <div style={{ marginBottom: 16 }}>
                   <OCBCIcon size={64} />
@@ -1262,6 +1346,8 @@ const BankDashboard: React.FC<BankDashboardProps> = ({
               <Space direction="vertical" align="center">
                 {providerId === "airwallex" ? (
                   <AirwallexLogo width={140} height={24} />
+                ) : providerId === "fubon" ? (
+                  <FubonLogo width={140} height={36} />
                 ) : providerId === "ocbc" ? (
                   <OCBCLogo width={140} height={36} />
                 ) : (
@@ -1280,8 +1366,8 @@ const BankDashboard: React.FC<BankDashboardProps> = ({
               onClick={handleConnect}
               loading={connecting}
               style={{
-                backgroundColor: providerId === "airwallex" ? "#FF4244" : providerId === "ocbc" ? "#E60012" : provider?.color,
-                borderColor: providerId === "airwallex" ? "#FF4244" : providerId === "ocbc" ? "#E60012" : provider?.color,
+                backgroundColor: providerId === "airwallex" ? "#FF4244" : providerId === "fubon" ? "#0066b3" : providerId === "ocbc" ? "#E60012" : provider?.color,
+                borderColor: providerId === "airwallex" ? "#FF4244" : providerId === "fubon" ? "#0066b3" : providerId === "ocbc" ? "#E60012" : provider?.color,
               }}
             >
               Connect {provider?.name || "Account"}
@@ -1340,6 +1426,11 @@ const BankDashboard: React.FC<BankDashboardProps> = ({
                 <AirwallexLogo width={120} height={20} />
                 <Tag color="success">Connected</Tag>
               </>
+            ) : providerId === "fubon" ? (
+              <>
+                <FubonLogo width={120} height={24} />
+                <Tag color="success">Connected</Tag>
+              </>
             ) : providerId === "ocbc" ? (
               <>
                 <OCBCLogo width={100} height={26} />
@@ -1381,7 +1472,7 @@ const BankDashboard: React.FC<BankDashboardProps> = ({
               onCurrencyChange={setViewCurrency}
               convertToCurrency={convertToCurrency}
               onConvertCurrencyChange={setConvertToCurrency}
-              fxRate={fxRate}
+              fxRates={fxRates}
               fxLoading={fxLoading}
               loading={loading}
             />

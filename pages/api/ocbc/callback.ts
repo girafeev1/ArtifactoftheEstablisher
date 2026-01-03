@@ -28,7 +28,7 @@ export default async function handler(
         error_description,
       })
       return res.redirect(
-        `/finance?error=${encodeURIComponent(
+        `/bank?error=${encodeURIComponent(
           String(error_description || error)
         )}`
       )
@@ -37,7 +37,7 @@ export default async function handler(
     if (!code || typeof code !== 'string') {
       console.error('[api/ocbc/callback] Missing authorization code')
       return res.redirect(
-        '/finance?error=Missing%20authorization%20code'
+        '/bank?error=Missing%20authorization%20code'
       )
     }
 
@@ -57,7 +57,7 @@ export default async function handler(
 
     if (!session?.user?.email) {
       console.error('[api/ocbc/callback] No authenticated session')
-      return res.redirect('/api/auth/signin?callbackUrl=/finance')
+      return res.redirect('/api/auth/signin?callbackUrl=/bank')
     }
 
     const userId = session.user.email
@@ -69,7 +69,7 @@ export default async function handler(
         actual: userId,
       })
       return res.redirect(
-        '/finance?error=Session%20mismatch'
+        '/bank?error=Session%20mismatch'
       )
     }
 
@@ -93,7 +93,7 @@ export default async function handler(
     })
 
     // Redirect back to finance page with success
-    return res.redirect('/finance?ocbc_connected=true')
+    return res.redirect('/bank?ocbc_connected=true')
 
   } catch (error) {
     console.error('[api/ocbc/callback] Error:', error)
@@ -104,7 +104,7 @@ export default async function handler(
         : 'Failed to connect OCBC'
 
     return res.redirect(
-      `/finance?error=${encodeURIComponent(errorMessage)}`
+      `/bank?error=${encodeURIComponent(errorMessage)}`
     )
   }
 }

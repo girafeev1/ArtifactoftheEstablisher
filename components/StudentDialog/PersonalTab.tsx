@@ -1,17 +1,12 @@
 // components/StudentDialog/PersonalTab.tsx
 
 import React, { useEffect, useState } from 'react'
-import {
-  Box,
-  Typography,
-  TextField,
-  MenuItem,
-  Button,
-  Stack,
-} from '@mui/material'
-import InlineEdit from '../../common/InlineEdit'
+import { Typography, Input, Select, Button, Space } from 'antd'
+import InlineEdit from '../InlineEdit'
 import { collection, getDocs, query, orderBy, limit, doc, setDoc } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+
+const { Text, Title } = Typography
 
 console.log('=== StudentDialog loaded version 1.1 ===')
 
@@ -315,36 +310,30 @@ export default function PersonalTab({
     return String(v)
   }
 
+  const labelStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 200 }
+  const valueStyle: React.CSSProperties = { fontFamily: 'Newsreader', fontWeight: 500, margin: 0 }
+
   return (
-    <Box style={style} sx={{ textAlign: 'left', maxWidth: '100%', maxHeight: '100%', overflow: 'auto' }}>
-      <Typography
-        variant="subtitle1"
-        sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-      >
+    <div style={{ ...style, textAlign: 'left', maxWidth: '100%', maxHeight: '100%', overflow: 'auto' }}>
+      <Text style={{ fontFamily: 'Cantata One', textDecoration: 'underline', display: 'block', marginBottom: 8 }}>
         Personal Information
-      </Typography>
-      <Box
-        sx={{
+      </Text>
+      <div
+        style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(2, 260px)',
-          gap: 2,
-          mb: 2,
+          gap: 16,
+          marginBottom: 16,
         }}
       >
-        <Box sx={{ width: 260 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-          >
+        <div style={{ width: 260 }}>
+          <Text type="secondary" style={labelStyle}>
             First Name:
-          </Typography>
+          </Text>
           {loading.firstName ? (
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
+            <Title level={5} style={valueStyle}>
               Loading…
-            </Typography>
+            </Title>
           ) : (
             <InlineEdit
               value={fields.firstName}
@@ -359,21 +348,15 @@ export default function PersonalTab({
               }}
             />
           )}
-        </Box>
-        <Box sx={{ width: 260 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-          >
+        </div>
+        <div style={{ width: 260 }}>
+          <Text type="secondary" style={labelStyle}>
             Last Name:
-          </Typography>
+          </Text>
           {loading.lastName ? (
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
+            <Title level={5} style={valueStyle}>
               Loading…
-            </Typography>
+            </Title>
           ) : (
             <InlineEdit
               value={fields.lastName}
@@ -388,31 +371,25 @@ export default function PersonalTab({
               }}
             />
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
-      <Box
-        sx={{
+      <div
+        style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 160px)',
-          gap: 2,
-          mb: 2,
+          gap: 16,
+          marginBottom: 16,
         }}
       >
-        <Box sx={{ width: 160 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-          >
+        <div style={{ width: 160 }}>
+          <Text type="secondary" style={labelStyle}>
             Gender:
-          </Typography>
+          </Text>
           {loading.sex ? (
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
+            <Title level={5} style={valueStyle}>
               Loading…
-            </Typography>
+            </Title>
           ) : (
             <InlineEdit
               value={fields.sex}
@@ -428,35 +405,23 @@ export default function PersonalTab({
               }}
             />
           )}
-        </Box>
-        <Box sx={{ width: 160 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-          >
+        </div>
+        <div style={{ width: 160 }}>
+          <Text type="secondary" style={labelStyle}>
             Age:
-          </Typography>
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          </Text>
+          <Title level={5} style={valueStyle}>
             {age || '–'}
-          </Typography>
-        </Box>
-        <Box sx={{ width: 200 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-          >
+          </Title>
+        </div>
+        <div style={{ width: 200 }}>
+          <Text type="secondary" style={labelStyle}>
             Birth Date:
-          </Typography>
+          </Text>
           {loading.birthDate ? (
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
+            <Title level={5} style={valueStyle}>
               Loading…
-            </Typography>
+            </Title>
           ) : (
             <InlineEdit
               value={fields.birthDate}
@@ -471,27 +436,21 @@ export default function PersonalTab({
               }}
             />
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
-      <Box mb={2} sx={{ width: 260 }}>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+      <div style={{ marginBottom: 16, width: 260 }}>
+        <Text type="secondary" style={labelStyle}>
           ID No.:
-        </Typography>
+        </Text>
         {loading.hkid ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             Loading…
-          </Typography>
+          </Title>
         ) : editingHKID ? (
-          <TextField
+          <Input
             value={hkidDraft}
-            onChange={(e) => setHkidDraft(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHkidDraft(e.target.value)}
             onBlur={() => {
               if (hkidDraft !== fields.hkid) {
                 saveCustom('HKID', 'hkid', { idNumber: hkidDraft }, () => {
@@ -503,55 +462,48 @@ export default function PersonalTab({
             size="small"
           />
         ) : (
-          <Typography
-            variant="h6"
-            sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
+          <Title
+            level={5}
+            style={{ ...valueStyle, cursor: 'pointer' }}
             onClick={() => setEditingHKID(true)}
           >
             {displayField(fields.hkid)}
-          </Typography>
+          </Title>
         )}
-      </Box>
+      </div>
 
-      <Typography
-        variant="subtitle1"
-        sx={{ fontFamily: 'Cantata One', textDecoration: 'underline' }}
-      >
+      <Text style={{ fontFamily: 'Cantata One', textDecoration: 'underline', display: 'block', marginBottom: 8 }}>
         Contact Information
-      </Typography>
+      </Text>
 
       {/* Contact Number */}
-      <Box mb={2} sx={{ width: 260 }}>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+      <div style={{ marginBottom: 16, width: 260 }}>
+        <Text type="secondary" style={labelStyle}>
           Contact Number:
-        </Typography>
+        </Text>
         {loading.contactNumber ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             Loading…
-          </Typography>
+          </Title>
         ) : editingPhone ? (
-          <Stack direction="row" spacing={1}>
-            <TextField
-              label="Country Code"
+          <Space>
+            <Input
+              placeholder="Country Code"
               type="number"
               value={phoneDraft.countryCode}
-              onChange={(e) => setPhoneDraft((p) => ({ ...p, countryCode: e.target.value }))}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhoneDraft((p) => ({ ...p, countryCode: e.target.value }))}
               size="small"
+              style={{ width: 100 }}
             />
-            <TextField
-              label="Phone Number"
+            <Input
+              placeholder="Phone Number"
               type="number"
               value={phoneDraft.phoneNumber}
-              onChange={(e) => setPhoneDraft((p) => ({ ...p, phoneNumber: e.target.value }))}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhoneDraft((p) => ({ ...p, phoneNumber: e.target.value }))}
               size="small"
             />
             <Button
+              size="small"
               onClick={() => {
                 saveCustom(
                   'contactNumber',
@@ -569,11 +521,11 @@ export default function PersonalTab({
             >
               Save
             </Button>
-          </Stack>
+          </Space>
         ) : (
-          <Typography
-            variant="h6"
-            sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
+          <Title
+            level={5}
+            style={{ ...valueStyle, cursor: 'pointer' }}
             onClick={() => setEditingPhone(true)}
           >
             {fields.contactNumber.countryCode === undefined &&
@@ -582,34 +534,29 @@ export default function PersonalTab({
               : `+${displayField(fields.contactNumber.countryCode)} ${displayField(
                   fields.contactNumber.phoneNumber,
                 )}`}
-          </Typography>
+          </Title>
         )}
-      </Box>
+      </div>
 
       {/* Email Address */}
-      <Box mb={2} sx={{ width: 260 }}>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+      <div style={{ marginBottom: 16, width: 260 }}>
+        <Text type="secondary" style={labelStyle}>
           Email Address:
-        </Typography>
+        </Text>
         {loading.emailAddress ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             Loading…
-          </Typography>
+          </Title>
         ) : editingEmail ? (
-          <Stack direction="row" spacing={1}>
-            <TextField
-              label="Email"
+          <Space>
+            <Input
+              placeholder="Email"
               value={emailDraft}
-              onChange={(e) => setEmailDraft(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmailDraft(e.target.value)}
               size="small"
             />
             <Button
+              size="small"
               onClick={() => {
                 const valid = /.+@.+\..+/.test(emailDraft)
                 if (!valid) {
@@ -624,77 +571,60 @@ export default function PersonalTab({
             >
               Save
             </Button>
-          </Stack>
+          </Space>
         ) : (
-          <Typography
-            variant="h6"
-            sx={{ cursor: 'pointer', fontFamily: 'Newsreader', fontWeight: 500 }}
+          <Title
+            level={5}
+            style={{ ...valueStyle, cursor: 'pointer' }}
             onClick={() => setEditingEmail(true)}
           >
             {displayField(fields.emailAddress)}
-          </Typography>
+          </Title>
         )}
-      </Box>
+      </div>
 
       {/* Contact Address */}
-      <Box mb={2} sx={{ width: 260 }}>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: 'Newsreader', fontWeight: 200 }}
-        >
+      <div style={{ marginBottom: 16, width: 260 }}>
+        <Text type="secondary" style={labelStyle}>
           Contact Address:
-        </Typography>
+        </Text>
         {loading.address ? (
-          <Typography
-            variant="h6"
-            sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-          >
+          <Title level={5} style={valueStyle}>
             Loading…
-          </Typography>
+          </Title>
         ) : editingAddr ? (
-          <Box>
-            <TextField
-              label="Address Line 1"
-              fullWidth
+          <div>
+            <Input
+              placeholder="Address Line 1"
               value={addrDraft.addressLine1}
-              onChange={(e) => setAddrDraft((p) => ({ ...p, addressLine1: e.target.value }))}
-              sx={{ mb: 1 }}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddrDraft((p) => ({ ...p, addressLine1: e.target.value }))}
+              style={{ marginBottom: 8 }}
             />
-            <TextField
-              label="Address Line 2"
-              fullWidth
+            <Input
+              placeholder="Address Line 2"
               value={addrDraft.addressLine2}
-              onChange={(e) => setAddrDraft((p) => ({ ...p, addressLine2: e.target.value }))}
-              sx={{ mb: 1 }}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddrDraft((p) => ({ ...p, addressLine2: e.target.value }))}
+              style={{ marginBottom: 8 }}
             />
-            <TextField
-              label="Address Line 3"
-              fullWidth
+            <Input
+              placeholder="Address Line 3"
               value={addrDraft.addressLine3}
-              onChange={(e) => setAddrDraft((p) => ({ ...p, addressLine3: e.target.value }))}
-              sx={{ mb: 1 }}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddrDraft((p) => ({ ...p, addressLine3: e.target.value }))}
+              style={{ marginBottom: 8 }}
             />
-            <TextField
-              label="District"
-              fullWidth
+            <Input
+              placeholder="District"
               value={addrDraft.district}
-              onChange={(e) => setAddrDraft((p) => ({ ...p, district: e.target.value }))}
-              sx={{ mb: 1 }}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddrDraft((p) => ({ ...p, district: e.target.value }))}
+              style={{ marginBottom: 8 }}
             />
-            <TextField
-              select
-              label="Region"
-              fullWidth
-              value={addrDraft.region}
-              onChange={(e) => setAddrDraft((p) => ({ ...p, region: e.target.value }))}
-              sx={{ mb: 1 }}
-            >
-              {REGION_OPTIONS.map((r) => (
-                <MenuItem key={r} value={r}>
-                  {r}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Select
+              placeholder="Region"
+              style={{ width: '100%', marginBottom: 8 }}
+              value={addrDraft.region || undefined}
+              onChange={(val: string) => setAddrDraft((p) => ({ ...p, region: val }))}
+              options={REGION_OPTIONS.map((r) => ({ label: r, value: r }))}
+            />
             <Button
               onClick={() => {
                 saveCustom('Address', 'address', addrDraft, (d) => {
@@ -705,43 +635,28 @@ export default function PersonalTab({
             >
               Save
             </Button>
-          </Box>
+          </div>
         ) : (
-          <Box sx={{ cursor: 'pointer' }} onClick={() => setEditingAddr(true)}>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
+          <div style={{ cursor: 'pointer' }} onClick={() => setEditingAddr(true)}>
+            <Title level={5} style={valueStyle}>
               {displayField(fields.address.addressLine1)}
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
+            </Title>
+            <Title level={5} style={valueStyle}>
               {displayField(fields.address.addressLine2)}
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
+            </Title>
+            <Title level={5} style={valueStyle}>
               {displayField(fields.address.addressLine3)}
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
+            </Title>
+            <Title level={5} style={valueStyle}>
               {displayField(fields.address.district)}
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{ fontFamily: 'Newsreader', fontWeight: 500 }}
-            >
+            </Title>
+            <Title level={5} style={valueStyle}>
               {displayField(fields.address.region)}
-            </Typography>
-          </Box>
+            </Title>
+          </div>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }
 

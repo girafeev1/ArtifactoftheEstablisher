@@ -18,8 +18,6 @@ import '../styles/project-dialog.css';
 import '../styles/accounting.css';
 import 'react-resizable/css/styles.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from '@mui/material/styles';
-import theme from '../lib/theme';
 import { PromptIdProvider } from '../lib/promptId';
 
 if (typeof window !== 'undefined') {
@@ -41,17 +39,15 @@ function MyApp({ Component, pageProps }: AppProps<{ promptId?: string; session?:
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </Head>
       <div className={`${newsreader.className} ${cantata.className} ${nunito.variable} ${cormorantInfant.className} ${robotoMono.className} ${fascinate.className}`}>
-        <ThemeProvider theme={theme}>
-          <QueryClientProvider client={queryClient}>
-            <SessionProvider session={pageProps.session}>
-              <PromptIdProvider value={pageProps.promptId ?? ''}>
-                <SnackbarProvider maxSnack={3}>
-                  <Component {...pageProps} />
-                </SnackbarProvider>
-              </PromptIdProvider>
-            </SessionProvider>
-          </QueryClientProvider>
-        </ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <SessionProvider session={pageProps.session}>
+            <PromptIdProvider value={pageProps.promptId ?? ''}>
+              <SnackbarProvider maxSnack={3}>
+                <Component {...pageProps} />
+              </SnackbarProvider>
+            </PromptIdProvider>
+          </SessionProvider>
+        </QueryClientProvider>
       </div>
     </>
   );

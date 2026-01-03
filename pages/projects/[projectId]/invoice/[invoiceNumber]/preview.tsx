@@ -1,19 +1,20 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Button, Space, Typography, Empty, Spin, Switch } from "antd";
-import React, { useEffect, useState } from "react";
+import { Button, Space, Typography, Empty, Spin, Switch, Select } from "antd";
+import React, { useEffect, useState, useMemo } from "react";
 import AppShell from "../../../../../components/layout/AppShell";
 import { projectsDataProvider } from "../../../../../components/projects/ProjectsApp";
-// NOTE: GeneratedInvoice kept for reference - not rendered but code preserved
-// import GeneratedInvoice from "../../../../../components/projects/GeneratedInvoice";
-import DynamicInvoice from "../../../../../components/projects/DynamicInvoice";
+import { Invoice } from "../../../../../lib/invoice";
+import type { BankInfo, InvoiceVariant } from "../../../../../lib/invoice/types";
 import type { ProjectInvoiceRecord } from "../../../../../lib/projectInvoices";
 import type { ProjectRecord } from "../../../../../lib/projectsDatabase";
 import { fetchSubsidiaryById, type SubsidiaryDoc } from "../../../../../lib/subsidiaries";
 import { resolveBankAccountIdentifier } from "../../../../../lib/erlDirectory";
 import { getAuthOptions } from "../../../../../pages/api/auth/[...nextauth]";
 import { getServerSession } from "next-auth";
-import type { ComposedInvoice } from "../../../../../lib/invoiceTemplates/layoutComposer";
+import { num2eng, num2chi } from "../../../../../lib/invoiceFormat";
+import { buildHKFPSPayload, buildHKFPSQrUrl } from "../../../../../lib/fpsPayload";
+import { representativeNameOnly } from "../../../../../lib/representative";
 
 const { Title, Text } = Typography;
 
@@ -26,14 +27,12 @@ export default function InvoicePreviewPage() {
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [subsidiary, setSubsidiary] = useState<SubsidiaryDoc | null>(null);
   const [showGridOverlay, setShowGridOverlay] = useState(false);
+  const [showFlexDebug, setShowFlexDebug] = useState(false);
+  const [invoiceVariant, setInvoiceVariant] = useState<InvoiceVariant>("B");
   const [bankInfo, setBankInfo] = useState<any | null>(null);
   const [projectReady, setProjectReady] = useState(false);
   const [subsidiaryReady, setSubsidiaryReady] = useState(false);
   const [bankReady, setBankReady] = useState(false);
-
-  // State for dynamic rendering
-  const [composedLayout, setComposedLayout] = useState<ComposedInvoice | null>(null);
-  const [dynamicLoading, setDynamicLoading] = useState(false);
 
   const projectNumber = (router.query.projectNumber as string) || '';
   const isPdfPreview = router.query.pdf === '1' || router.query.pdf === 'true';
@@ -62,25 +61,6 @@ export default function InvoicePreviewPage() {
       })
       .catch(() => {
         setLoading(false);
-      });
-  }, [year, projectId, invoiceNumber]);
-
-  // Fetch dynamic invoice layout
-  useEffect(() => {
-    if (!year || !projectId || !invoiceNumber) return;
-
-    setDynamicLoading(true);
-    fetch(`/api/invoices/${encodeURIComponent(year)}/${encodeURIComponent(projectId)}/${encodeURIComponent(invoiceNumber)}/dynamic`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.composedLayout) {
-          setComposedLayout(data.composedLayout);
-        }
-        setDynamicLoading(false);
-      })
-      .catch((err) => {
-        console.error('Failed to fetch dynamic layout:', err);
-        setDynamicLoading(false);
       });
   }, [year, projectId, invoiceNumber]);
 
@@ -128,18 +108,19 @@ export default function InvoicePreviewPage() {
     void run();
   }, [project?.subsidiary]);
 
-  // Resolve bank info from the invoice's paidTo identifier so we can bind
+  // Resolve bank info from the invoice's payTo identifier so we can bind
   // BankName/BankCode/account number tokens for the Instruction sheet.
+  // payTo is the bank account for payment instructions (where client should pay)
   useEffect(() => {
     setBankReady(false);
     const run = async () => {
-      if (!invoice?.paidTo) {
+      if (!invoice?.payTo) {
         setBankInfo(null);
          setBankReady(true);
         return;
       }
       try {
-        const info = await resolveBankAccountIdentifier(invoice.paidTo);
+        const info = await resolveBankAccountIdentifier(invoice.payTo);
         setBankInfo(info);
       } catch {
         setBankInfo(null);
@@ -148,7 +129,7 @@ export default function InvoicePreviewPage() {
       }
     };
     void run();
-  }, [invoice?.paidTo]);
+  }, [invoice?.payTo]);
 
   const onBack = React.useCallback(() => {
     if (projectId) router.push(`/projects/${encodeURIComponent(projectId)}`)
@@ -163,6 +144,44 @@ export default function InvoicePreviewPage() {
   const isReadyForPrint =
     !loading && !!invoice && projectReady && subsidiaryReady && bankReady;
 
+  // Calculate invoice total and derived values
+  const invoiceTotal = useMemo(() => {
+    if (!invoice?.items) return 0;
+    return invoice.items.reduce((sum, item) => {
+      const lineTotal = (item.unitPrice || 0) * (item.quantity || 0) - (item.discount || 0);
+      return sum + lineTotal;
+    }, 0);
+  }, [invoice?.items]);
+
+  const totalEnglish = useMemo(() => num2eng(invoiceTotal), [invoiceTotal]);
+  const totalChinese = useMemo(() => num2chi(invoiceTotal), [invoiceTotal]);
+
+  // Extract client representative name for cheque signature
+  const clientRepresentative = useMemo(() => {
+    return representativeNameOnly(invoice?.representative) ?? undefined;
+  }, [invoice?.representative]);
+
+  // Build FPS QR code URL
+  const qrCodeUrl = useMemo(() => {
+    const fpsProxy = bankInfo?.fpsId || bankInfo?.fpsEmail || null;
+    const payload = buildHKFPSPayload(
+      fpsProxy,
+      false, // Don't include amount in QR
+      null,
+      invoice?.invoiceNumber ? `#${invoice.invoiceNumber}` : null
+    );
+    return buildHKFPSQrUrl(payload, 220);
+  }, [bankInfo, invoice?.invoiceNumber]);
+
+  // Map bankInfo to BankInfo type expected by Invoice component
+  const invoiceBankInfo: BankInfo = useMemo(() => ({
+    bankName: bankInfo?.bankName ?? '',
+    bankCode: bankInfo?.bankCode ?? '',
+    accountNumber: bankInfo?.accountNumber ?? '',
+    fpsId: bankInfo?.fpsId,
+    fpsEmail: bankInfo?.fpsEmail,
+  }), [bankInfo]);
+
   // When everything this page needs for bindings is ready, log a concise
   // snapshot so that the headless Chromium run (via the PDF API) can surface
   // what data it actually sees at print time.
@@ -171,20 +190,26 @@ export default function InvoicePreviewPage() {
     // eslint-disable-next-line no-console
     console.log('[invoice-preview][ready]', {
       invoiceNumber: invoice.invoiceNumber,
+      payTo: invoice.payTo ?? '(not set)',
       hasProject: !!project,
       hasSubsidiary: !!subsidiary,
       hasBankInfo: !!bankInfo,
+      bankInfoDetails: bankInfo ? {
+        bankName: bankInfo.bankName || '(empty)',
+        bankCode: bankInfo.bankCode || '(empty)',
+        accountNumber: bankInfo.accountNumber || '(empty)',
+        fpsId: bankInfo.fpsId || '(not set)',
+        fpsEmail: bankInfo.fpsEmail || '(not set)',
+      } : null,
       clientCompanyName: invoice.companyName,
       subsidiaryEnglishName: subsidiary?.englishName ?? null,
       subsidiaryChineseName: subsidiary?.chineseName ?? null,
+      invoiceVariant,
+      qrCodeGenerated: !!qrCodeUrl,
       isPdfPreview,
       showGridOverlay,
-      hasDynamicLayout: !!composedLayout,
     });
-  }, [isReadyForPrint, invoice, project, subsidiary, bankInfo, composedLayout]);
-
-  const isDynamicReady = !dynamicLoading && !!composedLayout;
-  const canRenderDynamic = isReadyForPrint && isDynamicReady;
+  }, [isReadyForPrint, invoice, project, subsidiary, bankInfo, isPdfPreview, showGridOverlay, invoiceVariant, qrCodeUrl]);
 
   return (
     <AppShell
@@ -193,10 +218,10 @@ export default function InvoicePreviewPage() {
         { name: 'dashboard', list: '/dashboard', meta: { label: 'Dashboard' } },
         { name: 'client-directory', list: '/client-accounts', meta: { label: 'Client Accounts' } },
         { name: 'projects', list: '/projects', meta: { label: 'Projects' } },
-        { name: 'finance', list: '/finance', meta: { label: 'Finance' } },
+        { name: 'bank', list: '/bank', meta: { label: 'Bank Access' } },
         { name: 'accounting', list: '/accounting', meta: { label: 'Accounting' } },
       ]}
-      allowedMenuKeys={['dashboard', 'client-directory', 'projects', 'finance', 'accounting']}
+      allowedMenuKeys={['dashboard', 'client-directory', 'projects', 'bank', 'accounting']}
     >
       <div className="preview-page">
         <Head><title>{pageTitle}</title></Head>
@@ -206,8 +231,27 @@ export default function InvoicePreviewPage() {
               <Button onClick={onBack}>&larr; Back to {projectNumber || 'Project'}</Button>
               <Title level={4} style={{ margin: 0 }}>Preview — #{invoiceNumber}</Title>
               <Space size={4} style={{ marginLeft: 12 }}>
+                <Text type="secondary">Variant</Text>
+                <Select
+                  value={invoiceVariant}
+                  onChange={setInvoiceVariant}
+                  size="small"
+                  style={{ width: 90 }}
+                  options={[
+                    { label: "B (Basic)", value: "B" },
+                    { label: "B2", value: "B2" },
+                    { label: "A", value: "A" },
+                    { label: "A2", value: "A2" },
+                  ]}
+                />
+              </Space>
+              <Space size={4} style={{ marginLeft: 12 }}>
                 <Text type="secondary">Grid</Text>
                 <Switch size="small" checked={showGridOverlay} onChange={setShowGridOverlay} />
+              </Space>
+              <Space size={4} style={{ marginLeft: 12 }}>
+                <Text type="secondary">Flex</Text>
+                <Switch size="small" checked={showFlexDebug} onChange={setShowFlexDebug} />
               </Space>
             </Space>
             <Space>
@@ -216,20 +260,6 @@ export default function InvoicePreviewPage() {
               </Button>
             </Space>
           </Space>
-
-          {/* Dynamic layout status */}
-          {dynamicLoading && (
-            <div style={{ marginBottom: 16, padding: '12px', background: '#f5f5f5', borderRadius: '6px' }}>
-              <Text type="secondary">Loading dynamic layout...</Text>
-            </div>
-          )}
-          {!dynamicLoading && composedLayout && (
-            <div style={{ marginBottom: 16, padding: '12px', background: '#f6ffed', borderRadius: '6px' }}>
-              <Text type="success">
-                Dynamic layout ready: {composedLayout.totalPages} page(s), {composedLayout.metadata.layoutMode}
-              </Text>
-            </div>
-          )}
 
           <div className="viewer-wrap">
             {loading ? (
@@ -240,33 +270,31 @@ export default function InvoicePreviewPage() {
               <div
                 className="html-invoice"
                 id="invoice-print-root"
-                data-ready={canRenderDynamic ? '1' : '0'}
+                data-ready={isReadyForPrint ? '1' : '0'}
               >
-                {/* DynamicInvoice Renderer */}
-                {canRenderDynamic && composedLayout && (
-                  <DynamicInvoice
+                {/* Invoice Renderer (React component-based) */}
+                {isReadyForPrint && subsidiary && (
+                  <Invoice
                     invoice={invoice}
-                    composedLayout={composedLayout}
-                    project={project ?? undefined}
-                    subsidiary={subsidiary ?? undefined}
-                    showGridOverlay={showGridOverlay}
-                    bankInfo={bankInfo}
-                    suppressGridLabels={false}
+                    project={project}
+                    subsidiary={subsidiary}
+                    bankInfo={invoiceBankInfo}
+                    variant={invoiceVariant}
+                    totalEnglish={totalEnglish}
+                    totalChinese={totalChinese}
+                    clientRepresentative={clientRepresentative}
+                    qrCodeUrl={qrCodeUrl ?? undefined}
+                    debug={showGridOverlay}
+                    flexDebug={showFlexDebug}
                   />
                 )}
 
-                {dynamicLoading && (
+                {!isReadyForPrint && (
                   <div style={{ padding: '40px', textAlign: 'center' }}>
                     <Spin size="large" />
                     <div style={{ marginTop: 16 }}>
-                      <Text type="secondary">Generating dynamic layout...</Text>
+                      <Text type="secondary">Loading invoice data...</Text>
                     </div>
-                  </div>
-                )}
-
-                {!dynamicLoading && !composedLayout && (
-                  <div style={{ padding: '40px', textAlign: 'center' }}>
-                    <Text type="warning">Unable to generate dynamic layout</Text>
                   </div>
                 )}
               </div>
@@ -339,8 +367,8 @@ export default function InvoicePreviewPage() {
               width: auto !important;
             }
 
-            /* Dynamic invoice container - allow natural flow */
-            .dynamic-invoice-container {
+            /* Invoice container - allow natural flow */
+            .invoice-container {
               overflow: visible !important;
               padding: 0 !important;
               margin: 0 !important;
@@ -348,7 +376,7 @@ export default function InvoicePreviewPage() {
 
             /* CRITICAL: Each invoice-page div is one printed page.
                Allow natural document flow for multi-page printing. */
-            .dynamic-invoice-container .invoice-page {
+            .invoice-container .invoice-page {
               page-break-inside: avoid !important;
               break-inside: avoid !important;
               page-break-after: always !important;
@@ -358,15 +386,9 @@ export default function InvoicePreviewPage() {
               overflow: hidden !important;
             }
 
-            .dynamic-invoice-container .invoice-page:last-child {
+            .invoice-container .invoice-page:last-child {
               page-break-after: auto !important;
               break-after: auto !important;
-            }
-
-            /* Keep overflow hidden - content is pre-scaled to fit A4 */
-            .scheme-wrapper,
-            .scheme-grid {
-              overflow: hidden !important;
             }
           }
         `}</style>
