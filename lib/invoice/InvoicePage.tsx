@@ -204,35 +204,28 @@ export const InvoicePage: React.FC<InvoicePageProps> = ({
               </React.Fragment>
             ))}
 
-            {/* === Before Total Spacing === */}
-            {isLastPage && spacing.beforeTotal > 0 && (
-              <Spacer rows={spacing.beforeTotal} />
-            )}
+          </InvoiceGrid>
 
-            {/* === Total Box (last page only) === */}
-            {isLastPage && (
+          {/* Flexible spacer - pushes total box + footer to bottom */}
+          <div style={{ flex: '1 1 auto', minHeight: '0px' }} />
+
+          {/* === Total Box (last page only) - anchored to bottom === */}
+          {isLastPage && (
+            <InvoiceGrid showGrid={debug} style={{ flex: '0 0 auto' }}>
               <TotalBox
                 total={total}
                 totalEnglish={totalEnglish}
                 totalChinese={totalChinese}
                 debug={flexDebug}
               />
-            )}
+            </InvoiceGrid>
+          )}
 
-            {/* === After Total Spacing === */}
-            {isLastPage && spacing.afterTotal && spacing.afterTotal > 0 && (
-              <Spacer rows={spacing.afterTotal} />
-            )}
-          </InvoiceGrid>
-
-          {/* Flexible spacer - pushes footer to bottom */}
-          {/* On last page (with total box): cap at 4 rows (84px) to keep total box close to footer */}
-          {/* On other pages: unlimited to ensure footer stays at page bottom */}
-          <div style={{
-            flex: '1 1 auto',
-            minHeight: '0px',
-            maxHeight: isLastPage ? '84px' : undefined, // 4 rows × 21px = 84px max gap
-          }} />
+          {/* Gap between total box and footer: 0-4 rows (0-84px) */}
+          {/* flex: 0 1 84px means starts at 84px but can shrink to 0 when content is long */}
+          {isLastPage && (
+            <div style={{ flex: '0 1 84px', minHeight: '0px' }} />
+          )}
 
           {/* Footer grid - always at bottom of page */}
           {/* Footer type depends on variant:
