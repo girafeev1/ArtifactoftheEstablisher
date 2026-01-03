@@ -91,13 +91,13 @@ export const PaymentDetailsPage: React.FC<PaymentDetailsPageProps> = ({
     '173:H': subsidiary.brNumber || (subsidiary as unknown as { br?: string })?.br || '',
 
     // Bank Info: Bank name + code (row 174 col D, merge D-H)
-    // Bank code is intentionally smaller (10pt) than bank name
+    // Bank code is intentionally smaller (10pt) than bank name, but still bold
     '174:D': {
       value: (
         <span>
           {bankInfo.bankName}
           {bankInfo.bankCode && (
-            <span style={{ fontSize: '10pt' }}> ({bankInfo.bankCode})</span>
+            <span style={{ fontSize: '10pt', fontWeight: 700 }}> ({bankInfo.bankCode})</span>
           )}
         </span>
       ),
@@ -119,7 +119,11 @@ export const PaymentDetailsPage: React.FC<PaymentDetailsPageProps> = ({
     '178:H': subsidiary.englishName || '',
 
     // Amount: Chinese (row 180 col D, merge D-F)
-    '180:D': totalChinese || '',
+    // Override gray color from scheme data to black
+    '180:D': {
+      value: totalChinese || '',
+      style: { color: '#000' },
+    },
 
     // Right side: Address lines (rows 180-183 col H)
     '180:H': subsidiary.addressLine1 || '',
